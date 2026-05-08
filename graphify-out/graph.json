@@ -1,0 +1,562 @@
+{
+  "directed": false,
+  "multigraph": false,
+  "graph": {},
+  "nodes": [
+    {
+      "label": "index.ts",
+      "file_type": "code",
+      "source_file": "D:\\TESIS\\mesh\\backend\\src\\index.ts",
+      "source_location": "L1",
+      "id": "d_tesis_mesh_backend_src_index_ts",
+      "community": 13,
+      "norm_label": "index.ts"
+    },
+    {
+      "label": "index.ts",
+      "file_type": "code",
+      "source_file": "D:\\TESIS\\mesh\\backend\\src\\routes\\index.ts",
+      "source_location": "L1",
+      "id": "d_tesis_mesh_backend_src_routes_index_ts",
+      "community": 14,
+      "norm_label": "index.ts"
+    },
+    {
+      "label": "index.ts",
+      "file_type": "code",
+      "source_file": "D:\\TESIS\\mesh\\backend\\src\\sockets\\index.ts",
+      "source_location": "L1",
+      "id": "d_tesis_mesh_backend_src_sockets_index_ts",
+      "community": 1,
+      "norm_label": "index.ts"
+    },
+    {
+      "label": "registerSocketHandlers()",
+      "file_type": "code",
+      "source_file": "D:\\TESIS\\mesh\\backend\\src\\sockets\\index.ts",
+      "source_location": "L3",
+      "id": "index_registersockethandlers",
+      "community": 1,
+      "norm_label": "registersockethandlers()"
+    },
+    {
+      "label": "+html.tsx",
+      "file_type": "code",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\app\\+html.tsx",
+      "source_location": "L1",
+      "id": "d_tesis_mesh_frontend_app_html_tsx",
+      "community": 2,
+      "norm_label": "+html.tsx"
+    },
+    {
+      "label": "Root()",
+      "file_type": "code",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\app\\+html.tsx",
+      "source_location": "L7",
+      "id": "html_root",
+      "community": 2,
+      "norm_label": "root()"
+    },
+    {
+      "label": "+not-found.tsx",
+      "file_type": "code",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\app\\+not-found.tsx",
+      "source_location": "L1",
+      "id": "d_tesis_mesh_frontend_app_not_found_tsx",
+      "community": 3,
+      "norm_label": "+not-found.tsx"
+    },
+    {
+      "label": "NotFoundScreen()",
+      "file_type": "code",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\app\\+not-found.tsx",
+      "source_location": "L6",
+      "id": "not_found_notfoundscreen",
+      "community": 3,
+      "norm_label": "notfoundscreen()"
+    },
+    {
+      "label": "modal.tsx",
+      "file_type": "code",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\app\\modal.tsx",
+      "source_location": "L1",
+      "id": "d_tesis_mesh_frontend_app_modal_tsx",
+      "community": 4,
+      "norm_label": "modal.tsx"
+    },
+    {
+      "label": "ModalScreen()",
+      "file_type": "code",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\app\\modal.tsx",
+      "source_location": "L7",
+      "id": "modal_modalscreen",
+      "community": 4,
+      "norm_label": "modalscreen()"
+    },
+    {
+      "label": "_layout.tsx",
+      "file_type": "code",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\app\\_layout.tsx",
+      "source_location": "L1",
+      "id": "d_tesis_mesh_frontend_app_layout_tsx",
+      "community": 15,
+      "norm_label": "_layout.tsx"
+    },
+    {
+      "label": "index.tsx",
+      "file_type": "code",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\app\\(tabs)\\index.tsx",
+      "source_location": "L1",
+      "id": "d_tesis_mesh_frontend_app_tabs_index_tsx",
+      "community": 5,
+      "norm_label": "index.tsx"
+    },
+    {
+      "label": "TabOneScreen()",
+      "file_type": "code",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\app\\(tabs)\\index.tsx",
+      "source_location": "L6",
+      "id": "index_tabonescreen",
+      "community": 5,
+      "norm_label": "tabonescreen()"
+    },
+    {
+      "label": "two.tsx",
+      "file_type": "code",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\app\\(tabs)\\two.tsx",
+      "source_location": "L1",
+      "id": "d_tesis_mesh_frontend_app_tabs_two_tsx",
+      "community": 6,
+      "norm_label": "two.tsx"
+    },
+    {
+      "label": "TabTwoScreen()",
+      "file_type": "code",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\app\\(tabs)\\two.tsx",
+      "source_location": "L6",
+      "id": "two_tabtwoscreen",
+      "community": 6,
+      "norm_label": "tabtwoscreen()"
+    },
+    {
+      "label": "_layout.tsx",
+      "file_type": "code",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\app\\(tabs)\\_layout.tsx",
+      "source_location": "L1",
+      "id": "d_tesis_mesh_frontend_app_tabs_layout_tsx",
+      "community": 7,
+      "norm_label": "_layout.tsx"
+    },
+    {
+      "label": "TabBarIcon()",
+      "file_type": "code",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\app\\(tabs)\\_layout.tsx",
+      "source_location": "L11",
+      "id": "layout_tabbaricon",
+      "community": 7,
+      "norm_label": "tabbaricon()"
+    },
+    {
+      "label": "EditScreenInfo.tsx",
+      "file_type": "code",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\components\\EditScreenInfo.tsx",
+      "source_location": "L1",
+      "id": "d_tesis_mesh_frontend_components_editscreeninfo_tsx",
+      "community": 8,
+      "norm_label": "editscreeninfo.tsx"
+    },
+    {
+      "label": "EditScreenInfo()",
+      "file_type": "code",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\components\\EditScreenInfo.tsx",
+      "source_location": "L10",
+      "id": "editscreeninfo_editscreeninfo",
+      "community": 8,
+      "norm_label": "editscreeninfo()"
+    },
+    {
+      "label": "ExternalLink.tsx",
+      "file_type": "code",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\components\\ExternalLink.tsx",
+      "source_location": "L1",
+      "id": "d_tesis_mesh_frontend_components_externallink_tsx",
+      "community": 9,
+      "norm_label": "externallink.tsx"
+    },
+    {
+      "label": "ExternalLink()",
+      "file_type": "code",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\components\\ExternalLink.tsx",
+      "source_location": "L6",
+      "id": "externallink_externallink",
+      "community": 9,
+      "norm_label": "externallink()"
+    },
+    {
+      "label": "StyledText.tsx",
+      "file_type": "code",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\components\\StyledText.tsx",
+      "source_location": "L1",
+      "id": "d_tesis_mesh_frontend_components_styledtext_tsx",
+      "community": 10,
+      "norm_label": "styledtext.tsx"
+    },
+    {
+      "label": "MonoText()",
+      "file_type": "code",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\components\\StyledText.tsx",
+      "source_location": "L3",
+      "id": "styledtext_monotext",
+      "community": 10,
+      "norm_label": "monotext()"
+    },
+    {
+      "label": "Themed.tsx",
+      "file_type": "code",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\components\\Themed.tsx",
+      "source_location": "L1",
+      "id": "d_tesis_mesh_frontend_components_themed_tsx",
+      "community": 0,
+      "norm_label": "themed.tsx"
+    },
+    {
+      "label": "useThemeColor()",
+      "file_type": "code",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\components\\Themed.tsx",
+      "source_location": "L19",
+      "id": "themed_usethemecolor",
+      "community": 0,
+      "norm_label": "usethemecolor()"
+    },
+    {
+      "label": "Text()",
+      "file_type": "code",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\components\\Themed.tsx",
+      "source_location": "L33",
+      "id": "themed_text",
+      "community": 0,
+      "norm_label": "text()"
+    },
+    {
+      "label": "View()",
+      "file_type": "code",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\components\\Themed.tsx",
+      "source_location": "L40",
+      "id": "themed_view",
+      "community": 0,
+      "norm_label": "view()"
+    },
+    {
+      "label": "useClientOnlyValue.ts",
+      "file_type": "code",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\components\\useClientOnlyValue.ts",
+      "source_location": "L1",
+      "id": "d_tesis_mesh_frontend_components_useclientonlyvalue_ts",
+      "community": 11,
+      "norm_label": "useclientonlyvalue.ts"
+    },
+    {
+      "label": "useClientOnlyValue()",
+      "file_type": "code",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\components\\useClientOnlyValue.ts",
+      "source_location": "L2",
+      "id": "useclientonlyvalue_useclientonlyvalue",
+      "community": 11,
+      "norm_label": "useclientonlyvalue()"
+    },
+    {
+      "label": "useClientOnlyValue.web.ts",
+      "file_type": "code",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\components\\useClientOnlyValue.web.ts",
+      "source_location": "L1",
+      "id": "d_tesis_mesh_frontend_components_useclientonlyvalue_web_ts",
+      "community": 12,
+      "norm_label": "useclientonlyvalue.web.ts"
+    },
+    {
+      "label": "useClientOnlyValue()",
+      "file_type": "code",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\components\\useClientOnlyValue.web.ts",
+      "source_location": "L5",
+      "id": "useclientonlyvalue_web_useclientonlyvalue",
+      "community": 12,
+      "norm_label": "useclientonlyvalue()"
+    },
+    {
+      "label": "useColorScheme.ts",
+      "file_type": "code",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\components\\useColorScheme.ts",
+      "source_location": "L1",
+      "id": "d_tesis_mesh_frontend_components_usecolorscheme_ts",
+      "community": 16,
+      "norm_label": "usecolorscheme.ts"
+    },
+    {
+      "label": "useColorScheme.web.ts",
+      "file_type": "code",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\components\\useColorScheme.web.ts",
+      "source_location": "L1",
+      "id": "d_tesis_mesh_frontend_components_usecolorscheme_web_ts",
+      "community": 0,
+      "norm_label": "usecolorscheme.web.ts"
+    },
+    {
+      "label": "useColorScheme()",
+      "file_type": "code",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\components\\useColorScheme.web.ts",
+      "source_location": "L6",
+      "id": "usecolorscheme_web_usecolorscheme",
+      "community": 0,
+      "norm_label": "usecolorscheme()"
+    },
+    {
+      "label": "StyledText-test.js",
+      "file_type": "code",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\components\\__tests__\\StyledText-test.js",
+      "source_location": "L1",
+      "id": "d_tesis_mesh_frontend_components_tests_styledtext_test_js",
+      "community": 17,
+      "norm_label": "styledtext-test.js"
+    },
+    {
+      "label": "Colors.ts",
+      "file_type": "code",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\constants\\Colors.ts",
+      "source_location": "L1",
+      "id": "d_tesis_mesh_frontend_constants_colors_ts",
+      "community": 18,
+      "norm_label": "colors.ts"
+    }
+  ],
+  "links": [
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\TESIS\\mesh\\backend\\src\\sockets\\index.ts",
+      "source_location": "L3",
+      "weight": 1.0,
+      "_src": "d_tesis_mesh_backend_src_sockets_index_ts",
+      "_tgt": "index_registersockethandlers",
+      "source": "d_tesis_mesh_backend_src_sockets_index_ts",
+      "target": "index_registersockethandlers",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\app\\+html.tsx",
+      "source_location": "L7",
+      "weight": 1.0,
+      "_src": "d_tesis_mesh_frontend_app_html_tsx",
+      "_tgt": "html_root",
+      "source": "d_tesis_mesh_frontend_app_html_tsx",
+      "target": "html_root",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\app\\+not-found.tsx",
+      "source_location": "L6",
+      "weight": 1.0,
+      "_src": "d_tesis_mesh_frontend_app_not_found_tsx",
+      "_tgt": "not_found_notfoundscreen",
+      "source": "d_tesis_mesh_frontend_app_not_found_tsx",
+      "target": "not_found_notfoundscreen",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\app\\modal.tsx",
+      "source_location": "L7",
+      "weight": 1.0,
+      "_src": "d_tesis_mesh_frontend_app_modal_tsx",
+      "_tgt": "modal_modalscreen",
+      "source": "d_tesis_mesh_frontend_app_modal_tsx",
+      "target": "modal_modalscreen",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\app\\(tabs)\\index.tsx",
+      "source_location": "L6",
+      "weight": 1.0,
+      "_src": "d_tesis_mesh_frontend_app_tabs_index_tsx",
+      "_tgt": "index_tabonescreen",
+      "source": "d_tesis_mesh_frontend_app_tabs_index_tsx",
+      "target": "index_tabonescreen",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\app\\(tabs)\\two.tsx",
+      "source_location": "L6",
+      "weight": 1.0,
+      "_src": "d_tesis_mesh_frontend_app_tabs_two_tsx",
+      "_tgt": "two_tabtwoscreen",
+      "source": "d_tesis_mesh_frontend_app_tabs_two_tsx",
+      "target": "two_tabtwoscreen",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\app\\(tabs)\\_layout.tsx",
+      "source_location": "L11",
+      "weight": 1.0,
+      "_src": "d_tesis_mesh_frontend_app_tabs_layout_tsx",
+      "_tgt": "layout_tabbaricon",
+      "source": "d_tesis_mesh_frontend_app_tabs_layout_tsx",
+      "target": "layout_tabbaricon",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\components\\EditScreenInfo.tsx",
+      "source_location": "L10",
+      "weight": 1.0,
+      "_src": "d_tesis_mesh_frontend_components_editscreeninfo_tsx",
+      "_tgt": "editscreeninfo_editscreeninfo",
+      "source": "d_tesis_mesh_frontend_components_editscreeninfo_tsx",
+      "target": "editscreeninfo_editscreeninfo",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\components\\ExternalLink.tsx",
+      "source_location": "L6",
+      "weight": 1.0,
+      "_src": "d_tesis_mesh_frontend_components_externallink_tsx",
+      "_tgt": "externallink_externallink",
+      "source": "d_tesis_mesh_frontend_components_externallink_tsx",
+      "target": "externallink_externallink",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\components\\StyledText.tsx",
+      "source_location": "L3",
+      "weight": 1.0,
+      "_src": "d_tesis_mesh_frontend_components_styledtext_tsx",
+      "_tgt": "styledtext_monotext",
+      "source": "d_tesis_mesh_frontend_components_styledtext_tsx",
+      "target": "styledtext_monotext",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\components\\Themed.tsx",
+      "source_location": "L19",
+      "weight": 1.0,
+      "_src": "d_tesis_mesh_frontend_components_themed_tsx",
+      "_tgt": "themed_usethemecolor",
+      "source": "d_tesis_mesh_frontend_components_themed_tsx",
+      "target": "themed_usethemecolor",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\components\\Themed.tsx",
+      "source_location": "L33",
+      "weight": 1.0,
+      "_src": "d_tesis_mesh_frontend_components_themed_tsx",
+      "_tgt": "themed_text",
+      "source": "d_tesis_mesh_frontend_components_themed_tsx",
+      "target": "themed_text",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\components\\Themed.tsx",
+      "source_location": "L40",
+      "weight": 1.0,
+      "_src": "d_tesis_mesh_frontend_components_themed_tsx",
+      "_tgt": "themed_view",
+      "source": "d_tesis_mesh_frontend_components_themed_tsx",
+      "target": "themed_view",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\components\\Themed.tsx",
+      "source_location": "L35",
+      "weight": 1.0,
+      "_src": "themed_text",
+      "_tgt": "themed_usethemecolor",
+      "source": "themed_usethemecolor",
+      "target": "themed_text",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\components\\Themed.tsx",
+      "source_location": "L42",
+      "weight": 1.0,
+      "_src": "themed_view",
+      "_tgt": "themed_usethemecolor",
+      "source": "themed_usethemecolor",
+      "target": "themed_view",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "D:\\TESIS\\mesh\\frontend\\components\\Themed.tsx",
+      "source_location": "L23",
+      "weight": 1.0,
+      "_src": "themed_usethemecolor",
+      "_tgt": "usecolorscheme_web_usecolorscheme",
+      "source": "themed_usethemecolor",
+      "target": "usecolorscheme_web_usecolorscheme"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\components\\useClientOnlyValue.ts",
+      "source_location": "L2",
+      "weight": 1.0,
+      "_src": "d_tesis_mesh_frontend_components_useclientonlyvalue_ts",
+      "_tgt": "useclientonlyvalue_useclientonlyvalue",
+      "source": "d_tesis_mesh_frontend_components_useclientonlyvalue_ts",
+      "target": "useclientonlyvalue_useclientonlyvalue",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\components\\useClientOnlyValue.web.ts",
+      "source_location": "L5",
+      "weight": 1.0,
+      "_src": "d_tesis_mesh_frontend_components_useclientonlyvalue_web_ts",
+      "_tgt": "useclientonlyvalue_web_useclientonlyvalue",
+      "source": "d_tesis_mesh_frontend_components_useclientonlyvalue_web_ts",
+      "target": "useclientonlyvalue_web_useclientonlyvalue",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\TESIS\\mesh\\frontend\\components\\useColorScheme.web.ts",
+      "source_location": "L6",
+      "weight": 1.0,
+      "_src": "d_tesis_mesh_frontend_components_usecolorscheme_web_ts",
+      "_tgt": "usecolorscheme_web_usecolorscheme",
+      "source": "d_tesis_mesh_frontend_components_usecolorscheme_web_ts",
+      "target": "usecolorscheme_web_usecolorscheme",
+      "confidence_score": 1.0
+    }
+  ],
+  "hyperedges": []
+}
