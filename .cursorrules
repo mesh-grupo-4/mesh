@@ -37,8 +37,8 @@ Actualizar las notas en `tesis-brain/` en el mismo paso o PR. Sincronizar el gra
 | Runtime | Node.js + TypeScript |
 | HTTP | Express v5 |
 | WebSockets | Socket.io v4 |
-| ORM | Prisma |
-| DB | PostgreSQL + PostGIS |
+| ORM | Prisma v7 |
+| DB | Supabase (PostgreSQL + PostGIS) |
 | Validación | Zod (DTOs y entrada) |
 | Auth | Firebase Authentication |
 | Seguridad | helmet, cors |
@@ -63,7 +63,7 @@ modules/{dominio}/
   utils/ | types/
 routes/             → rutas Express (entry: index.ts con /api/health)
 middleware/          → middlewares de Express
-config/             → Firebase Auth, DB, env
+config/             → Firebase Auth, DB (prisma.ts singleton), env
 index.ts            → entry point: Express + Socket.io
 ```
 
@@ -185,11 +185,19 @@ API RESTful documentada bajo **OpenAPI**. Todo endpoint nuevo debe tener su spec
 **OpenStreetMap** exclusivamente. Sin dependencia de APIs comerciales (Google Maps, Mapbox). Costo de carga: $0.
 
 ### Base de datos geoespacial
-**PostGIS obligatorio** para datos de ubicación. Convenciones:
+**Supabase** como proveedor administrado de **PostgreSQL + PostGIS**. PostGIS está habilitado como extensión en el proyecto Supabase.
+
+Convenciones:
 - Tablas en `snake_case` (ej. `registro_gps`, `parada_intermedia`).
 - IDs: **UUID** por defecto.
 - Tipos espaciales: `POINT` para ubicaciones, `LINESTRING` para trazados de ruta.
 - Cálculos espaciales: **delegarlos a la base de datos** usando funciones nativas (`ST_Distance`, `ST_DWithin`, `ST_Buffer`) en lugar de calcular en Node.js.
+
+**Conexión con Prisma v7:**
+- `DATABASE_URL` → Transaction Pooler de Supabase (puerto 6543) — usado en runtime.
+- `DIRECT_URL` → Session Pooler de Supabase (puerto 5432) — usado solo para `prisma migrate`.
+- Las URLs se configuran en `prisma.config.ts` (no en `schema.prisma`, cambio de Prisma v7).
+- El cliente Prisma se instancia con el adapter `PrismaPg` en `src/config/prisma.ts`.
 
 ### Motor de eventos
 El backend calcula desvíos, atrasos e incidentes de **forma autónoma** evaluando coordenadas GPS entrantes contra la ruta planificada. No depende de que el frontend interprete los datos.

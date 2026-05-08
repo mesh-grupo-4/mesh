@@ -1,0 +1,46 @@
+backend/node_modules
+backend/dist
+backend/package-lock.json
+
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# dependencies
+frontend/node_modules/
+
+frontend/package-lock.json
+# Expo
+frontend/.expo/
+frontend/dist/
+frontend/web-build/
+frontend/expo-env.d.ts
+
+# Native
+frontend/.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+frontend/.metro-health-check*
+
+# debug
+frontend/npm-debug.*
+frontend/yarn-debug.*
+frontend/yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# local env files
+.env*.local
+
+# typescript
+*.tsbuildinfo
+
+# generated native folders
+frontend/ios
+frontend/android

@@ -585,8 +585,8 @@ RachaActividad
 
 - **API-First** con API RESTful documentada bajo OpenAPI.
 - Mapas: **OpenStreetMap** (costo $0, sin dependencia de APIs comerciales).
-- Base de datos: **PostgreSQL + PostGIS** (datos geoespaciales).
-- Tiempo real: **WebSockets** (vía Supabase o similar).
+- Base de datos: **Supabase** (PostgreSQL + PostGIS administrado, extensión PostGIS habilitada).
+- Tiempo real: **WebSockets** vía **Socket.io**.
 - Hosting: **VPS** (DigitalOcean / Donweb) con CI/CD.
 - Autenticación: **Firebase Authentication**.
 
