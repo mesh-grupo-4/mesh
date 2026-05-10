@@ -1,3 +1,5 @@
+import 'react-native-gesture-handler';
+import '@/tasks/locationTask';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
@@ -6,6 +8,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
 
+import { ViajeRealtimeBridge } from '@/components/ViajeRealtimeBridge';
 import { useColorScheme } from '@/components/useColorScheme';
 
 export {
@@ -50,8 +53,11 @@ function RootLayoutNav() {
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      <ViajeRealtimeBridge />
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="configurar-ruta" options={{ headerShown: false }} />
+        <Stack.Screen name="viaje" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
       </Stack>
     </ThemeProvider>
