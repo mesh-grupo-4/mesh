@@ -1,35 +1,42 @@
-import 'dotenv/config';
-import express from 'express';
-import { createServer } from 'http';
-import { Server } from 'socket.io';
-import cors from 'cors';
-import helmet from 'helmet';
+import 'dotenv/config'
+import express from 'express'
+import { createServer } from 'http'
+import { Server } from 'socket.io'
+import cors from 'cors'
+import helmet from 'helmet'
 
-import { router } from './routes';
-import { registerSocketHandlers } from './sockets';
+import { router } from './routes'
+import { registerSocketHandlers } from './sockets'
+import { setIo } from './realtime/ioRegistry'
+import { errorHandler } from './middleware/errorHandler'
 
-const app = express();
-const httpServer = createServer(app);
+const app = express()
+const httpServer = createServer(app)
 
 const io = new Server(httpServer, {
   cors: {
     origin: process.env.CORS_ORIGIN ?? 'http://localhost:5173',
     methods: ['GET', 'POST'],
+    allowedHeaders: ['Content-Type', 'x-user-id'],
   },
-});
+})
 
-app.use(helmet());
-app.use(cors({ origin: process.env.CORS_ORIGIN ?? 'http://localhost:5173' }));
-app.use(express.json());
+setIo(io)
 
-app.use('/api', router);
+app.use(helmet())
+app.use(cors({ origin: process.env.CORS_ORIGIN ?? 'http://localhost:5173' }))
+app.use(express.json())
 
-registerSocketHandlers(io);
+app.use('/api', router)
 
-const PORT = process.env.PORT ?? 3000;
+app.use(errorHandler)
+
+registerSocketHandlers(io)
+
+const PORT = process.env.PORT ?? 3000
 
 httpServer.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+  console.log(`Server running on port ${PORT}`)
+})
 
-export { io };
+export { io }

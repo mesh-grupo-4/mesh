@@ -5,3 +5,161 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+enum RolMiembro {
+  lider
+  participante
+}
+
+enum TipoActividad {
+  moto
+  bici
+  running
+  trekking
+}
+
+enum EstadoViaje {
+  planificado
+  en_curso
+  finalizado
+}
+
+enum CategoriaParada {
+  combustible
+  descanso
+  gastronomia
+  sanitario
+  otro
+}
+
+enum GpsSource {
+  live
+  offline_sync
+}
+
+model Usuario {
+  id     String @id @default(uuid()) @db.Uuid
+  email  String @unique
+  nombre String
+
+  grupos_liderados Grupo[]        @relation("GrupoLider")
+  membresias       GrupoMiembro[]
+  viajes_creados   Viaje[]        @relation("ViajeCreador")
+  registros_gps    RegistroGPS[]
+
+  @@map("usuario")
+}
+
+model Grupo {
+  id             String   @id @default(uuid()) @db.Uuid
+  nombre         String
+  fecha_creacion DateTime @default(now()) @map("fecha_creacion")
+  lider_id       String   @map("lider_id") @db.Uuid
+
+  lider   Usuario        @relation("GrupoLider", fields: [lider_id], references: [id], onDelete: Restrict)
+  miembros GrupoMiembro[]
+  viajes   Viaje[]
+
+  @@map("grupo")
+}
+
+model GrupoMiembro {
+  grupo_id    String   @map("grupo_id") @db.Uuid
+  usuario_id  String   @map("usuario_id") @db.Uuid
+  rol         RolMiembro
+  fecha_union DateTime @default(now()) @map("fecha_union")
+
+  grupo   Grupo   @relation(fields: [grupo_id], references: [id], onDelete: Cascade)
+  usuario Usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+
+  @@id([grupo_id, usuario_id])
+  @@map("grupo_miembro")
+}
+
+model Viaje {
+  id                 String      @id @default(uuid()) @db.Uuid
+  creador_id         String      @map("creador_id") @db.Uuid
+  grupo_id           String?     @map("grupo_id") @db.Uuid
+  es_grupal          Boolean     @map("es_grupal")
+  tipo_actividad     TipoActividad @map("tipo_actividad")
+  estado             EstadoViaje @default(planificado)
+  fecha_programada DateTime    @map("fecha_programada")
+  fecha_inicio_real  DateTime?   @map("fecha_inicio_real")
+  fecha_fin_real     DateTime?   @map("fecha_fin_real")
+  created_at         DateTime    @default(now()) @map("created_at")
+
+  creador Usuario @relation("ViajeCreador", fields: [creador_id], references: [id], onDelete: Restrict)
+  grupo   Grupo?  @relation(fields: [grupo_id], references: [id], onDelete: SetNull)
+
+  ruta    Ruta?
+  resumen ResumenViaje?
+  registros_gps RegistroGPS[]
+
+  @@index([creador_id])
+  @@index([grupo_id])
+  @@map("viaje")
+}
+
+model RegistroGPS {
+  id          String    @id @default(uuid()) @db.Uuid
+  viaje_id    String    @map("viaje_id") @db.Uuid
+  usuario_id  String    @map("usuario_id") @db.Uuid
+  lat         Float
+  lng         Float
+  precision_m Float?    @map("precision_m")
+  timestamp   DateTime
+  source      GpsSource @default(live)
+  created_at  DateTime  @default(now()) @map("created_at")
+
+  viaje   Viaje   @relation(fields: [viaje_id], references: [id], onDelete: Cascade)
+  usuario Usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+
+  @@index([viaje_id, timestamp])
+  @@index([usuario_id, timestamp])
+  @@map("registro_gps")
+}
+
+model Ruta {
+  id                   String  @id @default(uuid()) @db.Uuid
+  viaje_id             String  @unique @map("viaje_id") @db.Uuid
+  origen_lat           Float   @map("origen_lat")
+  origen_lng           Float   @map("origen_lng")
+  destino_lat          Float   @map("destino_lat")
+  destino_lng          Float   @map("destino_lng")
+  linestring_geojson   Json    @map("linestring_geojson")
+  distancia_planeada_m Float?  @map("distancia_planeada_m")
+  tiempo_estimado_seg  Int?    @map("tiempo_estimado_seg")
+
+  viaje               Viaje               @relation(fields: [viaje_id], references: [id], onDelete: Cascade)
+  paradas_intermedias ParadaIntermedia[]
+
+  @@map("ruta")
+}
+
+model ParadaIntermedia {
+  id         String          @id @default(uuid()) @db.Uuid
+  ruta_id    String          @map("ruta_id") @db.Uuid
+  orden      Int
+  lat        Float
+  lng        Float
+  categoria  CategoriaParada @default(otro)
+
+  ruta Ruta @relation(fields: [ruta_id], references: [id], onDelete: Cascade)
+
+  @@index([ruta_id, orden])
+  @@map("parada_intermedia")
+}
+
+model ResumenViaje {
+  id                   String   @id @default(uuid()) @db.Uuid
+  viaje_id             String   @unique @map("viaje_id") @db.Uuid
+  duracion_segundos    Int?     @map("duracion_segundos")
+  distancia_planeada_m Float?   @map("distancia_planeada_m")
+  distancia_real_m     Float?   @map("distancia_real_m")
+  cantidad_paradas     Int      @default(0) @map("cantidad_paradas")
+  generado_en          DateTime @default(now()) @map("generado_en")
+
+  viaje Viaje @relation(fields: [viaje_id], references: [id], onDelete: Cascade)
+
+  @@map("resumen_viaje")
+}

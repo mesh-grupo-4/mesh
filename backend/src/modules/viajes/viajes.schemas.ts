@@ -1,0 +1,72 @@
+import { z } from 'zod'
+import { CategoriaParada, GpsSource, TipoActividad } from '@prisma/client'
+import type { GeoJsonLineString, GeoJsonPoint } from '../../lib/geo'
+
+const pointSchema: z.ZodType<GeoJsonPoint> = z.object({
+  type: z.literal('Point'),
+  coordinates: z.tuple([z.number(), z.number()]),
+})
+
+const lineStringSchema: z.ZodType<GeoJsonLineString> = z.object({
+  type: z.literal('LineString'),
+  coordinates: z.array(z.tuple([z.number(), z.number()])).min(2),
+})
+
+export const createViajeSchema = z
+  .object({
+    esGrupal: z.boolean(),
+    grupoId: z.string().uuid().optional().nullable(),
+    tipoActividad: z.nativeEnum(TipoActividad),
+    fechaProgramada: z.coerce.date(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.esGrupal && !data.grupoId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'grupoId es obligatorio cuando esGrupal es true',
+        path: ['grupoId'],
+      })
+    }
+    if (!data.esGrupal && data.grupoId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'grupoId debe omitirse cuando el viaje no es grupal',
+        path: ['grupoId'],
+      })
+    }
+  })
+
+export type CreateViajeInput = z.infer<typeof createViajeSchema>
+
+export const putRutaSchema = z.object({
+  origen: pointSchema,
+  destino: pointSchema,
+  linestring: lineStringSchema,
+  tiempoEstimadoSeg: z.number().int().positive().optional().nullable(),
+  paradas: z
+    .array(
+      z.object({
+        orden: z.number().int().min(0),
+        lat: z.number().min(-90).max(90),
+        lng: z.number().min(-180).max(180),
+        categoria: z.nativeEnum(CategoriaParada).default(CategoriaParada.otro),
+      })
+    )
+    .max(10),
+})
+
+export type PutRutaInput = z.infer<typeof putRutaSchema>
+
+const posicionEntradaSchema = z.object({
+  lat: z.number().min(-90).max(90),
+  lng: z.number().min(-180).max(180),
+  precision: z.number().optional().nullable(),
+  timestamp: z.coerce.date(),
+})
+
+export const postPosicionesSchema = z.object({
+  source: z.nativeEnum(GpsSource),
+  posiciones: z.array(posicionEntradaSchema).min(1).max(2000),
+})
+
+export type PostPosicionesInput = z.infer<typeof postPosicionesSchema>

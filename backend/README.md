@@ -120,6 +120,36 @@ Request HTTP
                                             └── PostgreSQL
 ```
 
+## API Viajes (MVP — iniciar salida)
+
+Autenticación temporal: header `x-user-id: <uuid>` (debe existir en tabla `usuario`). WebSockets: mismo header en el handshake.
+
+### REST
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| `POST` | `/api/viajes` | Crea viaje (`planificado`). Body: `esGrupal`, `grupoId?`, `tipoActividad`, `fechaProgramada` (ISO). |
+| `PUT` | `/api/viajes/:viajeId/ruta` | Guarda ruta: `origen`/`destino` GeoJSON Point, `linestring` GeoJSON LineString, `paradas` (≤10), `tiempoEstimadoSeg?`. Distancia planeada vía PostGIS. |
+| `POST` | `/api/viajes/:viajeId/iniciar` | Creador → `en_curso`, emite `viaje:iniciado`. |
+| `POST` | `/api/viajes/:viajeId/finalizar` | Creador → `finalizado`, resumen + `viaje:finalizado`. |
+
+### Socket.io
+
+Tras conectar, unirse a la sala del viaje:
+
+- Evento cliente → servidor: `join_viaje` con `{ viajeId: "<uuid>" }`
+- Salir: `leave_viaje`
+
+Eventos servidor → cliente (broadcast a la sala `viaje:<id>`):
+
+- `viaje:iniciado` `{ viajeId, estado, fechaInicioReal }`
+- `viaje:finalizado` `{ viajeId, estado, fechaFinReal }`
+
+### GeoJSON (contrato)
+
+- `Point`: `{ "type": "Point", "coordinates": [lng, lat] }`
+- `LineString`: `{ "type": "LineString", "coordinates": [[lng, lat], ...] }` (mínimo 2 puntos)
+
 ## Flujo de un evento WebSocket
 
 ```
