@@ -7,6 +7,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { ViajeRealtimeBridge } from '@/components/ViajeRealtimeBridge';
@@ -59,7 +60,13 @@ function RootLayoutNav() {
     }
   }, [user, loading, segments]);
 
-  if (loading) return null;
+  if (loading) {
+    return (
+      <View style={styles.boot}>
+        <ActivityIndicator size="large" color="#4a9eff" />
+      </View>
+    );
+  }
 
   return (
     <ThemeProvider value={DarkTheme}>
@@ -69,8 +76,18 @@ function RootLayoutNav() {
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="configurar-ruta" options={{ headerShown: false }} />
         <Stack.Screen name="viaje" options={{ headerShown: false }} />
+        <Stack.Screen name="grupo" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
       </Stack>
     </ThemeProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  boot: {
+    flex: 1,
+    backgroundColor: '#0f0f0f',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
