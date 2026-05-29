@@ -1,16 +1,23 @@
 import type { Socket } from 'socket.io'
-import { z } from 'zod'
+import { firebaseAuth } from '../config/firebase'
+import { findOrCreateByFirebaseUid } from '../modules/usuarios/usuarios.service'
 
-const uuid = z.string().uuid()
+export async function socketRequireUser(socket: Socket, next: (err?: Error) => void): Promise<void> {
+  const authHeader = socket.handshake.headers['authorization']
+  const raw = Array.isArray(authHeader) ? authHeader[0] : authHeader
 
-export function socketRequireUser(socket: Socket, next: (err?: Error) => void): void {
-  const raw = socket.handshake.headers['x-user-id']
-  const id = Array.isArray(raw) ? raw[0] : raw
-  const parsed = uuid.safeParse(id)
-  if (!parsed.success) {
+  if (!raw?.startsWith('Bearer ')) {
     next(new Error('UNAUTHORIZED'))
     return
   }
-  socket.data.userId = parsed.data
-  next()
+
+  const token = raw.slice(7)
+  try {
+    const decoded = await firebaseAuth.verifyIdToken(token)
+    const usuario = await findOrCreateByFirebaseUid(decoded.uid)
+    socket.data.userId = usuario.id
+    next()
+  } catch {
+    next(new Error('UNAUTHORIZED'))
+  }
 }

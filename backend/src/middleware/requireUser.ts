@@ -1,20 +1,22 @@
 import type { RequestHandler } from 'express'
-import { z } from 'zod'
+import { firebaseAuth } from '../config/firebase'
+import { findOrCreateByFirebaseUid } from '../modules/usuarios/usuarios.service'
 
-const uuid = z.string().uuid()
-
-/**
- * RN-030: el backend exige identidad; reemplazar por Firebase Auth cuando esté listo.
- */
-export const requireUser: RequestHandler = (req, res, next) => {
-  const raw = req.header('x-user-id')
-  const parsed = uuid.safeParse(raw)
-  if (!parsed.success) {
-    res.status(401).json({
-      error: 'Se requiere header x-user-id con un UUID válido',
-    })
+// RN-030: el backend valida identidad vía Firebase ID Token.
+export const requireUser: RequestHandler = async (req, res, next) => {
+  const authHeader = req.header('Authorization')
+  if (!authHeader?.startsWith('Bearer ')) {
+    res.status(401).json({ error: 'Se requiere header Authorization: Bearer <token>' })
     return
   }
-  req.userId = parsed.data
-  next()
+
+  const token = authHeader.slice(7)
+  try {
+    const decoded = await firebaseAuth.verifyIdToken(token)
+    const usuario = await findOrCreateByFirebaseUid(decoded.uid)
+    req.userId = usuario.id
+    next()
+  } catch {
+    res.status(401).json({ error: 'Token inválido o expirado' })
+  }
 }

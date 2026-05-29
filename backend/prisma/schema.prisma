@@ -38,9 +38,10 @@ enum GpsSource {
 }
 
 model Usuario {
-  id     String @id @default(uuid()) @db.Uuid
-  email  String @unique
-  nombre String
+  id           String @id @default(uuid()) @db.Uuid
+  firebase_uid String @unique @map("firebase_uid")
+  email        String @unique
+  nombre       String
 
   grupos_liderados Grupo[]        @relation("GrupoLider")
   membresias       GrupoMiembro[]
