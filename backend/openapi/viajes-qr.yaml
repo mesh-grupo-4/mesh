@@ -1,0 +1,111 @@
+openapi: 3.0.3
+info:
+  title: Mesh API — Viajes (invitación QR)
+  version: 1.0.0
+  description: |
+    Unión por QR (SCRUM-12).
+
+    - RN-015: QR único por viaje; expira al iniciar (`estado != planificado`).
+    - RN-016: escaneo agrega al grupo del viaje sin aprobación manual.
+
+    Autenticación temporal: header `x-user-id`.
+
+servers:
+  - url: http://localhost:3000
+    description: Desarrollo local
+
+paths:
+  /api/viajes/{viajeId}/unirse-qr:
+    post:
+      summary: Unirse al grupo del viaje escaneando QR
+      description: |
+        Valida RN-015 y delega la alta de miembro en lógica compartida (RN-016).
+        Idempotente si el usuario ya pertenece al grupo.
+      operationId: unirseViajePorQr
+      tags:
+        - Viajes
+      security:
+        - UserIdHeader: []
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - name: viajeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Usuario unido o ya era miembro
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnirseQrResponse'
+        '401':
+          description: Header x-user-id ausente o inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Viaje no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '410':
+          description: QR expirado (viaje ya iniciado o finalizado)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: Este viaje ya ha comenzado. El código QR ha expirado.
+                code: QR_EXPIRED
+        '422':
+          description: Viaje no grupal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    UserIdHeader:
+      type: apiKey
+      in: header
+      name: x-user-id
+
+  parameters:
+    XUserId:
+      name: x-user-id
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    UnirseQrResponse:
+      type: object
+      required:
+        - grupoId
+        - viajeId
+        - yaEraMiembro
+      properties:
+        grupoId:
+          type: string
+          format: uuid
+        viajeId:
+          type: string
+          format: uuid
+        yaEraMiembro:
+          type: boolean
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        code:
+          type: string
