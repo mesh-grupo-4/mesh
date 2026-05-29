@@ -1,6 +1,7 @@
 import { Router } from 'express'
-import { viajesRouter } from '../modules/viajes/viajes.router'
+import { gruposRouter } from '../modules/grupos/grupos.router'
 import { usuariosRouter } from '../modules/usuarios/usuarios.router'
+import { viajesRouter } from '../modules/viajes/viajes.router'
 
 export const router = Router()
 
@@ -9,4 +10,5 @@ router.get('/health', (_req, res) => {
 })
 
 router.use('/usuarios', usuariosRouter)
+router.use('/grupos', gruposRouter)
 router.use('/viajes', viajesRouter)

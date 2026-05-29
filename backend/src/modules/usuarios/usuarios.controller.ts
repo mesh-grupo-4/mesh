@@ -1,14 +1,28 @@
-import type { RequestHandler } from 'express'
-import { prisma } from '../../config/prisma'
+import type { Request, RequestHandler, Response } from 'express'
+import { syncUsuarioSchema } from './usuarios.schemas'
+import type { UsuariosService } from './usuarios.service'
 
-export const getMe: RequestHandler = async (req, res) => {
-  const usuario = await prisma.usuario.findUnique({
-    where: { id: req.userId },
-    select: { id: true, email: true, nombre: true },
-  })
-  if (!usuario) {
-    res.status(404).json({ error: 'Usuario no encontrado' })
-    return
+function asyncHandler(fn: (req: Request, res: Response) => Promise<void>): RequestHandler {
+  return (req, res, next) => {
+    void fn(req, res).catch(next)
   }
-  res.json(usuario)
+}
+
+export function crearUsuariosController(service: UsuariosService) {
+  return {
+    getMe: asyncHandler(async (req, res) => {
+      const usuario = await service.getMe(req.userId!)
+      if (!usuario) {
+        res.status(404).json({ error: 'Usuario no encontrado' })
+        return
+      }
+      res.json(usuario)
+    }),
+
+    sync: asyncHandler(async (req, res) => {
+      const body = syncUsuarioSchema.parse(req.body)
+      const usuario = await service.sync(req.userId!, body)
+      res.status(200).json(usuario)
+    }),
+  }
 }

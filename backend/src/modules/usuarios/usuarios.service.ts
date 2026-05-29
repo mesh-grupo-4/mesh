@@ -1,19 +1,41 @@
-import { prisma } from '../../config/prisma'
+import type { PrismaClient } from '@prisma/client'
+import { prisma as defaultPrisma } from '../../config/prisma'
 import { firebaseAuth } from '../../config/firebase'
+import type { SyncUsuarioInput } from './usuarios.schemas'
 
+// Usado por requireUser — encuentra o crea el usuario a partir del UID de Firebase
 export async function findOrCreateByFirebaseUid(firebaseUid: string) {
-  const existing = await prisma.usuario.findUnique({
+  const existing = await defaultPrisma.usuario.findUnique({
     where: { firebase_uid: firebaseUid },
   })
   if (existing) return existing
 
   const firebaseUser = await firebaseAuth.getUser(firebaseUid)
 
-  return prisma.usuario.create({
+  return defaultPrisma.usuario.create({
     data: {
       firebase_uid: firebaseUid,
       email: firebaseUser.email ?? '',
       nombre: firebaseUser.displayName ?? firebaseUser.email?.split('@')[0] ?? 'Usuario',
     },
   })
+}
+
+export class UsuariosService {
+  constructor(private readonly prisma: PrismaClient) {}
+
+  async getMe(userId: string) {
+    return this.prisma.usuario.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, nombre: true },
+    })
+  }
+
+  async sync(userId: string, input: SyncUsuarioInput) {
+    return this.prisma.usuario.update({
+      where: { id: userId },
+      data: { nombre: input.nombre },
+      select: { id: true, email: true, nombre: true },
+    })
+  }
 }
