@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import * as Notifications from 'expo-notifications'
+import Constants from 'expo-constants'
 import { useRouter } from 'expo-router'
 import { useEffect } from 'react'
 import { AppState, DeviceEventEmitter, Platform } from 'react-native'
@@ -7,15 +7,39 @@ import { AppState, DeviceEventEmitter, Platform } from 'react-native'
 import { connectMeshSocket, getMeshSocket } from '@/lib/meshSocket'
 import { flushGpsQueue } from '@/lib/tracking/gpsQueue'
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-})
+const isExpoGo = Constants.appOwnership === 'expo'
+
+async function initNotifications() {
+  if (Platform.OS === 'web' || isExpoGo) return
+  try {
+    const Notifications = await import('expo-notifications')
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+        shouldShowBanner: true,
+        shouldShowList: true,
+      }),
+    })
+    await Notifications.requestPermissionsAsync()
+  } catch {
+    /* Expo Go / entorno sin push remota */
+  }
+}
+
+async function notifyLocal(title: string, body: string) {
+  if (Platform.OS === 'web' || isExpoGo) return
+  try {
+    const Notifications = await import('expo-notifications')
+    await Notifications.scheduleNotificationAsync({
+      content: { title, body },
+      trigger: null,
+    })
+  } catch {
+    /* ignorar */
+  }
+}
 
 /**
  * Puente global: cola GPS, envío por socket en primer plano, y navegación al iniciar viaje.
@@ -25,9 +49,7 @@ export function ViajeRealtimeBridge() {
   const router = useRouter()
 
   useEffect(() => {
-    if (Platform.OS !== 'web') {
-      void Notifications.requestPermissionsAsync()
-    }
+    void initNotifications()
   }, [])
 
   useEffect(() => {
@@ -77,15 +99,10 @@ export function ViajeRealtimeBridge() {
       if (!uid) return
       const sock = connectMeshSocket(uid)
       const onInicio = async (payload: { viajeId: string }) => {
-        if (Platform.OS !== 'web') {
-          await Notifications.scheduleNotificationAsync({
-            content: {
-              title: 'Viaje iniciado',
-              body: 'El líder ha iniciado el viaje. Tu ubicación puede compartirse en el mapa en vivo.',
-            },
-            trigger: null,
-          })
-        }
+        await notifyLocal(
+          'Viaje iniciado',
+          'El líder ha iniciado el viaje. Tu ubicación puede compartirse en el mapa en vivo.'
+        )
         router.push(`/viaje/${payload.viajeId}/live` as never)
       }
       sock.on('viaje:iniciado', onInicio)

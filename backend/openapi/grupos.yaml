@@ -1,0 +1,256 @@
+openapi: 3.0.3
+info:
+  title: Mesh API — Grupos
+  version: 1.0.0
+  description: |
+    Endpoints de sincronización de usuario y gestión de grupos (SCRUM-11).
+
+    Autenticación temporal en endpoints protegidos: header `x-user-id` con UUID de `usuario`.
+    El endpoint `POST /api/usuarios/sync` es público (MVP) hasta integrar Firebase Auth en backend.
+
+servers:
+  - url: http://localhost:3000
+    description: Desarrollo local
+
+paths:
+  /api/usuarios/sync:
+    post:
+      summary: Sincronizar usuario Firebase con PostgreSQL
+      description: |
+        Upsert por email. Devuelve el UUID backend usado como `x-user-id`.
+        **Deuda técnica:** sin verificación de token Firebase.
+      operationId: syncUsuario
+      tags:
+        - Usuarios
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SyncUsuarioRequest'
+      responses:
+        '200':
+          description: Usuario sincronizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncUsuarioResponse'
+        '400':
+          description: Validación fallida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/grupos:
+    post:
+      summary: Crear grupo
+      description: |
+        Crea un grupo y asigna al creador como líder (RN-010).
+        También crea fila en `grupo_miembro` con rol `lider`.
+      operationId: crearGrupo
+      tags:
+        - Grupos
+      security:
+        - UserIdHeader: []
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateGrupoRequest'
+      responses:
+        '201':
+          description: Grupo creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrupoResponse'
+        '400':
+          description: Validación fallida (ej. nombre vacío)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '401':
+          description: Header x-user-id ausente o inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Usuario no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/grupos/{grupoId}:
+    get:
+      summary: Detalle de grupo
+      description: Solo accesible para miembros del grupo.
+      operationId: obtenerGrupo
+      tags:
+        - Grupos
+      security:
+        - UserIdHeader: []
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - name: grupoId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Detalle del grupo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrupoDetalleResponse'
+        '401':
+          description: Header x-user-id ausente o inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Usuario no es miembro del grupo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Grupo no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    UserIdHeader:
+      type: apiKey
+      in: header
+      name: x-user-id
+      description: UUID del usuario en PostgreSQL (stub MVP)
+
+  parameters:
+    XUserId:
+      name: x-user-id
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    SyncUsuarioRequest:
+      type: object
+      required:
+        - email
+        - nombre
+      properties:
+        email:
+          type: string
+          format: email
+        nombre:
+          type: string
+          minLength: 1
+
+    SyncUsuarioResponse:
+      type: object
+      required:
+        - id
+        - email
+        - nombre
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        nombre:
+          type: string
+
+    CreateGrupoRequest:
+      type: object
+      required:
+        - nombre
+      properties:
+        nombre:
+          type: string
+          minLength: 1
+          maxLength: 80
+          description: Nombre del grupo (obligatorio)
+
+    GrupoResponse:
+      type: object
+      required:
+        - id
+        - nombre
+        - fecha_creacion
+        - lider_id
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+        fecha_creacion:
+          type: string
+          format: date-time
+        lider_id:
+          type: string
+          format: uuid
+
+    GrupoDetalleResponse:
+      allOf:
+        - $ref: '#/components/schemas/GrupoResponse'
+        - type: object
+          required:
+            - mi_rol
+          properties:
+            mi_rol:
+              type: string
+              enum:
+                - lider
+                - participante
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        code:
+          type: string
+
+    ValidationError:
+      type: object
+      properties:
+        error:
+          type: string
+        details:
+          type: object

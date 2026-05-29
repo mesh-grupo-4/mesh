@@ -57,6 +57,8 @@ A diferencia de soluciones existentes (Strava, Garmin, Google Maps, Life360) que
 | RN-016 | El escaneo del QR agrega al usuario directamente, sin aprobación manual. |
 | RN-017 | Las solicitudes de amistad requieren aceptación del receptor. |
 
+**Contrato API MVP (SCRUM-11):** OpenAPI en `backend/openapi/grupos.yaml`. Endpoints: `POST /api/usuarios/sync` (upsert por email, interino sin Firebase en backend), `POST /api/grupos` (nombre obligatorio; creador → `líder` + fila en `grupo_miembro`), `GET /api/grupos/:grupoId` (solo miembros). Auth temporal: header `x-user-id`.
+
 ### 2.3 Reglas de Viajes y Rutas
 
 | ID | Regla |

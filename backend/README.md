@@ -120,6 +120,16 @@ Request HTTP
                                             └── PostgreSQL
 ```
 
+## API Grupos (SCRUM-11)
+
+Ver especificación OpenAPI: [`openapi/grupos.yaml`](openapi/grupos.yaml).
+
+| Método | Ruta | Auth | Descripción |
+|--------|------|------|-------------|
+| `POST` | `/api/usuarios/sync` | No | Upsert usuario por email (MVP; sin Firebase en backend). |
+| `POST` | `/api/grupos` | `x-user-id` | Crea grupo; creador queda como `líder`. |
+| `GET` | `/api/grupos/:grupoId` | `x-user-id` | Detalle básico (solo miembros). |
+
 ## API Viajes (MVP — iniciar salida)
 
 Autenticación temporal: header `x-user-id: <uuid>` (debe existir en tabla `usuario`). WebSockets: mismo header en el handshake.
