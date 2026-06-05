@@ -12,11 +12,16 @@ import {
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { resolveBackendUserId } from '@/lib/apiClient';
+import { TransferirLiderazgoModal } from '@/components/TransferirLiderazgoModal';
 import { crearViajeGrupal, type TipoActividadApi } from '@/lib/viajesApi';
 import {
+  abandonarGrupo,
+  eliminarGrupo,
+  listarMiembrosGrupo,
   listarViajesPlanificadosGrupo,
   obtenerGrupo,
   type GrupoDetalleApi,
+  type GrupoMiembroApi,
   type ViajePlanificadoApi,
 } from '@/lib/gruposApi';
 
@@ -48,6 +53,10 @@ export default function GrupoDetalleScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [modalTransferir, setModalTransferir] = useState(false);
+  const [miembrosTransferencia, setMiembrosTransferencia] = useState<GrupoMiembroApi[]>([]);
+  const [nuevoLiderId, setNuevoLiderId] = useState<string | null>(null);
+  const [procesandoAccion, setProcesandoAccion] = useState(false);
 
   const cargar = async (esRefresh = false) => {
     if (!grupoId) return;
@@ -105,6 +114,125 @@ export default function GrupoDetalleScreen() {
     ]);
   };
 
+  const redirigirTrasSalida = (mensaje: string) => {
+    router.replace('/(tabs)/grupos');
+    Alert.alert('Listo', mensaje);
+  };
+
+  const ejecutarAbandono = async (nuevoLider?: string) => {
+    if (!grupoId) return;
+    setProcesandoAccion(true);
+    try {
+      const userId = resolveBackendUserId(backendUserId);
+      const result = await abandonarGrupo(grupoId, userId, nuevoLider);
+      setModalTransferir(false);
+      if (result.accion === 'grupo_eliminado') {
+        redirigirTrasSalida('El grupo fue eliminado.');
+      } else {
+        redirigirTrasSalida('Abandonaste el grupo.');
+      }
+    } catch (e: unknown) {
+      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo abandonar el grupo.');
+    } finally {
+      setProcesandoAccion(false);
+    }
+  };
+
+  const ejecutarEliminacion = () => {
+    if (!grupoId) return;
+
+    Alert.alert(
+      'Eliminar grupo',
+      '¿Eliminar este grupo definitivamente? Esta acción no se puede deshacer y todos los miembros serán expulsados.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              setProcesandoAccion(true);
+              try {
+                const userId = resolveBackendUserId(backendUserId);
+                await eliminarGrupo(grupoId, userId);
+                setModalTransferir(false);
+                redirigirTrasSalida('El grupo fue eliminado.');
+              } catch (e: unknown) {
+                Alert.alert(
+                  'Error',
+                  e instanceof Error ? e.message : 'No se pudo eliminar el grupo.'
+                );
+              } finally {
+                setProcesandoAccion(false);
+              }
+            })();
+          },
+        },
+      ]
+    );
+  };
+
+  const confirmarAbandonoParticipante = () => {
+    Alert.alert(
+      'Abandonar grupo',
+      '¿Estás seguro de que quieres abandonar este grupo?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Abandonar', style: 'destructive', onPress: () => void ejecutarAbandono() },
+      ]
+    );
+  };
+
+  const confirmarAbandonoLiderSolo = () => {
+    Alert.alert(
+      'Abandonar grupo',
+      'Sos el único integrante. Al abandonar, el grupo se eliminará permanentemente.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Eliminar y salir', style: 'destructive', onPress: () => void ejecutarAbandono() },
+      ]
+    );
+  };
+
+  const iniciarAbandono = () => {
+    if (!grupo || !grupoId) return;
+
+    if (grupo.mi_rol === 'participante') {
+      confirmarAbandonoParticipante();
+      return;
+    }
+
+    void (async () => {
+      try {
+        const userId = resolveBackendUserId(backendUserId);
+        const miembros = await listarMiembrosGrupo(grupoId, userId);
+        const otros = miembros.filter((m) => m.id !== userId);
+
+        if (otros.length === 0) {
+          confirmarAbandonoLiderSolo();
+          return;
+        }
+
+        setMiembrosTransferencia(otros);
+        setNuevoLiderId(null);
+        setModalTransferir(true);
+      } catch (e: unknown) {
+        Alert.alert('Error', e instanceof Error ? e.message : 'No se pudieron cargar los miembros.');
+      }
+    })();
+  };
+
+  const confirmarTransferenciaYAbandono = () => {
+    if (!nuevoLiderId) return;
+    void ejecutarAbandono(nuevoLiderId);
+  };
+
+  const cerrarModalTransferir = () => {
+    if (procesandoAccion) return;
+    setModalTransferir(false);
+    setNuevoLiderId(null);
+  };
+
   return (
     <>
       <Stack.Screen options={{ title: grupo?.nombre ?? 'Grupo' }} />
@@ -132,6 +260,17 @@ export default function GrupoDetalleScreen() {
                 <Text style={styles.badgeTexto}>Sos el líder</Text>
               </View>
             )}
+
+            <Text style={styles.seccionTitulo}>Miembros</Text>
+            <Text style={styles.seccionHint}>
+              Integrantes del grupo y sus roles asignados.
+            </Text>
+            <TouchableOpacity
+              style={styles.botonMiembros}
+              onPress={() => router.push(`/grupo/${grupoId}/miembros`)}
+            >
+              <Text style={styles.botonMiembrosTexto}>Ver miembros</Text>
+            </TouchableOpacity>
 
             <Text style={styles.seccionTitulo}>Invitar por QR</Text>
             <Text style={styles.seccionHint}>
@@ -162,9 +301,50 @@ export default function GrupoDetalleScreen() {
                 </View>
               ))
             )}
+
+            <View style={styles.zonaPeligro}>
+              <Text style={styles.zonaTitulo}>Zona de peligro</Text>
+              <Text style={styles.zonaHint}>
+                Estas acciones son permanentes y no se pueden deshacer.
+              </Text>
+              <TouchableOpacity
+                style={styles.botonDestructivo}
+                onPress={iniciarAbandono}
+                disabled={procesandoAccion}
+              >
+                {procesandoAccion && !modalTransferir ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.botonDestructivoTexto}>Abandonar Grupo</Text>
+                )}
+              </TouchableOpacity>
+              {grupo.mi_rol === 'lider' && (
+                <TouchableOpacity
+                  style={styles.botonEliminar}
+                  onPress={ejecutarEliminacion}
+                  disabled={procesandoAccion}
+                >
+                  <Text style={styles.botonEliminarTexto}>Eliminar Grupo</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </>
         ) : null}
       </ScrollView>
+
+      <TransferirLiderazgoModal
+        visible={modalTransferir}
+        miembros={miembrosTransferencia}
+        seleccionadoId={nuevoLiderId}
+        procesando={procesandoAccion}
+        onSeleccionar={setNuevoLiderId}
+        onConfirmar={confirmarTransferenciaYAbandono}
+        onEliminarGrupo={() => {
+          setModalTransferir(false);
+          ejecutarEliminacion();
+        }}
+        onCerrar={cerrarModalTransferir}
+      />
     </>
   );
 }
@@ -183,6 +363,16 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   badgeTexto: { color: '#4a9eff', fontSize: 13, fontWeight: '600' },
+  botonMiembros: {
+    backgroundColor: '#1e1e1e',
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  botonMiembrosTexto: { color: '#fff', fontSize: 15, fontWeight: '600' },
   seccionTitulo: { color: '#fff', fontSize: 18, fontWeight: '600', marginTop: 20 },
   seccionHint: { color: '#888', fontSize: 14, lineHeight: 20 },
   botonCrear: {
@@ -216,4 +406,30 @@ const styles = StyleSheet.create({
   },
   botonQrTexto: { color: '#fff', fontSize: 15, fontWeight: '600' },
   error: { color: '#ff6b6b', fontSize: 15, textAlign: 'center', marginTop: 24 },
+  zonaPeligro: {
+    marginTop: 32,
+    padding: 16,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#5c1a1a',
+    backgroundColor: '#1a1010',
+    gap: 10,
+  },
+  zonaTitulo: { color: '#ff6b6b', fontSize: 16, fontWeight: '700' },
+  zonaHint: { color: '#888', fontSize: 13, lineHeight: 18 },
+  botonDestructivo: {
+    backgroundColor: '#ff4444',
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  botonDestructivoTexto: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  botonEliminar: {
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ff4444',
+  },
+  botonEliminarTexto: { color: '#ff6b6b', fontSize: 15, fontWeight: '600' },
 });

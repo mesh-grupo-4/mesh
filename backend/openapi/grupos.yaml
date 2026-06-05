@@ -5,7 +5,7 @@ info:
   description: |
     Endpoints de sincronización de usuario y gestión de grupos (SCRUM-11).
 
-    Autenticación temporal en endpoints protegidos: header `x-user-id` con UUID de `usuario`.
+    Autenticación en endpoints protegidos: header `Authorization: Bearer <Firebase ID token>`.
     El endpoint `POST /api/usuarios/sync` es público (MVP) hasta integrar Firebase Auth en backend.
 
 servers:
@@ -58,15 +58,7 @@ paths:
       tags:
         - Grupos
       security:
-        - UserIdHeader: []
-      parameters:
-        - $ref: '#/components/parameters/XUserId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateGrupoRequest'
+        - BearerAuth: []
       responses:
         '201':
           description: Grupo creado
@@ -81,7 +73,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ValidationError'
         '401':
-          description: Header x-user-id ausente o inválido
+          description: Token ausente, inválido o expirado
           content:
             application/json:
               schema:
@@ -107,9 +99,8 @@ paths:
       tags:
         - Grupos
       security:
-        - UserIdHeader: []
+        - BearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/XUserId'
         - name: grupoId
           in: path
           required: true
@@ -124,7 +115,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/GrupoDetalleResponse'
         '401':
-          description: Header x-user-id ausente o inválido
+          description: Token ausente, inválido o expirado
           content:
             application/json:
               schema:
@@ -148,13 +139,246 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+    delete:
+      summary: Eliminar grupo
+      description: |
+        Elimina el grupo por completo (SCRUM-16). Solo el líder actual.
+        Borra viajes planificados asociados; bloquea si hay un viaje en curso.
+      operationId: eliminarGrupo
+      tags:
+        - Grupos
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: grupoId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Grupo eliminado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrupoMutationResponse'
+        '403':
+          description: Solo el líder puede eliminar el grupo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Grupo no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Hay un viaje en curso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/grupos/{grupoId}/abandonar:
+    post:
+      summary: Abandonar grupo
+      description: |
+        Remueve al usuario autenticado del grupo (SCRUM-16).
+        Si es participante, sale directamente.
+        Si es líder único, elimina el grupo.
+        Si es líder con otros miembros, requiere `nuevo_lider_id` para transferir liderazgo.
+      operationId: abandonarGrupo
+      tags:
+        - Grupos
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: grupoId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AbandonarGrupoRequest'
+      responses:
+        '200':
+          description: Abandono o eliminación exitosa
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GrupoMutationResponse'
+        '400':
+          description: Líder debe transferir liderazgo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Usuario no es miembro del grupo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Grupo o integrante no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Hay un viaje en curso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/grupos/{grupoId}/miembros:
+    get:
+      summary: Listar miembros del grupo
+      description: |
+        Devuelve todos los integrantes con nombre, email y rol (SCRUM-15).
+        Solo accesible para miembros del grupo.
+      operationId: listarMiembrosGrupo
+      tags:
+        - Grupos
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: grupoId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Lista de miembros
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GrupoMiembroResponse'
+        '401':
+          description: Token ausente, inválido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Usuario no es miembro del grupo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Grupo no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/grupos/{grupoId}/miembros/{usuarioId}/rol:
+    patch:
+      summary: Cambiar rol de un integrante
+      description: |
+        Solo el líder actual puede cambiar roles (RN-012, RN-030).
+        Promover a `lider` transfiere el liderazgo único del grupo.
+      operationId: cambiarRolMiembroGrupo
+      tags:
+        - Grupos
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: grupoId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: usuarioId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CambiarRolMiembroRequest'
+      responses:
+        '200':
+          description: Rol actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CambiarRolMiembroResponse'
+        '400':
+          description: Validación fallida o operación no permitida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Token ausente, inválido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Solo el líder puede cambiar roles
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Grupo o integrante no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
 components:
   securitySchemes:
-    UserIdHeader:
-      type: apiKey
-      in: header
-      name: x-user-id
-      description: UUID del usuario en PostgreSQL (stub MVP)
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Firebase ID token
 
   parameters:
     XUserId:
@@ -164,6 +388,8 @@ components:
       schema:
         type: string
         format: uuid
+      deprecated: true
+      description: Reemplazado por BearerAuth
 
   schemas:
     SyncUsuarioRequest:
@@ -238,6 +464,80 @@ components:
               enum:
                 - lider
                 - participante
+
+    GrupoMiembroResponse:
+      type: object
+      required:
+        - id
+        - nombre
+        - email
+        - rol
+        - fecha_union
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+        email:
+          type: string
+          format: email
+        rol:
+          type: string
+          enum:
+            - lider
+            - participante
+        fecha_union:
+          type: string
+          format: date-time
+
+    CambiarRolMiembroRequest:
+      type: object
+      required:
+        - rol
+      properties:
+        rol:
+          type: string
+          enum:
+            - lider
+            - participante
+
+    CambiarRolMiembroResponse:
+      type: object
+      required:
+        - usuario_id
+        - rol
+      properties:
+        usuario_id:
+          type: string
+          format: uuid
+        rol:
+          type: string
+          enum:
+            - lider
+            - participante
+
+    AbandonarGrupoRequest:
+      type: object
+      properties:
+        nuevo_lider_id:
+          type: string
+          format: uuid
+          description: Requerido si el líder abandona y hay otros miembros
+
+    GrupoMutationResponse:
+      type: object
+      required:
+        - accion
+      properties:
+        accion:
+          type: string
+          enum:
+            - abandonado
+            - grupo_eliminado
+        grupo_id:
+          type: string
+          format: uuid
 
     ErrorResponse:
       type: object
