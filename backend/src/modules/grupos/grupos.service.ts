@@ -330,6 +330,132 @@ export class GruposService {
     })
   }
 
+  private async obtenerExclusionesGrupo(grupoDestinoId: string) {
+    const [miembrosDestino, invitacionesPendientes] = await Promise.all([
+      this.prisma.grupoMiembro.findMany({
+        where: { grupo_id: grupoDestinoId },
+        select: { usuario_id: true },
+      }),
+      this.prisma.grupoInvitacion.findMany({
+        where: { grupo_id: grupoDestinoId, estado: 'pendiente' },
+        select: { usuario_id: true },
+      }),
+    ])
+
+    const miembros = new Set(miembrosDestino.map((m) => m.usuario_id))
+    const invitadosPendientes = new Set(invitacionesPendientes.map((i) => i.usuario_id))
+
+    return { miembros, invitadosPendientes }
+  }
+
+  private mapUsuarioConMembresia(
+    usuario: { id: string; nombre: string; email: string },
+    exclusiones: { miembros: Set<string>; invitadosPendientes: Set<string> }
+  ) {
+    return {
+      id: usuario.id,
+      nombre: usuario.nombre,
+      email: usuario.email,
+      ya_es_miembro:
+        exclusiones.miembros.has(usuario.id) || exclusiones.invitadosPendientes.has(usuario.id),
+    }
+  }
+
+  async listarAmigosParaInvitar(actorId: string, grupoDestinoId: string) {
+    await this.assertEsLider(actorId, grupoDestinoId)
+
+    const amistades = await this.prisma.amistad.findMany({
+      where: {
+        estado: 'aceptada',
+        OR: [{ solicitante_id: actorId }, { destinatario_id: actorId }],
+      },
+      select: {
+        solicitante_id: true,
+        destinatario_id: true,
+        solicitante: { select: { id: true, nombre: true, email: true } },
+        destinatario: { select: { id: true, nombre: true, email: true } },
+      },
+      orderBy: { created_at: 'desc' },
+    })
+
+    const exclusiones = await this.obtenerExclusionesGrupo(grupoDestinoId)
+
+    return amistades
+      .map((a) => (a.solicitante_id === actorId ? a.destinatario : a.solicitante))
+      .map((u) => this.mapUsuarioConMembresia(u, exclusiones))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre))
+  }
+
+  async buscarUsuariosParaInvitar(actorId: string, grupoDestinoId: string, query: string) {
+    await this.assertEsLider(actorId, grupoDestinoId)
+
+    const exclusiones = await this.obtenerExclusionesGrupo(grupoDestinoId)
+
+    const usuarios = await this.prisma.usuario.findMany({
+      where: {
+        id: { not: actorId },
+        nombre: { contains: query, mode: 'insensitive' },
+      },
+      select: { id: true, nombre: true, email: true },
+      orderBy: { nombre: 'asc' },
+      take: 20,
+    })
+
+    return usuarios.map((u) => this.mapUsuarioConMembresia(u, exclusiones))
+  }
+
+  private async validarInvitables(
+    actorId: string,
+    grupoDestinoId: string,
+    usuarioIds: string[]
+  ) {
+    const exclusiones = await this.obtenerExclusionesGrupo(grupoDestinoId)
+    const { candidatos: candidatosLegacy } = await this.construirCandidatosInvitacion(
+      actorId,
+      grupoDestinoId
+    )
+
+    const usuarios = await this.prisma.usuario.findMany({
+      where: { id: { in: usuarioIds } },
+      select: { id: true, nombre: true, email: true },
+    })
+    const usuariosPorId = new Map(usuarios.map((u) => [u.id, u]))
+
+    const resultado = new Map<
+      string,
+      { id: string; nombre: string; grupo_origen_id: string | null }
+    >()
+
+    for (const usuarioId of usuarioIds) {
+      if (usuarioId === actorId) {
+        throw new HttpError(400, 'No podés invitarte a vos mismo', 'SELF_INVITE')
+      }
+
+      if (exclusiones.miembros.has(usuarioId) || exclusiones.invitadosPendientes.has(usuarioId)) {
+        throw new HttpError(
+          400,
+          'Una o más personas ya pertenecen al grupo o tienen invitación pendiente',
+          'ALREADY_MEMBER_OR_PENDING'
+        )
+      }
+
+      const usuario = usuariosPorId.get(usuarioId)
+      if (!usuario) {
+        throw new HttpError(404, 'Usuario no encontrado', 'USER_NOT_FOUND')
+      }
+
+      const candidatoLegacy = candidatosLegacy.get(usuarioId)
+
+      resultado.set(usuarioId, {
+        id: usuario.id,
+        nombre: usuario.nombre,
+        grupo_origen_id: candidatoLegacy?.grupo_origen_id ?? null,
+      })
+    }
+
+    return resultado
+  }
+
   private async construirCandidatosInvitacion(actorId: string, grupoDestinoId: string) {
     const otrosGrupos = await this.obtenerOtrosGruposDelActor(actorId, grupoDestinoId)
     if (otrosGrupos.length === 0) {
@@ -423,25 +549,16 @@ export class GruposService {
     const { usuario_ids: usuarioIds } = input
     const idsUnicos = [...new Set(usuarioIds)]
 
-    const { candidatos } = await this.construirCandidatosInvitacion(actorId, grupoDestinoId)
-
-    const invalidos = idsUnicos.filter((id) => !candidatos.has(id))
-    if (invalidos.length > 0) {
-      throw new HttpError(
-        400,
-        'Una o más personas seleccionadas no se pueden invitar',
-        'INVALID_INVITEE'
-      )
-    }
+    const invitables = await this.validarInvitables(actorId, grupoDestinoId, idsUnicos)
 
     const result = await this.prisma.grupoInvitacion.createMany({
       data: idsUnicos.map((usuarioId) => {
-        const candidato = candidatos.get(usuarioId)!
+        const invitable = invitables.get(usuarioId)!
         return {
           grupo_id: grupoDestinoId,
           usuario_id: usuarioId,
           invitado_por_id: actorId,
-          grupo_origen_id: candidato.grupo_origen_id,
+          grupo_origen_id: invitable.grupo_origen_id,
           estado: 'pendiente' as const,
         }
       }),
@@ -449,7 +566,7 @@ export class GruposService {
     })
 
     const invitados = idsUnicos
-      .map((id) => candidatos.get(id)!)
+      .map((id) => invitables.get(id)!)
       .map((c) => ({ id: c.id, nombre: c.nombre }))
 
     return {

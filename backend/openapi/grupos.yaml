@@ -467,6 +467,85 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /api/grupos/{grupoId}/amigos-para-invitar:
+    get:
+      summary: Listar amigos invitables al grupo
+      description: |
+        Devuelve amistades aceptadas del líder con flag `ya_es_miembro` para el grupo destino (SCRUM-18).
+      operationId: listarAmigosParaInvitar
+      tags:
+        - Grupos
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: grupoId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Lista de amigos con estado de membresía
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UsuarioParaInvitarResponse'
+        '403':
+          description: Solo el líder puede invitar
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/grupos/{grupoId}/buscar-usuarios:
+    get:
+      summary: Buscar usuarios globales para invitar al grupo
+      description: |
+        Búsqueda por nombre (mín. 2 caracteres) en toda la base de usuarios (SCRUM-18).
+      operationId: buscarUsuariosParaInvitar
+      tags:
+        - Grupos
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: grupoId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 80
+      responses:
+        '200':
+          description: Resultados de búsqueda
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UsuarioParaInvitarResponse'
+        '400':
+          description: Query inválida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '403':
+          description: Solo el líder puede invitar
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /api/grupos/{grupoId}/usuarios-para-invitar:
     get:
       summary: Listar personas invitables al grupo
@@ -511,7 +590,9 @@ paths:
     post:
       summary: Invitar personas seleccionadas al grupo
       description: |
-        Crea invitaciones pendientes para los usuarios elegidos (SCRUM-13).
+        Crea invitaciones pendientes para los usuarios elegidos (SCRUM-13/SCRUM-18).
+        Acepta amigos, usuarios de búsqueda global o co-miembros de otros grupos.
+        `grupo_origen_id` es null cuando la invitación no proviene de otro grupo.
       operationId: invitarUsuarios
       tags:
         - Grupos
@@ -838,6 +919,26 @@ components:
           type: string
           format: uuid
 
+    UsuarioParaInvitarResponse:
+      type: object
+      required:
+        - id
+        - nombre
+        - email
+        - ya_es_miembro
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+        email:
+          type: string
+          format: email
+        ya_es_miembro:
+          type: boolean
+          description: true si ya es miembro o tiene invitación pendiente
+
     UsuarioInvitableResponse:
       type: object
       required:
@@ -988,7 +1089,6 @@ components:
         - id
         - created_at
         - grupo
-        - grupo_origen
         - invitado_por
       properties:
         id:
@@ -1000,7 +1100,9 @@ components:
         grupo:
           $ref: '#/components/schemas/InvitacionGrupoRef'
         grupo_origen:
-          $ref: '#/components/schemas/InvitacionGrupoRef'
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/InvitacionGrupoRef'
         invitado_por:
           $ref: '#/components/schemas/InvitacionUsuarioRef'
 

@@ -244,11 +244,14 @@ export default function GruposScreen() {
                 <Text style={styles.seccionTitulo}>Invitaciones pendientes</Text>
                 {invitaciones.map((inv) => {
                   const procesando = respondiendoId === inv.id;
+                  const origenTexto = inv.grupo_origen
+                    ? `desde ${inv.grupo_origen.nombre}`
+                    : 'directamente';
                   return (
                     <View key={inv.id} style={styles.tarjetaInvitacion}>
                       <Text style={styles.invitacionTitulo}>{inv.grupo.nombre}</Text>
                       <Text style={styles.invitacionMeta}>
-                        {inv.invitado_por.nombre} te invitó desde {inv.grupo_origen.nombre}
+                        {inv.invitado_por.nombre} te invitó {origenTexto}
                       </Text>
                       <View style={styles.invitacionAcciones}>
                         <TouchableOpacity

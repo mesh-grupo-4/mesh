@@ -68,16 +68,58 @@ backend/
 
 ## Variables de entorno
 
-Copiar `.env.example` a `.env` y completar los valores:
+Copiar `.env.example` a `.env` y completar los valores.
+
+### Supabase (entorno del equipo)
+
+| Variable | Uso | Origen en Supabase Dashboard |
+|---|---|---|
+| `DATABASE_URL` | Runtime del backend (`npm run dev`) | **Connection pooling** → Transaction mode → puerto **6543** |
+| `DIRECT_URL` | Migraciones Prisma | **Connection pooling** → Session mode → puerto **5432** |
+
+Las URLs se leen desde `prisma.config.ts` (`DIRECT_URL` para migrate) y `src/config/prisma.ts` (`DATABASE_URL` en runtime).
 
 ```env
 NODE_ENV=development
 PORT=3000
 
-DATABASE_URL="postgresql://user:password@localhost:5432/mesh_db"
+DATABASE_URL="postgresql://...@aws-....pooler.supabase.com:6543/postgres?pgbouncer=true"
+DIRECT_URL="postgresql://...@aws-....pooler.supabase.com:5432/postgres"
 
 CORS_ORIGIN=http://localhost:5173
 ```
+
+---
+
+## Migraciones con Supabase + Prisma
+
+> **Importante para el equipo:** no usar `npm run db:migrate` (`prisma migrate dev`) contra Supabase pooler salvo que tengáis una conexión directa configurada. Suele fallar con **P1001** (no alcanza el servidor) o **P1002** (timeout en `pg_advisory_lock`), aunque la base responda bien al backend.
+
+### Comandos correctos
+
+| Objetivo | Comando | Cuándo |
+|---|---|---|
+| Ver si hay migraciones pendientes | `npx prisma migrate status` | Siempre, antes de asumir que falta migrar |
+| Aplicar migraciones ya commiteadas | `npx prisma migrate deploy` | Dev compartido, CI, prod |
+| Crear migración nueva (local) | `npx prisma migrate dev --name <nombre>` | Solo con **Direct connection** (`db.<ref>.supabase.co:5432`) como `DIRECT_URL`, o Postgres local |
+| Regenerar cliente tras editar schema | `npm run db:generate` | Tras pull con cambios en `schema.prisma` |
+
+### Flujo recomendado del equipo
+
+1. Quien cambia `schema.prisma` crea la migración (idealmente con Postgres local o **Direct connection** de Supabase).
+2. Commitea la carpeta `prisma/migrations/`.
+3. El resto del equipo, tras `git pull`:
+   ```bash
+   npm run db:generate
+   npx prisma migrate deploy   # NO npm run db:migrate
+   ```
+4. Si `migrate status` dice *"Database schema is up to date"*, **no hace falta migrar** aunque `migrate dev` haya fallado antes.
+
+### Si `migrate dev` falla pero el backend conecta
+
+- Es esperado con Session/Transaction pooler: Prisma intenta shadow DB y advisory locks que el pooler no soporta bien.
+- Verificá con `npx prisma migrate status` y, si hace falta, aplicá con `migrate deploy`.
+- Para desarrollo de migraciones contra Supabase remoto: en Dashboard → Database → **Direct connection** → usá esa URL temporalmente como `DIRECT_URL`.
 
 ---
 
@@ -96,8 +138,14 @@ npm run build
 # Producción (requiere build previo)
 npm run start
 
-# Crear/aplicar migraciones de base de datos
+# Aplicar migraciones pendientes (Supabase / CI) — preferir este
+npx prisma migrate deploy
+
+# Crear migración local (solo con Direct connection o Postgres local)
 npm run db:migrate
+
+# Ver estado de migraciones
+npx prisma migrate status
 
 # Generar cliente Prisma (después de editar schema.prisma)
 npm run db:generate

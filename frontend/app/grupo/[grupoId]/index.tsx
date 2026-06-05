@@ -239,7 +239,7 @@ export default function GrupoDetalleScreen() {
                   style={styles.botonInvitarGrupos}
                   onPress={() => router.push(`/grupo/${grupoId}/invitar-desde-grupos`)}
                 >
-                  <Text style={styles.botonInvitarGruposTexto}>Invitar personas</Text>
+                  <Text style={styles.botonInvitarGruposTexto}>Agregar integrante</Text>
                 </TouchableOpacity>
               </>
             )}

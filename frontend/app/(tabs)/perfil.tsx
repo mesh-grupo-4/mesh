@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,9 @@ import {
   Alert,
 } from 'react-native';
 import { useAuth, ActividadPreferida } from '@/context/AuthContext';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
+import { resolveBackendUserId } from '@/lib/apiClient';
+import { listarSolicitudesAmistadPendientes } from '@/lib/amistadesApi';
 
 const ACTIVIDADES: { valor: ActividadPreferida; etiqueta: string }[] = [
   { valor: 'moto', etiqueta: 'Moto' },
@@ -20,7 +22,7 @@ const ACTIVIDADES: { valor: ActividadPreferida; etiqueta: string }[] = [
 ];
 
 export default function PerfilScreen() {
-  const { user, profile, updateUserProfile, logout } = useAuth();
+  const { user, profile, updateUserProfile, logout, backendUserId } = useAuth();
 
   const [nombre, setNombre] = useState('');
   const [apellido, setApellido] = useState('');
@@ -29,6 +31,23 @@ export default function PerfilScreen() {
   const [loading, setLoading] = useState(false);
   const [guardado, setGuardado] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [solicitudesPendientes, setSolicitudesPendientes] = useState(0);
+
+  const cargarSolicitudes = useCallback(async () => {
+    try {
+      const userId = resolveBackendUserId(backendUserId);
+      const solicitudes = await listarSolicitudesAmistadPendientes(userId);
+      setSolicitudesPendientes(solicitudes.length);
+    } catch {
+      setSolicitudesPendientes(0);
+    }
+  }, [backendUserId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void cargarSolicitudes();
+    }, [cargarSolicitudes])
+  );
 
   useEffect(() => {
     if (profile) {
@@ -147,6 +166,19 @@ export default function PerfilScreen() {
         ))}
       </View>
 
+      {/* Mis Amigos */}
+      <TouchableOpacity style={styles.linkAmigos} onPress={() => router.push('/amigos')}>
+        <View style={styles.linkAmigosContenido}>
+          <Text style={styles.linkAmigosTexto}>Mis Amigos</Text>
+          {solicitudesPendientes > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeTexto}>{solicitudesPendientes}</Text>
+            </View>
+          )}
+        </View>
+        <Text style={styles.linkAmigosFlecha}>›</Text>
+      </TouchableOpacity>
+
       {/* Botón guardar */}
       <TouchableOpacity
         style={[styles.button, guardado && styles.buttonOk]}
@@ -224,6 +256,32 @@ const styles = StyleSheet.create({
   },
   actividadTexto: { color: '#aaa', fontSize: 15 },
   actividadTextoActivo: { color: '#4a9eff', fontWeight: '600' },
+
+  linkAmigos: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#1e1e1e',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderWidth: 1,
+    borderColor: '#2e2e2e',
+    marginTop: 8,
+  },
+  linkAmigosContenido: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  linkAmigosTexto: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  linkAmigosFlecha: { color: '#666', fontSize: 22, fontWeight: '300' },
+  badge: {
+    backgroundColor: '#4a9eff',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeTexto: { color: '#fff', fontSize: 12, fontWeight: '700' },
 
   button: {
     backgroundColor: '#4a9eff',

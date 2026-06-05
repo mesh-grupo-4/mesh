@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { amistadesRouter } from '../modules/amistades/amistades.router'
 import { gruposRouter } from '../modules/grupos/grupos.router'
 import { usuariosRouter } from '../modules/usuarios/usuarios.router'
 import { viajesRouter } from '../modules/viajes/viajes.router'
@@ -10,5 +11,6 @@ router.get('/health', (_req, res) => {
 })
 
 router.use('/usuarios', usuariosRouter)
+router.use('/amistades', amistadesRouter)
 router.use('/grupos', gruposRouter)
 router.use('/viajes', viajesRouter)

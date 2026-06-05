@@ -1,0 +1,290 @@
+openapi: 3.0.3
+info:
+  title: Mesh API — Amistades
+  version: 1.0.0
+  description: |
+    Gestión de amistades (SCRUM-14 / SCRUM-18). Auth: Bearer Firebase ID token.
+
+servers:
+  - url: http://localhost:3000
+    description: Desarrollo local
+
+paths:
+  /api/amistades:
+    get:
+      summary: Listar amigos aceptados
+      operationId: listarAmigos
+      tags:
+        - Amistades
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Amigos del usuario autenticado
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AmigoResponse'
+
+  /api/amistades/buscar:
+    get:
+      summary: Buscar usuarios por nombre o email
+      operationId: buscarUsuariosAmistad
+      tags:
+        - Amistades
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 80
+      responses:
+        '200':
+          description: Usuarios coincidentes con estado de relación
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UsuarioBusquedaAmistadResponse'
+
+  /api/amistades/solicitudes/pendientes:
+    get:
+      summary: Listar solicitudes de amistad recibidas
+      operationId: listarSolicitudesAmistadPendientes
+      tags:
+        - Amistades
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Solicitudes pendientes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SolicitudAmistadPendienteResponse'
+
+  /api/amistades/solicitar:
+    post:
+      summary: Enviar solicitud de amistad
+      operationId: solicitarAmistad
+      tags:
+        - Amistades
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SolicitarAmistadRequest'
+      responses:
+        '201':
+          description: Solicitud creada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SolicitarAmistadResponse'
+        '400':
+          description: Validación fallida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '409':
+          description: Ya son amigos o solicitud duplicada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/amistades/solicitudes/{solicitudId}/responder:
+    post:
+      summary: Aceptar o rechazar solicitud de amistad
+      operationId: responderSolicitudAmistad
+      tags:
+        - Amistades
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: solicitudId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResponderSolicitudAmistadRequest'
+      responses:
+        '200':
+          description: Solicitud respondida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponderSolicitudAmistadResponse'
+
+  /api/amistades/{usuarioId}:
+    delete:
+      summary: Eliminar amigo (rompe amistad aceptada para ambos)
+      operationId: eliminarAmigo
+      tags:
+        - Amistades
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: usuarioId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Amistad eliminada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EliminarAmigoResponse'
+        '404':
+          description: No existe amistad aceptada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    AmigoResponse:
+      type: object
+      required: [id, nombre, email]
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+        email:
+          type: string
+          format: email
+
+    SolicitudAmistadPendienteResponse:
+      type: object
+      required: [id, created_at, solicitante]
+      properties:
+        id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        solicitante:
+          $ref: '#/components/schemas/AmigoResponse'
+
+    SolicitarAmistadRequest:
+      type: object
+      required: [usuario_id]
+      properties:
+        usuario_id:
+          type: string
+          format: uuid
+
+    SolicitarAmistadResponse:
+      type: object
+      required: [id, created_at, destinatario]
+      properties:
+        id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        destinatario:
+          type: object
+          required: [id, nombre]
+          properties:
+            id:
+              type: string
+              format: uuid
+            nombre:
+              type: string
+
+    ResponderSolicitudAmistadRequest:
+      type: object
+      required: [accion]
+      properties:
+        accion:
+          type: string
+          enum: [aceptar, rechazar]
+
+    ResponderSolicitudAmistadResponse:
+      type: object
+      required: [solicitud_id, accion, amigo_id, amigo_nombre]
+      properties:
+        solicitud_id:
+          type: string
+          format: uuid
+        accion:
+          type: string
+          enum: [aceptada, rechazada]
+        amigo_id:
+          type: string
+          format: uuid
+        amigo_nombre:
+          type: string
+
+    UsuarioBusquedaAmistadResponse:
+      type: object
+      required: [id, nombre, email, relacion]
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+        email:
+          type: string
+          format: email
+        relacion:
+          type: string
+          nullable: true
+          enum: [amigo, solicitud_enviada, solicitud_recibida, null]
+
+    EliminarAmigoResponse:
+      type: object
+      required: [amigo_id]
+      properties:
+        amigo_id:
+          type: string
+          format: uuid
+
+    ValidationError:
+      type: object
+      properties:
+        error:
+          type: string
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        code:
+          type: string

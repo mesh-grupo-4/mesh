@@ -48,6 +48,13 @@ export type UsuarioInvitableApi = {
   grupos_origen: Array<{ id: string; nombre: string }>
 }
 
+export type UsuarioParaInvitarApi = {
+  id: string
+  nombre: string
+  email: string
+  ya_es_miembro: boolean
+}
+
 export type InvitarUsuariosResponse = {
   invitaciones_creadas: number
   invitados: Array<{ id: string; nombre: string }>
@@ -69,7 +76,7 @@ export type InvitacionPendienteApi = {
   id: string
   created_at: string
   grupo: { id: string; nombre: string }
-  grupo_origen: { id: string; nombre: string }
+  grupo_origen: { id: string; nombre: string } | null
   invitado_por: { id: string; nombre: string }
 }
 
@@ -178,6 +185,32 @@ export async function eliminarGrupo(
     headers: await authHeaders(userId),
   })
   return parseJson<GrupoMutationResponse>(res)
+}
+
+export async function listarAmigosParaInvitar(
+  grupoDestinoId: string,
+  userId: string,
+  baseUrl?: string
+): Promise<UsuarioParaInvitarApi[]> {
+  const res = await meshFetch(
+    apiUrl(`/api/grupos/${grupoDestinoId}/amigos-para-invitar`, baseUrl),
+    { headers: await authHeaders(userId) }
+  )
+  return parseJson<UsuarioParaInvitarApi[]>(res)
+}
+
+export async function buscarUsuariosParaInvitar(
+  grupoDestinoId: string,
+  query: string,
+  userId: string,
+  baseUrl?: string
+): Promise<UsuarioParaInvitarApi[]> {
+  const params = new URLSearchParams({ q: query })
+  const res = await meshFetch(
+    apiUrl(`/api/grupos/${grupoDestinoId}/buscar-usuarios?${params}`, baseUrl),
+    { headers: await authHeaders(userId) }
+  )
+  return parseJson<UsuarioParaInvitarApi[]>(res)
 }
 
 export async function listarUsuariosParaInvitar(

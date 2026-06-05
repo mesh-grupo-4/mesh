@@ -43,6 +43,12 @@ enum EstadoInvitacionGrupo {
   rechazada
 }
 
+enum EstadoAmistad {
+  pendiente
+  aceptada
+  rechazada
+}
+
 enum EstadoViajeIntegrante {
   pendiente
   confirmado
@@ -69,6 +75,8 @@ model Usuario {
   registros_gps          RegistroGPS[]
   invitaciones_recibidas GrupoInvitacion[]  @relation("InvitacionesRecibidas")
   invitaciones_enviadas  GrupoInvitacion[]  @relation("InvitacionesEnviadas")
+  amistades_solicitadas  Amistad[]          @relation("AmistadSolicitante")
+  amistades_recibidas    Amistad[]          @relation("AmistadDestinatario")
 
   @@map("usuario")
 }
@@ -105,18 +113,33 @@ model GrupoInvitacion {
   grupo_id        String                @map("grupo_id") @db.Uuid
   usuario_id      String                @map("usuario_id") @db.Uuid
   invitado_por_id String                @map("invitado_por_id") @db.Uuid
-  grupo_origen_id String                @map("grupo_origen_id") @db.Uuid
+  grupo_origen_id String?               @map("grupo_origen_id") @db.Uuid
   estado          EstadoInvitacionGrupo @default(pendiente)
   created_at      DateTime              @default(now()) @map("created_at")
 
   grupo        Grupo   @relation("InvitacionesDestino", fields: [grupo_id], references: [id], onDelete: Cascade)
-  grupo_origen Grupo   @relation("InvitacionesOrigen", fields: [grupo_origen_id], references: [id], onDelete: Cascade)
+  grupo_origen Grupo?  @relation("InvitacionesOrigen", fields: [grupo_origen_id], references: [id], onDelete: Cascade)
   usuario      Usuario @relation("InvitacionesRecibidas", fields: [usuario_id], references: [id], onDelete: Cascade)
   invitado_por Usuario @relation("InvitacionesEnviadas", fields: [invitado_por_id], references: [id], onDelete: Cascade)
 
   @@unique([grupo_id, usuario_id])
   @@index([usuario_id, estado])
   @@map("grupo_invitacion")
+}
+
+model Amistad {
+  id              String        @id @default(uuid()) @db.Uuid
+  solicitante_id  String        @map("solicitante_id") @db.Uuid
+  destinatario_id String        @map("destinatario_id") @db.Uuid
+  estado          EstadoAmistad @default(pendiente)
+  created_at      DateTime      @default(now()) @map("created_at")
+
+  solicitante  Usuario @relation("AmistadSolicitante", fields: [solicitante_id], references: [id], onDelete: Cascade)
+  destinatario Usuario @relation("AmistadDestinatario", fields: [destinatario_id], references: [id], onDelete: Cascade)
+
+  @@unique([solicitante_id, destinatario_id])
+  @@index([destinatario_id, estado])
+  @@map("amistad")
 }
 
 model Viaje {

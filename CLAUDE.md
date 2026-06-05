@@ -199,6 +199,13 @@ Convenciones:
 - Las URLs se configuran en `prisma.config.ts` (no en `schema.prisma`, cambio de Prisma v7).
 - El cliente Prisma se instancia con el adapter `PrismaPg` en `src/config/prisma.ts`.
 
+**Migraciones (evitar errores P1001 / P1002):**
+- **No** usar `npm run db:migrate` (`prisma migrate dev`) contra el pooler de Supabase para el día a día del equipo: falla por shadow database y `pg_advisory_lock`.
+- **Sí** usar `npx prisma migrate status` para verificar estado y `npx prisma migrate deploy` para aplicar migraciones ya commiteadas.
+- Tras `git pull` con cambios en schema: `npm run db:generate` + `npx prisma migrate deploy`.
+- Crear migraciones nuevas (`migrate dev`): Postgres local o **Direct connection** (`db.<ref>.supabase.co:5432`) como `DIRECT_URL`.
+- Detalle operativo: [`backend/README.md`](backend/README.md) → sección *Migraciones con Supabase + Prisma*.
+
 ### Motor de eventos
 El backend calcula desvíos, atrasos e incidentes de **forma autónoma** evaluando coordenadas GPS entrantes contra la ruta planificada. No depende de que el frontend interprete los datos.
 

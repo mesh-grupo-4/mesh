@@ -1,6 +1,7 @@
 import type { Request, RequestHandler, Response } from 'express'
 import {
   abandonarGrupoSchema,
+  buscarUsuariosQuerySchema,
   cambiarRolMiembroSchema,
   createGrupoSchema,
   grupoIdParamSchema,
@@ -71,6 +72,19 @@ export function crearGruposController(service: GruposService) {
     usuariosParaInvitar: asyncHandler(async (req, res) => {
       const { grupoId } = grupoIdParamSchema.parse(req.params)
       const usuarios = await service.listarUsuariosParaInvitar(req.userId!, grupoId)
+      res.json(usuarios)
+    }),
+
+    amigosParaInvitar: asyncHandler(async (req, res) => {
+      const { grupoId } = grupoIdParamSchema.parse(req.params)
+      const amigos = await service.listarAmigosParaInvitar(req.userId!, grupoId)
+      res.json(amigos)
+    }),
+
+    buscarUsuarios: asyncHandler(async (req, res) => {
+      const { grupoId } = grupoIdParamSchema.parse(req.params)
+      const { q } = buscarUsuariosQuerySchema.parse(req.query)
+      const usuarios = await service.buscarUsuariosParaInvitar(req.userId!, grupoId, q)
       res.json(usuarios)
     }),
 

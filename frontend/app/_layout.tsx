@@ -77,6 +77,7 @@ function RootLayoutNav() {
         <Stack.Screen name="configurar-ruta" options={{ headerShown: false }} />
         <Stack.Screen name="viaje" options={{ headerShown: false }} />
         <Stack.Screen name="grupo" options={{ headerShown: false }} />
+        <Stack.Screen name="amigos" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
       </Stack>
     </ThemeProvider>

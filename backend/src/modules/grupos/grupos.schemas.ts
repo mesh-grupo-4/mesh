@@ -51,6 +51,14 @@ export const responderInvitacionSchema = z.object({
   }),
 })
 
+export const buscarUsuariosQuerySchema = z.object({
+  q: z
+    .string()
+    .trim()
+    .min(2, 'La búsqueda debe tener al menos 2 caracteres')
+    .max(80, 'La búsqueda no puede superar 80 caracteres'),
+})
+
 export type CreateGrupoInput = z.infer<typeof createGrupoSchema>
 export type CambiarRolMiembroInput = z.infer<typeof cambiarRolMiembroSchema>
 export type AbandonarGrupoInput = z.infer<typeof abandonarGrupoSchema>

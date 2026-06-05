@@ -16,6 +16,8 @@ gruposRouter.post('/invitaciones/:invitacionId/responder', requireUser, c.respon
 gruposRouter.get('/:grupoId/miembros', requireUser, c.miembros)
 gruposRouter.patch('/:grupoId/miembros/:usuarioId/rol', requireUser, c.cambiarRol)
 gruposRouter.get('/:grupoId/grupos-para-invitar', requireUser, c.gruposParaInvitar)
+gruposRouter.get('/:grupoId/amigos-para-invitar', requireUser, c.amigosParaInvitar)
+gruposRouter.get('/:grupoId/buscar-usuarios', requireUser, c.buscarUsuarios)
 gruposRouter.get('/:grupoId/usuarios-para-invitar', requireUser, c.usuariosParaInvitar)
 gruposRouter.post('/:grupoId/invitar-usuarios', requireUser, c.invitarUsuarios)
 gruposRouter.post('/:grupoId/invitar-desde-grupos', requireUser, c.invitarDesdeGrupos)
