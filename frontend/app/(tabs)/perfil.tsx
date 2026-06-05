@@ -34,6 +34,7 @@ export default function PerfilScreen() {
   const [guardado, setGuardado] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [solicitudesPendientes, setSolicitudesPendientes] = useState(0);
+  const [modoEdicion, setModoEdicion] = useState(false);
 
   const cargarSolicitudes = useCallback(async () => {
     try {
@@ -79,6 +80,16 @@ export default function PerfilScreen() {
     ]);
   };
 
+  const cancelarEdicion = () => {
+    if (profile) {
+      setNombre(profile.nombre);
+      setApellido(profile.apellido);
+      setTelefono(profile.telefono ?? '');
+      setActividad(profile.actividadPreferida);
+    }
+    setModoEdicion(false);
+  };
+
   const guardar = () => {
     if (!nombre.trim() || !apellido.trim()) {
       Alert.alert('Campos requeridos', 'El nombre y apellido no pueden estar vacíos.');
@@ -98,6 +109,7 @@ export default function PerfilScreen() {
               actividadPreferida: actividad,
             });
             setGuardado(true);
+            setModoEdicion(false);
             setTimeout(() => setGuardado(false), 2500);
           } catch {
             Alert.alert('Error', 'No se pudieron guardar los cambios. Intentá de nuevo.');
@@ -160,6 +172,7 @@ export default function PerfilScreen() {
                 onChangeText={setNombre}
                 autoCapitalize="words"
                 placeholderTextColor={theme.textMute}
+                editable={modoEdicion}
               />
             </View>
             <View style={styles.half}>
@@ -169,6 +182,7 @@ export default function PerfilScreen() {
                 onChangeText={setApellido}
                 autoCapitalize="words"
                 placeholderTextColor={theme.textMute}
+                editable={modoEdicion}
               />
             </View>
           </View>
@@ -181,6 +195,7 @@ export default function PerfilScreen() {
             keyboardType="phone-pad"
             placeholderTextColor={theme.textMute}
             placeholder="ej: 351 123-4567"
+            editable={modoEdicion}
           />
         </View>
 
@@ -193,7 +208,7 @@ export default function PerfilScreen() {
                 key={valor}
                 icon={icono}
                 active={actividad === valor}
-                onPress={() => setActividad(valor === actividad ? '' : valor)}
+                onPress={modoEdicion ? () => setActividad(valor === actividad ? '' : valor) : undefined}
               >
                 {etiqueta}
               </Chip>
@@ -226,16 +241,39 @@ export default function PerfilScreen() {
 
         {/* Botones de acción */}
         <View style={styles.actions}>
-          <Btn
-            variant={guardado ? 'outline' : 'primary'}
-            size="lg"
-            block
-            onPress={guardar}
-            loading={loading}
-            icon={guardado ? 'check' : undefined}
-          >
-            {guardado ? 'Cambios guardados' : 'Guardar cambios'}
-          </Btn>
+          {modoEdicion ? (
+            <>
+              <Btn
+                variant={guardado ? 'outline' : 'primary'}
+                size="lg"
+                block
+                onPress={guardar}
+                loading={loading}
+                icon={guardado ? 'check' : undefined}
+              >
+                {guardado ? 'Cambios guardados' : 'Guardar cambios'}
+              </Btn>
+              <Btn
+                variant="ghost"
+                size="lg"
+                block
+                onPress={cancelarEdicion}
+                disabled={loading}
+              >
+                Cancelar
+              </Btn>
+            </>
+          ) : (
+            <Btn
+              variant="outline"
+              size="lg"
+              block
+              onPress={() => setModoEdicion(true)}
+              icon="edit-2"
+            >
+              Editar datos
+            </Btn>
+          )}
 
           <Btn
             variant="danger-outline"

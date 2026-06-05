@@ -141,10 +141,15 @@ export default function ViajesScreen() {
               <Text style={styles.seccionTitulo}>Invitaciones pendientes</Text>
               {invitaciones.map((inv) => (
                 <View key={inv.viaje_id} style={styles.tarjeta}>
-                  <Text style={styles.tarjetaTitulo}>{etiquetaActividad(inv.tipo_actividad)}</Text>
+                  <Text style={styles.tarjetaTitulo}>
+                    {inv.nombre ?? etiquetaActividad(inv.tipo_actividad)}
+                  </Text>
                   <Text style={styles.tarjetaMeta}>
                     {formatearFecha(inv.fecha_programada)} · {inv.creador.nombre}
                   </Text>
+                  {inv.grupo_origen && (
+                    <Text style={styles.tarjetaGrupo}>Grupo: {inv.grupo_origen.nombre}</Text>
+                  )}
                   <View style={styles.filaAcciones}>
                     <TouchableOpacity
                       style={styles.botonAceptar}
@@ -182,7 +187,7 @@ export default function ViajesScreen() {
                 style={styles.tarjeta}
                 onPress={() => router.push({ pathname: '/viaje/[viajeId]', params: { viajeId: v.id } })}
               >
-                <Text style={styles.tarjetaTitulo}>{etiquetaActividad(v.tipo_actividad)}</Text>
+                <Text style={styles.tarjetaTitulo}>{v.nombre ?? etiquetaActividad(v.tipo_actividad)}</Text>
                 <Text style={styles.tarjetaMeta}>{formatearFecha(v.fecha_programada)}</Text>
                 <Text style={styles.estadoBadge}>
                   {v.mi_estado === 'creador'
@@ -225,6 +230,7 @@ const styles = StyleSheet.create({
   },
   tarjetaTitulo: { color: '#fff', fontSize: 16, fontWeight: '600' },
   tarjetaMeta: { color: '#888', fontSize: 13 },
+  tarjetaGrupo: { color: '#4a9eff', fontSize: 12, fontWeight: '600', marginTop: 2 },
   estadoBadge: { color: '#4a9eff', fontSize: 12, fontWeight: '600', marginTop: 4 },
   filaAcciones: { flexDirection: 'row', gap: 10, marginTop: 10 },
   botonAceptar: {

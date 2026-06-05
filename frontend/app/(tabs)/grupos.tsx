@@ -23,7 +23,7 @@ import {
   type InvitacionPendienteApi,
 } from '@/lib/gruposApi';
 import { Btn, Field, TopBar, useTheme } from '@/components/MeshUI';
-import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 
 function formatearFecha(iso: string): string {
   return new Date(iso).toLocaleDateString('es-AR', {
@@ -177,24 +177,12 @@ export default function GruposScreen() {
     );
   }
 
-  const rightHeader = (
-    <Pressable
-      onPress={() => router.push('/escanear-qr')}
-      style={({ pressed }) => [
-        styles.headerIconBtn,
-        { backgroundColor: pressed ? theme.surface2 : theme.surface, borderColor: theme.border },
-      ]}
-    >
-      <MaterialCommunityIcons name="qrcode" size={18} color={theme.text} />
-    </Pressable>
-  );
-
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: theme.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <TopBar title="Grupos" bordered={false} right={rightHeader} />
+      <TopBar title="Grupos" bordered={false} />
 
       <ScrollView
         contentContainerStyle={styles.inner}
@@ -245,23 +233,6 @@ export default function GruposScreen() {
           </View>
         ) : (
           <>
-            {/* Botón Escanear QR */}
-            <Pressable
-              style={({ pressed }) => [
-                styles.qrBtn,
-                {
-                  backgroundColor: pressed ? theme.accentWeak : theme.surface,
-                  borderColor: theme.accentLine,
-                },
-              ]}
-              onPress={() => router.push('/escanear-qr')}
-            >
-              <Feather name="camera" size={16} color={theme.accent} style={styles.qrIcon} />
-              <Text style={[styles.qrBtnText, { color: theme.accent }]}>
-                Escanear QR para unirme
-              </Text>
-            </Pressable>
-
             {/* Invitaciones pendientes */}
             {invitaciones.length > 0 && (
               <View style={styles.seccionInvitaciones}>
@@ -340,11 +311,8 @@ export default function GruposScreen() {
               ) : grupos.length === 0 ? (
                 <View style={styles.empty}>
                   <Text style={[styles.subtitulo, { color: theme.textDim }]}>
-                    Todavía no tenés grupos. Creá uno para organizar viajes e invitar personas.
+                    Todavía no tenés grupos. Tocá el botón para crear uno y organizar viajes.
                   </Text>
-                  <Btn variant="primary" size="lg" block onPress={() => setMostrarFormulario(true)}>
-                    Crear grupo
-                  </Btn>
                 </View>
               ) : (
                 <View style={styles.lista}>
@@ -466,30 +434,6 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     textAlign: 'center',
     marginBottom: 8,
-  },
-  headerIconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  qrBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 12,
-    paddingVertical: 14,
-    borderWidth: 1.5,
-    marginBottom: 4,
-  },
-  qrIcon: {
-    marginRight: 8,
-  },
-  qrBtnText: {
-    fontSize: 15,
-    fontWeight: '700',
   },
   seccionInvitaciones: {
     gap: 12,

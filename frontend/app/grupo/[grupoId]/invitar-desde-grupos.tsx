@@ -35,6 +35,7 @@ export default function AgregarIntegranteScreen() {
   const [buscando, setBuscando] = useState(false);
   const [invitandoId, setInvitandoId] = useState<string | null>(null);
   const [solicitandoAmistadId, setSolicitandoAmistadId] = useState<string | null>(null);
+  const [idsInvitadosEnSesion, setIdsInvitadosEnSesion] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [toastVisible, setToastVisible] = useState(false);
   const [idsAmigos, setIdsAmigos] = useState<Set<string>>(new Set());
@@ -97,22 +98,14 @@ export default function AgregarIntegranteScreen() {
     };
   }, [busqueda, grupoId, backendUserId]);
 
-  const marcarComoInvitado = (usuarioId: string) => {
-    const actualizar = (lista: UsuarioParaInvitarApi[]) =>
-      lista.map((u) => (u.id === usuarioId ? { ...u, ya_es_miembro: true } : u));
-
-    setAmigos((prev) => actualizar(prev));
-    setResultadosBusqueda((prev) => actualizar(prev));
-  };
-
   const ejecutarInvitacion = async (usuario: UsuarioParaInvitarApi) => {
-    if (!grupoId || usuario.ya_es_miembro) return;
+    if (!grupoId || usuario.ya_es_miembro || idsInvitadosEnSesion.has(usuario.id)) return;
 
     setInvitandoId(usuario.id);
     try {
       const userId = resolveBackendUserId(backendUserId);
       await invitarUsuarios(grupoId, [usuario.id], userId);
-      marcarComoInvitado(usuario.id);
+      setIdsInvitadosEnSesion((prev) => new Set([...prev, usuario.id]));
       setToastVisible(true);
     } catch (e: unknown) {
       Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo enviar la invitación.');
@@ -142,6 +135,7 @@ export default function AgregarIntegranteScreen() {
     const invitando = invitandoId === item.id;
     const solicitando = solicitandoAmistadId === item.id;
     const esAmigo = idsAmigos.has(item.id);
+    const yaInvitado = idsInvitadosEnSesion.has(item.id);
 
     const dummyPerson = {
       nombre: item.nombre,
@@ -176,14 +170,14 @@ export default function AgregarIntegranteScreen() {
           )}
           
           <Btn
-            variant={item.ya_es_miembro ? 'secondary' : 'primary'}
+            variant={item.ya_es_miembro || yaInvitado ? 'secondary' : 'primary'}
             size="sm"
             onPress={() => void ejecutarInvitacion(item)}
-            disabled={item.ya_es_miembro || invitando}
+            disabled={item.ya_es_miembro || yaInvitado || invitando}
             loading={invitando}
             style={styles.inviteBtn}
           >
-            {item.ya_es_miembro ? 'Ya es miembro' : 'Invitar'}
+            {item.ya_es_miembro ? 'Ya es miembro' : yaInvitado ? 'Invitación enviada' : 'Invitar'}
           </Btn>
         </View>
       </View>

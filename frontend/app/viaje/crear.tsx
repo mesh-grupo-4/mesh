@@ -3,6 +3,7 @@ import {
   View,
   Text,
   TouchableOpacity,
+  TextInput,
   StyleSheet,
   ActivityIndicator,
   Alert,
@@ -26,6 +27,7 @@ export default function CrearViajeScreen() {
   const { backendUserId } = useAuth()
   const [grupos, setGrupos] = useState<GrupoListItemApi[]>([])
   const [cargandoGrupos, setCargandoGrupos] = useState(true)
+  const [nombre, setNombre] = useState('')
   const [tipoActividad, setTipoActividad] = useState<TipoActividadApi>('bici')
   const [esGrupal, setEsGrupal] = useState(true)
   const [gruposSeleccionados, setGruposSeleccionados] = useState<Set<string>>(new Set())
@@ -60,6 +62,11 @@ export default function CrearViajeScreen() {
   }
 
   const handleCrear = async () => {
+    if (!nombre.trim()) {
+      Alert.alert('Campo requerido', 'El nombre del viaje es obligatorio.')
+      return
+    }
+
     if (esGrupal && gruposSeleccionados.size === 0) {
       Alert.alert(
         'Grupos opcionales',
@@ -76,6 +83,7 @@ export default function CrearViajeScreen() {
 
       const viaje = await crearViaje(
         {
+          nombre: nombre.trim(),
           esGrupal,
           grupoIds: esGrupal ? [...gruposSeleccionados] : [],
           tipoActividad,
@@ -105,6 +113,18 @@ export default function CrearViajeScreen() {
         <Text style={styles.hint}>
           Elegí la actividad y, si querés, grupos para invitar en bloque (RN-028).
         </Text>
+
+        <Text style={styles.seccion}>Nombre del viaje</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Ej: Vuelta al valle"
+          placeholderTextColor="#666"
+          value={nombre}
+          onChangeText={setNombre}
+          autoCapitalize="sentences"
+          maxLength={100}
+          editable={!guardando}
+        />
 
         <Text style={styles.seccion}>Tipo de actividad</Text>
         <View style={styles.chips}>
@@ -241,4 +261,15 @@ const styles = StyleSheet.create({
   },
   botonDisabled: { opacity: 0.6 },
   botonCrearTexto: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  input: {
+    backgroundColor: '#1e1e1e',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#333',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: '#fff',
+    fontSize: 15,
+    marginTop: 8,
+  },
 })

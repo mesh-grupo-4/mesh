@@ -6,6 +6,7 @@ export type TipoActividadApi = 'moto' | 'bici' | 'running' | 'trekking'
 
 export type ViajeCreadoApi = {
   id: string
+  nombre?: string
   creador_id: string
   es_grupal: boolean
   tipo_actividad: TipoActividadApi
@@ -16,6 +17,7 @@ export type ViajeCreadoApi = {
 
 export type ViajePlanificadoApi = {
   id: string
+  nombre?: string
   creador_id: string
   es_grupal: boolean
   tipo_actividad: TipoActividadApi
@@ -26,9 +28,11 @@ export type ViajePlanificadoApi = {
 
 export type InvitacionViajePendienteApi = {
   viaje_id: string
+  nombre?: string
   tipo_actividad: TipoActividadApi
   fecha_programada: string
   creador: { id: string; nombre: string }
+  grupo_origen?: { id: string; nombre: string } | null
   created_at: string
 }
 
@@ -46,6 +50,7 @@ export type UnirseQrViajeResponse = {
 
 export async function crearViaje(
   input: {
+    nombre: string
     esGrupal: boolean
     grupoIds?: string[]
     tipoActividad: TipoActividadApi
@@ -61,6 +66,7 @@ export async function crearViaje(
       ...(await authHeaders(userId)),
     },
     body: JSON.stringify({
+      nombre: input.nombre,
       esGrupal: input.esGrupal,
       grupoIds: input.grupoIds ?? [],
       tipoActividad: input.tipoActividad,
