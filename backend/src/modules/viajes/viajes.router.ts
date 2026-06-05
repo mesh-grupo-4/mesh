@@ -10,6 +10,7 @@ const c = crearViajesController(service)
 export const viajesRouter = Router()
 
 viajesRouter.post('/', requireUser, c.crear)
+viajesRouter.post('/:viajeId/unirse-qr', requireUser, c.unirseQr)
 viajesRouter.get('/:viajeId', requireUser, c.detalle)
 viajesRouter.post('/:viajeId/posiciones', requireUser, c.ingresarPosiciones)
 viajesRouter.put('/:viajeId/ruta', requireUser, c.guardarRuta)

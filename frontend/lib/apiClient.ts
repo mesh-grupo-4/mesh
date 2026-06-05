@@ -1,6 +1,31 @@
 import { API_BASE_URL, DEV_USER_ID } from '@/constants/Config'
+import { auth } from '@/lib/firebase'
 
 const FETCH_TIMEOUT_MS = 12_000
+
+export class MeshApiError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string,
+    public readonly code?: string
+  ) {
+    super(message)
+    this.name = 'MeshApiError'
+  }
+}
+
+export async function getFirebaseIdToken(): Promise<string> {
+  const user = auth.currentUser
+  if (!user) {
+    throw new Error('No hay sesión activa. Iniciá sesión nuevamente.')
+  }
+  return user.getIdToken()
+}
+
+export async function bearerAuthHeaders(): Promise<Record<string, string>> {
+  const token = await getFirebaseIdToken()
+  return { Authorization: `Bearer ${token}` }
+}
 
 export async function meshFetch(url: string, init?: RequestInit): Promise<Response> {
   const controller = new AbortController()
@@ -21,13 +46,15 @@ export async function parseJson<T>(res: Response): Promise<T> {
   const text = await res.text()
   if (!res.ok) {
     let msg = text
+    let code: string | undefined
     try {
-      const j = JSON.parse(text) as { error?: string }
+      const j = JSON.parse(text) as { error?: string; code?: string }
       if (j.error) msg = j.error
+      code = j.code
     } catch {
       /* */
     }
-    throw new Error(msg || `HTTP ${res.status}`)
+    throw new MeshApiError(res.status, msg || `HTTP ${res.status}`, code)
   }
   return text ? (JSON.parse(text) as T) : (null as T)
 }
@@ -36,8 +63,8 @@ export function apiUrl(path: string, baseUrl: string = API_BASE_URL): string {
   return `${baseUrl.replace(/\/$/, '')}${path}`
 }
 
-export function authHeaders(userId: string): Record<string, string> {
-  return { 'x-user-id': userId }
+export function authHeaders(_userId?: string): Promise<Record<string, string>> {
+  return bearerAuthHeaders()
 }
 
 export function resolveBackendUserId(

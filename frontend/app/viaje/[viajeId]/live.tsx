@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as Location from 'expo-location'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Alert, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 
 import { API_BASE_URL, DEV_USER_ID } from '@/constants/Config'
@@ -43,53 +43,55 @@ export default function ViajeLiveScreen() {
     if (userId.trim()) void AsyncStorage.setItem('mesh:activeUserId', userId.trim())
   }, [userId])
 
-  const prepararSocket = useCallback(() => {
-    if (!viajeId || !userId.trim()) return
-    const sock = connectMeshSocket(userId.trim())
-    sock.emit('join_viaje', { viajeId })
-
-    const onUbi = (payload: {
-      viajeId: string
-      usuarioId: string
-      lat: number
-      lng: number
-      precision: number | null
-      recordedAt: string
-    }) => {
-      if (payload.viajeId !== viajeId) return
-      setPeers((prev) => ({
-        ...prev,
-        [payload.usuarioId]: {
-          usuarioId: payload.usuarioId,
-          lat: payload.lat,
-          lng: payload.lng,
-          precision: payload.precision,
-          recordedAt: payload.recordedAt,
-        },
-      }))
-    }
-
-    const onFin = (payload: { viajeId: string }) => {
-      if (payload.viajeId !== viajeId) return
-      void detenerTrackingViaje()
-      Alert.alert('Viaje finalizado', 'Se detuvo el seguimiento GPS.', [
-        { text: 'OK', onPress: () => router.replace(`/viaje/${viajeId}` as never) },
-      ])
-    }
-
-    sock.on('viaje:ubicacion', onUbi)
-    sock.on('viaje:finalizado', onFin)
-
-    return () => {
-      sock.off('viaje:ubicacion', onUbi)
-      sock.off('viaje:finalizado', onFin)
-    }
-  }, [viajeId, userId, router])
-
   useEffect(() => {
-    const off = prepararSocket()
-    return () => off?.()
-  }, [prepararSocket])
+    if (!viajeId || !userId.trim()) return
+
+    let cleanup: (() => void) | undefined
+
+    void (async () => {
+      const sock = await connectMeshSocket()
+      sock.emit('join_viaje', { viajeId })
+
+      const onUbi = (payload: {
+        viajeId: string
+        usuarioId: string
+        lat: number
+        lng: number
+        precision: number | null
+        recordedAt: string
+      }) => {
+        if (payload.viajeId !== viajeId) return
+        setPeers((prev) => ({
+          ...prev,
+          [payload.usuarioId]: {
+            usuarioId: payload.usuarioId,
+            lat: payload.lat,
+            lng: payload.lng,
+            precision: payload.precision,
+            recordedAt: payload.recordedAt,
+          },
+        }))
+      }
+
+      const onFin = (payload: { viajeId: string }) => {
+        if (payload.viajeId !== viajeId) return
+        void detenerTrackingViaje()
+        Alert.alert('Viaje finalizado', 'Se detuvo el seguimiento GPS.', [
+          { text: 'OK', onPress: () => router.replace(`/viaje/${viajeId}` as never) },
+        ])
+      }
+
+      sock.on('viaje:ubicacion', onUbi)
+      sock.on('viaje:finalizado', onFin)
+
+      cleanup = () => {
+        sock.off('viaje:ubicacion', onUbi)
+        sock.off('viaje:finalizado', onFin)
+      }
+    })()
+
+    return () => cleanup?.()
+  }, [viajeId, userId, router])
 
   useEffect(() => {
     let cancelled = false

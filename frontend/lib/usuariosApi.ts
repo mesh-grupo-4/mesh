@@ -1,4 +1,4 @@
-import { apiUrl, meshFetch, parseJson } from './apiClient'
+import { apiUrl, bearerAuthHeaders, meshFetch, parseJson } from './apiClient'
 
 export type SyncUsuarioResponse = {
   id: string
@@ -13,7 +13,10 @@ export async function syncUsuario(
 ): Promise<SyncUsuarioResponse> {
   const res = await meshFetch(apiUrl('/api/usuarios/sync', baseUrl), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(await bearerAuthHeaders()),
+    },
     body: JSON.stringify({ email, nombre }),
   })
   return parseJson<SyncUsuarioResponse>(res)

@@ -97,7 +97,7 @@ export function ViajeRealtimeBridge() {
     void (async () => {
       const uid = await AsyncStorage.getItem('mesh:activeUserId')
       if (!uid) return
-      const sock = connectMeshSocket(uid)
+      const sock = await connectMeshSocket()
       const onInicio = async (payload: { viajeId: string }) => {
         await notifyLocal(
           'Viaje iniciado',

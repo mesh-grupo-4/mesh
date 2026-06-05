@@ -91,7 +91,7 @@ export default function ViajeDetalleScreen() {
       await iniciarViajeEnBackend(viajeId, userId.trim())
       await cargar()
 
-      const sock = connectMeshSocket(userId.trim())
+      const sock = await connectMeshSocket()
       sock.emit('join_viaje', { viajeId })
 
       if (perm.foreground) {

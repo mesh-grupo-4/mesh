@@ -26,5 +26,11 @@ export function crearGruposController(service: GruposService) {
       const grupo = await service.detalleParaMiembro(req.userId!, grupoId)
       res.json(grupo)
     }),
+
+    viajesPlanificados: asyncHandler(async (req, res) => {
+      const grupoId = req.params.grupoId as string
+      const viajes = await service.listarViajesPlanificados(req.userId!, grupoId)
+      res.json(viajes)
+    }),
   }
 }

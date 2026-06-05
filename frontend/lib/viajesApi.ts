@@ -1,6 +1,41 @@
 import { API_BASE_URL } from '@/constants/Config'
 import type { PutRutaBody } from './viajesTypes'
-import { apiUrl, authHeaders, parseJson } from './apiClient'
+import { apiUrl, authHeaders, meshFetch, parseJson } from './apiClient'
+
+export type TipoActividadApi = 'moto' | 'bici' | 'running' | 'trekking'
+
+export type ViajeCreadoApi = {
+  id: string
+  creador_id: string
+  grupo_id: string | null
+  es_grupal: boolean
+  tipo_actividad: TipoActividadApi
+  estado: 'planificado' | 'en_curso' | 'finalizado'
+  fecha_programada: string
+}
+
+export async function crearViajeGrupal(
+  grupoId: string,
+  tipoActividad: TipoActividadApi,
+  fechaProgramada: Date,
+  userId: string,
+  baseUrl: string = API_BASE_URL
+): Promise<ViajeCreadoApi> {
+  const res = await meshFetch(apiUrl('/api/viajes', baseUrl), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(await authHeaders(userId)),
+    },
+    body: JSON.stringify({
+      esGrupal: true,
+      grupoId,
+      tipoActividad,
+      fechaProgramada: fechaProgramada.toISOString(),
+    }),
+  })
+  return parseJson<ViajeCreadoApi>(res)
+}
 
 export type ViajeDetalleApi = {
   id: string
@@ -23,7 +58,7 @@ export async function obtenerViaje(
   baseUrl: string = API_BASE_URL
 ): Promise<ViajeDetalleApi> {
   const res = await fetch(apiUrl(`/api/viajes/${viajeId}`, baseUrl), {
-    headers: authHeaders(userId),
+    headers: await authHeaders(userId),
   })
   return parseJson<ViajeDetalleApi>(res)
 }
@@ -42,7 +77,7 @@ export async function iniciarViajeEnBackend(
 ): Promise<ViajeIniciadoApi> {
   const res = await fetch(apiUrl(`/api/viajes/${viajeId}/iniciar`, baseUrl), {
     method: 'POST',
-    headers: authHeaders(userId),
+    headers: await authHeaders(userId),
   })
   return parseJson<ViajeIniciadoApi>(res)
 }
@@ -57,7 +92,7 @@ export async function guardarRutaEnBackend(
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
-      ...authHeaders(userId),
+      ...(await authHeaders(userId)),
     },
     body: JSON.stringify(body),
   })

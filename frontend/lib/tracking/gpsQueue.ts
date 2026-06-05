@@ -1,6 +1,7 @@
 import { openDatabaseSync, type SQLiteDatabase } from 'expo-sqlite'
 
 import { API_BASE_URL } from '@/constants/Config'
+import { bearerAuthHeaders } from '@/lib/apiClient'
 
 export type PendingGpsRow = {
   id: number
@@ -80,11 +81,12 @@ export async function flushGpsQueue(baseUrl: string = API_BASE_URL): Promise<voi
     }))
 
     try {
+      const auth = await bearerAuthHeaders()
       const res = await fetch(`${root}/api/viajes/${viajeId}/posiciones`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-user-id': userId,
+          ...auth,
         },
         body: JSON.stringify({ source: 'offline_sync', posiciones }),
       })

@@ -99,4 +99,25 @@ export class GruposService {
       mi_rol: rol,
     }
   }
+
+  async listarViajesPlanificados(usuarioId: string, grupoId: string) {
+    await this.detalleParaMiembro(usuarioId, grupoId)
+
+    const viajes = await this.prisma.viaje.findMany({
+      where: {
+        grupo_id: grupoId,
+        es_grupal: true,
+        estado: 'planificado',
+      },
+      select: {
+        id: true,
+        tipo_actividad: true,
+        fecha_programada: true,
+        estado: true,
+      },
+      orderBy: { fecha_programada: 'asc' },
+    })
+
+    return viajes
+  }
 }

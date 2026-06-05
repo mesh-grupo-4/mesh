@@ -11,4 +11,5 @@ export const gruposRouter = Router()
 
 gruposRouter.get('/', requireUser, c.listar)
 gruposRouter.post('/', requireUser, c.crear)
+gruposRouter.get('/:grupoId/viajes-planificados', requireUser, c.viajesPlanificados)
 gruposRouter.get('/:grupoId', requireUser, c.detalle)

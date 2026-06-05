@@ -19,12 +19,12 @@ const corsOptions = isDev
   ? {
       origin: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'x-user-id'],
+      allowedHeaders: ['Content-Type', 'Authorization'],
     }
   : {
       origin: process.env.CORS_ORIGIN ?? 'http://localhost:5173',
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'x-user-id'],
+      allowedHeaders: ['Content-Type', 'Authorization'],
     }
 
 const io = new Server(httpServer, {

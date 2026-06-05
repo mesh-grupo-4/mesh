@@ -47,5 +47,11 @@ export function crearViajesController(service: ViajesService) {
       const viaje = await service.finalizar(req.userId!, viajeId)
       res.json(viaje)
     }),
+
+    unirseQr: asyncHandler(async (req, res) => {
+      const viajeId = req.params.viajeId as string
+      const result = await service.unirsePorQr(req.userId!, viajeId)
+      res.json(result)
+    }),
   }
 }

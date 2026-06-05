@@ -2,6 +2,7 @@ import type { Prisma } from '@prisma/client'
 import type { PrismaClient } from '@prisma/client'
 import { getIo } from '../../realtime/ioRegistry'
 import { HttpError } from '../../lib/httpError'
+import { QR_EXPIRED_MESSAGE } from '../../lib/qrInvite'
 import { computeLineStringLengthMeters } from '../../lib/postgis'
 import type { CreateViajeInput, PostPosicionesInput, PutRutaInput } from './viajes.schemas'
 
@@ -48,6 +49,52 @@ export class ViajesService {
         fecha_programada: input.fechaProgramada,
       },
     })
+  }
+
+  /** RN-015 / RN-016: unión por QR al grupo del viaje planificado. */
+  async unirsePorQr(usuarioId: string, viajeId: string) {
+    const viaje = await this.prisma.viaje.findUnique({
+      where: { id: viajeId },
+      select: {
+        id: true,
+        grupo_id: true,
+        es_grupal: true,
+        estado: true,
+      },
+    })
+
+    if (!viaje) {
+      throw new HttpError(404, 'Viaje no encontrado', 'VIAJE_NOT_FOUND')
+    }
+
+    if (!viaje.es_grupal || !viaje.grupo_id) {
+      throw new HttpError(422, 'El viaje no admite invitación por QR', 'QR_NOT_GRUPAL')
+    }
+
+    if (viaje.estado !== 'planificado') {
+      throw new HttpError(410, QR_EXPIRED_MESSAGE, 'QR_EXPIRED')
+    }
+
+    const grupoId = viaje.grupo_id
+    const existente = await this.prisma.grupoMiembro.findUnique({
+      where: {
+        grupo_id_usuario_id: { grupo_id: grupoId, usuario_id: usuarioId },
+      },
+    })
+
+    if (existente) {
+      return { grupoId, viajeId, yaEraMiembro: true }
+    }
+
+    await this.prisma.grupoMiembro.create({
+      data: {
+        grupo_id: grupoId,
+        usuario_id: usuarioId,
+        rol: 'participante',
+      },
+    })
+
+    return { grupoId, viajeId, yaEraMiembro: false }
   }
 
   async guardarRuta(creadorId: string, viajeId: string, input: PutRutaInput) {
