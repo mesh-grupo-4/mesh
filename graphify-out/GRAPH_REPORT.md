@@ -1,7 +1,7 @@
 # Graph Report - D:\TESIS\mesh  (2026-06-05)
 
 ## Corpus Check
-- 86 files · ~30,000 words
+- 86 files · ~29,999 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary

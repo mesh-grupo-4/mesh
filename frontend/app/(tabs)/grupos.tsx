@@ -191,6 +191,13 @@ export default function GruposScreen() {
               </TouchableOpacity>
             </View>
 
+            <TouchableOpacity
+              style={styles.botonEscanearQr}
+              onPress={() => router.push('/escanear-qr')}
+            >
+              <Text style={styles.botonEscanearQrTexto}>Escanear QR para unirse</Text>
+            </TouchableOpacity>
+
             {cargandoLista ? (
               <ActivityIndicator color="#4a9eff" style={{ marginTop: 32 }} />
             ) : grupos.length === 0 ? (
@@ -284,6 +291,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
+  botonEscanearQr: {
+    borderRadius: 10,
+    padding: 14,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#4a9eff',
+    marginBottom: 16,
+  },
+  botonEscanearQrTexto: { color: '#4a9eff', fontSize: 15, fontWeight: '600' },
   botonPrimarioTexto: { color: '#fff', fontSize: 16, fontWeight: '600' },
   botonSecundario: {
     borderRadius: 10,
