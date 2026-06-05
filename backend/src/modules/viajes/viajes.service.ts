@@ -4,7 +4,13 @@ import { getIo } from '../../realtime/ioRegistry'
 import { HttpError } from '../../lib/httpError'
 import { QR_EXPIRED_MESSAGE } from '../../lib/qrInvite'
 import { computeLineStringLengthMeters } from '../../lib/postgis'
-import type { CreateViajeInput, PostPosicionesInput, PutRutaInput } from './viajes.schemas'
+import { unirUsuarioAlViaje } from './viajes.membership'
+import type {
+  CreateViajeInput,
+  PostPosicionesInput,
+  PutRutaInput,
+  ResponderInvitacionViajeInput,
+} from './viajes.schemas'
 
 export class ViajesService {
   constructor(private readonly prisma: PrismaClient) {}
@@ -19,46 +25,225 @@ export class ViajesService {
       throw new HttpError(400, 'La fecha programada debe ser futura (UTC)', 'FECHA_PASADA')
     }
 
-    if (input.esGrupal) {
-      const grupoId = input.grupoId as string
-      const grupo = await this.prisma.grupo.findUnique({
-        where: { id: grupoId },
-        include: {
-          miembros: {
-            where: { usuario_id: creadorId },
-          },
+    const grupoIds = [...new Set(input.grupoIds ?? [])]
+
+    if (grupoIds.length > 0) {
+      const membresias = await this.prisma.grupoMiembro.findMany({
+        where: {
+          usuario_id: creadorId,
+          grupo_id: { in: grupoIds },
         },
+        select: { grupo_id: true },
       })
-      if (!grupo) {
-        throw new HttpError(404, 'Grupo no encontrado', 'GRUPO_NOT_FOUND')
-      }
-      const esLiderMiembro =
-        grupo.lider_id === creadorId ||
-        grupo.miembros.some((m) => m.rol === 'lider')
-      if (!esLiderMiembro) {
-        throw new HttpError(403, 'Solo un líder del grupo puede crear un viaje grupal', 'NOT_GROUP_LEADER')
+      const miembrosDe = new Set(membresias.map((m) => m.grupo_id))
+      const noMiembro = grupoIds.find((id) => !miembrosDe.has(id))
+      if (noMiembro) {
+        throw new HttpError(
+          403,
+          'Solo podés invitar grupos de los que sos miembro',
+          'NOT_GROUP_MEMBER'
+        )
       }
     }
 
-    return this.prisma.viaje.create({
-      data: {
-        creador_id: creadorId,
-        grupo_id: input.esGrupal ? (input.grupoId as string) : null,
-        es_grupal: input.esGrupal,
-        tipo_actividad: input.tipoActividad,
-        fecha_programada: input.fechaProgramada,
-      },
+    const invitadosIds = new Set<string>()
+    if (grupoIds.length > 0) {
+      const miembros = await this.prisma.grupoMiembro.findMany({
+        where: { grupo_id: { in: grupoIds } },
+        select: { usuario_id: true },
+      })
+      for (const m of miembros) {
+        if (m.usuario_id !== creadorId) {
+          invitadosIds.add(m.usuario_id)
+        }
+      }
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const viaje = await tx.viaje.create({
+        data: {
+          creador_id: creadorId,
+          es_grupal: input.esGrupal,
+          tipo_actividad: input.tipoActividad,
+          fecha_programada: input.fechaProgramada,
+        },
+      })
+
+      await tx.viajeIntegrante.create({
+        data: {
+          viaje_id: viaje.id,
+          usuario_id: creadorId,
+          estado: 'confirmado',
+          origen: 'creador',
+        },
+      })
+
+      if (invitadosIds.size > 0) {
+        await tx.viajeIntegrante.createMany({
+          data: [...invitadosIds].map((usuarioId) => ({
+            viaje_id: viaje.id,
+            usuario_id: usuarioId,
+            estado: 'pendiente' as const,
+            origen: 'grupo' as const,
+          })),
+          skipDuplicates: true,
+        })
+      }
+
+      return {
+        ...viaje,
+        invitaciones_enviadas: invitadosIds.size,
+      }
     })
   }
 
-  /** RN-015 / RN-016: unión por QR al grupo del viaje planificado. */
+  async listarPlanificados(usuarioId: string) {
+    const viajes = await this.prisma.viaje.findMany({
+      where: {
+        estado: 'planificado',
+        OR: [
+          { creador_id: usuarioId },
+          {
+            integrantes: {
+              some: {
+                usuario_id: usuarioId,
+                estado: { in: ['confirmado', 'pendiente'] },
+              },
+            },
+          },
+        ],
+      },
+      select: {
+        id: true,
+        creador_id: true,
+        es_grupal: true,
+        tipo_actividad: true,
+        fecha_programada: true,
+        estado: true,
+        integrantes: {
+          where: { usuario_id: usuarioId },
+          select: { estado: true },
+        },
+      },
+      orderBy: { fecha_programada: 'asc' },
+    })
+
+    return viajes.map((v) => ({
+      id: v.id,
+      creador_id: v.creador_id,
+      es_grupal: v.es_grupal,
+      tipo_actividad: v.tipo_actividad,
+      fecha_programada: v.fecha_programada,
+      estado: v.estado,
+      mi_estado: v.creador_id === usuarioId ? 'creador' : (v.integrantes[0]?.estado ?? null),
+    }))
+  }
+
+  async listarInvitacionesPendientes(usuarioId: string) {
+    const rows = await this.prisma.viajeIntegrante.findMany({
+      where: { usuario_id: usuarioId, estado: 'pendiente' },
+      include: {
+        viaje: {
+          select: {
+            id: true,
+            tipo_actividad: true,
+            fecha_programada: true,
+            estado: true,
+            creador: { select: { id: true, nombre: true } },
+          },
+        },
+      },
+      orderBy: { created_at: 'desc' },
+    })
+
+    return rows
+      .filter((r) => r.viaje.estado === 'planificado')
+      .map((r) => ({
+        viaje_id: r.viaje.id,
+        tipo_actividad: r.viaje.tipo_actividad,
+        fecha_programada: r.viaje.fecha_programada,
+        creador: r.viaje.creador,
+        created_at: r.created_at,
+      }))
+  }
+
+  async responderInvitacion(
+    usuarioId: string,
+    viajeId: string,
+    input: ResponderInvitacionViajeInput
+  ) {
+    const integrante = await this.prisma.viajeIntegrante.findUnique({
+      where: {
+        viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId },
+      },
+      include: {
+        viaje: { select: { id: true, estado: true, tipo_actividad: true, fecha_programada: true } },
+      },
+    })
+
+    if (!integrante) {
+      throw new HttpError(404, 'Invitación no encontrada', 'INVITATION_NOT_FOUND')
+    }
+
+    if (integrante.estado !== 'pendiente') {
+      throw new HttpError(409, 'La invitación ya fue respondida', 'INVITATION_ALREADY_ANSWERED')
+    }
+
+    if (integrante.viaje.estado !== 'planificado') {
+      throw new HttpError(410, 'El viaje ya no acepta respuestas', 'TRIP_NOT_PLANNED')
+    }
+
+    const nuevoEstado = input.accion === 'aceptar' ? 'confirmado' : 'rechazado'
+
+    await this.prisma.viajeIntegrante.update({
+      where: {
+        viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId },
+      },
+      data: { estado: nuevoEstado },
+    })
+
+    return {
+      viaje_id: viajeId,
+      accion: input.accion,
+      tipo_actividad: integrante.viaje.tipo_actividad,
+      fecha_programada: integrante.viaje.fecha_programada,
+    }
+  }
+
+  async listarParticipantes(creadorId: string, viajeId: string) {
+    const viaje = await this.prisma.viaje.findUnique({
+      where: { id: viajeId },
+      select: { creador_id: true },
+    })
+    if (!viaje) {
+      throw new HttpError(404, 'Viaje no encontrado', 'VIAJE_NOT_FOUND')
+    }
+    if (viaje.creador_id !== creadorId) {
+      throw new HttpError(403, 'Solo el creador puede ver los participantes', 'NOT_CREATOR')
+    }
+
+    const integrantes = await this.prisma.viajeIntegrante.findMany({
+      where: { viaje_id: viajeId },
+      include: {
+        usuario: { select: { id: true, nombre: true, email: true } },
+      },
+      orderBy: [{ estado: 'asc' }, { created_at: 'asc' }],
+    })
+
+    return integrantes.map((i) => ({
+      usuario: i.usuario,
+      estado: i.estado,
+      origen: i.origen,
+      created_at: i.created_at,
+    }))
+  }
+
+  /** RN-015 / RN-016: unión por QR al viaje planificado. */
   async unirsePorQr(usuarioId: string, viajeId: string) {
     const viaje = await this.prisma.viaje.findUnique({
       where: { id: viajeId },
       select: {
         id: true,
-        grupo_id: true,
-        es_grupal: true,
         estado: true,
       },
     })
@@ -67,34 +252,15 @@ export class ViajesService {
       throw new HttpError(404, 'Viaje no encontrado', 'VIAJE_NOT_FOUND')
     }
 
-    if (!viaje.es_grupal || !viaje.grupo_id) {
-      throw new HttpError(422, 'El viaje no admite invitación por QR', 'QR_NOT_GRUPAL')
-    }
-
     if (viaje.estado !== 'planificado') {
       throw new HttpError(410, QR_EXPIRED_MESSAGE, 'QR_EXPIRED')
     }
 
-    const grupoId = viaje.grupo_id
-    const existente = await this.prisma.grupoMiembro.findUnique({
-      where: {
-        grupo_id_usuario_id: { grupo_id: grupoId, usuario_id: usuarioId },
-      },
+    const result = await this.prisma.$transaction(async (tx) => {
+      return unirUsuarioAlViaje(tx, viajeId, usuarioId, 'qr')
     })
 
-    if (existente) {
-      return { grupoId, viajeId, yaEraMiembro: true }
-    }
-
-    await this.prisma.grupoMiembro.create({
-      data: {
-        grupo_id: grupoId,
-        usuario_id: usuarioId,
-        rol: 'participante',
-      },
-    })
-
-    return { grupoId, viajeId, yaEraMiembro: false }
+    return { viajeId, yaEraParticipante: result.yaEraParticipante }
   }
 
   async guardarRuta(creadorId: string, viajeId: string, input: PutRutaInput) {
@@ -256,17 +422,24 @@ export class ViajesService {
     return actualizado
   }
 
-  private async assertPuedeVerViaje(
-    viaje: { creador_id: string; es_grupal: boolean; grupo_id: string | null },
-    usuarioId: string
-  ): Promise<void> {
-    if (viaje.creador_id === usuarioId) return
-    if (viaje.es_grupal && viaje.grupo_id) {
-      const m = await this.prisma.grupoMiembro.findFirst({
-        where: { grupo_id: viaje.grupo_id, usuario_id: usuarioId },
-      })
-      if (m) return
+  private async assertPuedeVerViaje(viajeId: string, usuarioId: string): Promise<void> {
+    const viaje = await this.prisma.viaje.findUnique({
+      where: { id: viajeId },
+      select: { creador_id: true },
+    })
+    if (!viaje) {
+      throw new HttpError(404, 'Viaje no encontrado', 'VIAJE_NOT_FOUND')
     }
+    if (viaje.creador_id === usuarioId) return
+
+    const integrante = await this.prisma.viajeIntegrante.findUnique({
+      where: {
+        viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId },
+      },
+      select: { estado: true },
+    })
+    if (integrante && integrante.estado !== 'rechazado') return
+
     throw new HttpError(403, 'Sin acceso a este viaje', 'FORBIDDEN')
   }
 
@@ -276,8 +449,6 @@ export class ViajesService {
       select: {
         id: true,
         creador_id: true,
-        es_grupal: true,
-        grupo_id: true,
         estado: true,
       },
     })
@@ -287,22 +458,48 @@ export class ViajesService {
     if (viaje.estado !== 'en_curso') {
       throw new HttpError(409, 'El viaje no admite envío de GPS en este estado', 'INVALID_STATE')
     }
-    await this.assertPuedeVerViaje(viaje, usuarioId)
+
+    if (viaje.creador_id === usuarioId) return
+
+    const integrante = await this.prisma.viajeIntegrante.findUnique({
+      where: {
+        viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId },
+      },
+      select: { estado: true },
+    })
+    if (integrante?.estado === 'confirmado') return
+
+    throw new HttpError(403, 'Sin acceso a este viaje', 'FORBIDDEN')
   }
 
   async detalleParaUsuario(usuarioId: string, viajeId: string) {
+    await this.assertPuedeVerViaje(viajeId, usuarioId)
+
     const viaje = await this.prisma.viaje.findUnique({
       where: { id: viajeId },
       include: {
         creador: { select: { id: true, nombre: true, email: true } },
         ruta: { select: { id: true, distancia_planeada_m: true } },
+        integrantes: {
+          where: { usuario_id: usuarioId },
+          select: { estado: true, origen: true },
+        },
       },
     })
     if (!viaje) {
       throw new HttpError(404, 'Viaje no encontrado', 'VIAJE_NOT_FOUND')
     }
-    await this.assertPuedeVerViaje(viaje, usuarioId)
-    return viaje
+
+    const { integrantes, ...resto } = viaje
+    const miParticipacion =
+      resto.creador_id === usuarioId
+        ? { estado: 'confirmado' as const, origen: 'creador' as const }
+        : (integrantes[0] ?? null)
+
+    return {
+      ...resto,
+      mi_participacion: miParticipacion,
+    }
   }
 
   async ingresarPosiciones(usuarioId: string, viajeId: string, input: PostPosicionesInput) {

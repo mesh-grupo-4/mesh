@@ -7,6 +7,7 @@ const creadorId = '11111111-1111-1111-1111-111111111111'
 const otroId = '22222222-2222-2222-2222-222222222222'
 const terceroId = '44444444-4444-4444-4444-444444444444'
 const grupoId = '33333333-3333-3333-3333-333333333333'
+const grupoOrigenId = '55555555-5555-5555-5555-555555555555'
 
 function createMockPrisma() {
   const grupoCreate = vi.fn()
@@ -452,8 +453,6 @@ describe('GruposService', () => {
         prisma,
         grupoFindUnique,
         grupoMiembroCount,
-        viajeFindFirst,
-        viajeDeleteMany,
         grupoDelete,
       } = createAbandonarMocks()
       const fecha = new Date('2026-05-29T12:00:00Z')
@@ -465,16 +464,13 @@ describe('GruposService', () => {
         lider_id: creadorId,
         miembros: [{ rol: 'lider' }],
       })
-      viajeFindFirst.mockResolvedValue(null)
       grupoMiembroCount.mockResolvedValue(0)
-      viajeDeleteMany.mockResolvedValue({ count: 0 })
       grupoDelete.mockResolvedValue({})
 
       const service = new GruposService(prisma)
       const result = await service.abandonarGrupo(creadorId, grupoId)
 
       expect(result).toEqual({ accion: 'grupo_eliminado', grupo_id: grupoId })
-      expect(viajeDeleteMany).toHaveBeenCalled()
       expect(grupoDelete).toHaveBeenCalledWith({ where: { id: grupoId } })
     })
 
@@ -571,21 +567,80 @@ describe('GruposService', () => {
     })
   })
 
-  describe('eliminarGrupo', () => {
-    function createEliminarMocks() {
+  describe('listarGruposParaInvitar', () => {
+    function createInvitarMocks() {
       const grupoFindUnique = vi.fn()
       const viajeFindFirst = vi.fn()
-      const viajeDeleteMany = vi.fn()
-      const grupoDelete = vi.fn()
+      const grupoFindMany = vi.fn()
+
+      const prisma = {
+        grupo: { findUnique: grupoFindUnique, findMany: grupoFindMany },
+        viaje: { findFirst: viajeFindFirst },
+      }
+
+      return {
+        prisma: prisma as unknown as PrismaClient,
+        grupoFindUnique,
+        viajeFindFirst,
+        grupoFindMany,
+      }
+    }
+
+    it('devuelve otros grupos del usuario con conteo de integrantes', async () => {
+      const { prisma, grupoFindUnique, viajeFindFirst, grupoFindMany } = createInvitarMocks()
+
+      grupoFindUnique.mockResolvedValue({ lider_id: creadorId })
+      viajeFindFirst.mockResolvedValue(null)
+      grupoFindMany.mockResolvedValue([
+        { id: grupoOrigenId, nombre: 'Club Bici', _count: { miembros: 5 } },
+      ])
+
+      const service = new GruposService(prisma)
+      const result = await service.listarGruposParaInvitar(creadorId, grupoId)
+
+      expect(result).toEqual([
+        { id: grupoOrigenId, nombre: 'Club Bici', cantidad_integrantes: 5 },
+      ])
+      expect(grupoFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            id: { not: grupoId },
+          }),
+        })
+      )
+    })
+
+    it('participante no puede listar grupos para invitar', async () => {
+      const { prisma, grupoFindUnique } = createInvitarMocks()
+
+      grupoFindUnique.mockResolvedValue({ lider_id: creadorId })
+
+      const service = new GruposService(prisma)
+
+      await expect(service.listarGruposParaInvitar(otroId, grupoId)).rejects.toMatchObject({
+        status: 403,
+        code: 'NOT_GROUP_LEADER',
+      })
+    })
+  })
+
+  describe('invitarDesdeGrupos', () => {
+    function createBulkInviteMocks() {
+      const grupoFindUnique = vi.fn()
+      const viajeFindFirst = vi.fn()
+      const grupoFindMany = vi.fn()
+      const grupoMiembroFindMany = vi.fn()
+      const grupoInvitacionCreateMany = vi.fn()
 
       const tx = {
-        viaje: { deleteMany: viajeDeleteMany },
-        grupo: { delete: grupoDelete },
+        grupoMiembro: { findMany: grupoMiembroFindMany },
+        grupoInvitacion: { createMany: grupoInvitacionCreateMany },
       }
 
       const prisma = {
-        grupo: { findUnique: grupoFindUnique },
+        grupo: { findUnique: grupoFindUnique, findMany: grupoFindMany },
         viaje: { findFirst: viajeFindFirst },
+        grupoMiembro: { findMany: grupoMiembroFindMany },
         $transaction: vi.fn(async (fn: (client: typeof tx) => Promise<unknown>) => fn(tx)),
       }
 
@@ -593,7 +648,409 @@ describe('GruposService', () => {
         prisma: prisma as unknown as PrismaClient,
         grupoFindUnique,
         viajeFindFirst,
-        viajeDeleteMany,
+        grupoFindMany,
+        grupoMiembroFindMany,
+        grupoInvitacionCreateMany,
+      }
+    }
+
+    it('crea invitaciones masivas excluyendo al invitador y miembros existentes', async () => {
+      const {
+        prisma,
+        grupoFindUnique,
+        viajeFindFirst,
+        grupoFindMany,
+        grupoMiembroFindMany,
+        grupoInvitacionCreateMany,
+      } = createBulkInviteMocks()
+
+      grupoFindUnique.mockResolvedValue({ lider_id: creadorId })
+      viajeFindFirst.mockResolvedValue(null)
+      grupoFindMany.mockResolvedValue([
+        {
+          id: grupoOrigenId,
+          nombre: 'Club Bici',
+          lider_id: creadorId,
+          miembros: [{ usuario_id: creadorId }],
+        },
+      ])
+      grupoMiembroFindMany
+        .mockResolvedValueOnce([{ usuario_id: creadorId }, { usuario_id: otroId }])
+        .mockResolvedValueOnce([
+          { usuario_id: otroId },
+          { usuario_id: terceroId },
+        ])
+      grupoInvitacionCreateMany.mockResolvedValue({ count: 1 })
+
+      const service = new GruposService(prisma)
+      const result = await service.invitarDesdeGrupos(creadorId, grupoId, {
+        grupo_origen_ids: [grupoOrigenId],
+      })
+
+      expect(result.invitaciones_creadas).toBe(1)
+      expect(result.omitidos_ya_miembros).toBe(1)
+      expect(result.grupos_origen[0]).toEqual({
+        id: grupoOrigenId,
+        nombre: 'Club Bici',
+        invitaciones_creadas: 1,
+      })
+      expect(grupoInvitacionCreateMany).toHaveBeenCalledWith({
+        data: [
+          {
+            grupo_id: grupoId,
+            usuario_id: terceroId,
+            invitado_por_id: creadorId,
+            grupo_origen_id: grupoOrigenId,
+            estado: 'pendiente',
+          },
+        ],
+        skipDuplicates: true,
+      })
+    })
+
+    it('rechaza invitar desde el mismo grupo destino', async () => {
+      const { prisma, grupoFindUnique, viajeFindFirst } = createBulkInviteMocks()
+
+      grupoFindUnique.mockResolvedValue({ lider_id: creadorId })
+      viajeFindFirst.mockResolvedValue(null)
+
+      const service = new GruposService(prisma)
+
+      await expect(
+        service.invitarDesdeGrupos(creadorId, grupoId, { grupo_origen_ids: [grupoId] })
+      ).rejects.toMatchObject({
+        status: 400,
+        code: 'SAME_GROUP_ORIGIN',
+      })
+    })
+
+    it('rechaza si el actor no pertenece al grupo origen', async () => {
+      const { prisma, grupoFindUnique, viajeFindFirst, grupoFindMany } = createBulkInviteMocks()
+
+      grupoFindUnique.mockResolvedValue({ lider_id: creadorId })
+      viajeFindFirst.mockResolvedValue(null)
+      grupoFindMany.mockResolvedValue([
+        {
+          id: grupoOrigenId,
+          nombre: 'Club Bici',
+          lider_id: otroId,
+          miembros: [],
+        },
+      ])
+
+      const service = new GruposService(prisma)
+
+      await expect(
+        service.invitarDesdeGrupos(creadorId, grupoId, { grupo_origen_ids: [grupoOrigenId] })
+      ).rejects.toMatchObject({
+        status: 403,
+        code: 'NOT_SOURCE_GROUP_MEMBER',
+      })
+    })
+
+    it('participante no puede invitar', async () => {
+      const { prisma, grupoFindUnique } = createBulkInviteMocks()
+
+      grupoFindUnique.mockResolvedValue({ lider_id: creadorId })
+
+      const service = new GruposService(prisma)
+
+      await expect(
+        service.invitarDesdeGrupos(otroId, grupoId, { grupo_origen_ids: [grupoOrigenId] })
+      ).rejects.toMatchObject({
+        status: 403,
+        code: 'NOT_GROUP_LEADER',
+      })
+    })
+  })
+
+  describe('listarUsuariosParaInvitar', () => {
+    function createUsuariosInvitarMocks() {
+      const grupoFindUnique = vi.fn().mockResolvedValue({ lider_id: creadorId })
+      const viajeFindFirst = vi.fn().mockResolvedValue(null)
+      const grupoFindMany = vi.fn().mockResolvedValue([
+        { id: grupoOrigenId, nombre: 'Club Bici' },
+      ])
+      const grupoMiembroFindMany = vi.fn().mockImplementation((args: { where: { grupo_id?: string | { in: string[] } } }) => {
+        if (args.where.grupo_id === grupoId) {
+          return Promise.resolve([
+            { usuario_id: creadorId },
+            { usuario_id: otroId },
+          ])
+        }
+        return Promise.resolve([
+          {
+            grupo_id: grupoOrigenId,
+            usuario: { id: terceroId, nombre: 'Carlos', email: 'carlos@test.com' },
+          },
+        ])
+      })
+      const grupoInvitacionFindMany = vi.fn().mockResolvedValue([])
+
+      const prisma = {
+        grupo: { findUnique: grupoFindUnique, findMany: grupoFindMany },
+        viaje: { findFirst: viajeFindFirst },
+        grupoMiembro: { findMany: grupoMiembroFindMany },
+        grupoInvitacion: { findMany: grupoInvitacionFindMany },
+      }
+
+      return { prisma: prisma as unknown as PrismaClient, grupoInvitacionFindMany }
+    }
+
+    it('devuelve personas de otros grupos excluyendo miembros actuales', async () => {
+      const { prisma } = createUsuariosInvitarMocks()
+      const service = new GruposService(prisma)
+      const result = await service.listarUsuariosParaInvitar(creadorId, grupoId)
+
+      expect(result).toEqual([
+        {
+          id: terceroId,
+          nombre: 'Carlos',
+          email: 'carlos@test.com',
+          grupos_origen: [{ id: grupoOrigenId, nombre: 'Club Bici' }],
+        },
+      ])
+    })
+  })
+
+  describe('invitarUsuarios', () => {
+    it('crea invitaciones para usuarios seleccionados', async () => {
+      const grupoFindUnique = vi.fn().mockResolvedValue({ lider_id: creadorId })
+      const viajeFindFirst = vi.fn().mockResolvedValue(null)
+      const grupoFindMany = vi.fn().mockResolvedValue([
+        { id: grupoOrigenId, nombre: 'Club Bici' },
+      ])
+      const grupoMiembroFindMany = vi.fn().mockImplementation((args: { where: { grupo_id?: string | { in: string[] } } }) => {
+        if (args.where.grupo_id === grupoId) {
+          return Promise.resolve([{ usuario_id: creadorId }])
+        }
+        return Promise.resolve([
+          {
+            grupo_id: grupoOrigenId,
+            usuario: { id: terceroId, nombre: 'Carlos', email: 'carlos@test.com' },
+          },
+        ])
+      })
+      const grupoInvitacionCreateMany = vi.fn().mockResolvedValue({ count: 1 })
+
+      const prisma = {
+        grupo: { findUnique: grupoFindUnique, findMany: grupoFindMany },
+        viaje: { findFirst: viajeFindFirst },
+        grupoMiembro: { findMany: grupoMiembroFindMany },
+        grupoInvitacion: {
+          findMany: vi.fn().mockResolvedValue([]),
+          createMany: grupoInvitacionCreateMany,
+        },
+      } as unknown as PrismaClient
+
+      const service = new GruposService(prisma)
+      const result = await service.invitarUsuarios(creadorId, grupoId, {
+        usuario_ids: [terceroId],
+      })
+
+      expect(result.invitaciones_creadas).toBe(1)
+      expect(result.invitados[0]?.nombre).toBe('Carlos')
+      expect(grupoInvitacionCreateMany).toHaveBeenCalledWith({
+        data: [
+          {
+            grupo_id: grupoId,
+            usuario_id: terceroId,
+            invitado_por_id: creadorId,
+            grupo_origen_id: grupoOrigenId,
+            estado: 'pendiente',
+          },
+        ],
+        skipDuplicates: true,
+      })
+    })
+  })
+
+  describe('listarInvitacionesPendientes', () => {
+    it('devuelve invitaciones pendientes del usuario', async () => {
+      const fecha = new Date('2026-06-05T12:00:00Z')
+      const invitacionId = '66666666-6666-6666-6666-666666666666'
+
+      const prisma = {
+        grupoInvitacion: {
+          findMany: vi.fn().mockResolvedValue([
+            {
+              id: invitacionId,
+              created_at: fecha,
+              grupo: { id: grupoId, nombre: 'Trail Riders' },
+              grupo_origen: { id: grupoOrigenId, nombre: 'Club Bici' },
+              invitado_por: { id: creadorId, nombre: 'Ana' },
+            },
+          ]),
+        },
+      } as unknown as PrismaClient
+
+      const service = new GruposService(prisma)
+      const result = await service.listarInvitacionesPendientes(otroId)
+
+      expect(result).toHaveLength(1)
+      expect(result[0]?.grupo.nombre).toBe('Trail Riders')
+      expect(prisma.grupoInvitacion.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { usuario_id: otroId, estado: 'pendiente' },
+        })
+      )
+    })
+  })
+
+  describe('responderInvitacion', () => {
+    const invitacionId = '66666666-6666-6666-6666-666666666666'
+
+    function createResponderMocks() {
+      const grupoInvitacionFindUnique = vi.fn()
+      const grupoInvitacionUpdate = vi.fn()
+      const grupoMiembroFindUnique = vi.fn()
+      const grupoMiembroCreate = vi.fn()
+
+      const tx = {
+        grupoInvitacion: { update: grupoInvitacionUpdate },
+        grupoMiembro: { findUnique: grupoMiembroFindUnique, create: grupoMiembroCreate },
+      }
+
+      const prisma = {
+        grupoInvitacion: {
+          findUnique: grupoInvitacionFindUnique,
+          update: grupoInvitacionUpdate,
+        },
+        $transaction: vi.fn(async (fn: (client: typeof tx) => Promise<unknown>) => fn(tx)),
+      }
+
+      return {
+        prisma: prisma as unknown as PrismaClient,
+        grupoInvitacionFindUnique,
+        grupoInvitacionUpdate,
+        grupoMiembroFindUnique,
+        grupoMiembroCreate,
+      }
+    }
+
+    it('acepta invitación y agrega al grupo como participante', async () => {
+      const {
+        prisma,
+        grupoInvitacionFindUnique,
+        grupoInvitacionUpdate,
+        grupoMiembroFindUnique,
+        grupoMiembroCreate,
+      } = createResponderMocks()
+
+      grupoInvitacionFindUnique.mockResolvedValue({
+        id: invitacionId,
+        usuario_id: otroId,
+        grupo_id: grupoId,
+        estado: 'pendiente',
+        grupo: { nombre: 'Trail Riders' },
+      })
+      grupoInvitacionUpdate.mockResolvedValue({})
+      grupoMiembroFindUnique.mockResolvedValue(null)
+      grupoMiembroCreate.mockResolvedValue({})
+
+      const service = new GruposService(prisma)
+      const result = await service.responderInvitacion(otroId, invitacionId, {
+        accion: 'aceptar',
+      })
+
+      expect(result).toMatchObject({
+        invitacion_id: invitacionId,
+        grupo_id: grupoId,
+        accion: 'aceptada',
+        ya_era_miembro: false,
+      })
+      expect(grupoMiembroCreate).toHaveBeenCalledWith({
+        data: { grupo_id: grupoId, usuario_id: otroId, rol: 'participante' },
+      })
+    })
+
+    it('rechaza invitación sin agregar al grupo', async () => {
+      const { prisma, grupoInvitacionFindUnique, grupoInvitacionUpdate } = createResponderMocks()
+
+      grupoInvitacionFindUnique.mockResolvedValue({
+        id: invitacionId,
+        usuario_id: otroId,
+        grupo_id: grupoId,
+        estado: 'pendiente',
+        grupo: { nombre: 'Trail Riders' },
+      })
+      grupoInvitacionUpdate.mockResolvedValue({})
+
+      const service = new GruposService(prisma)
+      const result = await service.responderInvitacion(otroId, invitacionId, {
+        accion: 'rechazar',
+      })
+
+      expect(result).toMatchObject({
+        invitacion_id: invitacionId,
+        accion: 'rechazada',
+      })
+      expect(grupoInvitacionUpdate).toHaveBeenCalledWith({
+        where: { id: invitacionId },
+        data: { estado: 'rechazada' },
+      })
+    })
+
+    it('lanza 404 si la invitación no pertenece al usuario', async () => {
+      const { prisma, grupoInvitacionFindUnique } = createResponderMocks()
+
+      grupoInvitacionFindUnique.mockResolvedValue({
+        id: invitacionId,
+        usuario_id: creadorId,
+        grupo_id: grupoId,
+        estado: 'pendiente',
+        grupo: { nombre: 'Trail Riders' },
+      })
+
+      const service = new GruposService(prisma)
+
+      await expect(
+        service.responderInvitacion(otroId, invitacionId, { accion: 'aceptar' })
+      ).rejects.toMatchObject({
+        status: 404,
+        code: 'INVITATION_NOT_FOUND',
+      })
+    })
+
+    it('lanza 409 si la invitación ya fue respondida', async () => {
+      const { prisma, grupoInvitacionFindUnique } = createResponderMocks()
+
+      grupoInvitacionFindUnique.mockResolvedValue({
+        id: invitacionId,
+        usuario_id: otroId,
+        grupo_id: grupoId,
+        estado: 'aceptada',
+        grupo: { nombre: 'Trail Riders' },
+      })
+
+      const service = new GruposService(prisma)
+
+      await expect(
+        service.responderInvitacion(otroId, invitacionId, { accion: 'aceptar' })
+      ).rejects.toMatchObject({
+        status: 409,
+        code: 'INVITATION_ALREADY_RESPONDED',
+      })
+    })
+  })
+
+  describe('eliminarGrupo', () => {
+    function createEliminarMocks() {
+      const grupoFindUnique = vi.fn()
+      const grupoDelete = vi.fn()
+
+      const tx = {
+        grupo: { delete: grupoDelete },
+      }
+
+      const prisma = {
+        grupo: { findUnique: grupoFindUnique },
+        $transaction: vi.fn(async (fn: (client: typeof tx) => Promise<unknown>) => fn(tx)),
+      }
+
+      return {
+        prisma: prisma as unknown as PrismaClient,
+        grupoFindUnique,
         grupoDelete,
       }
     }
@@ -611,36 +1068,16 @@ describe('GruposService', () => {
       })
     })
 
-    it('eliminar con viaje en_curso recibe 409', async () => {
-      const { prisma, grupoFindUnique, viajeFindFirst } = createEliminarMocks()
+    it('líder elimina el grupo', async () => {
+      const { prisma, grupoFindUnique, grupoDelete } = createEliminarMocks()
 
       grupoFindUnique.mockResolvedValue({ lider_id: creadorId })
-      viajeFindFirst.mockResolvedValue({ id: 'viaje-1' })
-
-      const service = new GruposService(prisma)
-
-      await expect(service.eliminarGrupo(creadorId, grupoId)).rejects.toMatchObject({
-        status: 409,
-        code: 'TRIP_IN_PROGRESS',
-      })
-    })
-
-    it('líder elimina grupo y viajes planificados', async () => {
-      const { prisma, grupoFindUnique, viajeFindFirst, viajeDeleteMany, grupoDelete } =
-        createEliminarMocks()
-
-      grupoFindUnique.mockResolvedValue({ lider_id: creadorId })
-      viajeFindFirst.mockResolvedValue(null)
-      viajeDeleteMany.mockResolvedValue({ count: 2 })
       grupoDelete.mockResolvedValue({})
 
       const service = new GruposService(prisma)
       const result = await service.eliminarGrupo(creadorId, grupoId)
 
       expect(result).toEqual({ accion: 'grupo_eliminado', grupo_id: grupoId })
-      expect(viajeDeleteMany).toHaveBeenCalledWith({
-        where: { grupo_id: grupoId, estado: 'planificado' },
-      })
       expect(grupoDelete).toHaveBeenCalledWith({ where: { id: grupoId } })
     })
   })

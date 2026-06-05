@@ -53,17 +53,24 @@ A diferencia de soluciones existentes (Strava, Garmin, Google Maps, Life360) que
 | RN-012 | El líder puede asignar y cambiar roles de otros integrantes. |
 | RN-013 | Si el líder abandona el grupo, el rol se transfiere al siguiente integrante más antiguo; si no hay nadie, el grupo se elimina. |
 | RN-014 | La eliminación de un grupo requiere confirmación explícita. |
-| RN-015 | El código QR de invitación es único por viaje y expira al iniciar el viaje. |
-| RN-016 | El escaneo del QR agrega al usuario directamente, sin aprobación manual. |
 | RN-017 | Las solicitudes de amistad requieren aceptación del receptor. |
+| RN-018 | Invitar personas **al grupo** desde otro grupo existente crea registros en `grupo_invitacion` con estado `pendiente`. Solo el líder del grupo destino puede enviar invitaciones masivas; se excluye al invitador y a quienes ya son miembros. **Flujo distinto** de invitar grupos a un viaje (RN-028/RN-029). |
+| RN-019 | El invitado a un grupo puede aceptar o rechazar una invitación pendiente (SCRUM-17). Aceptar la marca como `aceptada` y agrega al usuario como `participante` del grupo; rechazar la marca como `rechazada` sin modificar membresía. |
+| RN-027 | Los grupos son **listas persistentes de contactos** para facilitar invitaciones masivas. La membresía de un grupo es **independiente** de la participación en un viaje: un usuario puede estar en un viaje sin pertenecer al grupo que originó la invitación, y viceversa. |
 
-**Contrato API MVP (SCRUM-11):** OpenAPI en `backend/openapi/grupos.yaml`. Endpoints: `POST /api/usuarios/sync` (upsert por email, interino sin Firebase en backend), `POST /api/grupos` (nombre obligatorio; creador → `líder` + fila en `grupo_miembro`), `GET /api/grupos/:grupoId` (solo miembros). Auth temporal: header `x-user-id`.
+**Contrato API MVP (SCRUM-11 / SCRUM-13 / SCRUM-17):** OpenAPI en `backend/openapi/grupos.yaml`. Endpoints destacados: `POST /api/usuarios/sync`, `POST /api/grupos`, `GET /api/grupos/:grupoId`, `GET /api/grupos/:grupoId/grupos-para-invitar`, `POST /api/grupos/:grupoId/invitar-desde-grupos`, `GET /api/grupos/invitaciones/pendientes`, `POST /api/grupos/invitaciones/:invitacionId/responder`. Auth: Bearer Firebase ID token.
+
+**Contrato API viajes (RN-015–029):** OpenAPI en `backend/openapi/viajes-qr.yaml`. Endpoints destacados: `POST /api/viajes`, `GET /api/viajes/planificados`, `GET /api/viajes/invitaciones/pendientes`, `POST /api/viajes/:viajeId/invitacion/responder`, `GET /api/viajes/:viajeId/participantes`, `POST /api/viajes/:viajeId/unirse-qr`.
 
 ### 2.3 Reglas de Viajes y Rutas
 
 | ID | Regla |
 |---|---|
-| RN-020 | Un viaje puede ser **individual** o **grupal**. |
+| RN-015 | El código QR de invitación es único por viaje y expira al iniciar el viaje. |
+| RN-016 | El escaneo del QR agrega al usuario **al viaje** directamente, sin aprobación manual. No modifica la membresía de ningún grupo. |
+| RN-020 | Un viaje puede ser **individual** (sin invitados iniciales) o **grupal** (con uno o más participantes). |
+| RN-028 | Al crear un viaje grupal, el creador puede seleccionar **uno o más grupos** de los que es **miembro** para invitar en bloque a sus integrantes. Si un usuario pertenece a varios grupos seleccionados, recibe **una sola invitación** al viaje. |
+| RN-029 | Las invitaciones al viaje originadas por selección de grupos requieren **confirmación** del invitado (aceptar/rechazar asistencia). El creador del viaje ve la lista de confirmados y rechazados. Distinto de RN-016 (QR al viaje) y de RN-018 (membresía de grupo). |
 | RN-021 | Los tipos de actividad disponibles son: **moto**, **bici**, **running**, **trekking**. Cada uno tiene parámetros por defecto diferentes. |
 | RN-022 | Las categorías de parada intermedia son: **combustible**, **descanso**, **gastronomía**, **sanitario**, **otro**. |
 | RN-023 | La estimación de tiempos depende del tipo de actividad seleccionado y la distancia, más el tiempo configurable de cada parada. |
@@ -75,7 +82,7 @@ A diferencia de soluciones existentes (Strava, Garmin, Google Maps, Life360) que
 
 | ID | Regla |
 |---|---|
-| RN-030 | Solo usuarios con permiso de líder pueden iniciar y finalizar un viaje. |
+| RN-030 | Solo el **creador del viaje** (`creador_id`) puede iniciar y finalizar un viaje. Esto es independiente del rol de líder en cualquier grupo. |
 | RN-031 | Al iniciar, el sistema recolecta ubicación GPS cada **5 segundos**. |
 | RN-032 | La latencia máxima aceptable de actualización de posición en el mapa es **10 segundos**. |
 | RN-033 | El sistema soporta hasta **150–200 usuarios concurrentes** por viaje. |
@@ -192,10 +199,10 @@ A diferencia de soluciones existentes (Strava, Garmin, Google Maps, Life360) que
     │                     ├── Buscar usuarios por nombre/email
     │                     └── Asignar roles (líder/participante)
     │
-    ├── Invitar personas
-    │     ├── Por QR (único por viaje, expira al iniciar)
-    │     ├── Por link
-    │     └── Seleccionar grupo existente ──► Notificación a integrantes
+    ├── Invitar personas al grupo
+    │     ├── Por link de invitación al grupo
+    │     └── Desde otro grupo existente (RN-018) ──► Bandeja de invitaciones
+    │           └── Invitado acepta o rechaza membresía
     │
     ├── Gestionar amigos ──► Buscar, solicitud de amistad, eliminar
     │
@@ -209,13 +216,14 @@ A diferencia de soluciones existentes (Strava, Garmin, Google Maps, Life360) que
 ### 3.3 Flujo de Creación de Viaje (Pre-viaje)
 
 ```
-[Líder]
+[Creador del viaje]
     │
     ├── Crear viaje
-    │     ├── ¿Solo o grupal?
+    │     ├── ¿Individual o grupal? (RN-020)
     │     ├── Tipo de actividad (moto / bici / running / trekking)
     │     ├── Fecha y hora de salida
-    │     └── Modo de viaje (competitivo / recreativo / entrenamiento)
+    │     ├── Modo de viaje (competitivo / recreativo / entrenamiento)
+    │     └── [Si grupal] Seleccionar 1+ grupos (solo donde soy miembro) ──► RN-028/029
     │
     ├── Crear ruta
     │     ├── Marcar origen en mapa (OpenStreetMap)
@@ -241,9 +249,11 @@ A diferencia de soluciones existentes (Strava, Garmin, Google Maps, Life360) que
     │     └── Origen + destino + duración ──► IA sugiere paradas, horarios, gastronomía
     │                                           └── Importar como paradas del viaje
     │
-    └── Invitar personas (QR / link / grupo existente)
-          └── Integrantes confirman o rechazan asistencia
-                └── Líder ve lista de confirmados/rechazados
+    └── Invitar personas al viaje
+          ├── Por QR (RN-015/016) ──► Unión directa al viaje
+          ├── Por link al viaje
+          └── Por grupos seleccionados (RN-028) ──► Invitación con confirmación (RN-029)
+                └── Creador del viaje ve confirmados/rechazados/pendientes
 ```
 
 ### 3.4 Flujo de Ejecución del Viaje (Tiempo Real)
@@ -386,6 +396,15 @@ GrupoMiembro
 ├── rol (enum: líder, participante)
 └── joined_at
 
+GrupoInvitacion
+├── id (PK)
+├── grupo_id (FK → grupo destino)
+├── usuario_id (FK → invitado)
+├── invitado_por_id (FK)
+├── grupo_origen_id (FK → grupo origen, nullable)
+├── estado (enum: pendiente, aceptada, rechazada)
+└── created_at
+
 Amistad
 ├── usuario_id (FK)
 ├── amigo_id (FK)
@@ -394,8 +413,8 @@ Amistad
 
 Viaje
 ├── id (PK)
-├── creador_id (FK → Usuario)
-├── grupo_id (FK → Grupo, nullable para viajes individuales)
+├── creador_id (FK → Usuario) — líder del viaje (RN-030)
+├── es_grupal (boolean)
 ├── tipo_actividad (enum: moto, bici, running, trekking)
 ├── modo (enum: recreativo, competitivo, entrenamiento)
 ├── fecha_salida
@@ -427,8 +446,8 @@ ParadaIntermedia
 ViajeIntegrante
 ├── viaje_id (FK)
 ├── usuario_id (FK)
-├── confirmacion (enum: pendiente, confirmado, rechazado)
-└── rol_en_viaje (enum: líder, participante)
+├── estado (enum: pendiente, confirmado, rechazado) — RN-029; QR usa confirmado directo (RN-016)
+└── origen (enum: creador, qr, link, grupo) — opcional, trazabilidad
 
 RegistroGPS
 ├── id (PK)
@@ -679,7 +698,7 @@ Funcionalidades para **fases futuras**:
 | **Motor de eventos** | Lógica backend autónoma que analiza las coordenadas GPS en tiempo real y detecta desvíos, atrasos y detenciones sospechosas. |
 | **Wrapped** | Resumen visual y atractivo de estadísticas de un período (inspirado en Spotify Wrapped). |
 | **Wearable** | Dispositivo electrónico portátil (reloj inteligente, pulsera de actividad) con sensores de movimiento y conectividad. |
-| **QR de invitación** | Código QR único generado por viaje que permite unirse al grupo escaneándolo. Expira al iniciar el viaje. |
+| **QR de invitación** | Código QR único generado por viaje que permite unirse **al viaje** escaneándolo (RN-015/016). Expira al iniciar el viaje. No agrega al usuario a ningún grupo. |
 | **Modo competitivo** | Perfil de viaje que activa leaderboard dinámico y métricas comparativas entre integrantes. |
 | **Modo recreativo** | Perfil de viaje que desactiva rankings y comparaciones, manteniendo solo navegación y alertas de seguridad. |
 | **Freemium** | Modelo de negocio donde funcionalidades básicas son gratuitas y las avanzadas requieren suscripción. |

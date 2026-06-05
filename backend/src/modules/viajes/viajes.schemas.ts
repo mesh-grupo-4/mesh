@@ -15,28 +15,30 @@ const lineStringSchema: z.ZodType<GeoJsonLineString> = z.object({
 export const createViajeSchema = z
   .object({
     esGrupal: z.boolean(),
-    grupoId: z.string().uuid().optional().nullable(),
+    grupoIds: z.array(z.string().uuid()).optional().default([]),
     tipoActividad: z.nativeEnum(TipoActividad),
     fechaProgramada: z.coerce.date(),
   })
   .superRefine((data, ctx) => {
-    if (data.esGrupal && !data.grupoId) {
+    const grupoIds = data.grupoIds ?? []
+    if (!data.esGrupal && grupoIds.length > 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'grupoId es obligatorio cuando esGrupal es true',
-        path: ['grupoId'],
-      })
-    }
-    if (!data.esGrupal && data.grupoId) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'grupoId debe omitirse cuando el viaje no es grupal',
-        path: ['grupoId'],
+        message: 'grupoIds solo se permiten en viajes grupales',
+        path: ['grupoIds'],
       })
     }
   })
 
 export type CreateViajeInput = z.infer<typeof createViajeSchema>
+
+export const responderInvitacionViajeSchema = z.object({
+  accion: z.enum(['aceptar', 'rechazar'], {
+    errorMap: () => ({ message: 'La acción debe ser aceptar o rechazar' }),
+  }),
+})
+
+export type ResponderInvitacionViajeInput = z.infer<typeof responderInvitacionViajeSchema>
 
 export const putRutaSchema = z.object({
   origen: pointSchema,

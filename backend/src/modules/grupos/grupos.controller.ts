@@ -4,7 +4,11 @@ import {
   cambiarRolMiembroSchema,
   createGrupoSchema,
   grupoIdParamSchema,
+  invitacionIdParamSchema,
+  invitarDesdeGruposSchema,
+  invitarUsuariosSchema,
   miembroParamsSchema,
+  responderInvitacionSchema,
 } from './grupos.schemas'
 import type { GruposService } from './grupos.service'
 
@@ -19,6 +23,18 @@ export function crearGruposController(service: GruposService) {
     listar: asyncHandler(async (req, res) => {
       const grupos = await service.listarParaUsuario(req.userId!)
       res.json(grupos)
+    }),
+
+    invitacionesPendientes: asyncHandler(async (req, res) => {
+      const invitaciones = await service.listarInvitacionesPendientes(req.userId!)
+      res.json(invitaciones)
+    }),
+
+    responderInvitacion: asyncHandler(async (req, res) => {
+      const { invitacionId } = invitacionIdParamSchema.parse(req.params)
+      const body = responderInvitacionSchema.parse(req.body)
+      const result = await service.responderInvitacion(req.userId!, invitacionId, body)
+      res.json(result)
     }),
 
     crear: asyncHandler(async (req, res) => {
@@ -46,10 +62,30 @@ export function crearGruposController(service: GruposService) {
       res.json(result)
     }),
 
-    viajesPlanificados: asyncHandler(async (req, res) => {
+    gruposParaInvitar: asyncHandler(async (req, res) => {
       const { grupoId } = grupoIdParamSchema.parse(req.params)
-      const viajes = await service.listarViajesPlanificados(req.userId!, grupoId)
-      res.json(viajes)
+      const grupos = await service.listarGruposParaInvitar(req.userId!, grupoId)
+      res.json(grupos)
+    }),
+
+    usuariosParaInvitar: asyncHandler(async (req, res) => {
+      const { grupoId } = grupoIdParamSchema.parse(req.params)
+      const usuarios = await service.listarUsuariosParaInvitar(req.userId!, grupoId)
+      res.json(usuarios)
+    }),
+
+    invitarUsuarios: asyncHandler(async (req, res) => {
+      const { grupoId } = grupoIdParamSchema.parse(req.params)
+      const body = invitarUsuariosSchema.parse(req.body)
+      const result = await service.invitarUsuarios(req.userId!, grupoId, body)
+      res.status(201).json(result)
+    }),
+
+    invitarDesdeGrupos: asyncHandler(async (req, res) => {
+      const { grupoId } = grupoIdParamSchema.parse(req.params)
+      const body = invitarDesdeGruposSchema.parse(req.body)
+      const result = await service.invitarDesdeGrupos(req.userId!, grupoId, body)
+      res.status(201).json(result)
     }),
 
     abandonar: asyncHandler(async (req, res) => {

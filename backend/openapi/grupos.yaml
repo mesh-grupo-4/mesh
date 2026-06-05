@@ -372,6 +372,305 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /api/grupos/invitaciones/pendientes:
+    get:
+      summary: Listar invitaciones pendientes del usuario
+      description: |
+        Devuelve invitaciones a grupos con estado `pendiente` para el usuario autenticado (SCRUM-17).
+      operationId: listarInvitacionesPendientes
+      tags:
+        - Grupos
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Lista de invitaciones pendientes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InvitacionPendienteResponse'
+        '401':
+          description: Token ausente, inválido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/grupos/invitaciones/{invitacionId}/responder:
+    post:
+      summary: Aceptar o rechazar invitación a grupo
+      description: |
+        Responde una invitación pendiente (SCRUM-17).
+        Si `accion` es `aceptar`, marca la invitación como `aceptada` y agrega al usuario como `participante` del grupo.
+        Si es `rechazar`, marca la invitación como `rechazada` sin modificar membresía.
+      operationId: responderInvitacion
+      tags:
+        - Grupos
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: invitacionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResponderInvitacionRequest'
+      responses:
+        '200':
+          description: Invitación respondida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponderInvitacionResponse'
+        '400':
+          description: Validación fallida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Token ausente, inválido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Invitación no encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Invitación ya respondida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/grupos/{grupoId}/usuarios-para-invitar:
+    get:
+      summary: Listar personas invitables al grupo
+      description: |
+        Devuelve integrantes de los otros grupos del líder, excluyendo miembros actuales,
+        invitaciones pendientes y al propio líder (SCRUM-13).
+      operationId: listarUsuariosParaInvitar
+      tags:
+        - Grupos
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: grupoId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Lista de personas invitables
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UsuarioInvitableResponse'
+        '403':
+          description: Solo el líder puede invitar
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/grupos/{grupoId}/invitar-usuarios:
+    post:
+      summary: Invitar personas seleccionadas al grupo
+      description: |
+        Crea invitaciones pendientes para los usuarios elegidos (SCRUM-13).
+      operationId: invitarUsuarios
+      tags:
+        - Grupos
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: grupoId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvitarUsuariosRequest'
+      responses:
+        '201':
+          description: Invitaciones registradas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitarUsuariosResponse'
+        '400':
+          description: Personas no invitables
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Solo el líder puede invitar
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/grupos/{grupoId}/grupos-para-invitar:
+    get:
+      summary: Listar grupos disponibles para invitación masiva
+      description: |
+        Devuelve los demás grupos del usuario (excluye el grupo destino) con cantidad de integrantes (SCRUM-13).
+        Solo el líder del grupo destino puede consultar la lista (RN-030).
+      operationId: listarGruposParaInvitar
+      tags:
+        - Grupos
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: grupoId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Lista de grupos invitables
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GrupoInvitableResponse'
+        '403':
+          description: Solo el líder puede invitar integrantes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Grupo no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Hay un viaje en curso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/grupos/{grupoId}/invitar-desde-grupos:
+    post:
+      summary: Invitar integrantes desde otros grupos
+      description: |
+        Crea invitaciones pendientes (`grupo_invitacion`) para todos los miembros de los grupos origen seleccionados (SCRUM-13).
+        Excluye al invitador y a quienes ya son miembros del grupo destino.
+        Alta masiva en una sola transacción; idempotente ante re-invitaciones.
+      operationId: invitarDesdeGrupos
+      tags:
+        - Grupos
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: grupoId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvitarDesdeGruposRequest'
+      responses:
+        '201':
+          description: Invitaciones registradas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitarDesdeGruposResponse'
+        '400':
+          description: Validación fallida o grupo origen igual al destino
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Solo el líder puede invitar o sin acceso al grupo origen
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Grupo destino u origen no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Hay un viaje en curso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Error interno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
 components:
   securitySchemes:
     BearerAuth:
@@ -538,6 +837,207 @@ components:
         grupo_id:
           type: string
           format: uuid
+
+    UsuarioInvitableResponse:
+      type: object
+      required:
+        - id
+        - nombre
+        - email
+        - grupos_origen
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+        email:
+          type: string
+          format: email
+        grupos_origen:
+          type: array
+          items:
+            $ref: '#/components/schemas/InvitacionGrupoRef'
+
+    InvitarUsuariosRequest:
+      type: object
+      required:
+        - usuario_ids
+      properties:
+        usuario_ids:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            type: string
+            format: uuid
+
+    InvitarUsuariosResponse:
+      type: object
+      required:
+        - invitaciones_creadas
+        - invitados
+      properties:
+        invitaciones_creadas:
+          type: integer
+          minimum: 0
+        invitados:
+          type: array
+          items:
+            type: object
+            required:
+              - id
+              - nombre
+            properties:
+              id:
+                type: string
+                format: uuid
+              nombre:
+                type: string
+
+    GrupoInvitableResponse:
+      type: object
+      required:
+        - id
+        - nombre
+        - cantidad_integrantes
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+        cantidad_integrantes:
+          type: integer
+          minimum: 0
+
+    InvitarDesdeGruposRequest:
+      type: object
+      required:
+        - grupo_origen_ids
+      properties:
+        grupo_origen_ids:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            type: string
+            format: uuid
+
+    InvitarDesdeGruposOrigenResult:
+      type: object
+      required:
+        - id
+        - nombre
+        - invitaciones_creadas
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+        invitaciones_creadas:
+          type: integer
+          minimum: 0
+
+    InvitarDesdeGruposResponse:
+      type: object
+      required:
+        - invitaciones_creadas
+        - omitidos_ya_miembros
+        - grupos_origen
+      properties:
+        invitaciones_creadas:
+          type: integer
+          minimum: 0
+        omitidos_ya_miembros:
+          type: integer
+          minimum: 0
+        grupos_origen:
+          type: array
+          items:
+            $ref: '#/components/schemas/InvitarDesdeGruposOrigenResult'
+
+    InvitacionGrupoRef:
+      type: object
+      required:
+        - id
+        - nombre
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+
+    InvitacionUsuarioRef:
+      type: object
+      required:
+        - id
+        - nombre
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+
+    InvitacionPendienteResponse:
+      type: object
+      required:
+        - id
+        - created_at
+        - grupo
+        - grupo_origen
+        - invitado_por
+      properties:
+        id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        grupo:
+          $ref: '#/components/schemas/InvitacionGrupoRef'
+        grupo_origen:
+          $ref: '#/components/schemas/InvitacionGrupoRef'
+        invitado_por:
+          $ref: '#/components/schemas/InvitacionUsuarioRef'
+
+    ResponderInvitacionRequest:
+      type: object
+      required:
+        - accion
+      properties:
+        accion:
+          type: string
+          enum:
+            - aceptar
+            - rechazar
+
+    ResponderInvitacionResponse:
+      type: object
+      required:
+        - invitacion_id
+        - grupo_id
+        - grupo_nombre
+        - accion
+      properties:
+        invitacion_id:
+          type: string
+          format: uuid
+        grupo_id:
+          type: string
+          format: uuid
+        grupo_nombre:
+          type: string
+        accion:
+          type: string
+          enum:
+            - aceptada
+            - rechazada
+        ya_era_miembro:
+          type: boolean
 
     ErrorResponse:
       type: object

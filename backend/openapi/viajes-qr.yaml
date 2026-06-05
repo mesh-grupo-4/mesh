@@ -1,12 +1,12 @@
 openapi: 3.0.3
 info:
-  title: Mesh API — Viajes (invitación QR)
-  version: 1.0.0
+  title: Mesh API — Viajes
+  version: 2.0.0
   description: |
-    Unión por QR (SCRUM-12).
+    Viajes e invitaciones (RN-015 a RN-029).
 
-    - RN-015: QR único por viaje; expira al iniciar (`estado != planificado`).
-    - RN-016: escaneo agrega al grupo del viaje sin aprobación manual.
+    - RN-015/016: QR único por viaje; une al viaje directamente.
+    - RN-028/029: invitación por grupos con confirmación.
 
     Autenticación temporal: header `x-user-id`.
 
@@ -15,17 +15,94 @@ servers:
     description: Desarrollo local
 
 paths:
-  /api/viajes/{viajeId}/unirse-qr:
+  /api/viajes:
     post:
-      summary: Unirse al grupo del viaje escaneando QR
-      description: |
-        Valida RN-015 y delega la alta de miembro en lógica compartida (RN-016).
-        Idempotente si el usuario ya pertenece al grupo.
-      operationId: unirseViajePorQr
-      tags:
-        - Viajes
-      security:
-        - UserIdHeader: []
+      summary: Crear viaje
+      operationId: crearViaje
+      tags: [Viajes]
+      security: [{ UserIdHeader: [] }]
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateViajeRequest'
+      responses:
+        '201':
+          description: Viaje creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ViajeCreadoResponse'
+
+  /api/viajes/planificados:
+    get:
+      summary: Listar viajes planificados del usuario
+      operationId: listarViajesPlanificados
+      tags: [Viajes]
+      security: [{ UserIdHeader: [] }]
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+      responses:
+        '200':
+          description: Lista de viajes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ViajePlanificadoItem'
+
+  /api/viajes/invitaciones/pendientes:
+    get:
+      summary: Invitaciones pendientes a viajes
+      operationId: listarInvitacionesViajePendientes
+      tags: [Viajes]
+      security: [{ UserIdHeader: [] }]
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+      responses:
+        '200':
+          description: Invitaciones pendientes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InvitacionViajePendiente'
+
+  /api/viajes/{viajeId}/invitacion/responder:
+    post:
+      summary: Aceptar o rechazar invitación al viaje
+      operationId: responderInvitacionViaje
+      tags: [Viajes]
+      security: [{ UserIdHeader: [] }]
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - name: viajeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResponderInvitacionViajeRequest'
+      responses:
+        '200':
+          description: Respuesta registrada
+
+  /api/viajes/{viajeId}/participantes:
+    get:
+      summary: Participantes del viaje (solo creador)
+      operationId: listarParticipantesViaje
+      tags: [Viajes]
+      security: [{ UserIdHeader: [] }]
       parameters:
         - $ref: '#/components/parameters/XUserId'
         - name: viajeId
@@ -36,38 +113,30 @@ paths:
             format: uuid
       responses:
         '200':
-          description: Usuario unido o ya era miembro
+          description: Lista de participantes
+
+  /api/viajes/{viajeId}/unirse-qr:
+    post:
+      summary: Unirse al viaje escaneando QR
+      description: RN-015/016. Une al viaje, no modifica membresía de grupos.
+      operationId: unirseViajePorQr
+      tags: [Viajes]
+      security: [{ UserIdHeader: [] }]
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - name: viajeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Usuario unido o ya participaba
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/UnirseQrResponse'
-        '401':
-          description: Header x-user-id ausente o inválido
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
-          description: Viaje no encontrado
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '410':
-          description: QR expirado (viaje ya iniciado o finalizado)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              example:
-                error: Este viaje ya ha comenzado. El código QR ha expirado.
-                code: QR_EXPIRED
-        '422':
-          description: Viaje no grupal
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
 
 components:
   securitySchemes:
@@ -86,26 +155,64 @@ components:
         format: uuid
 
   schemas:
-    UnirseQrResponse:
+    CreateViajeRequest:
       type: object
-      required:
-        - grupoId
-        - viajeId
-        - yaEraMiembro
+      required: [esGrupal, tipoActividad, fechaProgramada]
       properties:
-        grupoId:
+        esGrupal:
+          type: boolean
+        grupoIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        tipoActividad:
+          type: string
+          enum: [moto, bici, running, trekking]
+        fechaProgramada:
+          type: string
+          format: date-time
+
+    ViajeCreadoResponse:
+      type: object
+      properties:
+        id:
           type: string
           format: uuid
+        invitaciones_enviadas:
+          type: integer
+
+    ViajePlanificadoItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        mi_estado:
+          type: string
+          nullable: true
+
+    InvitacionViajePendiente:
+      type: object
+      properties:
+        viaje_id:
+          type: string
+          format: uuid
+
+    ResponderInvitacionViajeRequest:
+      type: object
+      required: [accion]
+      properties:
+        accion:
+          type: string
+          enum: [aceptar, rechazar]
+
+    UnirseQrResponse:
+      type: object
+      required: [viajeId, yaEraParticipante]
+      properties:
         viajeId:
           type: string
           format: uuid
-        yaEraMiembro:
+        yaEraParticipante:
           type: boolean
-
-    ErrorResponse:
-      type: object
-      properties:
-        error:
-          type: string
-        code:
-          type: string

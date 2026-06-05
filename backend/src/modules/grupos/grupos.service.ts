@@ -1,9 +1,13 @@
 import type { PrismaClient } from '@prisma/client'
 import { HttpError } from '../../lib/httpError'
+import { unirUsuarioAlGrupo } from './grupos.membership'
 import type {
   AbandonarGrupoInput,
   CambiarRolMiembroInput,
   CreateGrupoInput,
+  InvitarDesdeGruposInput,
+  InvitarUsuariosInput,
+  ResponderInvitacionInput,
 } from './grupos.schemas'
 
 type GrupoMutationResult = {
@@ -50,25 +54,22 @@ async function transferirLiderazgo(
 export class GruposService {
   constructor(private readonly prisma: PrismaClient) {}
 
-  private async assertNoViajeEnCurso(grupoId: string) {
-    const viajeActivo = await this.prisma.viaje.findFirst({
-      where: { grupo_id: grupoId, estado: 'en_curso' },
-      select: { id: true },
+  private async assertEsLider(actorId: string, grupoId: string) {
+    const grupo = await this.prisma.grupo.findUnique({
+      where: { id: grupoId },
+      select: { lider_id: true },
     })
 
-    if (viajeActivo) {
-      throw new HttpError(
-        409,
-        'No se puede modificar el grupo mientras hay un viaje en curso',
-        'TRIP_IN_PROGRESS'
-      )
+    if (!grupo) {
+      throw new HttpError(404, 'Grupo no encontrado', 'GRUPO_NOT_FOUND')
+    }
+
+    if (grupo.lider_id !== actorId) {
+      throw new HttpError(403, 'Solo el líder puede invitar integrantes', 'NOT_GROUP_LEADER')
     }
   }
 
   private async eliminarGrupoInterno(tx: TransactionClient, grupoId: string) {
-    await tx.viaje.deleteMany({
-      where: { grupo_id: grupoId, estado: 'planificado' },
-    })
     await tx.grupo.delete({ where: { id: grupoId } })
   }
 
@@ -249,27 +250,6 @@ export class GruposService {
     return { usuario_id: usuarioId, rol: 'participante' as const }
   }
 
-  async listarViajesPlanificados(usuarioId: string, grupoId: string) {
-    await this.detalleParaMiembro(usuarioId, grupoId)
-
-    const viajes = await this.prisma.viaje.findMany({
-      where: {
-        grupo_id: grupoId,
-        es_grupal: true,
-        estado: 'planificado',
-      },
-      select: {
-        id: true,
-        tipo_actividad: true,
-        fecha_programada: true,
-        estado: true,
-      },
-      orderBy: { fecha_programada: 'asc' },
-    })
-
-    return viajes
-  }
-
   async abandonarGrupo(
     usuarioId: string,
     grupoId: string,
@@ -285,8 +265,6 @@ export class GruposService {
       })
       return { accion: 'abandonado' }
     }
-
-    await this.assertNoViajeEnCurso(grupoId)
 
     const otrosMiembros = await this.prisma.grupoMiembro.count({
       where: {
@@ -338,6 +316,366 @@ export class GruposService {
     return { accion: 'abandonado' }
   }
 
+  private async obtenerOtrosGruposDelActor(actorId: string, grupoDestinoId: string) {
+    return this.prisma.grupo.findMany({
+      where: {
+        id: { not: grupoDestinoId },
+        OR: [
+          { lider_id: actorId },
+          { miembros: { some: { usuario_id: actorId } } },
+        ],
+      },
+      select: { id: true, nombre: true },
+      orderBy: { nombre: 'asc' },
+    })
+  }
+
+  private async construirCandidatosInvitacion(actorId: string, grupoDestinoId: string) {
+    const otrosGrupos = await this.obtenerOtrosGruposDelActor(actorId, grupoDestinoId)
+    if (otrosGrupos.length === 0) {
+      return { otrosGrupos, candidatos: new Map<string, {
+        id: string
+        nombre: string
+        email: string
+        grupos_origen: Array<{ id: string; nombre: string }>
+        grupo_origen_id: string
+      }>() }
+    }
+
+    const otrosGrupoIds = otrosGrupos.map((g) => g.id)
+    const nombrePorGrupo = new Map(otrosGrupos.map((g) => [g.id, g.nombre]))
+
+    const [miembrosDestino, invitacionesPendientes, miembrosOrigen] = await Promise.all([
+      this.prisma.grupoMiembro.findMany({
+        where: { grupo_id: grupoDestinoId },
+        select: { usuario_id: true },
+      }),
+      this.prisma.grupoInvitacion.findMany({
+        where: { grupo_id: grupoDestinoId, estado: 'pendiente' },
+        select: { usuario_id: true },
+      }),
+      this.prisma.grupoMiembro.findMany({
+        where: {
+          grupo_id: { in: otrosGrupoIds },
+          usuario_id: { not: actorId },
+        },
+        select: {
+          grupo_id: true,
+          usuario: { select: { id: true, nombre: true, email: true } },
+        },
+        orderBy: { usuario: { nombre: 'asc' } },
+      }),
+    ])
+
+    const excluidos = new Set([
+      actorId,
+      ...miembrosDestino.map((m) => m.usuario_id),
+      ...invitacionesPendientes.map((i) => i.usuario_id),
+    ])
+
+    const candidatos = new Map<string, {
+      id: string
+      nombre: string
+      email: string
+      grupos_origen: Array<{ id: string; nombre: string }>
+      grupo_origen_id: string
+    }>()
+
+    for (const m of miembrosOrigen) {
+      if (excluidos.has(m.usuario.id)) continue
+
+      const grupoRef = { id: m.grupo_id, nombre: nombrePorGrupo.get(m.grupo_id)! }
+      const existente = candidatos.get(m.usuario.id)
+
+      if (existente) {
+        if (!existente.grupos_origen.some((g) => g.id === grupoRef.id)) {
+          existente.grupos_origen.push(grupoRef)
+        }
+      } else {
+        candidatos.set(m.usuario.id, {
+          id: m.usuario.id,
+          nombre: m.usuario.nombre,
+          email: m.usuario.email,
+          grupos_origen: [grupoRef],
+          grupo_origen_id: m.grupo_id,
+        })
+      }
+    }
+
+    return { otrosGrupos, candidatos }
+  }
+
+  async listarUsuariosParaInvitar(actorId: string, grupoDestinoId: string) {
+    await this.assertEsLider(actorId, grupoDestinoId)
+    const { candidatos } = await this.construirCandidatosInvitacion(actorId, grupoDestinoId)
+
+    return [...candidatos.values()]
+      .map(({ id, nombre, email, grupos_origen }) => ({ id, nombre, email, grupos_origen }))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre))
+  }
+
+  async invitarUsuarios(
+    actorId: string,
+    grupoDestinoId: string,
+    input: InvitarUsuariosInput
+  ) {
+    await this.assertEsLider(actorId, grupoDestinoId)
+    const { usuario_ids: usuarioIds } = input
+    const idsUnicos = [...new Set(usuarioIds)]
+
+    const { candidatos } = await this.construirCandidatosInvitacion(actorId, grupoDestinoId)
+
+    const invalidos = idsUnicos.filter((id) => !candidatos.has(id))
+    if (invalidos.length > 0) {
+      throw new HttpError(
+        400,
+        'Una o más personas seleccionadas no se pueden invitar',
+        'INVALID_INVITEE'
+      )
+    }
+
+    const result = await this.prisma.grupoInvitacion.createMany({
+      data: idsUnicos.map((usuarioId) => {
+        const candidato = candidatos.get(usuarioId)!
+        return {
+          grupo_id: grupoDestinoId,
+          usuario_id: usuarioId,
+          invitado_por_id: actorId,
+          grupo_origen_id: candidato.grupo_origen_id,
+          estado: 'pendiente' as const,
+        }
+      }),
+      skipDuplicates: true,
+    })
+
+    const invitados = idsUnicos
+      .map((id) => candidatos.get(id)!)
+      .map((c) => ({ id: c.id, nombre: c.nombre }))
+
+    return {
+      invitaciones_creadas: result.count,
+      invitados,
+    }
+  }
+
+  async listarGruposParaInvitar(actorId: string, grupoDestinoId: string) {
+    await this.assertEsLider(actorId, grupoDestinoId)
+    const grupos = await this.prisma.grupo.findMany({
+      where: {
+        id: { not: grupoDestinoId },
+        OR: [
+          { lider_id: actorId },
+          { miembros: { some: { usuario_id: actorId } } },
+        ],
+      },
+      select: {
+        id: true,
+        nombre: true,
+        _count: { select: { miembros: true } },
+      },
+      orderBy: { nombre: 'asc' },
+    })
+
+    return grupos.map((g) => ({
+      id: g.id,
+      nombre: g.nombre,
+      cantidad_integrantes: g._count.miembros,
+    }))
+  }
+
+  async invitarDesdeGrupos(
+    actorId: string,
+    grupoDestinoId: string,
+    input: InvitarDesdeGruposInput
+  ) {
+    await this.assertEsLider(actorId, grupoDestinoId)
+    const { grupo_origen_ids: grupoOrigenIds } = input
+
+    if (grupoOrigenIds.includes(grupoDestinoId)) {
+      throw new HttpError(
+        400,
+        'No podés invitar desde el mismo grupo destino',
+        'SAME_GROUP_ORIGIN'
+      )
+    }
+
+    const gruposOrigen = await this.prisma.grupo.findMany({
+      where: { id: { in: grupoOrigenIds } },
+      select: {
+        id: true,
+        nombre: true,
+        miembros: { where: { usuario_id: actorId }, select: { usuario_id: true } },
+        lider_id: true,
+      },
+    })
+
+    if (gruposOrigen.length !== grupoOrigenIds.length) {
+      throw new HttpError(404, 'Uno o más grupos origen no existen', 'GRUPO_ORIGEN_NOT_FOUND')
+    }
+
+    for (const grupo of gruposOrigen) {
+      const esMiembro =
+        grupo.lider_id === actorId || grupo.miembros.length > 0
+      if (!esMiembro) {
+        throw new HttpError(
+          403,
+          'No tenés acceso a uno de los grupos seleccionados',
+          'NOT_SOURCE_GROUP_MEMBER'
+        )
+      }
+    }
+
+    const miembrosDestino = await this.prisma.grupoMiembro.findMany({
+      where: { grupo_id: grupoDestinoId },
+      select: { usuario_id: true },
+    })
+    const idsMiembrosDestino = new Set(miembrosDestino.map((m) => m.usuario_id))
+
+    let totalCreadas = 0
+    let totalOmitidosYaMiembros = 0
+    const gruposOrigenResult: Array<{
+      id: string
+      nombre: string
+      invitaciones_creadas: number
+    }> = []
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const grupoOrigen of gruposOrigen) {
+        const miembrosOrigen = await tx.grupoMiembro.findMany({
+          where: {
+            grupo_id: grupoOrigen.id,
+            usuario_id: { not: actorId },
+          },
+          select: { usuario_id: true },
+        })
+
+        const elegibles = miembrosOrigen.filter((m) => !idsMiembrosDestino.has(m.usuario_id))
+        totalOmitidosYaMiembros += miembrosOrigen.length - elegibles.length
+
+        if (elegibles.length === 0) {
+          gruposOrigenResult.push({
+            id: grupoOrigen.id,
+            nombre: grupoOrigen.nombre,
+            invitaciones_creadas: 0,
+          })
+          continue
+        }
+
+        const result = await tx.grupoInvitacion.createMany({
+          data: elegibles.map((m) => ({
+            grupo_id: grupoDestinoId,
+            usuario_id: m.usuario_id,
+            invitado_por_id: actorId,
+            grupo_origen_id: grupoOrigen.id,
+            estado: 'pendiente' as const,
+          })),
+          skipDuplicates: true,
+        })
+
+        totalCreadas += result.count
+        gruposOrigenResult.push({
+          id: grupoOrigen.id,
+          nombre: grupoOrigen.nombre,
+          invitaciones_creadas: result.count,
+        })
+      }
+    })
+
+    return {
+      invitaciones_creadas: totalCreadas,
+      omitidos_ya_miembros: totalOmitidosYaMiembros,
+      grupos_origen: gruposOrigenResult,
+    }
+  }
+
+  async listarInvitacionesPendientes(usuarioId: string) {
+    const invitaciones = await this.prisma.grupoInvitacion.findMany({
+      where: {
+        usuario_id: usuarioId,
+        estado: 'pendiente',
+      },
+      select: {
+        id: true,
+        created_at: true,
+        grupo: { select: { id: true, nombre: true } },
+        grupo_origen: { select: { id: true, nombre: true } },
+        invitado_por: { select: { id: true, nombre: true } },
+      },
+      orderBy: { created_at: 'desc' },
+    })
+
+    return invitaciones.map((inv) => ({
+      id: inv.id,
+      created_at: inv.created_at,
+      grupo: inv.grupo,
+      grupo_origen: inv.grupo_origen,
+      invitado_por: inv.invitado_por,
+    }))
+  }
+
+  async responderInvitacion(
+    usuarioId: string,
+    invitacionId: string,
+    input: ResponderInvitacionInput
+  ) {
+    const invitacion = await this.prisma.grupoInvitacion.findUnique({
+      where: { id: invitacionId },
+      select: {
+        id: true,
+        usuario_id: true,
+        grupo_id: true,
+        estado: true,
+        grupo: { select: { nombre: true } },
+      },
+    })
+
+    if (!invitacion || invitacion.usuario_id !== usuarioId) {
+      throw new HttpError(404, 'Invitación no encontrada', 'INVITATION_NOT_FOUND')
+    }
+
+    if (invitacion.estado !== 'pendiente') {
+      throw new HttpError(
+        409,
+        'Esta invitación ya fue respondida',
+        'INVITATION_ALREADY_RESPONDED'
+      )
+    }
+
+    const { accion } = input
+
+    if (accion === 'rechazar') {
+      await this.prisma.grupoInvitacion.update({
+        where: { id: invitacionId },
+        data: { estado: 'rechazada' },
+      })
+
+      return {
+        invitacion_id: invitacionId,
+        grupo_id: invitacion.grupo_id,
+        grupo_nombre: invitacion.grupo.nombre,
+        accion: 'rechazada' as const,
+      }
+    }
+
+    const resultado = await this.prisma.$transaction(async (tx) => {
+      await tx.grupoInvitacion.update({
+        where: { id: invitacionId },
+        data: { estado: 'aceptada' },
+      })
+
+      const union = await unirUsuarioAlGrupo(tx, usuarioId, invitacion.grupo_id)
+      return union
+    })
+
+    return {
+      invitacion_id: invitacionId,
+      grupo_id: invitacion.grupo_id,
+      grupo_nombre: invitacion.grupo.nombre,
+      accion: 'aceptada' as const,
+      ya_era_miembro: resultado.yaEraMiembro,
+    }
+  }
+
   async eliminarGrupo(usuarioId: string, grupoId: string): Promise<GrupoMutationResult> {
     const grupo = await this.prisma.grupo.findUnique({
       where: { id: grupoId },
@@ -351,8 +689,6 @@ export class GruposService {
     if (grupo.lider_id !== usuarioId) {
       throw new HttpError(403, 'Solo el líder puede eliminar el grupo', 'NOT_GROUP_LEADER')
     }
-
-    await this.assertNoViajeEnCurso(grupoId)
 
     await this.prisma.$transaction(async (tx) => {
       await this.eliminarGrupoInterno(tx, grupoId)

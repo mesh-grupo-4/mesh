@@ -15,7 +15,14 @@ import {
 import { router, useFocusEffect } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { resolveBackendUserId } from '@/lib/apiClient';
-import { crearGrupo, listarGrupos, type GrupoListItemApi } from '@/lib/gruposApi';
+import {
+  crearGrupo,
+  listarGrupos,
+  listarInvitacionesPendientes,
+  responderInvitacion,
+  type GrupoListItemApi,
+  type InvitacionPendienteApi,
+} from '@/lib/gruposApi';
 
 function formatearFecha(iso: string): string {
   return new Date(iso).toLocaleDateString('es-AR', {
@@ -28,11 +35,13 @@ function formatearFecha(iso: string): string {
 export default function GruposScreen() {
   const { backendUserId, backendSyncing } = useAuth();
   const [grupos, setGrupos] = useState<GrupoListItemApi[]>([]);
+  const [invitaciones, setInvitaciones] = useState<InvitacionPendienteApi[]>([]);
   const [cargandoLista, setCargandoLista] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [nombre, setNombre] = useState('');
   const [loading, setLoading] = useState(false);
+  const [respondiendoId, setRespondiendoId] = useState<string | null>(null);
 
   const cargarGrupos = useCallback(async (esRefresh = false) => {
     if (backendSyncing) return;
@@ -42,6 +51,7 @@ export default function GruposScreen() {
       userId = resolveBackendUserId(backendUserId);
     } catch {
       setGrupos([]);
+      setInvitaciones([]);
       setCargandoLista(false);
       setRefreshing(false);
       return;
@@ -51,8 +61,12 @@ export default function GruposScreen() {
     else setCargandoLista(true);
 
     try {
-      const data = await listarGrupos(userId);
+      const [data, pendientes] = await Promise.all([
+        listarGrupos(userId),
+        listarInvitacionesPendientes(userId),
+      ]);
       setGrupos(data);
+      setInvitaciones(pendientes);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'No se pudieron cargar los grupos.';
       if (!esRefresh) {
@@ -63,6 +77,33 @@ export default function GruposScreen() {
       setRefreshing(false);
     }
   }, [backendUserId, backendSyncing]);
+
+  const ejecutarRespuesta = async (invitacionId: string, accion: 'aceptar' | 'rechazar') => {
+    let userId: string;
+    try {
+      userId = resolveBackendUserId(backendUserId);
+    } catch {
+      Alert.alert('Error', 'No se pudo identificar tu usuario.');
+      return;
+    }
+
+    setRespondiendoId(invitacionId);
+    try {
+      const resultado = await responderInvitacion(invitacionId, accion, userId);
+      await cargarGrupos(true);
+
+      if (accion === 'aceptar') {
+        Alert.alert('Listo', `Te uniste al grupo "${resultado.grupo_nombre}".`);
+        router.push(`/grupo/${resultado.grupo_id}`);
+      } else {
+        Alert.alert('Listo', `Rechazaste la invitación a "${resultado.grupo_nombre}".`);
+      }
+    } catch (e: unknown) {
+      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo responder la invitación.');
+    } finally {
+      setRespondiendoId(null);
+    }
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -198,6 +239,43 @@ export default function GruposScreen() {
               <Text style={styles.botonEscanearQrTexto}>Escanear QR para unirse</Text>
             </TouchableOpacity>
 
+            {invitaciones.length > 0 && (
+              <View style={styles.seccionInvitaciones}>
+                <Text style={styles.seccionTitulo}>Invitaciones pendientes</Text>
+                {invitaciones.map((inv) => {
+                  const procesando = respondiendoId === inv.id;
+                  return (
+                    <View key={inv.id} style={styles.tarjetaInvitacion}>
+                      <Text style={styles.invitacionTitulo}>{inv.grupo.nombre}</Text>
+                      <Text style={styles.invitacionMeta}>
+                        {inv.invitado_por.nombre} te invitó desde {inv.grupo_origen.nombre}
+                      </Text>
+                      <View style={styles.invitacionAcciones}>
+                        <TouchableOpacity
+                          style={[styles.botonAceptar, procesando && styles.botonDisabled]}
+                          onPress={() => void ejecutarRespuesta(inv.id, 'aceptar')}
+                          disabled={procesando}
+                        >
+                          {procesando ? (
+                            <ActivityIndicator color="#fff" size="small" />
+                          ) : (
+                            <Text style={styles.botonAceptarTexto}>Aceptar</Text>
+                          )}
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.botonRechazar, procesando && styles.botonDisabled]}
+                          onPress={() => void ejecutarRespuesta(inv.id, 'rechazar')}
+                          disabled={procesando}
+                        >
+                          <Text style={styles.botonRechazarTexto}>Rechazar</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+
             {cargandoLista ? (
               <ActivityIndicator color="#4a9eff" style={{ marginTop: 32 }} />
             ) : grupos.length === 0 ? (
@@ -300,6 +378,36 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   botonEscanearQrTexto: { color: '#4a9eff', fontSize: 15, fontWeight: '600' },
+  seccionInvitaciones: { gap: 10, marginBottom: 20 },
+  seccionTitulo: { color: '#fff', fontSize: 18, fontWeight: '600' },
+  tarjetaInvitacion: {
+    backgroundColor: '#1a2a1a',
+    borderRadius: 10,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#2a4a2a',
+    gap: 8,
+  },
+  invitacionTitulo: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  invitacionMeta: { color: '#888', fontSize: 13, lineHeight: 18 },
+  invitacionAcciones: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  botonAceptar: {
+    flex: 1,
+    backgroundColor: '#4a9eff',
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  botonAceptarTexto: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  botonRechazar: {
+    flex: 1,
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#555',
+  },
+  botonRechazarTexto: { color: '#aaa', fontSize: 14, fontWeight: '600' },
   botonPrimarioTexto: { color: '#fff', fontSize: 16, fontWeight: '600' },
   botonSecundario: {
     borderRadius: 10,

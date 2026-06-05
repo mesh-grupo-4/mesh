@@ -165,13 +165,27 @@ export default function ViajeDetalleScreen() {
           ) : null}
 
           {viaje.estado === 'planificado' && esLider ? (
-            <Pressable style={styles.btnPrimary} onPress={confirmarIniciar} disabled={accion}>
-              {accion ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.btnPrimaryTxt}>Iniciar viaje</Text>
-              )}
-            </Pressable>
+            <>
+              <Pressable
+                style={styles.btnSecondary}
+                onPress={() => router.push(`/viaje/${viajeId}/qr`)}
+              >
+                <Text style={styles.btnSecondaryTxt}>QR / Invitar al viaje</Text>
+              </Pressable>
+              <Pressable
+                style={styles.btnSecondary}
+                onPress={() => router.push(`/configurar-ruta/${viajeId}`)}
+              >
+                <Text style={styles.btnSecondaryTxt}>Configurar ruta</Text>
+              </Pressable>
+              <Pressable style={styles.btnPrimary} onPress={confirmarIniciar} disabled={accion}>
+                {accion ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.btnPrimaryTxt}>Iniciar viaje</Text>
+                )}
+              </Pressable>
+            </>
           ) : null}
 
           {viaje.estado === 'planificado' && !esLider ? (

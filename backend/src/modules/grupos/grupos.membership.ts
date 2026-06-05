@@ -5,9 +5,11 @@ export type UnirseGrupoResult = {
   yaEraMiembro: boolean
 }
 
+export type GrupoMembershipDb = Pick<PrismaClient, 'grupoMiembro'>
+
 /** RN-016: agrega participante al grupo; idempotente si ya es miembro. */
 export async function unirUsuarioAlGrupo(
-  prisma: PrismaClient,
+  prisma: GrupoMembershipDb,
   usuarioId: string,
   grupoId: string
 ): Promise<UnirseGrupoResult> {

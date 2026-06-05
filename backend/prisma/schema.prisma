@@ -37,16 +37,38 @@ enum GpsSource {
   offline_sync
 }
 
+enum EstadoInvitacionGrupo {
+  pendiente
+  aceptada
+  rechazada
+}
+
+enum EstadoViajeIntegrante {
+  pendiente
+  confirmado
+  rechazado
+}
+
+enum OrigenViajeIntegrante {
+  creador
+  qr
+  link
+  grupo
+}
+
 model Usuario {
   id           String @id @default(uuid()) @db.Uuid
   firebase_uid String @unique @map("firebase_uid")
   email        String @unique
   nombre       String
 
-  grupos_liderados Grupo[]        @relation("GrupoLider")
-  membresias       GrupoMiembro[]
-  viajes_creados   Viaje[]        @relation("ViajeCreador")
-  registros_gps    RegistroGPS[]
+  grupos_liderados       Grupo[]            @relation("GrupoLider")
+  membresias             GrupoMiembro[]
+  viajes_creados         Viaje[]            @relation("ViajeCreador")
+  participaciones_viaje  ViajeIntegrante[]
+  registros_gps          RegistroGPS[]
+  invitaciones_recibidas GrupoInvitacion[]  @relation("InvitacionesRecibidas")
+  invitaciones_enviadas  GrupoInvitacion[]  @relation("InvitacionesEnviadas")
 
   @@map("usuario")
 }
@@ -57,9 +79,10 @@ model Grupo {
   fecha_creacion DateTime @default(now()) @map("fecha_creacion")
   lider_id       String   @map("lider_id") @db.Uuid
 
-  lider   Usuario        @relation("GrupoLider", fields: [lider_id], references: [id], onDelete: Restrict)
-  miembros GrupoMiembro[]
-  viajes   Viaje[]
+  lider                Usuario           @relation("GrupoLider", fields: [lider_id], references: [id], onDelete: Restrict)
+  miembros             GrupoMiembro[]
+  invitaciones_destino GrupoInvitacion[] @relation("InvitacionesDestino")
+  invitaciones_origen  GrupoInvitacion[] @relation("InvitacionesOrigen")
 
   @@map("grupo")
 }
@@ -77,10 +100,28 @@ model GrupoMiembro {
   @@map("grupo_miembro")
 }
 
+model GrupoInvitacion {
+  id              String                @id @default(uuid()) @db.Uuid
+  grupo_id        String                @map("grupo_id") @db.Uuid
+  usuario_id      String                @map("usuario_id") @db.Uuid
+  invitado_por_id String                @map("invitado_por_id") @db.Uuid
+  grupo_origen_id String                @map("grupo_origen_id") @db.Uuid
+  estado          EstadoInvitacionGrupo @default(pendiente)
+  created_at      DateTime              @default(now()) @map("created_at")
+
+  grupo        Grupo   @relation("InvitacionesDestino", fields: [grupo_id], references: [id], onDelete: Cascade)
+  grupo_origen Grupo   @relation("InvitacionesOrigen", fields: [grupo_origen_id], references: [id], onDelete: Cascade)
+  usuario      Usuario @relation("InvitacionesRecibidas", fields: [usuario_id], references: [id], onDelete: Cascade)
+  invitado_por Usuario @relation("InvitacionesEnviadas", fields: [invitado_por_id], references: [id], onDelete: Cascade)
+
+  @@unique([grupo_id, usuario_id])
+  @@index([usuario_id, estado])
+  @@map("grupo_invitacion")
+}
+
 model Viaje {
   id                 String      @id @default(uuid()) @db.Uuid
   creador_id         String      @map("creador_id") @db.Uuid
-  grupo_id           String?     @map("grupo_id") @db.Uuid
   es_grupal          Boolean     @map("es_grupal")
   tipo_actividad     TipoActividad @map("tipo_actividad")
   estado             EstadoViaje @default(planificado)
@@ -89,16 +130,30 @@ model Viaje {
   fecha_fin_real     DateTime?   @map("fecha_fin_real")
   created_at         DateTime    @default(now()) @map("created_at")
 
-  creador Usuario @relation("ViajeCreador", fields: [creador_id], references: [id], onDelete: Restrict)
-  grupo   Grupo?  @relation(fields: [grupo_id], references: [id], onDelete: SetNull)
+  creador     Usuario           @relation("ViajeCreador", fields: [creador_id], references: [id], onDelete: Restrict)
+  integrantes ViajeIntegrante[]
 
   ruta    Ruta?
   resumen ResumenViaje?
   registros_gps RegistroGPS[]
 
   @@index([creador_id])
-  @@index([grupo_id])
   @@map("viaje")
+}
+
+model ViajeIntegrante {
+  viaje_id   String                @map("viaje_id") @db.Uuid
+  usuario_id String                @map("usuario_id") @db.Uuid
+  estado     EstadoViajeIntegrante
+  origen     OrigenViajeIntegrante
+  created_at DateTime              @default(now()) @map("created_at")
+
+  viaje   Viaje   @relation(fields: [viaje_id], references: [id], onDelete: Cascade)
+  usuario Usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+
+  @@id([viaje_id, usuario_id])
+  @@index([usuario_id, estado])
+  @@map("viaje_integrante")
 }
 
 model RegistroGPS {

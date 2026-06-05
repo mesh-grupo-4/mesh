@@ -1,5 +1,10 @@
 import type { Request, RequestHandler, Response } from 'express'
-import { createViajeSchema, postPosicionesSchema, putRutaSchema } from './viajes.schemas'
+import {
+  createViajeSchema,
+  postPosicionesSchema,
+  putRutaSchema,
+  responderInvitacionViajeSchema,
+} from './viajes.schemas'
 import type { ViajesService } from './viajes.service'
 
 function asyncHandler(fn: (req: Request, res: Response) => Promise<void>): RequestHandler {
@@ -14,6 +19,29 @@ export function crearViajesController(service: ViajesService) {
       const body = createViajeSchema.parse(req.body)
       const viaje = await service.crearViaje(req.userId!, body)
       res.status(201).json(viaje)
+    }),
+
+    listarPlanificados: asyncHandler(async (req, res) => {
+      const viajes = await service.listarPlanificados(req.userId!)
+      res.json(viajes)
+    }),
+
+    listarInvitacionesPendientes: asyncHandler(async (req, res) => {
+      const invitaciones = await service.listarInvitacionesPendientes(req.userId!)
+      res.json(invitaciones)
+    }),
+
+    responderInvitacion: asyncHandler(async (req, res) => {
+      const viajeId = req.params.viajeId as string
+      const body = responderInvitacionViajeSchema.parse(req.body)
+      const result = await service.responderInvitacion(req.userId!, viajeId, body)
+      res.json(result)
+    }),
+
+    listarParticipantes: asyncHandler(async (req, res) => {
+      const viajeId = req.params.viajeId as string
+      const participantes = await service.listarParticipantes(req.userId!, viajeId)
+      res.json(participantes)
     }),
 
     detalle: asyncHandler(async (req, res) => {
