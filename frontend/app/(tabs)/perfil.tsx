@@ -2,27 +2,29 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
-  TextInput,
-  TouchableOpacity,
   StyleSheet,
   ScrollView,
   ActivityIndicator,
   Alert,
+  Pressable,
 } from 'react-native';
 import { useAuth, ActividadPreferida } from '@/context/AuthContext';
 import { router, useFocusEffect } from 'expo-router';
 import { resolveBackendUserId } from '@/lib/apiClient';
 import { listarSolicitudesAmistadPendientes } from '@/lib/amistadesApi';
+import { Btn, Field, Chip, ChipRow, Avatar, TopBar, useTheme } from '@/components/MeshUI';
+import { Feather } from '@expo/vector-icons';
 
-const ACTIVIDADES: { valor: ActividadPreferida; etiqueta: string }[] = [
-  { valor: 'moto', etiqueta: 'Moto' },
-  { valor: 'bici', etiqueta: 'Bici' },
-  { valor: 'running', etiqueta: 'Running' },
-  { valor: 'trekking', etiqueta: 'Trekking' },
+const ACTIVIDADES: { valor: ActividadPreferida; etiqueta: string; icono: keyof typeof Feather.glyphMap }[] = [
+  { valor: 'moto', etiqueta: 'Moto', icono: 'compass' },
+  { valor: 'bici', etiqueta: 'Bici', icono: 'git-commit' },
+  { valor: 'running', etiqueta: 'Running', icono: 'zap' },
+  { valor: 'trekking', etiqueta: 'Trekking', icono: 'map' },
 ];
 
 export default function PerfilScreen() {
   const { user, profile, updateUserProfile, logout, backendUserId } = useAuth();
+  const theme = useTheme();
 
   const [nombre, setNombre] = useState('');
   const [apellido, setApellido] = useState('');
@@ -107,199 +109,269 @@ export default function PerfilScreen() {
     ]);
   };
 
+  const meDummy = {
+    nombre: nombre || profile?.nombre || 'U',
+    apellido: apellido || profile?.apellido || '',
+    color: theme.accent,
+  };
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
-      {/* Email (solo lectura) */}
-      <Text style={styles.label}>Email</Text>
-      <View style={styles.inputReadonly}>
-        <Text style={styles.inputReadonlyText}>{user?.email}</Text>
-      </View>
-
-      {/* Nombre y Apellido */}
-      <View style={styles.row}>
-        <View style={styles.half}>
-          <Text style={styles.label}>Nombre</Text>
-          <TextInput
-            style={styles.input}
-            value={nombre}
-            onChangeText={setNombre}
-            autoCapitalize="words"
-            placeholderTextColor="#888"
-          />
-        </View>
-        <View style={styles.half}>
-          <Text style={styles.label}>Apellido</Text>
-          <TextInput
-            style={styles.input}
-            value={apellido}
-            onChangeText={setApellido}
-            autoCapitalize="words"
-            placeholderTextColor="#888"
-          />
-        </View>
-      </View>
-
-      {/* Teléfono */}
-      <Text style={styles.label}>Teléfono</Text>
-      <TextInput
-        style={styles.input}
-        value={telefono}
-        onChangeText={setTelefono}
-        keyboardType="phone-pad"
-        placeholderTextColor="#888"
-        placeholder="ej: 351 123-4567"
-      />
-
-      {/* Actividad preferida */}
-      <Text style={styles.label}>Actividad preferida</Text>
-      <View style={styles.actividadesList}>
-        {ACTIVIDADES.map(({ valor, etiqueta }) => (
-          <TouchableOpacity
-            key={valor}
-            style={[styles.actividadItem, actividad === valor && styles.actividadItemActivo]}
-            onPress={() => setActividad(valor === actividad ? '' : valor)}
-          >
-            <Text style={[styles.actividadTexto, actividad === valor && styles.actividadTextoActivo]}>
-              {etiqueta}
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <TopBar title="Perfil" bordered={false} />
+      
+      <ScrollView contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
+        {/* Cabecera del perfil */}
+        <View style={styles.profileHeader}>
+          <Avatar person={meDummy} size="lg" ring />
+          <View style={styles.profileMeta}>
+            <Text style={[styles.profileName, { color: theme.text }]}>
+              {`${nombre} ${apellido}`.trim() || 'Cargando...'}
             </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {/* Mis Amigos */}
-      <TouchableOpacity style={styles.linkAmigos} onPress={() => router.push('/amigos')}>
-        <View style={styles.linkAmigosContenido}>
-          <Text style={styles.linkAmigosTexto}>Mis Amigos</Text>
-          {solicitudesPendientes > 0 && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeTexto}>{solicitudesPendientes}</Text>
-            </View>
-          )}
+            <Text style={[styles.profileEmail, { color: theme.textDim }]} numberOfLines={1}>
+              {user?.email}
+            </Text>
+          </View>
         </View>
-        <Text style={styles.linkAmigosFlecha}>›</Text>
-      </TouchableOpacity>
 
-      {/* Botón guardar */}
-      <TouchableOpacity
-        style={[styles.button, guardado && styles.buttonOk]}
-        onPress={guardar}
-        disabled={loading}
-      >
-        {loading ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.buttonText}>{guardado ? '✓ Guardado' : 'Guardar cambios'}</Text>
-        )}
-      </TouchableOpacity>
+        {/* Bloque de estadísticas del mockup */}
+        <View style={[styles.statsCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <View style={styles.statBox}>
+            <Text style={[styles.statValue, { color: theme.text }]}>--</Text>
+            <Text style={[styles.statLabel, { color: theme.textMute }]}>Viajes</Text>
+          </View>
+          <View style={[styles.statBox, styles.borderLeft, { borderLeftColor: theme.border }]}>
+            <Text style={[styles.statValue, { color: theme.text }]}>--</Text>
+            <Text style={[styles.statLabel, { color: theme.textMute }]}>Grupos</Text>
+          </View>
+          <View style={[styles.statBox, styles.borderLeft, { borderLeftColor: theme.border }]}>
+            <Text style={[styles.statValue, { color: theme.text }]}>1.2k</Text>
+            <Text style={[styles.statLabel, { color: theme.textMute }]}>Km</Text>
+          </View>
+        </View>
 
-      {/* Botón cerrar sesión */}
-      <TouchableOpacity
-        style={styles.buttonLogout}
-        onPress={cerrarSesion}
-        disabled={loggingOut}
-      >
-        {loggingOut ? (
-          <ActivityIndicator color="#ef4444" />
-        ) : (
-          <Text style={styles.buttonLogoutText}>Cerrar sesión</Text>
-        )}
-      </TouchableOpacity>
-    </ScrollView>
+        {/* Datos Personales */}
+        <View style={styles.section}>
+          <Text style={[styles.eyebrow, { color: theme.textDim }]}>DATOS PERSONALES</Text>
+          <View style={styles.row}>
+            <View style={styles.half}>
+              <Field
+                label="Nombre"
+                value={nombre}
+                onChangeText={setNombre}
+                autoCapitalize="words"
+                placeholderTextColor={theme.textMute}
+              />
+            </View>
+            <View style={styles.half}>
+              <Field
+                label="Apellido"
+                value={apellido}
+                onChangeText={setApellido}
+                autoCapitalize="words"
+                placeholderTextColor={theme.textMute}
+              />
+            </View>
+          </View>
+
+          <Field
+            label="Teléfono"
+            leading="phone"
+            value={telefono}
+            onChangeText={setTelefono}
+            keyboardType="phone-pad"
+            placeholderTextColor={theme.textMute}
+            placeholder="ej: 351 123-4567"
+          />
+        </View>
+
+        {/* Actividad Preferida */}
+        <View style={styles.section}>
+          <Text style={[styles.eyebrow, { color: theme.textDim }]}>ACTIVIDAD PREFERIDA</Text>
+          <ChipRow>
+            {ACTIVIDADES.map(({ valor, etiqueta, icono }) => (
+              <Chip
+                key={valor}
+                icon={icono}
+                active={actividad === valor}
+                onPress={() => setActividad(valor === actividad ? '' : valor)}
+              >
+                {etiqueta}
+              </Chip>
+            ))}
+          </ChipRow>
+        </View>
+
+        {/* Amigos */}
+        <Pressable
+          style={({ pressed }) => [
+            styles.linkAmigos,
+            {
+              backgroundColor: pressed ? theme.surface2 : theme.surface,
+              borderColor: theme.border,
+            },
+          ]}
+          onPress={() => router.push('/amigos')}
+        >
+          <View style={styles.linkAmigosContent}>
+            <Feather name="users" size={18} color={theme.accent} style={styles.amigosIcon} />
+            <Text style={[styles.linkAmigosText, { color: theme.text }]}>Mis Amigos</Text>
+            {solicitudesPendientes > 0 && (
+              <View style={[styles.badge, { backgroundColor: theme.accent }]}>
+                <Text style={styles.badgeText}>{solicitudesPendientes}</Text>
+              </View>
+            )}
+          </View>
+          <Feather name="chevron-right" size={20} color={theme.textMute} />
+        </Pressable>
+
+        {/* Botones de acción */}
+        <View style={styles.actions}>
+          <Btn
+            variant={guardado ? 'outline' : 'primary'}
+            size="lg"
+            block
+            onPress={guardar}
+            loading={loading}
+            icon={guardado ? 'check' : undefined}
+          >
+            {guardado ? 'Cambios guardados' : 'Guardar cambios'}
+          </Btn>
+
+          <Btn
+            variant="danger-outline"
+            size="lg"
+            block
+            onPress={cerrarSesion}
+            disabled={loggingOut}
+            icon="log-out"
+          >
+            Cerrar sesión
+          </Btn>
+        </View>
+
+        <Text style={[styles.footerText, { color: theme.textMute }]}>
+          Mesh · v1.0 — Córdoba, AR
+        </Text>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f0f0f' },
-  inner: { padding: 24, gap: 12, paddingBottom: 48 },
-
-  label: { color: '#aaa', fontSize: 13, marginBottom: 4, marginTop: 4 },
-
-  input: {
-    backgroundColor: '#1e1e1e',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    color: '#fff',
-    borderWidth: 1,
-    borderColor: '#2e2e2e',
+  container: {
+    flex: 1,
   },
-  inputReadonly: {
-    backgroundColor: '#161616',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderWidth: 1,
-    borderColor: '#222',
+  inner: {
+    padding: 20,
+    gap: 20,
+    paddingBottom: 48,
   },
-  inputReadonlyText: { color: '#666', fontSize: 16 },
-
-  row: { flexDirection: 'row', gap: 12 },
-  half: { flex: 1 },
-
-  actividadesList: {
-    marginTop: 4,
-    borderRadius: 12,
+  profileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  profileMeta: {
+    flex: 1,
+  },
+  profileName: {
+    fontSize: 22,
+    fontWeight: '700',
+    letterSpacing: -0.4,
+  },
+  profileEmail: {
+    fontSize: 14,
+    marginTop: 3,
+  },
+  statsCard: {
+    flexDirection: 'row',
+    borderRadius: 16,
+    borderWidth: 1,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#2e2e2e',
-  },
-  actividadItem: {
-    backgroundColor: '#1e1e1e',
-    paddingHorizontal: 16,
     paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2e2e2e',
   },
-  actividadItemActivo: {
-    backgroundColor: '#0d2a4a',
+  statBox: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  actividadTexto: { color: '#aaa', fontSize: 15 },
-  actividadTextoActivo: { color: '#4a9eff', fontWeight: '600' },
-
+  borderLeft: {
+    borderLeftWidth: 1,
+  },
+  statValue: {
+    fontSize: 22,
+    fontWeight: '700',
+    fontFamily: 'SpaceMono',
+  },
+  statLabel: {
+    fontSize: 11,
+    fontFamily: 'SpaceMono',
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginTop: 4,
+  },
+  section: {
+    gap: 10,
+  },
+  eyebrow: {
+    fontSize: 11,
+    fontFamily: 'SpaceMono',
+    fontWeight: '700',
+    letterSpacing: 1.2,
+  },
+  row: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  half: {
+    flex: 1,
+  },
   linkAmigos: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#1e1e1e',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 16,
-    borderWidth: 1,
-    borderColor: '#2e2e2e',
+    borderWidth: 1.2,
     marginTop: 8,
   },
-  linkAmigosContenido: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  linkAmigosTexto: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  linkAmigosFlecha: { color: '#666', fontSize: 22, fontWeight: '300' },
+  linkAmigosContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  amigosIcon: {
+    marginRight: 10,
+  },
+  linkAmigosText: {
+    fontSize: 15.5,
+    fontWeight: '600',
+  },
   badge: {
-    backgroundColor: '#4a9eff',
     borderRadius: 10,
     minWidth: 20,
     height: 20,
     paddingHorizontal: 6,
     alignItems: 'center',
     justifyContent: 'center',
+    marginLeft: 8,
   },
-  badgeTexto: { color: '#fff', fontSize: 12, fontWeight: '700' },
-
-  button: {
-    backgroundColor: '#4a9eff',
-    borderRadius: 12,
-    paddingVertical: 18,
-    alignItems: 'center',
-    marginTop: 16,
+  badgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
   },
-  buttonOk: { backgroundColor: '#22c55e' },
-  buttonText: { color: '#fff', fontSize: 18, fontWeight: '700' },
-
-  buttonLogout: {
-    borderRadius: 12,
-    paddingVertical: 18,
-    alignItems: 'center',
+  actions: {
+    gap: 11,
+    marginTop: 10,
+  },
+  footerText: {
+    textAlign: 'center',
+    fontSize: 11.5,
+    fontFamily: 'SpaceMono',
     marginTop: 8,
-    borderWidth: 1,
-    borderColor: '#ef4444',
   },
-  buttonLogoutText: { color: '#ef4444', fontSize: 16, fontWeight: '600' },
 });
+

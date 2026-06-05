@@ -2,19 +2,20 @@ import { useState } from 'react';
 import {
   View,
   Text,
-  TextInput,
-  TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Alert,
+  ScrollView,
 } from 'react-native';
-import { Link, router } from 'expo-router';
+import { router } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
+import { Btn, Field, MeshMark, useTheme } from '@/components/MeshUI';
 
 export default function LoginScreen() {
   const { login } = useAuth();
+  const theme = useTheme();
+  
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -37,52 +38,79 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: theme.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <View style={styles.inner}>
-        <Text style={styles.title}>Mesh</Text>
-        <Text style={styles.subtitle}>Iniciá sesión</Text>
+      {/* Botón superior de volver mediante barra vacía */}
+      <View style={styles.headerSpacer} />
 
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          placeholderTextColor="#888"
-          keyboardType="email-address"
-          autoCapitalize="none"
-          value={email}
-          onChangeText={setEmail}
-        />
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <View style={styles.inner}>
+          <View style={styles.logoWrapper}>
+            <MeshMark size={52} />
+          </View>
+          
+          <Text style={[styles.title, { color: theme.text }]}>Hola de nuevo</Text>
+          <Text style={[styles.subtitle, { color: theme.textDim }]}>
+            Ingresá para ver tus grupos y viajes.
+          </Text>
 
-        <TextInput
-          style={styles.input}
-          placeholder="Contraseña"
-          placeholderTextColor="#888"
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-        />
+          <View style={styles.form}>
+            <Field
+              label="Email"
+              leading="mail"
+              placeholder="tu@email.com"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              value={email}
+              onChangeText={setEmail}
+              editable={!loading}
+            />
 
-        <Link href="/(auth)/forgot-password" asChild>
-          <TouchableOpacity style={styles.forgotRow}>
-            <Text style={styles.forgotText}>¿Olvidaste tu contraseña?</Text>
-          </TouchableOpacity>
-        </Link>
+            <Field
+              label="Contraseña"
+              leading="lock"
+              placeholder="••••••••"
+              secureTextEntry
+              value={password}
+              onChangeText={setPassword}
+              editable={!loading}
+            />
 
-        <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.buttonText}>Ingresar</Text>
-          )}
-        </TouchableOpacity>
+            <Btn
+              variant="ghost"
+              size="sm"
+              style={styles.forgotBtn}
+              onPress={() => router.push('/(auth)/forgot-password')}
+            >
+              ¿Olvidaste tu contraseña?
+            </Btn>
 
-        <Link href="/(auth)/register" asChild>
-          <TouchableOpacity style={styles.linkRow}>
-            <Text style={styles.linkText}>¿No tenés cuenta? Registrate</Text>
-          </TouchableOpacity>
-        </Link>
-      </View>
+            <Btn
+              variant="primary"
+              size="lg"
+              block
+              onPress={handleLogin}
+              loading={loading}
+              style={styles.loginBtn}
+            >
+              Ingresar
+            </Btn>
+          </View>
+
+          <View style={styles.footerRow}>
+            <Text style={[styles.footerText, { color: theme.textDim }]}>¿No tenés cuenta? </Text>
+            <Btn
+              variant="ghost"
+              size="sm"
+              style={styles.signUpBtn}
+              onPress={() => router.push('/(auth)/register')}
+            >
+              Registrate
+            </Btn>
+          </View>
+        </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -103,46 +131,57 @@ function mensajeFirebase(code: string): string {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f0f0f' },
+  container: {
+    flex: 1,
+  },
+  headerSpacer: {
+    height: Platform.OS === 'ios' ? 44 : 20,
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
   inner: {
     flex: 1,
+    paddingHorizontal: 24,
+    paddingTop: 40,
+    paddingBottom: 24,
     justifyContent: 'center',
-    paddingHorizontal: 28,
-    gap: 14,
+  },
+  logoWrapper: {
+    alignSelf: 'flex-start',
+    marginBottom: 22,
   },
   title: {
-    fontSize: 42,
-    fontWeight: '800',
-    color: '#ffffff',
-    textAlign: 'center',
-    marginBottom: 4,
+    fontSize: 32,
+    fontWeight: '700',
+    letterSpacing: -0.8,
   },
   subtitle: {
-    fontSize: 18,
-    color: '#aaa',
-    textAlign: 'center',
-    marginBottom: 16,
+    fontSize: 15,
+    marginTop: 6,
+    marginBottom: 28,
   },
-  input: {
-    backgroundColor: '#1e1e1e',
-    borderRadius: 12,
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-    fontSize: 17,
-    color: '#fff',
-    borderWidth: 1,
-    borderColor: '#2e2e2e',
+  form: {
+    gap: 14,
   },
-  forgotRow: { alignSelf: 'flex-end' },
-  forgotText: { color: '#4a9eff', fontSize: 14 },
-  button: {
-    backgroundColor: '#4a9eff',
-    borderRadius: 12,
-    paddingVertical: 18,
+  forgotBtn: {
+    alignSelf: 'flex-end',
+    marginTop: -4,
+  },
+  loginBtn: {
+    marginTop: 4,
+  },
+  footerRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8,
+    justifyContent: 'center',
+    marginTop: 40,
   },
-  buttonText: { color: '#fff', fontSize: 18, fontWeight: '700' },
-  linkRow: { alignItems: 'center', marginTop: 8 },
-  linkText: { color: '#aaa', fontSize: 15 },
+  footerText: {
+    fontSize: 13.5,
+  },
+  signUpBtn: {
+    paddingHorizontal: 4,
+  },
 });
+

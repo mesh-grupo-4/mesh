@@ -90,7 +90,7 @@ export default function CrearViajeScreen() {
           : 'Viaje creado correctamente.'
 
       Alert.alert('Listo', msg)
-      router.replace(`/viaje/${viaje.id}`)
+      router.replace({ pathname: '/viaje/[viajeId]', params: { viajeId: viaje.id } })
     } catch (e: unknown) {
       Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo crear el viaje.')
     } finally {

@@ -5,9 +5,10 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
-  TouchableOpacity,
+  Pressable,
   ScrollView,
   RefreshControl,
+  Platform,
 } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
@@ -21,18 +22,28 @@ import {
   type GrupoDetalleApi,
   type GrupoMiembroApi,
 } from '@/lib/gruposApi';
+import { Btn, TopBar, Badge, useTheme } from '@/components/MeshUI';
+import { Feather } from '@expo/vector-icons';
 
 function formatearFecha(iso: string): string {
   return new Date(iso).toLocaleDateString('es-AR', {
     day: 'numeric',
-    month: 'long',
+    month: 'short',
     year: 'numeric',
   });
+}
+
+function getGroupColor(nombre: string): string {
+  const colors = ['#d76655', '#4a9eff', '#2f9e63', '#7a5ae0', '#c98a3e'];
+  const charSum = nombre.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return colors[charSum % colors.length];
 }
 
 export default function GrupoDetalleScreen() {
   const { grupoId } = useLocalSearchParams<{ grupoId: string }>();
   const { backendUserId } = useAuth();
+  const theme = useTheme();
+
   const [grupo, setGrupo] = useState<GrupoDetalleApi | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -185,89 +196,208 @@ export default function GrupoDetalleScreen() {
     setNuevoLiderId(null);
   };
 
+  const esLider = grupo?.mi_rol === 'lider';
+  const groupColor = grupo ? getGroupColor(grupo.nombre) : theme.accent;
+
+  const headerRight = esLider ? (
+    <Pressable
+      onPress={() => Alert.alert('Editar grupo', 'Funcionalidad de edición disponible próximamente.')}
+      style={({ pressed }) => [
+        styles.headerIconBtn,
+        { backgroundColor: pressed ? theme.surface2 : theme.surface, borderColor: theme.border },
+      ]}
+    >
+      <Feather name="edit" size={17} color={theme.text} />
+    </Pressable>
+  ) : null;
+
   return (
-    <>
-      <Stack.Screen options={{ title: grupo?.nombre ?? 'Grupo' }} />
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+      
+      <TopBar title={grupo?.nombre ?? 'Grupo'} onBack={() => router.back()} bordered={false} right={headerRight} />
+
       <ScrollView
-        style={styles.container}
         contentContainerStyle={styles.content}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={() => void cargar(true)}
-            tintColor="#4a9eff"
+            tintColor={theme.accent}
           />
         }
       >
         {loading ? (
-          <ActivityIndicator color="#4a9eff" size="large" style={{ marginTop: 48 }} />
+          <ActivityIndicator color={theme.accent} size="large" style={{ marginTop: 48 }} />
         ) : error ? (
-          <Text style={styles.error}>{error}</Text>
+          <Text style={[styles.error, { color: theme.danger }]}>{error}</Text>
         ) : grupo ? (
           <>
-            <Text style={styles.nombre}>{grupo.nombre}</Text>
-            <Text style={styles.meta}>Creado el {formatearFecha(grupo.fecha_creacion)}</Text>
-            {grupo.mi_rol === 'lider' && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeTexto}>Sos el líder</Text>
-              </View>
-            )}
-
-            <Text style={styles.descripcion}>
-              Lista de contactos para invitar personas a grupos y, al crear un viaje, invitar en bloque
-              desde la pestaña Viajes.
-            </Text>
-
-            <Text style={styles.seccionTitulo}>Miembros</Text>
-            <Text style={styles.seccionHint}>
-              Integrantes del grupo y sus roles asignados.
-            </Text>
-            <TouchableOpacity
-              style={styles.botonMiembros}
-              onPress={() => router.push(`/grupo/${grupoId}/miembros`)}
+            {/* Tarjeta principal con degradado/tinta según color del grupo */}
+            <View
+              style={[
+                styles.detailCard,
+                {
+                  backgroundColor: `${groupColor}16`,
+                  borderColor: `${groupColor}55`,
+                },
+              ]}
             >
-              <Text style={styles.botonMiembrosTexto}>Ver miembros</Text>
-            </TouchableOpacity>
+              <View style={styles.cardHeaderRow}>
+                <View style={[styles.cardIconBox, { backgroundColor: `${groupColor}29` }]}>
+                  <Feather name="users" size={24} color={groupColor} />
+                </View>
+                {esLider && (
+                  <Badge tone="accent">
+                    <Feather name="award" size={12} color={theme.accent} style={{ marginRight: 4 }} />
+                    Líder
+                  </Badge>
+                )}
+              </View>
 
-            {grupo.mi_rol === 'lider' && (
-              <>
-                <Text style={styles.seccionTitulo}>Invitar al grupo</Text>
-                <Text style={styles.seccionHint}>
-                  Sumá integrantes desde tus otros grupos. Las invitaciones llegan a la bandeja de Grupos.
-                </Text>
-                <TouchableOpacity
-                  style={styles.botonInvitarGrupos}
-                  onPress={() => router.push(`/grupo/${grupoId}/invitar-desde-grupos`)}
+              <Text style={[styles.nombre, { color: theme.text }]} numberOfLines={2}>
+                {grupo.nombre}
+              </Text>
+              
+              <View style={styles.cardStatsRow}>
+                <View style={styles.cardStat}>
+                  <Text style={[styles.statValue, { color: theme.text }]}>--</Text>
+                  <Text style={[styles.statLabel, { color: theme.textDim }]}>Miembros</Text>
+                </View>
+                <View style={[styles.cardStat, styles.borderLeft, { borderLeftColor: theme.border }]}>
+                  <Text style={[styles.statValue, { color: theme.text }]}>--</Text>
+                  <Text style={[styles.statLabel, { color: theme.textDim }]}>Viajes</Text>
+                </View>
+                <View style={[styles.cardStat, styles.borderLeft, { borderLeftColor: theme.border }]}>
+                  <Text style={[styles.statValue, { color: theme.text }]}>
+                    {formatearFecha(grupo.fecha_creacion).split(' ')[1]}
+                  </Text>
+                  <Text style={[styles.statLabel, { color: theme.textDim }]}>Desde</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Acciones principales */}
+            <View style={styles.actionsRow}>
+              <Btn
+                variant="primary"
+                block
+                icon="plus"
+                onPress={() => router.push({ pathname: '/viaje/crear', params: { grupo: grupo.id } })}
+                style={styles.actionBtn}
+              >
+                Nuevo viaje
+              </Btn>
+              {esLider && (
+                <Btn
+                  variant="secondary"
+                  icon="share"
+                  onPress={() => router.push({ pathname: '/grupo/[grupoId]/invitar-desde-grupos', params: { grupoId } })}
+                  style={styles.shareBtn}
                 >
-                  <Text style={styles.botonInvitarGruposTexto}>Agregar integrante</Text>
-                </TouchableOpacity>
-              </>
-            )}
+                  Invitar
+                </Btn>
+              )}
+            </View>
 
-            <View style={styles.zonaPeligro}>
-              <Text style={styles.zonaTitulo}>Zona de peligro</Text>
-              <Text style={styles.zonaHint}>
+            {/* Enlaces de lista */}
+            <View style={styles.linksContainer}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.liLink,
+                  {
+                    backgroundColor: pressed ? theme.surface2 : theme.surface,
+                    borderColor: theme.border,
+                  },
+                ]}
+                onPress={() => router.push({ pathname: '/grupo/[grupoId]/miembros', params: { grupoId } })}
+              >
+                <View style={styles.liLinkContent}>
+                  <View style={[styles.liIconWrapper, { backgroundColor: theme.surface2 }]}>
+                    <Feather name="users" size={18} color={theme.text} />
+                  </View>
+                  <View style={styles.liLinkText}>
+                    <Text style={[styles.liLinkTitle, { color: theme.text }]}>Miembros</Text>
+                    <Text style={[styles.liLinkSub, { color: theme.textDim }]}>
+                      Ver roles y permisos
+                    </Text>
+                  </View>
+                </View>
+                <Feather name="chevron-right" size={18} color={theme.textMute} />
+              </Pressable>
+
+              {esLider && (
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.liLink,
+                    {
+                      backgroundColor: pressed ? theme.surface2 : theme.surface,
+                      borderColor: theme.border,
+                    },
+                  ]}
+                  onPress={() => router.push({ pathname: '/grupo/[grupoId]/invitar-desde-grupos', params: { grupoId } })}
+                >
+                  <View style={styles.liLinkContent}>
+                    <View style={[styles.liIconWrapper, { backgroundColor: theme.accentWeak }]}>
+                      <Feather name="share-2" size={18} color={theme.accent} />
+                    </View>
+                    <View style={styles.liLinkText}>
+                      <Text style={[styles.liLinkTitle, { color: theme.text }]}>
+                        Invitar personas
+                      </Text>
+                      <Text style={[styles.liLinkSub, { color: theme.textDim }]}>
+                        Por QR o desde otros grupos
+                      </Text>
+                    </View>
+                  </View>
+                  <Feather name="chevron-right" size={18} color={theme.textMute} />
+                </Pressable>
+              )}
+            </View>
+
+            {/* Zona de peligro */}
+            <View
+              style={[
+                styles.zonaPeligro,
+                {
+                  backgroundColor: theme.dangerWeak,
+                  borderColor: theme.danger,
+                },
+              ]}
+            >
+              <View style={styles.dangerHeader}>
+                <Feather name="shield" size={16} color={theme.danger} style={{ marginRight: 6 }} />
+                <Text style={[styles.zonaTitulo, { color: theme.danger }]}>Zona de peligro</Text>
+              </View>
+              <Text style={[styles.zonaHint, { color: theme.textDim }]}>
                 Estas acciones son permanentes y no se pueden deshacer.
               </Text>
-              <TouchableOpacity
-                style={styles.botonDestructivo}
+              
+              <Btn
+                variant="danger-outline"
+                size="sm"
+                block
                 onPress={iniciarAbandono}
                 disabled={procesandoAccion}
               >
                 {procesandoAccion && !modalTransferir ? (
-                  <ActivityIndicator color="#fff" />
+                  <ActivityIndicator color={theme.danger} size="small" />
                 ) : (
-                  <Text style={styles.botonDestructivoTexto}>Abandonar Grupo</Text>
+                  'Abandonar Grupo'
                 )}
-              </TouchableOpacity>
-              {grupo.mi_rol === 'lider' && (
-                <TouchableOpacity
-                  style={styles.botonEliminar}
+              </Btn>
+
+              {esLider && (
+                <Btn
+                  variant="danger"
+                  size="sm"
+                  block
                   onPress={ejecutarEliminacion}
                   disabled={procesandoAccion}
+                  style={{ marginTop: 6 }}
                 >
-                  <Text style={styles.botonEliminarTexto}>Eliminar Grupo</Text>
-                </TouchableOpacity>
+                  Eliminar Grupo
+                </Btn>
               )}
             </View>
           </>
@@ -287,70 +417,147 @@ export default function GrupoDetalleScreen() {
         }}
         onCerrar={cerrarModalTransferir}
       />
-    </>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f0f0f' },
-  content: { padding: 24, paddingBottom: 40, gap: 12 },
-  nombre: { color: '#fff', fontSize: 26, fontWeight: '700' },
-  meta: { color: '#888', fontSize: 14 },
-  descripcion: { color: '#888', fontSize: 14, lineHeight: 20, marginTop: 8 },
-  badge: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#1a3a5c',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+  container: {
+    flex: 1,
+  },
+  content: {
+    padding: 20,
+    paddingBottom: 40,
+    gap: 16,
+  },
+  headerIconBtn: {
+    width: 40,
+    height: 40,
     borderRadius: 20,
-    marginTop: 4,
-  },
-  badgeTexto: { color: '#4a9eff', fontSize: 13, fontWeight: '600' },
-  botonMiembros: {
-    backgroundColor: '#1e1e1e',
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 4,
     borderWidth: 1,
-    borderColor: '#333',
-  },
-  botonMiembrosTexto: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  seccionTitulo: { color: '#fff', fontSize: 18, fontWeight: '600', marginTop: 20 },
-  seccionHint: { color: '#888', fontSize: 14, lineHeight: 20 },
-  botonInvitarGrupos: {
-    backgroundColor: '#4a9eff',
-    borderRadius: 10,
-    paddingVertical: 14,
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 18,
+    gap: 12,
+  },
+  cardHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  cardIconBox: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  nombre: {
+    fontSize: 24,
+    fontWeight: '700',
+    letterSpacing: -0.5,
+    marginTop: 4,
+  },
+  cardStatsRow: {
+    flexDirection: 'row',
     marginTop: 8,
   },
-  botonInvitarGruposTexto: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  error: { color: '#ff6b6b', fontSize: 15, textAlign: 'center', marginTop: 24 },
+  cardStat: {
+    flex: 1,
+    gap: 3,
+  },
+  borderLeft: {
+    borderLeftWidth: 1,
+    paddingLeft: 16,
+  },
+  statValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    fontFamily: 'SpaceMono',
+  },
+  statLabel: {
+    fontSize: 10.5,
+    fontFamily: 'SpaceMono',
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  actionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'stretch',
+  },
+  actionBtn: {
+    flex: 1,
+  },
+  shareBtn: {
+    paddingHorizontal: 16,
+  },
+  linksContainer: {
+    gap: 11,
+  },
+  liLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 14,
+    borderWidth: 1.2,
+    padding: 14,
+  },
+  liLinkContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  liIconWrapper: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  liLinkText: {
+    flex: 1,
+    marginLeft: 14,
+  },
+  liLinkTitle: {
+    fontSize: 15.5,
+    fontWeight: '700',
+  },
+  liLinkSub: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  error: {
+    fontSize: 15,
+    textAlign: 'center',
+    marginTop: 24,
+    fontWeight: '600',
+  },
   zonaPeligro: {
-    marginTop: 32,
+    marginTop: 12,
     padding: 16,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#5c1a1a',
-    backgroundColor: '#1a1010',
+    borderRadius: 14,
+    borderWidth: 1.2,
     gap: 10,
   },
-  zonaTitulo: { color: '#ff6b6b', fontSize: 16, fontWeight: '700' },
-  zonaHint: { color: '#888', fontSize: 13, lineHeight: 18 },
-  botonDestructivo: {
-    backgroundColor: '#ff4444',
-    borderRadius: 10,
-    paddingVertical: 14,
+  dangerHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
   },
-  botonDestructivoTexto: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  botonEliminar: {
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#ff4444',
+  zonaTitulo: {
+    fontSize: 15.5,
+    fontWeight: '700',
   },
-  botonEliminarTexto: { color: '#ff6b6b', fontSize: 15, fontWeight: '600' },
+  zonaHint: {
+    fontSize: 12.5,
+    lineHeight: 18,
+    marginTop: -4,
+    marginBottom: 4,
+  },
 });
+

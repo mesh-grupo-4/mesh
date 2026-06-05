@@ -10,6 +10,7 @@ import 'react-native-reanimated';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { AuthProvider, useAuth } from '@/context/AuthContext';
+import Colors from '@/constants/Colors';
 import { ViajeRealtimeBridge } from '@/components/ViajeRealtimeBridge';
 
 export { ErrorBoundary } from 'expo-router';
@@ -63,7 +64,7 @@ function RootLayoutNav() {
   if (loading) {
     return (
       <View style={styles.boot}>
-        <ActivityIndicator size="large" color="#4a9eff" />
+        <ActivityIndicator size="large" color={Colors.dark.accent} />
       </View>
     );
   }
@@ -87,7 +88,7 @@ function RootLayoutNav() {
 const styles = StyleSheet.create({
   boot: {
     flex: 1,
-    backgroundColor: '#0f0f0f',
+    backgroundColor: Colors.dark.background,
     alignItems: 'center',
     justifyContent: 'center',
   },

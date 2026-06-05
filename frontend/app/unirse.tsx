@@ -5,10 +5,12 @@ import { Stack, useLocalSearchParams } from 'expo-router'
 import { useAuth } from '@/context/AuthContext'
 import { resolveBackendUserId } from '@/lib/apiClient'
 import { ejecutarUnionPorQr } from '@/lib/joinViajeQr'
+import { useTheme } from '@/components/MeshUI'
 
 export default function UnirseScreen() {
   const { viajeId } = useLocalSearchParams<{ viajeId?: string }>()
   const { backendUserId, backendSyncing } = useAuth()
+  const theme = useTheme()
   const [mensaje, setMensaje] = useState('Procesando invitación…')
 
   useEffect(() => {
@@ -38,24 +40,25 @@ export default function UnirseScreen() {
   }, [viajeId, backendUserId, backendSyncing])
 
   return (
-    <>
-      <Stack.Screen options={{ title: 'Unirse al grupo' }} />
-      <View style={styles.container}>
-        <ActivityIndicator color="#4a9eff" size="large" />
-        <Text style={styles.texto}>{mensaje}</Text>
-      </View>
-    </>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <ActivityIndicator color={theme.accent} size="large" />
+      <Text style={[styles.texto, { color: theme.textDim }]}>{mensaje}</Text>
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f0f0f',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
     gap: 16,
   },
-  texto: { color: '#888', fontSize: 15, textAlign: 'center' },
+  texto: { 
+    fontSize: 15, 
+    textAlign: 'center',
+    fontWeight: '600',
+  },
 })

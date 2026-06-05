@@ -4,13 +4,11 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  TouchableOpacity,
   ActivityIndicator,
   Alert,
-  TextInput,
+  Pressable,
 } from 'react-native';
-import { Stack, useLocalSearchParams } from 'expo-router';
-import { AvatarFallback } from '@/components/AvatarFallback';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Toast } from '@/components/Toast';
 import { useAuth } from '@/context/AuthContext';
 import { resolveBackendUserId } from '@/lib/apiClient';
@@ -21,10 +19,15 @@ import {
   listarAmigosParaInvitar,
   type UsuarioParaInvitarApi,
 } from '@/lib/gruposApi';
+import { TopBar, Avatar, Btn, Field, useTheme } from '@/components/MeshUI';
+import { Feather } from '@expo/vector-icons';
 
 export default function AgregarIntegranteScreen() {
   const { grupoId } = useLocalSearchParams<{ grupoId: string }>();
   const { backendUserId } = useAuth();
+  const theme = useTheme();
+  const router = useRouter();
+
   const [amigos, setAmigos] = useState<UsuarioParaInvitarApi[]>([]);
   const [resultadosBusqueda, setResultadosBusqueda] = useState<UsuarioParaInvitarApi[]>([]);
   const [busqueda, setBusqueda] = useState('');
@@ -140,152 +143,177 @@ export default function AgregarIntegranteScreen() {
     const solicitando = solicitandoAmistadId === item.id;
     const esAmigo = idsAmigos.has(item.id);
 
+    const dummyPerson = {
+      nombre: item.nombre,
+      apellido: '',
+    };
+
     return (
-      <View style={styles.fila}>
-        <AvatarFallback nombre={item.nombre} />
+      <View style={[styles.fila, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <Avatar person={dummyPerson} size="sm" />
+        
         <View style={styles.filaContenido}>
-          <Text style={styles.nombre}>{item.nombre}</Text>
-          <Text style={styles.email}>{item.email}</Text>
+          <Text style={[styles.nombre, { color: theme.text }]} numberOfLines={1}>
+            {item.nombre}
+          </Text>
+          <Text style={[styles.email, { color: theme.textDim }]} numberOfLines={1}>
+            {item.email}
+          </Text>
         </View>
+
         <View style={styles.acciones}>
           {enModoBusqueda && !esAmigo && (
-            <TouchableOpacity
-              style={[styles.botonSecundario, solicitando && styles.botonDeshabilitado]}
+            <Btn
+              variant="outline"
+              size="sm"
               onPress={() => void ejecutarSolicitudAmistad(item)}
               disabled={solicitando || invitando}
+              loading={solicitando}
+              style={styles.addBtn}
             >
-              {solicitando ? (
-                <ActivityIndicator color="#4a9eff" size="small" />
-              ) : (
-                <Text style={styles.botonSecundarioTexto}>Agregar amigo</Text>
-              )}
-            </TouchableOpacity>
+              Agregar amigo
+            </Btn>
           )}
-          <TouchableOpacity
-            style={[
-              styles.botonInvitarFila,
-              (item.ya_es_miembro || invitando) && styles.botonInvitarDeshabilitado,
-            ]}
+          
+          <Btn
+            variant={item.ya_es_miembro ? 'secondary' : 'primary'}
+            size="sm"
             onPress={() => void ejecutarInvitacion(item)}
             disabled={item.ya_es_miembro || invitando}
+            loading={invitando}
+            style={styles.inviteBtn}
           >
-            {invitando ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <Text style={styles.botonInvitarFilaTexto}>
-                {item.ya_es_miembro ? 'Ya es miembro' : 'Invitar'}
-              </Text>
-            )}
-          </TouchableOpacity>
+            {item.ya_es_miembro ? 'Ya es miembro' : 'Invitar'}
+          </Btn>
         </View>
       </View>
     );
   };
 
   return (
-    <>
-      <Stack.Screen options={{ title: 'Agregar integrante' }} />
-      <View style={styles.container}>
-        <TextInput
-          style={styles.buscador}
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <TopBar title="Invitar personas" onBack={() => router.back()} bordered={false} />
+
+      <View style={styles.searchSection}>
+        <Field
+          label=""
+          leading="search"
           placeholder="Buscar por nombre..."
-          placeholderTextColor="#666"
           value={busqueda}
           onChangeText={setBusqueda}
           autoCapitalize="none"
           autoCorrect={false}
         />
-
-        {!enModoBusqueda && (
-          <Text style={styles.descripcion}>
-            Tus amigos aceptados. Usá el buscador para encontrar otros usuarios de la plataforma.
-          </Text>
-        )}
-
-        {listaCargando ? (
-          <ActivityIndicator color="#4a9eff" size="large" style={styles.centrado} />
-        ) : error ? (
-          <Text style={styles.error}>{error}</Text>
-        ) : (
-          <FlatList
-            data={listaActual}
-            keyExtractor={(item) => item.id}
-            style={styles.lista}
-            contentContainerStyle={listaActual.length === 0 ? styles.listaVacia : undefined}
-            renderItem={renderFila}
-            ListEmptyComponent={
-              <Text style={styles.vacio}>
-                {enModoBusqueda
-                  ? 'No se encontraron usuarios con ese nombre.'
-                  : 'No tenés amigos todavía. Buscá usuarios y enviá solicitudes de amistad.'}
-              </Text>
-            }
-          />
-        )}
-
-        <Toast
-          message="Invitación enviada correctamente"
-          visible={toastVisible}
-          onHide={() => setToastVisible(false)}
-        />
       </View>
-    </>
+
+      {!enModoBusqueda && (
+        <Text style={[styles.descripcion, { color: theme.textDim }]}>
+          Tus amigos aceptados. Usá el buscador para encontrar otros usuarios de la plataforma.
+        </Text>
+      )}
+
+      {listaCargando ? (
+        <ActivityIndicator color={theme.accent} size="large" style={styles.centrado} />
+      ) : error ? (
+        <Text style={[styles.error, { color: theme.danger }]}>{error}</Text>
+      ) : (
+        <FlatList
+          data={listaActual}
+          keyExtractor={(item) => item.id}
+          style={styles.lista}
+          contentContainerStyle={[
+            styles.listaContent,
+            listaActual.length === 0 ? styles.listaVacia : undefined,
+          ]}
+          renderItem={renderFila}
+          ListEmptyComponent={
+            <Text style={[styles.vacio, { color: theme.textMute }]}>
+              {enModoBusqueda
+                ? 'No se encontraron usuarios con ese nombre.'
+                : 'No tenés amigos todavía. Buscá usuarios y enviá solicitudes de amistad.'}
+            </Text>
+          }
+        />
+      )}
+
+      <Toast
+        message="Invitación enviada correctamente"
+        visible={toastVisible}
+        onHide={() => setToastVisible(false)}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f0f0f', padding: 24, paddingBottom: 32 },
-  buscador: {
-    backgroundColor: '#1e1e1e',
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    color: '#fff',
-    fontSize: 16,
-    borderWidth: 1,
-    borderColor: '#333',
-    marginBottom: 12,
+  container: {
+    flex: 1,
   },
-  descripcion: { color: '#888', fontSize: 14, lineHeight: 20, marginBottom: 16 },
-  lista: { flex: 1 },
-  listaVacia: { flexGrow: 1, justifyContent: 'center' },
+  searchSection: {
+    paddingHorizontal: 20,
+    marginTop: 4,
+  },
+  descripcion: {
+    fontSize: 13.5,
+    lineHeight: 20,
+    paddingHorizontal: 20,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  lista: {
+    flex: 1,
+  },
+  listaContent: {
+    padding: 20,
+    gap: 11,
+  },
+  listaVacia: {
+    flexGrow: 1,
+    justifyContent: 'center',
+  },
   fila: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1e1e1e',
-    borderRadius: 10,
-    padding: 16,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#333',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1.2,
     gap: 12,
   },
-  filaContenido: { flex: 1, gap: 2 },
-  nombre: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  email: { color: '#888', fontSize: 13 },
-  acciones: { alignItems: 'flex-end', gap: 8 },
-  botonInvitarFila: {
-    backgroundColor: '#4a9eff',
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    minWidth: 110,
-    alignItems: 'center',
+  filaContenido: {
+    flex: 1,
+    gap: 2,
   },
-  botonInvitarDeshabilitado: { backgroundColor: '#333' },
-  botonInvitarFilaTexto: { color: '#fff', fontSize: 13, fontWeight: '600' },
-  botonSecundario: {
-    borderRadius: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderWidth: 1,
-    borderColor: '#4a9eff',
-    minWidth: 110,
-    alignItems: 'center',
+  nombre: {
+    fontSize: 15.5,
+    fontWeight: '700',
   },
-  botonSecundarioTexto: { color: '#4a9eff', fontSize: 12, fontWeight: '600' },
-  botonDeshabilitado: { opacity: 0.5 },
-  centrado: { marginTop: 48 },
-  vacio: { color: '#666', fontSize: 14, lineHeight: 20, textAlign: 'center' },
-  error: { color: '#ff6b6b', fontSize: 15, textAlign: 'center', marginTop: 24 },
+  email: {
+    fontSize: 13,
+  },
+  acciones: {
+    alignItems: 'flex-end',
+    gap: 6,
+  },
+  addBtn: {
+    minWidth: 110,
+  },
+  inviteBtn: {
+    minWidth: 110,
+  },
+  centrado: {
+    marginTop: 48,
+  },
+  vacio: {
+    fontSize: 14.5,
+    lineHeight: 22,
+    textAlign: 'center',
+  },
+  error: {
+    fontSize: 15,
+    textAlign: 'center',
+    marginTop: 24,
+    fontWeight: '600',
+  },
 });
+

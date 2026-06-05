@@ -77,7 +77,7 @@ export default function ViajeLiveScreen() {
         if (payload.viajeId !== viajeId) return
         void detenerTrackingViaje()
         Alert.alert('Viaje finalizado', 'Se detuvo el seguimiento GPS.', [
-          { text: 'OK', onPress: () => router.replace(`/viaje/${viajeId}` as never) },
+          { text: 'OK', onPress: () => router.replace({ pathname: '/viaje/[viajeId]', params: { viajeId } }) },
         ])
       }
 

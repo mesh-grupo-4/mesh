@@ -3,31 +3,38 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   Share,
   Platform,
   Alert,
+  ScrollView,
 } from 'react-native'
-import { Stack, useLocalSearchParams } from 'expo-router'
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import QRCode from 'react-native-qrcode-svg'
 import ViewShot from 'react-native-view-shot'
 import * as Sharing from 'expo-sharing'
+import { Feather } from '@expo/vector-icons'
 
 import { buildInviteUrl } from '@/lib/inviteLinks'
+import { TopBar, Btn, Badge, useTheme } from '@/components/MeshUI'
 
 export default function ViajeQrScreen() {
   const { viajeId } = useLocalSearchParams<{ viajeId: string }>()
+  const router = useRouter()
+  const theme = useTheme()
   const shotRef = useRef<ViewShot>(null)
 
   if (!viajeId) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.error}>Viaje no especificado.</Text>
+      <View style={[styles.center, { backgroundColor: theme.background }]}>
+        <Text style={{ color: theme.danger }}>Viaje no especificado.</Text>
       </View>
     )
   }
 
   const inviteUrl = buildInviteUrl(viajeId)
+
+  // Generate a code representation, e.g. MESH-VIAJE-XXXX where XXXX is last 4 characters of viajeId uppercase
+  const shortCode = `MESH·VIAJE·${viajeId.substring(viajeId.length - 4).toUpperCase()}`
 
   const compartirLink = async () => {
     try {
@@ -62,78 +69,123 @@ export default function ViajeQrScreen() {
   }
 
   return (
-    <>
-      <Stack.Screen options={{ title: 'Invitar por QR' }} />
-      <View style={styles.container}>
-        <Text style={styles.titulo}>Escaneá para unirte al viaje</Text>
-        <Text style={styles.subtitulo}>
-          El QR une directamente al viaje (RN-016). Expira cuando el viaje comience (RN-015).
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <TopBar title="Invitar al viaje" onBack={() => router.back()} bordered={false} />
+
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* Success Icon */}
+        <View style={[styles.iconContainer, { backgroundColor: theme.accentWeak }]}>
+          <Feather name="check" size={30} color={theme.accent} />
+        </View>
+
+        <Text style={[styles.titulo, { color: theme.text }]}>¡Viaje listo!</Text>
+        <Text style={[styles.subtitulo, { color: theme.textDim }]}>
+          Que escaneen este QR con la cámara o desde la app de Mesh para sumarse a la salida.
         </Text>
 
-        <ViewShot ref={shotRef} options={{ format: 'png', quality: 1 }} style={styles.qrWrap}>
-          <View style={styles.qrInner}>
-            <QRCode value={inviteUrl} size={220} backgroundColor="#fff" color="#0f0f0f" />
-          </View>
-        </ViewShot>
+        {/* QR Box */}
+        <View style={styles.qrWrapperOuter}>
+          <ViewShot ref={shotRef} options={{ format: 'png', quality: 1 }} style={[styles.qrWrap, { shadowColor: theme.shadow }]}>
+            <View style={[styles.qrInner, { backgroundColor: '#ffffff' }]}>
+              <QRCode value={inviteUrl} size={190} backgroundColor="#ffffff" color="#0f0f0f" />
+            </View>
+          </ViewShot>
+        </View>
 
-        <Text style={styles.link} selectable>
+        {/* Short Code Badge */}
+        <View style={styles.badgeWrapper}>
+          <Badge tone="mute">{shortCode}</Badge>
+        </View>
+
+        <Text style={[styles.link, { color: theme.accent }]} selectable>
           {inviteUrl}
         </Text>
 
-        <TouchableOpacity style={styles.botonPrimario} onPress={() => void compartirLink()}>
-          <Text style={styles.botonTexto}>Compartir enlace</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.botonSecundario} onPress={() => void compartirImagen()}>
-          <Text style={styles.botonSecundarioTexto}>Compartir imagen del QR</Text>
-        </TouchableOpacity>
-      </View>
-    </>
+        {/* Actions */}
+        <View style={styles.actions}>
+          <Btn variant="primary" block icon="share-2" onPress={() => void compartirLink()}>
+            Compartir enlace
+          </Btn>
+          <Btn variant="secondary" block icon="image" onPress={() => void compartirImagen()}>
+            Compartir imagen QR
+          </Btn>
+          <Btn variant="ghost" block onPress={() => router.back()}>
+            Volver al viaje
+          </Btn>
+        </View>
+      </ScrollView>
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f0f0f',
+  },
+  center: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
     padding: 24,
+  },
+  scrollContent: {
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    paddingBottom: 48,
+    alignItems: 'center',
+  },
+  iconContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 16,
+    marginTop: 10,
+    marginBottom: 16,
   },
-  titulo: { color: '#fff', fontSize: 22, fontWeight: '700', textAlign: 'center' },
-  subtitulo: { color: '#888', fontSize: 14, textAlign: 'center', lineHeight: 20 },
-  qrWrap: { marginVertical: 8 },
+  titulo: { 
+    fontSize: 22, 
+    fontWeight: '800', 
+    textAlign: 'center',
+    letterSpacing: -0.5,
+  },
+  subtitulo: { 
+    fontSize: 14, 
+    textAlign: 'center', 
+    lineHeight: 20,
+    marginTop: 8,
+    maxWidth: 280,
+  },
+  qrWrapperOuter: {
+    marginTop: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  qrWrap: {
+    borderRadius: 16,
+    elevation: 8,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+  },
   qrInner: {
     padding: 16,
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    borderRadius: 16,
+  },
+  badgeWrapper: {
+    marginTop: 18,
   },
   link: {
-    color: '#4a9eff',
-    fontSize: 12,
+    fontSize: 12.5,
     textAlign: 'center',
-    paddingHorizontal: 8,
+    marginTop: 14,
+    fontFamily: 'SpaceMono',
+    paddingHorizontal: 12,
   },
-  botonPrimario: {
-    backgroundColor: '#4a9eff',
-    borderRadius: 10,
-    paddingVertical: 14,
-    paddingHorizontal: 24,
+  actions: {
     width: '100%',
-    alignItems: 'center',
-    marginTop: 8,
+    gap: 10,
+    marginTop: 24,
   },
-  botonTexto: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  botonSecundario: {
-    borderRadius: 10,
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    width: '100%',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#333',
-  },
-  botonSecundarioTexto: { color: '#ccc', fontSize: 15 },
-  error: { color: '#ff6b6b', fontSize: 15 },
 })

@@ -2,19 +2,21 @@ import { useState } from 'react';
 import {
   View,
   Text,
-  TextInput,
-  TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Alert,
+  ScrollView,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
+import { Btn, Field, TopBar, useTheme } from '@/components/MeshUI';
+import { Feather } from '@expo/vector-icons';
 
 export default function ForgotPasswordScreen() {
   const { resetPassword } = useAuth();
+  const theme = useTheme();
+
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
@@ -35,54 +37,73 @@ export default function ForgotPasswordScreen() {
     }
   };
 
-  if (sent) {
-    return (
-      <View style={[styles.container, styles.centered]}>
-        <Text style={styles.checkmark}>✓</Text>
-        <Text style={styles.sentTitle}>Revisá tu correo</Text>
-        <Text style={styles.sentText}>
-          Te enviamos un link para restablecer tu contraseña. El link expira en 24 horas.
-        </Text>
-        <TouchableOpacity style={styles.button} onPress={() => router.replace('/(auth)/login')}>
-          <Text style={styles.buttonText}>Volver al login</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: theme.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <View style={styles.inner}>
-        <TouchableOpacity style={styles.backRow} onPress={() => router.back()}>
-          <Text style={styles.backText}>← Volver</Text>
-        </TouchableOpacity>
+      <TopBar title="Recuperar acceso" onBack={() => router.back()} bordered={false} />
 
-        <Text style={styles.title}>Recuperar contraseña</Text>
-        <Text style={styles.subtitle}>
-          Ingresá tu email y te enviamos un link para restablecer tu contraseña.
-        </Text>
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        <View style={styles.inner}>
+          {!sent ? (
+            <View style={styles.content}>
+              <Text style={[styles.title, { color: theme.text }]}>¿Olvidaste tu contraseña?</Text>
+              <Text style={[styles.subtitle, { color: theme.textDim }]}>
+                Te enviamos un enlace para restablecerla.
+              </Text>
 
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          placeholderTextColor="#888"
-          keyboardType="email-address"
-          autoCapitalize="none"
-          value={email}
-          onChangeText={setEmail}
-        />
+              <View style={styles.form}>
+                <Field
+                  label="Email"
+                  leading="mail"
+                  placeholder="tu@email.com"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  value={email}
+                  onChangeText={setEmail}
+                  editable={!loading}
+                />
 
-        <TouchableOpacity style={styles.button} onPress={handleReset} disabled={loading}>
-          {loading ? (
-            <ActivityIndicator color="#fff" />
+                <Btn
+                  variant="primary"
+                  size="lg"
+                  block
+                  onPress={handleReset}
+                  loading={loading}
+                  style={styles.actionBtn}
+                >
+                  Enviar enlace
+                </Btn>
+              </View>
+            </View>
           ) : (
-            <Text style={styles.buttonText}>Enviar link</Text>
+            <View style={styles.successContainer}>
+              <View style={[styles.iconOuterCircle, { backgroundColor: theme.accentWeak }]}>
+                <Feather name="mail" size={34} color={theme.accent} />
+              </View>
+              
+              <Text style={[styles.title, styles.centerText, { color: theme.text }]}>
+                Revisá tu correo
+              </Text>
+              
+              <Text style={[styles.subtitle, styles.centerText, { color: theme.textDim }]}>
+                Enviamos un enlace a tu email para que vuelvas a entrar. El mismo expira en 24 horas.
+              </Text>
+
+              <Btn
+                variant="secondary"
+                size="lg"
+                block
+                onPress={() => router.replace('/(auth)/login')}
+                style={styles.actionBtn}
+              >
+                Volver a ingresar
+              </Btn>
+            </View>
           )}
-        </TouchableOpacity>
-      </View>
+        </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -100,47 +121,54 @@ function mensajeFirebase(code: string): string {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f0f0f' },
-  centered: { justifyContent: 'center', alignItems: 'center', paddingHorizontal: 28 },
+  container: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
   inner: {
     flex: 1,
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    paddingBottom: 24,
     justifyContent: 'center',
-    paddingHorizontal: 28,
-    gap: 16,
   },
-  backRow: { position: 'absolute', top: 56, left: 28 },
-  backText: { color: '#4a9eff', fontSize: 16 },
+  content: {
+    width: '100%',
+  },
+  successContainer: {
+    alignItems: 'center',
+    width: '100%',
+  },
+  iconOuterCircle: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
   title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#ffffff',
-    marginBottom: 4,
+    fontSize: 24,
+    fontWeight: '700',
+    letterSpacing: -0.5,
+  },
+  centerText: {
+    textAlign: 'center',
   },
   subtitle: {
-    fontSize: 15,
-    color: '#aaa',
-    lineHeight: 22,
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: '#1e1e1e',
-    borderRadius: 12,
-    paddingHorizontal: 18,
-    paddingVertical: 16,
-    fontSize: 17,
-    color: '#fff',
-    borderWidth: 1,
-    borderColor: '#2e2e2e',
-  },
-  button: {
-    backgroundColor: '#4a9eff',
-    borderRadius: 12,
-    paddingVertical: 18,
-    alignItems: 'center',
+    fontSize: 14.5,
     marginTop: 8,
+    marginBottom: 28,
+    lineHeight: 22,
   },
-  buttonText: { color: '#fff', fontSize: 18, fontWeight: '700' },
-  checkmark: { fontSize: 64, color: '#4a9eff', marginBottom: 16 },
-  sentTitle: { fontSize: 24, fontWeight: '800', color: '#fff', marginBottom: 12 },
-  sentText: { fontSize: 15, color: '#aaa', textAlign: 'center', lineHeight: 22, marginBottom: 24 },
+  form: {
+    gap: 14,
+  },
+  actionBtn: {
+    marginTop: 6,
+    width: '100%',
+  },
 });
+

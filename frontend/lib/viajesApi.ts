@@ -150,7 +150,7 @@ export async function obtenerViaje(
   userId: string,
   baseUrl: string = API_BASE_URL
 ): Promise<ViajeDetalleApi> {
-  const res = await fetch(apiUrl(`/api/viajes/${viajeId}`, baseUrl), {
+  const res = await meshFetch(apiUrl(`/api/viajes/${viajeId}`, baseUrl), {
     headers: await authHeaders(userId),
   })
   return parseJson<ViajeDetalleApi>(res)
@@ -168,7 +168,7 @@ export async function iniciarViajeEnBackend(
   userId: string,
   baseUrl: string = API_BASE_URL
 ): Promise<ViajeIniciadoApi> {
-  const res = await fetch(apiUrl(`/api/viajes/${viajeId}/iniciar`, baseUrl), {
+  const res = await meshFetch(apiUrl(`/api/viajes/${viajeId}/iniciar`, baseUrl), {
     method: 'POST',
     headers: await authHeaders(userId),
   })
@@ -181,7 +181,7 @@ export async function guardarRutaEnBackend(
   body: PutRutaBody,
   baseUrl: string = API_BASE_URL
 ): Promise<unknown> {
-  const res = await fetch(apiUrl(`/api/viajes/${viajeId}/ruta`, baseUrl), {
+  const res = await meshFetch(apiUrl(`/api/viajes/${viajeId}/ruta`, baseUrl), {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -205,17 +205,3 @@ export async function guardarRutaEnBackend(
   return text ? JSON.parse(text) : null
 }
 
-/** @deprecated Usar crearViaje */
-export async function crearViajeGrupal(
-  grupoId: string,
-  tipoActividad: TipoActividadApi,
-  fechaProgramada: Date,
-  userId: string,
-  baseUrl: string = API_BASE_URL
-): Promise<ViajeCreadoApi> {
-  return crearViaje(
-    { esGrupal: true, grupoIds: [grupoId], tipoActividad, fechaProgramada },
-    userId,
-    baseUrl
-  )
-}

@@ -8,7 +8,7 @@ import { QR_EXPIRED_MESSAGE } from '@/lib/inviteLinks'
 export async function ejecutarUnionPorQr(viajeId: string, userId: string): Promise<boolean> {
   try {
     const result = await unirseViajePorQr(viajeId, userId)
-    router.replace(`/viaje/${result.viajeId}`)
+    router.replace({ pathname: '/viaje/[viajeId]', params: { viajeId: result.viajeId } })
     Alert.alert(
       '¡Listo!',
       result.yaEraParticipante

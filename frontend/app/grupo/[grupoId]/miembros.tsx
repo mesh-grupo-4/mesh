@@ -6,13 +6,12 @@ import {
   FlatList,
   ActivityIndicator,
   Alert,
-  TouchableOpacity,
   RefreshControl,
+  Pressable,
 } from 'react-native';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { resolveBackendUserId } from '@/lib/apiClient';
-import { AvatarFallback } from '@/components/AvatarFallback';
 import {
   cambiarRolMiembroGrupo,
   listarMiembrosGrupo,
@@ -20,6 +19,8 @@ import {
   type GrupoMiembroApi,
   type RolGrupoApi,
 } from '@/lib/gruposApi';
+import { TopBar, Avatar, Badge, useTheme } from '@/components/MeshUI';
+import { Feather } from '@expo/vector-icons';
 
 function etiquetaRol(rol: RolGrupoApi): string {
   return rol === 'lider' ? 'Líder' : 'Participante';
@@ -28,8 +29,12 @@ function etiquetaRol(rol: RolGrupoApi): string {
 export default function MiembrosGrupoScreen() {
   const { grupoId } = useLocalSearchParams<{ grupoId: string }>();
   const { backendUserId } = useAuth();
+  const theme = useTheme();
+  const router = useRouter();
+
   const [miembros, setMiembros] = useState<GrupoMiembroApi[]>([]);
   const [miRol, setMiRol] = useState<RolGrupoApi | null>(null);
+  const [grupoNombre, setGrupoNombre] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +54,7 @@ export default function MiembrosGrupoScreen() {
           listarMiembrosGrupo(grupoId, userId),
         ]);
         setMiRol(detalle.mi_rol);
+        setGrupoNombre(detalle.nombre);
         setMiembros(lista);
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : 'No se pudieron cargar los miembros.';
@@ -69,8 +75,7 @@ export default function MiembrosGrupoScreen() {
   const cambiarRol = (miembro: GrupoMiembroApi, nuevoRol: RolGrupoApi) => {
     if (!grupoId || miRol !== 'lider' || miembro.rol === nuevoRol) return;
 
-    const rolAnterior = miembro.rol;
-    const snapshot = miembros;
+    const snapshot = [...miembros];
 
     setActualizandoId(miembro.id);
     setMiembros((prev) =>
@@ -116,60 +121,73 @@ export default function MiembrosGrupoScreen() {
     const puedeEditar = miRol === 'lider' && !esYo;
     const actualizando = actualizandoId === item.id;
 
+    const dummyPerson = {
+      nombre: item.nombre,
+      apellido: '',
+      color: item.rol === 'lider' ? theme.accent : undefined,
+    };
+
     return (
-      <View style={[styles.fila, actualizando && styles.filaDeshabilitada]}>
-        <AvatarFallback nombre={item.nombre} />
+      <View
+        style={[
+          styles.fila,
+          { backgroundColor: theme.surface, borderColor: theme.border },
+          actualizando && styles.filaDeshabilitada,
+        ]}
+      >
+        <Avatar person={dummyPerson} size="sm" ring={item.rol === 'lider'} />
+        
         <View style={styles.filaContenido}>
           <View style={styles.filaTitulo}>
-            <Text style={styles.nombre}>
+            <Text style={[styles.nombreText, { color: theme.text }]} numberOfLines={1}>
               {item.nombre}
-              {esYo ? ' (Tú)' : ''}
+              {esYo ? ' (Vos)' : ''}
             </Text>
-            <View
-              style={[
-                styles.badgeRol,
-                item.rol === 'lider' ? styles.badgeLider : styles.badgeParticipante,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.badgeRolTexto,
-                  item.rol === 'lider' ? styles.badgeLiderTexto : styles.badgeParticipanteTexto,
-                ]}
-              >
-                {etiquetaRol(item.rol)}
-              </Text>
-            </View>
+            
+            <Badge tone={item.rol === 'lider' ? 'accent' : 'mute'}>
+              {item.rol === 'lider' && (
+                <Feather name="award" size={10} color={theme.accent} style={{ marginRight: 3 }} />
+              )}
+              {etiquetaRol(item.rol)}
+            </Badge>
           </View>
-          <Text style={styles.email}>{item.email}</Text>
+          <Text style={[styles.email, { color: theme.textDim }]} numberOfLines={1}>
+            {item.email}
+          </Text>
         </View>
+
         {puedeEditar && (
-          <TouchableOpacity
-            style={styles.botonRol}
+          <Pressable
+            style={({ pressed }) => [
+              styles.botonRol,
+              { backgroundColor: pressed ? theme.surface3 : theme.surface2 },
+            ]}
             onPress={() => mostrarMenuRol(item)}
             disabled={actualizandoId !== null}
           >
             {actualizando ? (
-              <ActivityIndicator color="#4a9eff" size="small" />
+              <ActivityIndicator color={theme.accent} size="small" />
             ) : (
-              <Text style={styles.botonRolTexto}>···</Text>
+              <Feather name="more-horizontal" size={16} color={theme.textDim} />
             )}
-          </TouchableOpacity>
+          </Pressable>
         )}
       </View>
     );
   };
 
   return (
-    <>
-      <Stack.Screen options={{ title: 'Miembros' }} />
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <TopBar title="Miembros" sub={grupoNombre ?? 'Cargando...'} onBack={() => router.back()} bordered={false} />
+
       {loading ? (
         <View style={styles.centrado}>
-          <ActivityIndicator color="#4a9eff" size="large" />
+          <ActivityIndicator color={theme.accent} size="large" />
         </View>
       ) : error ? (
         <View style={styles.centrado}>
-          <Text style={styles.error}>{error}</Text>
+          <Text style={[styles.errorText, { color: theme.danger }]}>{error}</Text>
         </View>
       ) : (
         <FlatList
@@ -181,41 +199,39 @@ export default function MiembrosGrupoScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={() => void cargar(true)}
-              tintColor="#4a9eff"
+              tintColor={theme.accent}
             />
           }
           ListEmptyComponent={
-            <Text style={styles.vacio}>Este grupo aún no tiene integrantes.</Text>
+            <Text style={[styles.vacio, { color: theme.textMute }]}>Este grupo aún no tiene integrantes.</Text>
           }
         />
       )}
-    </>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
   centrado: {
     flex: 1,
-    backgroundColor: '#0f0f0f',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
   },
   lista: {
-    padding: 16,
+    padding: 20,
     paddingBottom: 40,
-    backgroundColor: '#0f0f0f',
-    flexGrow: 1,
-    gap: 8,
+    gap: 11,
   },
   fila: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1e1e1e',
-    borderRadius: 10,
+    borderRadius: 14,
     padding: 14,
-    borderWidth: 1,
-    borderColor: '#333',
+    borderWidth: 1.2,
     gap: 12,
   },
   filaDeshabilitada: {
@@ -223,7 +239,7 @@ const styles = StyleSheet.create({
   },
   filaContenido: {
     flex: 1,
-    gap: 4,
+    gap: 2,
   },
   filaTitulo: {
     flexDirection: 'row',
@@ -231,59 +247,30 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
   },
-  nombre: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+  nombreText: {
+    fontSize: 15.5,
+    fontWeight: '700',
+    maxWidth: '60%',
   },
   email: {
-    color: '#888',
     fontSize: 13,
-  },
-  badgeRol: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  badgeLider: {
-    backgroundColor: '#1a3a5c',
-  },
-  badgeParticipante: {
-    backgroundColor: '#2a2a2a',
-  },
-  badgeRolTexto: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  badgeLiderTexto: {
-    color: '#4a9eff',
-  },
-  badgeParticipanteTexto: {
-    color: '#aaa',
   },
   botonRol: {
     width: 36,
     height: 36,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 8,
-    backgroundColor: '#2a2a2a',
-  },
-  botonRolTexto: {
-    color: '#4a9eff',
-    fontSize: 22,
-    fontWeight: '700',
-    lineHeight: 24,
+    borderRadius: 10,
   },
   vacio: {
-    color: '#666',
-    fontSize: 14,
+    fontSize: 14.5,
     textAlign: 'center',
     marginTop: 32,
   },
-  error: {
-    color: '#ff6b6b',
+  errorText: {
     fontSize: 15,
     textAlign: 'center',
+    fontWeight: '600',
   },
 });
+

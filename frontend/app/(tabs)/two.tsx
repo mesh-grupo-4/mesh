@@ -105,7 +105,7 @@ export default function ViajesScreen() {
       await cargar(true)
       if (accion === 'aceptar') {
         Alert.alert('Listo', 'Confirmaste tu asistencia al viaje.')
-        router.push(`/viaje/${viajeId}`)
+        router.push({ pathname: '/viaje/[viajeId]', params: { viajeId } })
       } else {
         Alert.alert('Listo', 'Rechazaste la invitación al viaje.')
       }
@@ -180,7 +180,7 @@ export default function ViajesScreen() {
               <TouchableOpacity
                 key={v.id}
                 style={styles.tarjeta}
-                onPress={() => router.push(`/viaje/${v.id}`)}
+                onPress={() => router.push({ pathname: '/viaje/[viajeId]', params: { viajeId: v.id } })}
               >
                 <Text style={styles.tarjetaTitulo}>{etiquetaActividad(v.tipo_actividad)}</Text>
                 <Text style={styles.tarjetaMeta}>{formatearFecha(v.fecha_programada)}</Text>
