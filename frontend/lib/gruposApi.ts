@@ -15,6 +15,7 @@ export type GrupoDetalleApi = GrupoApi & {
 
 export type GrupoListItemApi = GrupoApi & {
   mi_rol: RolGrupoApi
+  cantidad_miembros: number
 }
 
 export type GrupoMiembroApi = {

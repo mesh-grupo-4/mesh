@@ -114,6 +114,7 @@ export class GruposService {
           where: { usuario_id: usuarioId },
           select: { rol: true },
         },
+        _count: { select: { miembros: true } },
       },
       orderBy: { fecha_creacion: 'desc' },
     })
@@ -123,6 +124,7 @@ export class GruposService {
       nombre: g.nombre,
       fecha_creacion: g.fecha_creacion,
       lider_id: g.lider_id,
+      cantidad_miembros: g._count.miembros,
       mi_rol: (g.lider_id === usuarioId ? 'lider' : g.miembros[0]?.rol ?? 'participante') as
         | 'lider'
         | 'participante',

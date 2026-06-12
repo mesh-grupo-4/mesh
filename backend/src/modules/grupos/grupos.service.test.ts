@@ -96,6 +96,7 @@ describe('GruposService', () => {
               fecha_creacion: fecha,
               lider_id: creadorId,
               miembros: [{ rol: 'lider' }],
+              _count: { miembros: 3 },
             },
           ]),
         },
@@ -106,6 +107,7 @@ describe('GruposService', () => {
 
       expect(result).toHaveLength(1)
       expect(result[0]?.mi_rol).toBe('lider')
+      expect(result[0]?.cantidad_miembros).toBe(3)
     })
   })
 

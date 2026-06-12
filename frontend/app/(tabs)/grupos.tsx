@@ -344,7 +344,7 @@ export default function GruposScreen() {
                             {g.nombre}
                           </Text>
                           <Text style={[styles.tarjetaMeta, { color: theme.textDim }]}>
-                            {`Creado el ${formatearFecha(g.fecha_creacion)}`}
+                            {`${g.cantidad_miembros} ${g.cantidad_miembros === 1 ? 'miembro' : 'miembros'}`}
                             {g.mi_rol === 'lider' ? ' · Líder' : ' · Participante'}
                           </Text>
                         </View>

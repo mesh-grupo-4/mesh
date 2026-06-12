@@ -186,9 +186,14 @@ export default function ViajesScreen() {
                 style={[styles.tarjeta, { backgroundColor: theme.surface, borderColor: theme.border }]}
                 onPress={() => router.push({ pathname: '/viaje/[viajeId]', params: { viajeId: v.id } })}
               >
-                <Text style={[styles.tarjetaTitulo, { color: theme.text }]}>
-                  {v.nombre ?? etiquetaActividad(v.tipo_actividad)}
-                </Text>
+                <View style={styles.tarjetaHeader}>
+                  <Text style={[styles.tarjetaTitulo, { color: theme.text }]} numberOfLines={1}>
+                    {v.nombre ?? etiquetaActividad(v.tipo_actividad)}
+                  </Text>
+                  <Text style={[styles.tarjetaActividad, { color: theme.textDim }]}>
+                    {etiquetaActividad(v.tipo_actividad)}
+                  </Text>
+                </View>
                 <Text style={[styles.tarjetaMeta, { color: theme.textDim }]}>
                   {formatearFecha(v.fecha_programada)}
                 </Text>
@@ -223,7 +228,14 @@ const styles = StyleSheet.create({
     marginTop: 8,
     gap: 6,
   },
-  tarjetaTitulo: { fontSize: 16, fontWeight: '600' },
+  tarjetaHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  tarjetaTitulo: { flex: 1, fontSize: 16, fontWeight: '600' },
+  tarjetaActividad: { fontSize: 13, fontWeight: '600' },
   tarjetaMeta: { fontSize: 13 },
   tarjetaGrupo: { fontSize: 12, fontWeight: '600', marginTop: 2 },
   estadoBadge: { fontSize: 12, fontWeight: '600', marginTop: 4 },

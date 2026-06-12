@@ -14,6 +14,7 @@ import { Stack } from 'expo-router';
 import { AvatarFallback } from '@/components/AvatarFallback';
 import { useAuth } from '@/context/AuthContext';
 import { resolveBackendUserId } from '@/lib/apiClient';
+import { useTheme } from '@/components/MeshUI';
 import {
   buscarUsuariosAmistad,
   eliminarAmigo,
@@ -30,6 +31,7 @@ import {
 type TabAmigos = 'amigos' | 'solicitudes';
 
 export default function AmigosScreen() {
+  const theme = useTheme();
   const { backendUserId } = useAuth();
   const [tab, setTab] = useState<TabAmigos>('amigos');
   const [amigos, setAmigos] = useState<AmigoApi[]>([]);
@@ -183,21 +185,27 @@ export default function AmigosScreen() {
     if (relacion === 'amigo') return null;
 
     if (relacion === 'solicitud_recibida') {
-      return <Text style={styles.hintRelacion}>Respondé en Solicitudes</Text>;
+      return <Text style={[styles.hintRelacion, { color: theme.textDim }]}>Respondé en Solicitudes</Text>;
     }
 
     const enviada = relacion === 'solicitud_enviada';
 
     return (
       <TouchableOpacity
-        style={[styles.botonAgregar, (enviada || solicitando) && styles.botonDeshabilitado]}
+        style={[
+          styles.botonAgregar,
+          { borderColor: theme.accentLine },
+          (enviada || solicitando) && styles.botonDeshabilitado,
+        ]}
         onPress={() => void ejecutarSolicitud(usuario)}
         disabled={enviada || solicitando}
       >
         {solicitando ? (
-          <ActivityIndicator color="#4a9eff" size="small" />
+          <ActivityIndicator color={theme.accent} size="small" />
         ) : (
-          <Text style={styles.botonAgregarTexto}>{enviada ? 'Solicitud enviada' : 'Agregar'}</Text>
+          <Text style={[styles.botonAgregarTexto, { color: theme.accent }]}>
+            {enviada ? 'Solicitud enviada' : 'Agregar'}
+          </Text>
         )}
       </TouchableOpacity>
     );
@@ -207,21 +215,25 @@ export default function AmigosScreen() {
     const eliminando = eliminandoId === item.id;
 
     return (
-      <View style={styles.fila}>
+      <View style={[styles.fila, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <AvatarFallback nombre={item.nombre} />
         <View style={styles.filaContenido}>
-          <Text style={styles.nombre}>{item.nombre}</Text>
-          <Text style={styles.email}>{item.email}</Text>
+          <Text style={[styles.nombre, { color: theme.text }]}>{item.nombre}</Text>
+          <Text style={[styles.email, { color: theme.textDim }]}>{item.email}</Text>
         </View>
         <TouchableOpacity
-          style={[styles.botonEliminar, eliminando && styles.botonDeshabilitado]}
+          style={[
+            styles.botonEliminar,
+            { borderColor: theme.danger },
+            eliminando && styles.botonDeshabilitado,
+          ]}
           onPress={() => confirmarEliminar(item)}
           disabled={eliminando}
         >
           {eliminando ? (
-            <ActivityIndicator color="#ef4444" size="small" />
+            <ActivityIndicator color={theme.danger} size="small" />
           ) : (
-            <Text style={styles.botonEliminarTexto}>Eliminar</Text>
+            <Text style={[styles.botonEliminarTexto, { color: theme.danger }]}>Eliminar</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -229,11 +241,11 @@ export default function AmigosScreen() {
   };
 
   const renderFilaBusqueda = ({ item }: { item: UsuarioBusquedaAmistadApi }) => (
-    <View style={styles.fila}>
+    <View style={[styles.fila, { backgroundColor: theme.surface, borderColor: theme.border }]}>
       <AvatarFallback nombre={item.nombre} />
       <View style={styles.filaContenido}>
-        <Text style={styles.nombre}>{item.nombre}</Text>
-        <Text style={styles.email}>{item.email}</Text>
+        <Text style={[styles.nombre, { color: theme.text }]}>{item.nombre}</Text>
+        <Text style={[styles.email, { color: theme.textDim }]}>{item.email}</Text>
       </View>
       {renderBotonAgregar(item)}
     </View>
@@ -243,33 +255,33 @@ export default function AmigosScreen() {
     const procesando = respondiendoId === item.id;
 
     return (
-      <View style={styles.tarjetaSolicitud}>
+      <View style={[styles.tarjetaSolicitud, { backgroundColor: theme.surface, borderColor: theme.accentLine }]}>
         <View style={styles.filaSolicitud}>
           <AvatarFallback nombre={item.solicitante.nombre} />
           <View style={styles.filaContenido}>
-            <Text style={styles.nombre}>{item.solicitante.nombre}</Text>
-            <Text style={styles.email}>{item.solicitante.email}</Text>
-            <Text style={styles.hintRelacion}>Quiere agregarte como amigo</Text>
+            <Text style={[styles.nombre, { color: theme.text }]}>{item.solicitante.nombre}</Text>
+            <Text style={[styles.email, { color: theme.textDim }]}>{item.solicitante.email}</Text>
+            <Text style={[styles.hintRelacion, { color: theme.textDim }]}>Quiere agregarte como amigo</Text>
           </View>
         </View>
         <View style={styles.accionesSolicitud}>
           <TouchableOpacity
-            style={[styles.botonAceptar, procesando && styles.botonDeshabilitado]}
+            style={[styles.botonAceptar, { backgroundColor: theme.accent }, procesando && styles.botonDeshabilitado]}
             onPress={() => void ejecutarRespuesta(item.id, 'aceptar')}
             disabled={procesando}
           >
             {procesando ? (
-              <ActivityIndicator color="#fff" size="small" />
+              <ActivityIndicator color={theme.onAccent} size="small" />
             ) : (
-              <Text style={styles.botonAceptarTexto}>Aceptar</Text>
+              <Text style={[styles.botonAceptarTexto, { color: theme.onAccent }]}>Aceptar</Text>
             )}
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.botonRechazar, procesando && styles.botonDeshabilitado]}
+            style={[styles.botonRechazar, { borderColor: theme.borderStrong }, procesando && styles.botonDeshabilitado]}
             onPress={() => void ejecutarRespuesta(item.id, 'rechazar')}
             disabled={procesando}
           >
-            <Text style={styles.botonRechazarTexto}>Rechazar</Text>
+            <Text style={[styles.botonRechazarTexto, { color: theme.textDim }]}>Rechazar</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -281,21 +293,29 @@ export default function AmigosScreen() {
   return (
     <>
       <Stack.Screen options={{ title: 'Mis Amigos' }} />
-      <View style={styles.container}>
-        <View style={styles.tabs}>
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <View style={[styles.tabs, { borderColor: theme.border }]}>
           <TouchableOpacity
-            style={[styles.tab, tab === 'amigos' && styles.tabActiva]}
+            style={[
+              styles.tab,
+              { backgroundColor: theme.surface },
+              tab === 'amigos' && { backgroundColor: theme.accentWeak },
+            ]}
             onPress={() => setTab('amigos')}
           >
-            <Text style={[styles.tabTexto, tab === 'amigos' && styles.tabTextoActivo]}>
+            <Text style={[styles.tabTexto, { color: tab === 'amigos' ? theme.accent : theme.textDim }]}>
               Mis Amigos
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.tab, tab === 'solicitudes' && styles.tabActiva]}
+            style={[
+              styles.tab,
+              { backgroundColor: theme.surface },
+              tab === 'solicitudes' && { backgroundColor: theme.accentWeak },
+            ]}
             onPress={() => setTab('solicitudes')}
           >
-            <Text style={[styles.tabTexto, tab === 'solicitudes' && styles.tabTextoActivo]}>
+            <Text style={[styles.tabTexto, { color: tab === 'solicitudes' ? theme.accent : theme.textDim }]}>
               Solicitudes{solicitudes.length > 0 ? ` (${solicitudes.length})` : ''}
             </Text>
           </TouchableOpacity>
@@ -304,9 +324,12 @@ export default function AmigosScreen() {
         {tab === 'amigos' && (
           <>
             <TextInput
-              style={styles.buscador}
+              style={[
+                styles.buscador,
+                { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text },
+              ]}
               placeholder="Buscar por nombre o email..."
-              placeholderTextColor="#666"
+              placeholderTextColor={theme.textMute}
               value={busqueda}
               onChangeText={setBusqueda}
               autoCapitalize="none"
@@ -314,7 +337,7 @@ export default function AmigosScreen() {
             />
 
             {listaAmigosCargando ? (
-              <ActivityIndicator color="#4a9eff" size="large" style={styles.centrado} />
+              <ActivityIndicator color={theme.accent} size="large" style={styles.centrado} />
             ) : enModoBusqueda ? (
               <FlatList
                 data={resultadosBusqueda}
@@ -324,13 +347,13 @@ export default function AmigosScreen() {
                   resultadosBusqueda.length === 0 ? styles.listaVacia : undefined
                 }
                 ListEmptyComponent={
-                  <Text style={styles.vacio}>No se encontraron usuarios.</Text>
+                  <Text style={[styles.vacio, { color: theme.textMute }]}>No se encontraron usuarios.</Text>
                 }
                 refreshControl={
                   <RefreshControl
                     refreshing={refreshing}
                     onRefresh={() => void cargarDatos(true)}
-                    tintColor="#4a9eff"
+                    tintColor={theme.accent}
                   />
                 }
               />
@@ -341,7 +364,7 @@ export default function AmigosScreen() {
                 renderItem={renderFilaAmigo}
                 contentContainerStyle={amigos.length === 0 ? styles.listaVacia : undefined}
                 ListEmptyComponent={
-                  <Text style={styles.vacio}>
+                  <Text style={[styles.vacio, { color: theme.textMute }]}>
                     No tenés amigos todavía. Buscá usuarios y enviá solicitudes de amistad.
                   </Text>
                 }
@@ -349,7 +372,7 @@ export default function AmigosScreen() {
                   <RefreshControl
                     refreshing={refreshing}
                     onRefresh={() => void cargarDatos(true)}
-                    tintColor="#4a9eff"
+                    tintColor={theme.accent}
                   />
                 }
               />
@@ -359,7 +382,7 @@ export default function AmigosScreen() {
 
         {tab === 'solicitudes' && (
           loading ? (
-            <ActivityIndicator color="#4a9eff" size="large" style={styles.centrado} />
+            <ActivityIndicator color={theme.accent} size="large" style={styles.centrado} />
           ) : (
             <FlatList
               data={solicitudes}
@@ -367,13 +390,13 @@ export default function AmigosScreen() {
               renderItem={renderSolicitud}
               contentContainerStyle={solicitudes.length === 0 ? styles.listaVacia : undefined}
               ListEmptyComponent={
-                <Text style={styles.vacio}>No tenés solicitudes pendientes.</Text>
+                <Text style={[styles.vacio, { color: theme.textMute }]}>No tenés solicitudes pendientes.</Text>
               }
               refreshControl={
                 <RefreshControl
                   refreshing={refreshing}
                   onRefresh={() => void cargarDatos(true)}
-                  tintColor="#4a9eff"
+                  tintColor={theme.accent}
                 />
               }
             />
@@ -385,100 +408,85 @@ export default function AmigosScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f0f0f', padding: 24, paddingBottom: 32 },
+  container: { flex: 1, padding: 24, paddingBottom: 32 },
   tabs: {
     flexDirection: 'row',
     marginBottom: 16,
     borderRadius: 10,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#333',
   },
   tab: {
     flex: 1,
     paddingVertical: 12,
     alignItems: 'center',
-    backgroundColor: '#1e1e1e',
   },
-  tabActiva: { backgroundColor: '#0d2a4a' },
-  tabTexto: { color: '#888', fontSize: 14, fontWeight: '600' },
-  tabTextoActivo: { color: '#4a9eff' },
+  tabTexto: { fontSize: 14, fontWeight: '600' },
   buscador: {
-    backgroundColor: '#1e1e1e',
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    color: '#fff',
     fontSize: 16,
     borderWidth: 1,
-    borderColor: '#333',
     marginBottom: 16,
   },
   listaVacia: { flexGrow: 1, justifyContent: 'center' },
   fila: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1e1e1e',
     borderRadius: 10,
     padding: 16,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#333',
     gap: 12,
   },
   filaContenido: { flex: 1, gap: 2 },
-  nombre: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  email: { color: '#888', fontSize: 13 },
+  nombre: { fontSize: 16, fontWeight: '600' },
+  email: { fontSize: 13 },
   botonAgregar: {
     borderRadius: 8,
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: '#4a9eff',
     minWidth: 120,
     alignItems: 'center',
   },
-  botonAgregarTexto: { color: '#4a9eff', fontSize: 12, fontWeight: '600' },
+  botonAgregarTexto: { fontSize: 12, fontWeight: '600' },
   botonEliminar: {
     borderRadius: 8,
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: '#ef4444',
     minWidth: 90,
     alignItems: 'center',
   },
-  botonEliminarTexto: { color: '#ef4444', fontSize: 12, fontWeight: '600' },
+  botonEliminarTexto: { fontSize: 12, fontWeight: '600' },
   botonDeshabilitado: { opacity: 0.5 },
-  hintRelacion: { color: '#888', fontSize: 12, fontStyle: 'italic' },
+  hintRelacion: { fontSize: 12, fontStyle: 'italic' },
   tarjetaSolicitud: {
-    backgroundColor: '#1a2a1a',
     borderRadius: 10,
     padding: 16,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: '#2a4a2a',
     gap: 12,
   },
   filaSolicitud: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   accionesSolicitud: { flexDirection: 'row', gap: 10 },
   botonAceptar: {
     flex: 1,
-    backgroundColor: '#4a9eff',
     borderRadius: 8,
     paddingVertical: 10,
     alignItems: 'center',
   },
-  botonAceptarTexto: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  botonAceptarTexto: { fontSize: 14, fontWeight: '600' },
   botonRechazar: {
     flex: 1,
     borderRadius: 8,
     paddingVertical: 10,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#555',
   },
-  botonRechazarTexto: { color: '#aaa', fontSize: 14, fontWeight: '600' },
+  botonRechazarTexto: { fontSize: 14, fontWeight: '600' },
   centrado: { marginTop: 48 },
-  vacio: { color: '#666', fontSize: 14, lineHeight: 20, textAlign: 'center' },
+  vacio: { fontSize: 14, lineHeight: 20, textAlign: 'center' },
 });
