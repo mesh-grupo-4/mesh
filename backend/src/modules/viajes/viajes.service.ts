@@ -46,7 +46,30 @@ export class ViajesService {
       }
     }
 
-    const invitadosIds = new Set<string>()
+    const amigoIds = [...new Set(input.amigoIds ?? [])].filter((id) => id !== creadorId)
+
+    if (amigoIds.length > 0) {
+      const amistades = await this.prisma.amistad.findMany({
+        where: {
+          estado: 'aceptada',
+          OR: [
+            { solicitante_id: creadorId, destinatario_id: { in: amigoIds } },
+            { destinatario_id: creadorId, solicitante_id: { in: amigoIds } },
+          ],
+        },
+        select: { solicitante_id: true, destinatario_id: true },
+      })
+      const amigosConfirmados = new Set(
+        amistades.map((a) => (a.solicitante_id === creadorId ? a.destinatario_id : a.solicitante_id))
+      )
+      const noAmigo = amigoIds.find((id) => !amigosConfirmados.has(id))
+      if (noAmigo) {
+        throw new HttpError(403, 'Solo podés invitar a tus amigos', 'NOT_FRIEND')
+      }
+    }
+
+    // origen prioriza 'grupo' sobre 'amigo' cuando una persona viene por ambos caminos
+    const invitadosPorGrupo = new Set<string>()
     if (grupoIds.length > 0) {
       const miembros = await this.prisma.grupoMiembro.findMany({
         where: { grupo_id: { in: grupoIds } },
@@ -54,15 +77,19 @@ export class ViajesService {
       })
       for (const m of miembros) {
         if (m.usuario_id !== creadorId) {
-          invitadosIds.add(m.usuario_id)
+          invitadosPorGrupo.add(m.usuario_id)
         }
       }
     }
+
+    const invitadosPorAmigo = new Set(amigoIds.filter((id) => !invitadosPorGrupo.has(id)))
+    const totalInvitados = invitadosPorGrupo.size + invitadosPorAmigo.size
 
     return this.prisma.$transaction(async (tx) => {
       const viaje = await tx.viaje.create({
         data: {
           creador_id: creadorId,
+          nombre: input.nombre,
           es_grupal: input.esGrupal,
           tipo_actividad: input.tipoActividad,
           fecha_programada: input.fechaProgramada,
@@ -78,21 +105,31 @@ export class ViajesService {
         },
       })
 
-      if (invitadosIds.size > 0) {
+      const invitados = [
+        ...[...invitadosPorGrupo].map((usuarioId) => ({
+          viaje_id: viaje.id,
+          usuario_id: usuarioId,
+          estado: 'pendiente' as const,
+          origen: 'grupo' as const,
+        })),
+        ...[...invitadosPorAmigo].map((usuarioId) => ({
+          viaje_id: viaje.id,
+          usuario_id: usuarioId,
+          estado: 'pendiente' as const,
+          origen: 'amigo' as const,
+        })),
+      ]
+
+      if (invitados.length > 0) {
         await tx.viajeIntegrante.createMany({
-          data: [...invitadosIds].map((usuarioId) => ({
-            viaje_id: viaje.id,
-            usuario_id: usuarioId,
-            estado: 'pendiente' as const,
-            origen: 'grupo' as const,
-          })),
+          data: invitados,
           skipDuplicates: true,
         })
       }
 
       return {
         ...viaje,
-        invitaciones_enviadas: invitadosIds.size,
+        invitaciones_enviadas: totalInvitados,
       }
     })
   }
@@ -116,6 +153,7 @@ export class ViajesService {
       select: {
         id: true,
         creador_id: true,
+        nombre: true,
         es_grupal: true,
         tipo_actividad: true,
         fecha_programada: true,
@@ -131,6 +169,7 @@ export class ViajesService {
     return viajes.map((v) => ({
       id: v.id,
       creador_id: v.creador_id,
+      nombre: v.nombre,
       es_grupal: v.es_grupal,
       tipo_actividad: v.tipo_actividad,
       fecha_programada: v.fecha_programada,
@@ -146,6 +185,7 @@ export class ViajesService {
         viaje: {
           select: {
             id: true,
+            nombre: true,
             tipo_actividad: true,
             fecha_programada: true,
             estado: true,
@@ -160,6 +200,7 @@ export class ViajesService {
       .filter((r) => r.viaje.estado === 'planificado')
       .map((r) => ({
         viaje_id: r.viaje.id,
+        nombre: r.viaje.nombre,
         tipo_actividad: r.viaje.tipo_actividad,
         fecha_programada: r.viaje.fecha_programada,
         creador: r.viaje.creador,

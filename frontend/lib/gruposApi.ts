@@ -53,6 +53,7 @@ export type UsuarioParaInvitarApi = {
   nombre: string
   email: string
   ya_es_miembro: boolean
+  invitacion_pendiente: boolean
 }
 
 export type InvitarUsuariosResponse = {

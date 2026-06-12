@@ -54,13 +54,13 @@ A diferencia de soluciones existentes (Strava, Garmin, Google Maps, Life360) que
 | RN-013 | Si el líder abandona el grupo, el rol se transfiere al siguiente integrante más antiguo; si no hay nadie, el grupo se elimina. |
 | RN-014 | La eliminación de un grupo requiere confirmación explícita. |
 | RN-017 | Las solicitudes de amistad requieren aceptación del receptor. |
-| RN-018 | Invitar personas **al grupo** crea registros en `grupo_invitacion` con estado `pendiente`. Fuentes válidas (SCRUM-18): amigos aceptados, búsqueda global de usuarios registrados, o co-miembros de otro grupo del líder. Solo el **líder** del grupo destino puede invitar; se excluye al invitador y a quienes ya son miembros o tienen invitación pendiente. `grupo_origen_id` es nullable cuando la invitación no proviene de otro grupo. **Flujo distinto** de invitar grupos a un viaje (RN-028/RN-029). |
-| RN-019 | El invitado a un grupo puede aceptar o rechazar una invitación pendiente (SCRUM-17). Aceptar la marca como `aceptada` y agrega al usuario como `participante` del grupo; rechazar la marca como `rechazada` sin modificar membresía. |
+| RN-018 | Invitar personas **al grupo** crea registros en `grupo_invitacion` con estado `pendiente`. Fuentes válidas (SCRUM-18): amigos aceptados, búsqueda global de usuarios registrados, o co-miembros de otro grupo del líder. Solo el **líder** del grupo destino puede invitar; se excluye al invitador y a quienes ya son miembros o tienen invitación pendiente. La respuesta de los endpoints de invitables distingue ambos estados con flags separados: `ya_es_miembro` (miembro real) e `invitacion_pendiente` (invitación sin aceptar), de modo que la UI muestre "Ya es miembro" vs "Invitación enviada" correctamente. `grupo_origen_id` es nullable cuando la invitación no proviene de otro grupo. **Reinvitación:** como hay una única fila por `(grupo_id, usuario_id)` (constraint `@@unique`), invitar a alguien que ya tuvo una invitación en otro estado (`aceptada` de una membresía pasada que abandonó, o `rechazada`) **reabre** esa fila a `pendiente` (upsert) en lugar de saltarla; así una persona que se fue del grupo puede volver a ser invitada y la invitación efectivamente llega. **Flujo distinto** de invitar grupos a un viaje (RN-028/RN-029). |
+| RN-019 | El invitado a un grupo puede aceptar o rechazar una invitación pendiente (SCRUM-17). Aceptar la marca como `aceptada` y agrega al usuario como `participante` del grupo; rechazar la marca como `rechazada` sin modificar membresía. Abandonar el grupo elimina la membresía pero conserva la fila `grupo_invitacion` (queda en `aceptada`); una futura reinvitación la reabre a `pendiente` (ver RN-018). |
 | RN-027 | Los grupos son **listas persistentes de contactos** para facilitar invitaciones masivas. La membresía de un grupo es **independiente** de la participación en un viaje: un usuario puede estar en un viaje sin pertenecer al grupo que originó la invitación, y viceversa. |
 
-**Contrato API MVP (SCRUM-11 / SCRUM-13 / SCRUM-14 / SCRUM-17 / SCRUM-18):** OpenAPI en `backend/openapi/grupos.yaml` y `backend/openapi/amistades.yaml`. Endpoints destacados: `POST /api/usuarios/sync`, `POST /api/grupos`, `GET /api/grupos/:grupoId`, `GET /api/grupos/:grupoId/amigos-para-invitar`, `GET /api/grupos/:grupoId/buscar-usuarios`, `POST /api/grupos/:grupoId/invitar-usuarios`, `GET /api/grupos/invitaciones/pendientes`, `POST /api/grupos/invitaciones/:invitacionId/responder`, `GET /api/amistades`, `GET /api/amistades/buscar`, `DELETE /api/amistades/:usuarioId`, `POST /api/amistades/solicitar`, `POST /api/amistades/solicitudes/:id/responder`. Auth: Bearer Firebase ID token.
+**Contrato API MVP (SCRUM-11 / SCRUM-13 / SCRUM-14 / SCRUM-17 / SCRUM-18):** OpenAPI en `backend/openapi/grupos.yaml` y `backend/openapi/amistades.yaml`. Endpoints destacados: `GET /api/usuarios/me` (lee el perfil desde la BD), `POST /api/usuarios/sync` (alta/actualización; persiste `nombre`, `apellido`, `telefono` y `actividad_preferida`), `POST /api/grupos`, `GET /api/grupos/:grupoId`, `GET /api/grupos/:grupoId/amigos-para-invitar`, `GET /api/grupos/:grupoId/buscar-usuarios`, `POST /api/grupos/:grupoId/invitar-usuarios`, `GET /api/grupos/invitaciones/pendientes`, `POST /api/grupos/invitaciones/:invitacionId/responder`, `GET /api/amistades`, `GET /api/amistades/buscar`, `DELETE /api/amistades/:usuarioId`, `POST /api/amistades/solicitar`, `POST /api/amistades/solicitudes/:id/responder`. Auth: Bearer Firebase ID token.
 
-**Contrato API viajes (RN-015–029):** OpenAPI en `backend/openapi/viajes-qr.yaml`. Endpoints destacados: `POST /api/viajes`, `GET /api/viajes/planificados`, `GET /api/viajes/invitaciones/pendientes`, `POST /api/viajes/:viajeId/invitacion/responder`, `GET /api/viajes/:viajeId/participantes`, `POST /api/viajes/:viajeId/unirse-qr`.
+**Contrato API viajes (RN-015–029):** OpenAPI en `backend/openapi/viajes-qr.yaml`. Endpoints destacados: `POST /api/viajes` (body: `nombre` obligatorio, `tipoActividad`, `fechaProgramada` futura, `esGrupal`, y en grupales `grupoIds` + `amigoIds`), `GET /api/viajes/planificados`, `GET /api/viajes/invitaciones/pendientes` (ambos devuelven `nombre` del viaje como identificador principal), `POST /api/viajes/:viajeId/invitacion/responder`, `GET /api/viajes/:viajeId/participantes`, `POST /api/viajes/:viajeId/unirse-qr`.
 
 ### 2.3 Reglas de Viajes y Rutas
 
@@ -69,8 +69,8 @@ A diferencia de soluciones existentes (Strava, Garmin, Google Maps, Life360) que
 | RN-015 | El código QR de invitación es único por viaje y expira al iniciar el viaje. |
 | RN-016 | El escaneo del QR agrega al usuario **al viaje** directamente, sin aprobación manual. No modifica la membresía de ningún grupo. |
 | RN-020 | Un viaje puede ser **individual** (sin invitados iniciales) o **grupal** (con uno o más participantes). |
-| RN-028 | Al crear un viaje grupal, el creador puede seleccionar **uno o más grupos** de los que es **miembro** para invitar en bloque a sus integrantes. Si un usuario pertenece a varios grupos seleccionados, recibe **una sola invitación** al viaje. |
-| RN-029 | Las invitaciones al viaje originadas por selección de grupos requieren **confirmación** del invitado (aceptar/rechazar asistencia). El creador del viaje ve la lista de confirmados y rechazados. Distinto de RN-016 (QR al viaje) y de RN-018 (membresía de grupo). |
+| RN-028 | Al crear un viaje grupal, el creador puede invitar por dos vías (UI: dos `Collapsible`, Grupos y Amigos): **(a) grupos** de los que es **miembro**, invitando en bloque a sus integrantes (`origen: grupo`); y **(b) amigos** individuales con amistad **aceptada** (`origen: amigo`, validado en backend con 403 `NOT_FRIEND` si no son amigos). Ambos `grupoIds` y `amigoIds` solo se aceptan en viajes grupales. Si un usuario llega por varios caminos (varios grupos, o grupo + amigo) recibe **una sola invitación** (se prioriza `origen: grupo`). El campo `invitaciones_enviadas` cuenta el total sin duplicar. El viaje se crea con `nombre` obligatorio (1–100) y `fecha_programada` futura definida por el creador. |
+| RN-029 | Las invitaciones al viaje (originadas por grupos o por amigos) requieren **confirmación** del invitado (aceptar/rechazar asistencia). El creador del viaje ve la lista de confirmados y rechazados. Distinto de RN-016 (QR al viaje) y de RN-018 (membresía de grupo). |
 | RN-021 | Los tipos de actividad disponibles son: **moto**, **bici**, **running**, **trekking**. Cada uno tiene parámetros por defecto diferentes. |
 | RN-022 | Las categorías de parada intermedia son: **combustible**, **descanso**, **gastronomía**, **sanitario**, **otro**. |
 | RN-023 | La estimación de tiempos depende del tipo de actividad seleccionado y la distancia, más el tiempo configurable de cada parada. |
@@ -414,6 +414,7 @@ Amistad
 Viaje
 ├── id (PK)
 ├── creador_id (FK → Usuario) — líder del viaje (RN-030)
+├── nombre (string, 1–100) — identificador principal mostrado en listas e invitaciones; nullable en viajes antiguos
 ├── es_grupal (boolean)
 ├── tipo_actividad (enum: moto, bici, running, trekking)
 ├── modo (enum: recreativo, competitivo, entrenamiento)
@@ -447,7 +448,7 @@ ViajeIntegrante
 ├── viaje_id (FK)
 ├── usuario_id (FK)
 ├── estado (enum: pendiente, confirmado, rechazado) — RN-029; QR usa confirmado directo (RN-016)
-└── origen (enum: creador, qr, link, grupo) — opcional, trazabilidad
+└── origen (enum: creador, qr, link, grupo, amigo) — trazabilidad del modo de invitación (amigo = invitado individualmente por amistad, RN-028)
 
 RegistroGPS
 ├── id (PK)

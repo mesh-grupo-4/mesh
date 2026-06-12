@@ -296,7 +296,7 @@ Usuario           → id, nombre, apellido, email (unique), teléfono, password_
 Grupo             → id, nombre, foto, líder_id (FK)
 GrupoMiembro      → grupo_id, usuario_id, rol (líder|participante)
 
-Viaje             → id, creador_id, grupo_id (nullable), tipo_actividad,
+Viaje             → id, creador_id, nombre, tipo_actividad,
                     modo (recreativo|competitivo|entrenamiento),
                     estado (planificado|en_curso|finalizado),
                     velocidad_esperada, distancia_max_separacion, tolerancia_atraso

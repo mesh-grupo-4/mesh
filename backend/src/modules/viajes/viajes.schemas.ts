@@ -14,18 +14,28 @@ const lineStringSchema: z.ZodType<GeoJsonLineString> = z.object({
 
 export const createViajeSchema = z
   .object({
+    nombre: z.string().trim().min(1, 'El nombre del viaje es obligatorio').max(100),
     esGrupal: z.boolean(),
     grupoIds: z.array(z.string().uuid()).optional().default([]),
+    amigoIds: z.array(z.string().uuid()).optional().default([]),
     tipoActividad: z.nativeEnum(TipoActividad),
     fechaProgramada: z.coerce.date(),
   })
   .superRefine((data, ctx) => {
     const grupoIds = data.grupoIds ?? []
+    const amigoIds = data.amigoIds ?? []
     if (!data.esGrupal && grupoIds.length > 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: 'grupoIds solo se permiten en viajes grupales',
         path: ['grupoIds'],
+      })
+    }
+    if (!data.esGrupal && amigoIds.length > 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'amigoIds solo se permiten en viajes grupales',
+        path: ['amigoIds'],
       })
     }
   })

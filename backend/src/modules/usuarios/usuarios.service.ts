@@ -27,15 +27,37 @@ export class UsuariosService {
   async getMe(userId: string) {
     return this.prisma.usuario.findUnique({
       where: { id: userId },
-      select: { id: true, email: true, nombre: true },
+      select: {
+        id: true,
+        email: true,
+        nombre: true,
+        apellido: true,
+        telefono: true,
+        actividad_preferida: true,
+      },
     })
   }
 
   async sync(userId: string, input: SyncUsuarioInput) {
     return this.prisma.usuario.update({
       where: { id: userId },
-      data: { nombre: input.nombre },
-      select: { id: true, email: true, nombre: true },
+      data: {
+        nombre: input.nombre,
+        // undefined → no se toca el campo; null → se limpia
+        ...(input.apellido !== undefined ? { apellido: input.apellido } : {}),
+        ...(input.telefono !== undefined ? { telefono: input.telefono } : {}),
+        ...(input.actividad_preferida !== undefined
+          ? { actividad_preferida: input.actividad_preferida }
+          : {}),
+      },
+      select: {
+        id: true,
+        email: true,
+        nombre: true,
+        apellido: true,
+        telefono: true,
+        actividad_preferida: true,
+      },
     })
   }
 }

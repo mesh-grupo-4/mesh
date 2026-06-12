@@ -630,17 +630,19 @@ describe('GruposService', () => {
       const viajeFindFirst = vi.fn()
       const grupoFindMany = vi.fn()
       const grupoMiembroFindMany = vi.fn()
-      const grupoInvitacionCreateMany = vi.fn()
+      const grupoInvitacionFindMany = vi.fn().mockResolvedValue([])
+      const grupoInvitacionUpsert = vi.fn().mockResolvedValue({})
 
       const tx = {
         grupoMiembro: { findMany: grupoMiembroFindMany },
-        grupoInvitacion: { createMany: grupoInvitacionCreateMany },
+        grupoInvitacion: { upsert: grupoInvitacionUpsert },
       }
 
       const prisma = {
         grupo: { findUnique: grupoFindUnique, findMany: grupoFindMany },
         viaje: { findFirst: viajeFindFirst },
         grupoMiembro: { findMany: grupoMiembroFindMany },
+        grupoInvitacion: { findMany: grupoInvitacionFindMany },
         $transaction: vi.fn(async (fn: (client: typeof tx) => Promise<unknown>) => fn(tx)),
       }
 
@@ -650,7 +652,8 @@ describe('GruposService', () => {
         viajeFindFirst,
         grupoFindMany,
         grupoMiembroFindMany,
-        grupoInvitacionCreateMany,
+        grupoInvitacionFindMany,
+        grupoInvitacionUpsert,
       }
     }
 
@@ -661,7 +664,7 @@ describe('GruposService', () => {
         viajeFindFirst,
         grupoFindMany,
         grupoMiembroFindMany,
-        grupoInvitacionCreateMany,
+        grupoInvitacionUpsert,
       } = createBulkInviteMocks()
 
       grupoFindUnique.mockResolvedValue({ lider_id: creadorId })
@@ -680,7 +683,6 @@ describe('GruposService', () => {
           { usuario_id: otroId },
           { usuario_id: terceroId },
         ])
-      grupoInvitacionCreateMany.mockResolvedValue({ count: 1 })
 
       const service = new GruposService(prisma)
       const result = await service.invitarDesdeGrupos(creadorId, grupoId, {
@@ -694,18 +696,21 @@ describe('GruposService', () => {
         nombre: 'Club Bici',
         invitaciones_creadas: 1,
       })
-      expect(grupoInvitacionCreateMany).toHaveBeenCalledWith({
-        data: [
-          {
+      expect(grupoInvitacionUpsert).toHaveBeenCalledTimes(1)
+      expect(grupoInvitacionUpsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            grupo_id_usuario_id: { grupo_id: grupoId, usuario_id: terceroId },
+          },
+          create: {
             grupo_id: grupoId,
             usuario_id: terceroId,
             invitado_por_id: creadorId,
             grupo_origen_id: grupoOrigenId,
             estado: 'pendiente',
           },
-        ],
-        skipDuplicates: true,
-      })
+        })
+      )
     })
 
     it('rechaza invitar desde el mismo grupo destino', async () => {
@@ -831,7 +836,7 @@ describe('GruposService', () => {
           },
         ])
       })
-      const grupoInvitacionCreateMany = vi.fn().mockResolvedValue({ count: 1 })
+      const grupoInvitacionUpsert = vi.fn().mockResolvedValue({})
 
       const usuarioFindMany = vi.fn().mockResolvedValue([
         { id: terceroId, nombre: 'Carlos', email: 'carlos@test.com' },
@@ -845,8 +850,11 @@ describe('GruposService', () => {
         amistad: { findMany: vi.fn().mockResolvedValue([]) },
         grupoInvitacion: {
           findMany: vi.fn().mockResolvedValue([]),
-          createMany: grupoInvitacionCreateMany,
+          upsert: grupoInvitacionUpsert,
         },
+        $transaction: vi.fn(async (fn: (client: unknown) => Promise<unknown>) =>
+          fn({ grupoInvitacion: { upsert: grupoInvitacionUpsert } })
+        ),
       } as unknown as PrismaClient
 
       const service = new GruposService(prisma)
@@ -856,17 +864,22 @@ describe('GruposService', () => {
 
       expect(result.invitaciones_creadas).toBe(1)
       expect(result.invitados[0]?.nombre).toBe('Carlos')
-      expect(grupoInvitacionCreateMany).toHaveBeenCalledWith({
-        data: [
-          {
-            grupo_id: grupoId,
-            usuario_id: terceroId,
-            invitado_por_id: creadorId,
-            grupo_origen_id: grupoOrigenId,
-            estado: 'pendiente',
-          },
-        ],
-        skipDuplicates: true,
+      expect(grupoInvitacionUpsert).toHaveBeenCalledWith({
+        where: {
+          grupo_id_usuario_id: { grupo_id: grupoId, usuario_id: terceroId },
+        },
+        create: {
+          grupo_id: grupoId,
+          usuario_id: terceroId,
+          invitado_por_id: creadorId,
+          grupo_origen_id: grupoOrigenId,
+          estado: 'pendiente',
+        },
+        update: expect.objectContaining({
+          invitado_por_id: creadorId,
+          grupo_origen_id: grupoOrigenId,
+          estado: 'pendiente',
+        }),
       })
     })
   })
@@ -901,6 +914,7 @@ describe('GruposService', () => {
           nombre: 'Carlos',
           email: 'carlos@test.com',
           ya_es_miembro: false,
+          invitacion_pendiente: false,
         },
       ])
     })
@@ -942,7 +956,7 @@ describe('GruposService', () => {
       const usuarioFindMany = vi.fn().mockResolvedValue([
         { id: terceroId, nombre: 'Carlos', email: 'carlos@test.com' },
       ])
-      const grupoInvitacionCreateMany = vi.fn().mockResolvedValue({ count: 1 })
+      const grupoInvitacionUpsert = vi.fn().mockResolvedValue({})
 
       const prisma = {
         grupo: { findUnique: grupoFindUnique, findMany: grupoFindMany },
@@ -951,25 +965,30 @@ describe('GruposService', () => {
         amistad: { findMany: vi.fn().mockResolvedValue([]) },
         grupoInvitacion: {
           findMany: vi.fn().mockResolvedValue([]),
-          createMany: grupoInvitacionCreateMany,
+          upsert: grupoInvitacionUpsert,
         },
+        $transaction: vi.fn(async (fn: (client: unknown) => Promise<unknown>) =>
+          fn({ grupoInvitacion: { upsert: grupoInvitacionUpsert } })
+        ),
       } as unknown as PrismaClient
 
       const service = new GruposService(prisma)
       await service.invitarUsuarios(creadorId, grupoId, { usuario_ids: [terceroId] })
 
-      expect(grupoInvitacionCreateMany).toHaveBeenCalledWith({
-        data: [
-          {
+      expect(grupoInvitacionUpsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            grupo_id_usuario_id: { grupo_id: grupoId, usuario_id: terceroId },
+          },
+          create: {
             grupo_id: grupoId,
             usuario_id: terceroId,
             invitado_por_id: creadorId,
             grupo_origen_id: null,
             estado: 'pendiente',
           },
-        ],
-        skipDuplicates: true,
-      })
+        })
+      )
     })
   })
 

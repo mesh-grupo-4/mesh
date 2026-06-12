@@ -99,7 +99,13 @@ export default function AgregarIntegranteScreen() {
   }, [busqueda, grupoId, backendUserId]);
 
   const ejecutarInvitacion = async (usuario: UsuarioParaInvitarApi) => {
-    if (!grupoId || usuario.ya_es_miembro || idsInvitadosEnSesion.has(usuario.id)) return;
+    if (
+      !grupoId ||
+      usuario.ya_es_miembro ||
+      usuario.invitacion_pendiente ||
+      idsInvitadosEnSesion.has(usuario.id)
+    )
+      return;
 
     setInvitandoId(usuario.id);
     try {
@@ -170,14 +176,20 @@ export default function AgregarIntegranteScreen() {
           )}
           
           <Btn
-            variant={item.ya_es_miembro || yaInvitado ? 'secondary' : 'primary'}
+            variant={
+              item.ya_es_miembro || item.invitacion_pendiente || yaInvitado ? 'secondary' : 'primary'
+            }
             size="sm"
             onPress={() => void ejecutarInvitacion(item)}
-            disabled={item.ya_es_miembro || yaInvitado || invitando}
+            disabled={item.ya_es_miembro || item.invitacion_pendiente || yaInvitado || invitando}
             loading={invitando}
             style={styles.inviteBtn}
           >
-            {item.ya_es_miembro ? 'Ya es miembro' : yaInvitado ? 'Invitación enviada' : 'Invitar'}
+            {item.ya_es_miembro
+              ? 'Ya es miembro'
+              : item.invitacion_pendiente || yaInvitado
+                ? 'Invitación enviada'
+                : 'Invitar'}
           </Btn>
         </View>
       </View>

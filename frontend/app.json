@@ -16,7 +16,9 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "UIBackgroundModes": ["location"]
+        "UIBackgroundModes": [
+          "location"
+        ]
       }
     },
     "android": {
@@ -56,7 +58,8 @@
           "locationAlwaysPermission": "Mesh necesita ubicación en segundo plano mientras el viaje esté en curso (notificación permanente en Android).",
           "locationWhenInUsePermission": "Mesh necesita tu ubicación para el seguimiento del viaje."
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true

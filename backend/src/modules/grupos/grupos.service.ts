@@ -356,8 +356,8 @@ export class GruposService {
       id: usuario.id,
       nombre: usuario.nombre,
       email: usuario.email,
-      ya_es_miembro:
-        exclusiones.miembros.has(usuario.id) || exclusiones.invitadosPendientes.has(usuario.id),
+      ya_es_miembro: exclusiones.miembros.has(usuario.id),
+      invitacion_pendiente: exclusiones.invitadosPendientes.has(usuario.id),
     }
   }
 
@@ -540,6 +540,42 @@ export class GruposService {
       .sort((a, b) => a.nombre.localeCompare(b.nombre))
   }
 
+  // Reactiva una invitación previa (aceptada/rechazada) o crea una nueva.
+  // El @@unique(grupo_id, usuario_id) deja una sola fila por persona: si alguien
+  // ya estuvo en el grupo y se fue, su fila quedó como 'aceptada' y un createMany
+  // la saltaría, por eso la reabrimos como 'pendiente'.
+  private async upsertInvitacionPendiente(
+    tx: TransactionClient,
+    params: {
+      grupoDestinoId: string
+      usuarioId: string
+      invitadoPorId: string
+      grupoOrigenId: string | null
+    }
+  ) {
+    await tx.grupoInvitacion.upsert({
+      where: {
+        grupo_id_usuario_id: {
+          grupo_id: params.grupoDestinoId,
+          usuario_id: params.usuarioId,
+        },
+      },
+      create: {
+        grupo_id: params.grupoDestinoId,
+        usuario_id: params.usuarioId,
+        invitado_por_id: params.invitadoPorId,
+        grupo_origen_id: params.grupoOrigenId,
+        estado: 'pendiente',
+      },
+      update: {
+        invitado_por_id: params.invitadoPorId,
+        grupo_origen_id: params.grupoOrigenId,
+        estado: 'pendiente',
+        created_at: new Date(),
+      },
+    })
+  }
+
   async invitarUsuarios(
     actorId: string,
     grupoDestinoId: string,
@@ -551,18 +587,18 @@ export class GruposService {
 
     const invitables = await this.validarInvitables(actorId, grupoDestinoId, idsUnicos)
 
-    const result = await this.prisma.grupoInvitacion.createMany({
-      data: idsUnicos.map((usuarioId) => {
+    // validarInvitables ya descartó miembros e invitaciones pendientes, así que
+    // cada id es una invitación legítima (nueva o reactivada).
+    await this.prisma.$transaction(async (tx) => {
+      for (const usuarioId of idsUnicos) {
         const invitable = invitables.get(usuarioId)!
-        return {
-          grupo_id: grupoDestinoId,
-          usuario_id: usuarioId,
-          invitado_por_id: actorId,
-          grupo_origen_id: invitable.grupo_origen_id,
-          estado: 'pendiente' as const,
-        }
-      }),
-      skipDuplicates: true,
+        await this.upsertInvitacionPendiente(tx, {
+          grupoDestinoId,
+          usuarioId,
+          invitadoPorId: actorId,
+          grupoOrigenId: invitable.grupo_origen_id,
+        })
+      }
     })
 
     const invitados = idsUnicos
@@ -570,7 +606,7 @@ export class GruposService {
       .map((c) => ({ id: c.id, nombre: c.nombre }))
 
     return {
-      invitaciones_creadas: result.count,
+      invitaciones_creadas: idsUnicos.length,
       invitados,
     }
   }
@@ -648,8 +684,18 @@ export class GruposService {
     })
     const idsMiembrosDestino = new Set(miembrosDestino.map((m) => m.usuario_id))
 
+    // Quienes ya tienen una invitación pendiente no se recrean (ya están invitados).
+    // Las invitaciones en otros estados (rechazada/aceptada de una membresía pasada)
+    // sí se reabren vía upsert.
+    const invitacionesPendientes = await this.prisma.grupoInvitacion.findMany({
+      where: { grupo_id: grupoDestinoId, estado: 'pendiente' },
+      select: { usuario_id: true },
+    })
+    const idsYaPendientes = new Set(invitacionesPendientes.map((i) => i.usuario_id))
+
     let totalCreadas = 0
     let totalOmitidosYaMiembros = 0
+    const procesados = new Set<string>()
     const gruposOrigenResult: Array<{
       id: string
       nombre: string
@@ -666,10 +712,18 @@ export class GruposService {
           select: { usuario_id: true },
         })
 
-        const elegibles = miembrosOrigen.filter((m) => !idsMiembrosDestino.has(m.usuario_id))
-        totalOmitidosYaMiembros += miembrosOrigen.length - elegibles.length
+        totalOmitidosYaMiembros += miembrosOrigen.filter((m) =>
+          idsMiembrosDestino.has(m.usuario_id)
+        ).length
 
-        if (elegibles.length === 0) {
+        const aInvitar = miembrosOrigen.filter(
+          (m) =>
+            !idsMiembrosDestino.has(m.usuario_id) &&
+            !idsYaPendientes.has(m.usuario_id) &&
+            !procesados.has(m.usuario_id)
+        )
+
+        if (aInvitar.length === 0) {
           gruposOrigenResult.push({
             id: grupoOrigen.id,
             nombre: grupoOrigen.nombre,
@@ -678,22 +732,21 @@ export class GruposService {
           continue
         }
 
-        const result = await tx.grupoInvitacion.createMany({
-          data: elegibles.map((m) => ({
-            grupo_id: grupoDestinoId,
-            usuario_id: m.usuario_id,
-            invitado_por_id: actorId,
-            grupo_origen_id: grupoOrigen.id,
-            estado: 'pendiente' as const,
-          })),
-          skipDuplicates: true,
-        })
+        for (const m of aInvitar) {
+          await this.upsertInvitacionPendiente(tx, {
+            grupoDestinoId,
+            usuarioId: m.usuario_id,
+            invitadoPorId: actorId,
+            grupoOrigenId: grupoOrigen.id,
+          })
+          procesados.add(m.usuario_id)
+        }
 
-        totalCreadas += result.count
+        totalCreadas += aInvitar.length
         gruposOrigenResult.push({
           id: grupoOrigen.id,
           nombre: grupoOrigen.nombre,
-          invitaciones_creadas: result.count,
+          invitaciones_creadas: aInvitar.length,
         })
       }
     })

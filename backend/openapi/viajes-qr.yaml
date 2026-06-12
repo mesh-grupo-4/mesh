@@ -113,7 +113,9 @@ paths:
             format: uuid
       responses:
         '200':
-          description: Lista de participantes
+          description: >-
+            Lista de participantes. Cada uno incluye `origen` con el modo de ingreso:
+            creador | qr | link | grupo | amigo (amigo = invitado individualmente por amistad).
 
   /api/viajes/{viajeId}/unirse-qr:
     post:
@@ -157,12 +159,26 @@ components:
   schemas:
     CreateViajeRequest:
       type: object
-      required: [esGrupal, tipoActividad, fechaProgramada]
+      required: [nombre, esGrupal, tipoActividad, fechaProgramada]
       properties:
+        nombre:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Nombre del viaje. Es el identificador principal mostrado en listas e invitaciones.
         esGrupal:
           type: boolean
         grupoIds:
           type: array
+          description: Grupos a invitar en bloque (solo en viajes grupales). Cada miembro recibe invitación pendiente.
+          items:
+            type: string
+            format: uuid
+        amigoIds:
+          type: array
+          description: >-
+            Amigos (amistad aceptada) a invitar individualmente (solo en viajes grupales).
+            El backend valida que cada id sea amigo del creador (403 NOT_FRIEND si no).
           items:
             type: string
             format: uuid
@@ -172,6 +188,7 @@ components:
         fechaProgramada:
           type: string
           format: date-time
+          description: Debe ser futura (UTC).
 
     ViajeCreadoResponse:
       type: object
@@ -179,8 +196,12 @@ components:
         id:
           type: string
           format: uuid
+        nombre:
+          type: string
+          nullable: true
         invitaciones_enviadas:
           type: integer
+          description: Total de invitaciones pendientes generadas (grupos + amigos, sin duplicar).
 
     ViajePlanificadoItem:
       type: object
@@ -188,6 +209,16 @@ components:
         id:
           type: string
           format: uuid
+        nombre:
+          type: string
+          nullable: true
+          description: Nombre del viaje (identificador principal). Null en viajes antiguos sin nombre.
+        tipo_actividad:
+          type: string
+          enum: [moto, bici, running, trekking]
+        fecha_programada:
+          type: string
+          format: date-time
         mi_estado:
           type: string
           nullable: true
@@ -198,6 +229,24 @@ components:
         viaje_id:
           type: string
           format: uuid
+        nombre:
+          type: string
+          nullable: true
+          description: Nombre del viaje mostrado en la invitación. Null en viajes antiguos sin nombre.
+        tipo_actividad:
+          type: string
+          enum: [moto, bici, running, trekking]
+        fecha_programada:
+          type: string
+          format: date-time
+        creador:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            nombre:
+              type: string
 
     ResponderInvitacionViajeRequest:
       type: object

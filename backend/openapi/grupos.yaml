@@ -471,7 +471,7 @@ paths:
     get:
       summary: Listar amigos invitables al grupo
       description: |
-        Devuelve amistades aceptadas del líder con flag `ya_es_miembro` para el grupo destino (SCRUM-18).
+        Devuelve amistades aceptadas del líder con flags `ya_es_miembro` (miembro real) e `invitacion_pendiente` (invitación sin aceptar) para el grupo destino (SCRUM-18).
       operationId: listarAmigosParaInvitar
       tags:
         - Grupos
@@ -926,6 +926,7 @@ components:
         - nombre
         - email
         - ya_es_miembro
+        - invitacion_pendiente
       properties:
         id:
           type: string
@@ -937,7 +938,10 @@ components:
           format: email
         ya_es_miembro:
           type: boolean
-          description: true si ya es miembro o tiene invitación pendiente
+          description: true solo si ya es miembro real del grupo
+        invitacion_pendiente:
+          type: boolean
+          description: true si tiene una invitación pendiente (aún no aceptada) al grupo
 
     UsuarioInvitableResponse:
       type: object

@@ -60,13 +60,17 @@ enum OrigenViajeIntegrante {
   qr
   link
   grupo
+  amigo
 }
 
 model Usuario {
-  id           String @id @default(uuid()) @db.Uuid
-  firebase_uid String @unique @map("firebase_uid")
-  email        String @unique
-  nombre       String
+  id                  String         @id @default(uuid()) @db.Uuid
+  firebase_uid        String         @unique @map("firebase_uid")
+  email               String         @unique
+  nombre              String
+  apellido            String?
+  telefono            String?
+  actividad_preferida TipoActividad? @map("actividad_preferida")
 
   grupos_liderados       Grupo[]            @relation("GrupoLider")
   membresias             GrupoMiembro[]
@@ -145,6 +149,7 @@ model Amistad {
 model Viaje {
   id                 String      @id @default(uuid()) @db.Uuid
   creador_id         String      @map("creador_id") @db.Uuid
+  nombre             String?
   es_grupal          Boolean     @map("es_grupal")
   tipo_actividad     TipoActividad @map("tipo_actividad")
   estado             EstadoViaje @default(planificado)

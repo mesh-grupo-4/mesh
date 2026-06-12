@@ -2,19 +2,24 @@ import { useCallback, useState } from 'react'
 import {
   View,
   Text,
-  TouchableOpacity,
   TextInput,
   StyleSheet,
   ActivityIndicator,
   Alert,
   ScrollView,
-  RefreshControl,
+  Pressable,
+  Platform,
 } from 'react-native'
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker'
+import { Feather } from '@expo/vector-icons'
 import { router, useFocusEffect } from 'expo-router'
 import { useAuth } from '@/context/AuthContext'
 import { resolveBackendUserId } from '@/lib/apiClient'
 import { listarGrupos, type GrupoListItemApi } from '@/lib/gruposApi'
+import { listarAmigos, type AmigoApi } from '@/lib/amistadesApi'
 import { crearViaje, type TipoActividadApi } from '@/lib/viajesApi'
+import { Btn, Chip, ChipRow, useTheme } from '@/components/MeshUI'
+import { Collapsible } from '@/components/Collapsible'
 
 const ACTIVIDADES: { id: TipoActividadApi; label: string }[] = [
   { id: 'moto', label: 'Moto' },
@@ -23,33 +28,61 @@ const ACTIVIDADES: { id: TipoActividadApi; label: string }[] = [
   { id: 'trekking', label: 'Trekking' },
 ]
 
+function fechaPorDefecto(): Date {
+  const d = new Date()
+  d.setDate(d.getDate() + 7)
+  d.setHours(9, 0, 0, 0)
+  return d
+}
+
+function formatearFechaHora(d: Date): string {
+  return d.toLocaleString('es-AR', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'long',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 export default function CrearViajeScreen() {
+  const theme = useTheme()
   const { backendUserId } = useAuth()
   const [grupos, setGrupos] = useState<GrupoListItemApi[]>([])
-  const [cargandoGrupos, setCargandoGrupos] = useState(true)
+  const [amigos, setAmigos] = useState<AmigoApi[]>([])
+  const [cargandoInvitables, setCargandoInvitables] = useState(true)
   const [nombre, setNombre] = useState('')
+  const [nombreFocus, setNombreFocus] = useState(false)
   const [tipoActividad, setTipoActividad] = useState<TipoActividadApi>('bici')
   const [esGrupal, setEsGrupal] = useState(true)
   const [gruposSeleccionados, setGruposSeleccionados] = useState<Set<string>>(new Set())
+  const [amigosSeleccionados, setAmigosSeleccionados] = useState<Set<string>>(new Set())
+  const [fecha, setFecha] = useState<Date>(fechaPorDefecto)
+  const [showPicker, setShowPicker] = useState(false)
+  const [pickerMode, setPickerMode] = useState<'date' | 'time'>('date')
   const [guardando, setGuardando] = useState(false)
 
-  const cargarGrupos = useCallback(async () => {
-    setCargandoGrupos(true)
+  const cargarInvitables = useCallback(async () => {
+    setCargandoInvitables(true)
     try {
       const userId = resolveBackendUserId(backendUserId)
-      const data = await listarGrupos(userId)
-      setGrupos(data)
+      const [dataGrupos, dataAmigos] = await Promise.all([
+        listarGrupos(userId),
+        listarAmigos(userId),
+      ])
+      setGrupos(dataGrupos)
+      setAmigos(dataAmigos)
     } catch (e: unknown) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudieron cargar los grupos.')
+      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudieron cargar grupos y amigos.')
     } finally {
-      setCargandoGrupos(false)
+      setCargandoInvitables(false)
     }
   }, [backendUserId])
 
   useFocusEffect(
     useCallback(() => {
-      void cargarGrupos()
-    }, [cargarGrupos])
+      void cargarInvitables()
+    }, [cargarInvitables])
   )
 
   const toggleGrupo = (id: string) => {
@@ -61,31 +94,73 @@ export default function CrearViajeScreen() {
     })
   }
 
+  const toggleAmigo = (id: string) => {
+    setAmigosSeleccionados((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const abrirPicker = () => {
+    setPickerMode('date')
+    setShowPicker(true)
+  }
+
+  const onChangeFecha = (event: DateTimePickerEvent, selected?: Date) => {
+    if (event.type === 'dismissed' || !selected) {
+      setShowPicker(false)
+      return
+    }
+
+    if (Platform.OS === 'android') {
+      if (pickerMode === 'date') {
+        const merged = new Date(fecha)
+        merged.setFullYear(selected.getFullYear(), selected.getMonth(), selected.getDate())
+        setFecha(merged)
+        setPickerMode('time')
+        // el picker sigue abierto para elegir la hora
+      } else {
+        const merged = new Date(fecha)
+        merged.setHours(selected.getHours(), selected.getMinutes(), 0, 0)
+        setFecha(merged)
+        setShowPicker(false)
+      }
+    } else {
+      // iOS: modo datetime en una sola pasada
+      setFecha(selected)
+    }
+  }
+
   const handleCrear = async () => {
     if (!nombre.trim()) {
       Alert.alert('Campo requerido', 'El nombre del viaje es obligatorio.')
       return
     }
 
-    if (esGrupal && gruposSeleccionados.size === 0) {
+    if (fecha.getTime() <= Date.now()) {
+      Alert.alert('Fecha inválida', 'La fecha programada debe ser futura.')
+      return
+    }
+
+    if (esGrupal && gruposSeleccionados.size === 0 && amigosSeleccionados.size === 0) {
       Alert.alert(
-        'Grupos opcionales',
-        'Podés crear el viaje grupal sin grupos y sumar gente después por QR o link.'
+        'Invitados opcionales',
+        'Podés crear el viaje grupal sin invitar a nadie y sumar gente después por QR o link.'
       )
     }
 
     setGuardando(true)
     try {
       const userId = resolveBackendUserId(backendUserId)
-      const fecha = new Date()
-      fecha.setDate(fecha.getDate() + 7)
-      fecha.setHours(9, 0, 0, 0)
 
       const viaje = await crearViaje(
         {
           nombre: nombre.trim(),
           esGrupal,
           grupoIds: esGrupal ? [...gruposSeleccionados] : [],
+          amigoIds: esGrupal ? [...amigosSeleccionados] : [],
           tipoActividad,
           fechaProgramada: fecha,
         },
@@ -107,168 +182,260 @@ export default function CrearViajeScreen() {
   }
 
   return (
-    <>
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-        <Text style={styles.titulo}>Nuevo viaje</Text>
-        <Text style={styles.hint}>
-          Elegí la actividad y, si querés, grupos para invitar en bloque (RN-028).
-        </Text>
+    <ScrollView
+      style={[styles.container, { backgroundColor: theme.background }]}
+      contentContainerStyle={styles.content}
+    >
+      <Text style={[styles.titulo, { color: theme.text }]}>Nuevo viaje</Text>
+      <Text style={[styles.hint, { color: theme.textDim }]}>
+        Elegí la actividad, la fecha y, si querés, grupos o amigos para invitar (RN-028).
+      </Text>
 
-        <Text style={styles.seccion}>Nombre del viaje</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Ej: Vuelta al valle"
-          placeholderTextColor="#666"
-          value={nombre}
-          onChangeText={setNombre}
-          autoCapitalize="sentences"
-          maxLength={100}
-          editable={!guardando}
+      <Text style={[styles.seccion, { color: theme.text }]}>Nombre del viaje</Text>
+      <TextInput
+        style={[
+          styles.input,
+          {
+            backgroundColor: theme.surface,
+            borderColor: nombreFocus ? theme.accent : theme.border,
+            color: theme.text,
+          },
+        ]}
+        placeholder="Ej: Vuelta al valle"
+        placeholderTextColor={theme.textMute}
+        value={nombre}
+        onChangeText={setNombre}
+        onFocus={() => setNombreFocus(true)}
+        onBlur={() => setNombreFocus(false)}
+        autoCapitalize="sentences"
+        maxLength={100}
+        editable={!guardando}
+      />
+
+      <Text style={[styles.seccion, { color: theme.text }]}>Fecha programada</Text>
+      <Pressable
+        style={[styles.fechaBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
+        onPress={abrirPicker}
+        disabled={guardando}
+      >
+        <Feather name="calendar" size={18} color={theme.accent} />
+        <Text style={[styles.fechaTexto, { color: theme.text }]}>{formatearFechaHora(fecha)}</Text>
+        <Feather name="edit-2" size={15} color={theme.textMute} />
+      </Pressable>
+      {showPicker && (
+        <DateTimePicker
+          value={fecha}
+          mode={Platform.OS === 'ios' ? 'datetime' : pickerMode}
+          display={Platform.OS === 'ios' ? 'inline' : 'default'}
+          minimumDate={new Date()}
+          onChange={onChangeFecha}
         />
+      )}
+      {Platform.OS === 'ios' && showPicker && (
+        <Btn variant="secondary" size="sm" onPress={() => setShowPicker(false)} style={styles.listoBtn}>
+          Listo
+        </Btn>
+      )}
 
-        <Text style={styles.seccion}>Tipo de actividad</Text>
-        <View style={styles.chips}>
-          {ACTIVIDADES.map((a) => (
-            <TouchableOpacity
-              key={a.id}
-              style={[styles.chip, tipoActividad === a.id && styles.chipActivo]}
-              onPress={() => setTipoActividad(a.id)}
-            >
-              <Text style={[styles.chipTexto, tipoActividad === a.id && styles.chipTextoActivo]}>
-                {a.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <Text style={styles.seccion}>Modalidad</Text>
-        <View style={styles.filaModalidad}>
-          <TouchableOpacity
-            style={[styles.opcionModalidad, !esGrupal && styles.opcionActiva]}
-            onPress={() => {
-              setEsGrupal(false)
-              setGruposSeleccionados(new Set())
-            }}
+      <Text style={[styles.seccion, { color: theme.text }]}>Tipo de actividad</Text>
+      <ChipRow>
+        {ACTIVIDADES.map((a) => (
+          <Chip
+            key={a.id}
+            active={tipoActividad === a.id}
+            onPress={() => setTipoActividad(a.id)}
           >
-            <Text style={styles.opcionTitulo}>Individual</Text>
-            <Text style={styles.opcionHint}>Sin invitados iniciales</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.opcionModalidad, esGrupal && styles.opcionActiva]}
-            onPress={() => setEsGrupal(true)}
-          >
-            <Text style={styles.opcionTitulo}>Grupal</Text>
-            <Text style={styles.opcionHint}>Invitar por grupos / QR</Text>
-          </TouchableOpacity>
-        </View>
+            {a.label}
+          </Chip>
+        ))}
+      </ChipRow>
 
-        {esGrupal && (
-          <>
-            <Text style={styles.seccion}>Grupos para invitar</Text>
-            <Text style={styles.hint}>
-              Solo grupos donde sos miembro. Cada persona recibe una invitación para confirmar (RN-029).
-            </Text>
-            {cargandoGrupos ? (
-              <ActivityIndicator color="#4a9eff" style={{ marginTop: 16 }} />
-            ) : grupos.length === 0 ? (
-              <Text style={styles.vacio}>No tenés grupos. Creá uno en la pestaña Grupos.</Text>
-            ) : (
-              grupos.map((g) => {
-                const sel = gruposSeleccionados.has(g.id)
-                return (
-                  <TouchableOpacity
-                    key={g.id}
-                    style={[styles.filaGrupo, sel && styles.filaGrupoSel]}
-                    onPress={() => toggleGrupo(g.id)}
-                  >
-                    <Text style={styles.grupoNombre}>{g.nombre}</Text>
-                    <Text style={styles.grupoRol}>{g.mi_rol === 'lider' ? 'Líder' : 'Participante'}</Text>
-                  </TouchableOpacity>
-                )
-              })
-            )}
-          </>
-        )}
-
-        <TouchableOpacity
-          style={[styles.botonCrear, guardando && styles.botonDisabled]}
-          onPress={() => void handleCrear()}
-          disabled={guardando}
+      <Text style={[styles.seccion, { color: theme.text }]}>Modalidad</Text>
+      <View style={styles.filaModalidad}>
+        <Pressable
+          style={[
+            styles.opcionModalidad,
+            { backgroundColor: theme.surface, borderColor: theme.border },
+            !esGrupal && { borderColor: theme.accentLine, backgroundColor: theme.accentWeak },
+          ]}
+          onPress={() => {
+            setEsGrupal(false)
+            setGruposSeleccionados(new Set())
+            setAmigosSeleccionados(new Set())
+          }}
         >
-          {guardando ? (
-            <ActivityIndicator color="#fff" />
+          <Text style={[styles.opcionTitulo, { color: !esGrupal ? theme.accent : theme.text }]}>
+            Individual
+          </Text>
+          <Text style={[styles.opcionHint, { color: theme.textDim }]}>Sin invitados iniciales</Text>
+        </Pressable>
+        <Pressable
+          style={[
+            styles.opcionModalidad,
+            { backgroundColor: theme.surface, borderColor: theme.border },
+            esGrupal && { borderColor: theme.accentLine, backgroundColor: theme.accentWeak },
+          ]}
+          onPress={() => setEsGrupal(true)}
+        >
+          <Text style={[styles.opcionTitulo, { color: esGrupal ? theme.accent : theme.text }]}>
+            Grupal
+          </Text>
+          <Text style={[styles.opcionHint, { color: theme.textDim }]}>Invitar grupos / amigos</Text>
+        </Pressable>
+      </View>
+
+      {esGrupal && (
+        <>
+          <Text style={[styles.seccion, { color: theme.text }]}>A quién invitar</Text>
+          <Text style={[styles.hint, { color: theme.textDim }]}>
+            Cada persona recibe una invitación para confirmar (RN-029).
+          </Text>
+
+          {cargandoInvitables ? (
+            <ActivityIndicator color={theme.accent} style={{ marginTop: 16 }} />
           ) : (
-            <Text style={styles.botonCrearTexto}>Crear viaje planificado</Text>
+            <View style={styles.collapsibles}>
+              <Collapsible
+                title="Grupos"
+                icon="users"
+                badge={gruposSeleccionados.size}
+                defaultOpen
+              >
+                {grupos.length === 0 ? (
+                  <Text style={[styles.vacio, { color: theme.textMute }]}>
+                    No tenés grupos. Creá uno en la pestaña Grupos.
+                  </Text>
+                ) : (
+                  grupos.map((g) => {
+                    const sel = gruposSeleccionados.has(g.id)
+                    return (
+                      <Pressable
+                        key={g.id}
+                        style={[
+                          styles.fila,
+                          { backgroundColor: theme.surface2, borderColor: theme.border },
+                          sel && { borderColor: theme.accentLine, backgroundColor: theme.accentWeak },
+                        ]}
+                        onPress={() => toggleGrupo(g.id)}
+                      >
+                        <View style={styles.filaInfo}>
+                          <Text style={[styles.filaNombre, { color: theme.text }]}>{g.nombre}</Text>
+                          <Text style={[styles.filaMeta, { color: theme.textDim }]}>
+                            {g.mi_rol === 'lider' ? 'Líder' : 'Participante'} · invita al grupo entero
+                          </Text>
+                        </View>
+                        <Feather
+                          name={sel ? 'check-circle' : 'circle'}
+                          size={20}
+                          color={sel ? theme.accent : theme.textMute}
+                        />
+                      </Pressable>
+                    )
+                  })
+                )}
+              </Collapsible>
+
+              <Collapsible title="Amigos" icon="user-plus" badge={amigosSeleccionados.size}>
+                {amigos.length === 0 ? (
+                  <Text style={[styles.vacio, { color: theme.textMute }]}>
+                    No tenés amigos todavía. Agregá amigos desde tu perfil.
+                  </Text>
+                ) : (
+                  amigos.map((a) => {
+                    const sel = amigosSeleccionados.has(a.id)
+                    return (
+                      <Pressable
+                        key={a.id}
+                        style={[
+                          styles.fila,
+                          { backgroundColor: theme.surface2, borderColor: theme.border },
+                          sel && { borderColor: theme.accentLine, backgroundColor: theme.accentWeak },
+                        ]}
+                        onPress={() => toggleAmigo(a.id)}
+                      >
+                        <View style={styles.filaInfo}>
+                          <Text style={[styles.filaNombre, { color: theme.text }]}>{a.nombre}</Text>
+                          <Text style={[styles.filaMeta, { color: theme.textDim }]} numberOfLines={1}>
+                            {a.email}
+                          </Text>
+                        </View>
+                        <Feather
+                          name={sel ? 'check-circle' : 'circle'}
+                          size={20}
+                          color={sel ? theme.accent : theme.textMute}
+                        />
+                      </Pressable>
+                    )
+                  })
+                )}
+              </Collapsible>
+            </View>
           )}
-        </TouchableOpacity>
-      </ScrollView>
-    </>
+        </>
+      )}
+
+      <Btn
+        block
+        size="lg"
+        onPress={() => void handleCrear()}
+        disabled={guardando}
+        loading={guardando}
+        icon="map"
+        style={{ marginTop: 24 }}
+      >
+        Crear viaje planificado
+      </Btn>
+    </ScrollView>
   )
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f0f0f' },
+  container: { flex: 1 },
   content: { padding: 24, paddingBottom: 40, gap: 10 },
-  titulo: { color: '#fff', fontSize: 24, fontWeight: '700' },
-  hint: { color: '#888', fontSize: 14, lineHeight: 20 },
-  seccion: { color: '#fff', fontSize: 17, fontWeight: '600', marginTop: 16 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-  chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#333',
-    backgroundColor: '#1e1e1e',
-  },
-  chipActivo: { borderColor: '#4a9eff', backgroundColor: '#1a3a5c' },
-  chipTexto: { color: '#aaa', fontSize: 14, fontWeight: '600' },
-  chipTextoActivo: { color: '#4a9eff' },
+  titulo: { fontSize: 24, fontWeight: '700', letterSpacing: -0.4 },
+  hint: { fontSize: 14, lineHeight: 20 },
+  seccion: { fontSize: 17, fontWeight: '600', marginTop: 16 },
   filaModalidad: { flexDirection: 'row', gap: 10, marginTop: 8 },
   opcionModalidad: {
     flex: 1,
     padding: 14,
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#333',
-    backgroundColor: '#1e1e1e',
     gap: 4,
   },
-  opcionActiva: { borderColor: '#4a9eff', backgroundColor: '#1a3a5c' },
-  opcionTitulo: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  opcionHint: { color: '#888', fontSize: 12 },
-  filaGrupo: {
+  opcionTitulo: { fontSize: 15, fontWeight: '600' },
+  opcionHint: { fontSize: 12 },
+  fechaBtn: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 14,
+    gap: 10,
     borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#333',
-    backgroundColor: '#1e1e1e',
+    borderWidth: 1.2,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
     marginTop: 8,
   },
-  filaGrupoSel: { borderColor: '#4a9eff', backgroundColor: '#152535' },
-  grupoNombre: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  grupoRol: { color: '#888', fontSize: 13 },
-  vacio: { color: '#666', fontSize: 14, marginTop: 12 },
-  botonCrear: {
-    backgroundColor: '#4a9eff',
-    borderRadius: 10,
-    paddingVertical: 16,
+  fechaTexto: { flex: 1, fontSize: 15, fontWeight: '600', textTransform: 'capitalize' },
+  listoBtn: { alignSelf: 'flex-end', marginTop: 8 },
+  collapsibles: { gap: 10, marginTop: 8 },
+  fila: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 24,
-  },
-  botonDisabled: { opacity: 0.6 },
-  botonCrearTexto: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  input: {
-    backgroundColor: '#1e1e1e',
+    justifyContent: 'space-between',
+    padding: 12,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#333',
+    gap: 10,
+  },
+  filaInfo: { flex: 1, gap: 2 },
+  filaNombre: { fontSize: 15, fontWeight: '600' },
+  filaMeta: { fontSize: 12.5 },
+  vacio: { fontSize: 14, paddingVertical: 4 },
+  input: {
+    borderRadius: 10,
+    borderWidth: 1.2,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    color: '#fff',
     fontSize: 15,
     marginTop: 8,
   },

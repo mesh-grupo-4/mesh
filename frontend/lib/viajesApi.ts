@@ -39,7 +39,7 @@ export type InvitacionViajePendienteApi = {
 export type ViajeParticipanteApi = {
   usuario: { id: string; nombre: string; email: string }
   estado: 'pendiente' | 'confirmado' | 'rechazado'
-  origen: 'creador' | 'qr' | 'link' | 'grupo'
+  origen: 'creador' | 'qr' | 'link' | 'grupo' | 'amigo'
   created_at: string
 }
 
@@ -53,6 +53,7 @@ export async function crearViaje(
     nombre: string
     esGrupal: boolean
     grupoIds?: string[]
+    amigoIds?: string[]
     tipoActividad: TipoActividadApi
     fechaProgramada: Date
   },
@@ -69,6 +70,7 @@ export async function crearViaje(
       nombre: input.nombre,
       esGrupal: input.esGrupal,
       grupoIds: input.grupoIds ?? [],
+      amigoIds: input.amigoIds ?? [],
       tipoActividad: input.tipoActividad,
       fechaProgramada: input.fechaProgramada.toISOString(),
     }),

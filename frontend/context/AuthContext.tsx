@@ -11,7 +11,7 @@ import {
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth } from '@/lib/firebase';
-import { syncUsuario } from '@/lib/usuariosApi';
+import { syncUsuario, obtenerMiPerfil, type UsuarioPerfilResponse } from '@/lib/usuariosApi';
 import { API_BASE_URL } from '@/constants/Config';
 export type ActividadPreferida = 'moto' | 'bici' | 'running' | 'trekking' | '';
 
@@ -58,6 +58,31 @@ async function saveProfile(uid: string, data: ProfileData): Promise<void> {
   await AsyncStorage.setItem(profileKey(uid), JSON.stringify(data));
 }
 
+// Mezcla en el perfil local los campos que vienen de la BD (teléfono y actividad
+// preferida) conservando los que solo viven en el dispositivo (apellido, foto).
+function mergeBackendProfile(
+  base: ProfileData | null,
+  backend: UsuarioPerfilResponse
+): ProfileData {
+  const apellido = backend.apellido ?? base?.apellido ?? '';
+  // `backend.nombre` guarda el nombre completo. Si no hay perfil local (ej. login
+  // en otro dispositivo) derivamos el nombre de pila quitando el apellido.
+  let nombre = base?.nombre ?? '';
+  if (!nombre) {
+    nombre =
+      apellido && backend.nombre.endsWith(apellido)
+        ? backend.nombre.slice(0, backend.nombre.length - apellido.length).trim()
+        : backend.nombre;
+  }
+  return {
+    nombre,
+    apellido,
+    photoUri: base?.photoUri ?? null,
+    telefono: backend.telefono ?? '',
+    actividadPreferida: backend.actividad_preferida ?? '',
+  };
+}
+
 function displayNombre(profile: ProfileData | null, firebaseUser: User): string {
   const fromProfile = profile ? `${profile.nombre} ${profile.apellido}`.trim() : '';
   if (fromProfile) return fromProfile;
@@ -87,27 +112,63 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
-  const syncBackendUser = useCallback(async (firebaseUser: User, storedProfile: ProfileData | null) => {
-    const email = firebaseUser.email;
-    if (!email) return false;
+  // Resuelve la fila del usuario en el backend (lectura o escritura según el caller),
+  // guarda el id mapeado e hidrata el perfil local con los campos que viven en la BD.
+  const resolverUsuarioBackend = useCallback(
+    async (
+      firebaseUser: User,
+      baseProfile: ProfileData | null,
+      obtener: () => Promise<UsuarioPerfilResponse>
+    ) => {
+      setBackendSyncing(true);
+      try {
+        const fila = await obtener();
+        await AsyncStorage.setItem(backendUserIdKey, fila.id);
+        setBackendUserId(fila.id);
+        syncAlertShown.current = false;
+        // La BD es la fuente de verdad de teléfono y actividad preferida.
+        const hidratado = mergeBackendProfile(baseProfile, fila);
+        await saveProfile(firebaseUser.uid, hidratado);
+        setProfile(hidratado);
+        return true;
+      } catch (e) {
+        const cached = await AsyncStorage.getItem(backendUserIdKey);
+        if (cached) setBackendUserId(cached);
+        notifySyncFailure(e);
+        return false;
+      } finally {
+        setBackendSyncing(false);
+      }
+    },
+    [notifySyncFailure]
+  );
 
-    setBackendSyncing(true);
-    try {
-      const nombre = displayNombre(storedProfile, firebaseUser);
-      const synced = await syncUsuario(email, nombre);
-      await AsyncStorage.setItem(backendUserIdKey, synced.id);
-      setBackendUserId(synced.id);
-      syncAlertShown.current = false;
-      return true;
-    } catch (e) {
-      const cached = await AsyncStorage.getItem(backendUserIdKey);
-      if (cached) setBackendUserId(cached);
-      notifySyncFailure(e);
-      return false;
-    } finally {
-      setBackendSyncing(false);
-    }
-  }, [notifySyncFailure]);
+  // Carga el perfil desde la BD (load / login): NO pisa la BD con datos locales.
+  const cargarUsuarioBackend = useCallback(
+    (firebaseUser: User, storedProfile: ProfileData | null) => {
+      if (!firebaseUser.email) return Promise.resolve(false);
+      return resolverUsuarioBackend(firebaseUser, storedProfile, () => obtenerMiPerfil());
+    },
+    [resolverUsuarioBackend]
+  );
+
+  // Persiste el perfil en la BD (registro / edición de perfil).
+  const guardarUsuarioBackend = useCallback(
+    (firebaseUser: User, perfil: ProfileData) => {
+      const email = firebaseUser.email;
+      if (!email) return Promise.resolve(false);
+      return resolverUsuarioBackend(firebaseUser, perfil, () =>
+        syncUsuario({
+          email,
+          nombre: displayNombre(perfil, firebaseUser),
+          apellido: perfil.apellido || null,
+          telefono: perfil.telefono ?? null,
+          actividadPreferida: perfil.actividadPreferida || null,
+        })
+      );
+    },
+    [resolverUsuarioBackend]
+  );
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
@@ -119,7 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setProfile(stored);
           const cachedBackendId = await AsyncStorage.getItem(backendUserIdKey);
           if (cachedBackendId) setBackendUserId(cachedBackendId);
-          await syncBackendUser(firebaseUser, stored);
+          await cargarUsuarioBackend(firebaseUser, stored);
         } else {
           setProfile(null);
           setBackendUserId(null);
@@ -129,14 +190,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })();
     });
     return unsubscribe;
-  }, [syncBackendUser]);
+  }, [cargarUsuarioBackend]);
 
   const login = async (email: string, password: string) => {
     const { user: u } = await signInWithEmailAndPassword(auth, email, password);
     const stored = await loadProfile(u.uid);
     setUser(u);
     setProfile(stored);
-    await syncBackendUser(u, stored);
+    await cargarUsuarioBackend(u, stored);
   };
 
   const register = async ({ nombre, apellido, telefono, email, password }: RegisterData) => {
@@ -152,7 +213,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await saveProfile(newUser.uid, newProfile);
     setUser(newUser);
     setProfile(newProfile);
-    await syncBackendUser(newUser, newProfile);
+    await guardarUsuarioBackend(newUser, newProfile);
   };
 
   const logout = async () => {
@@ -179,7 +240,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (displayName) {
       await firebaseUpdateProfile(user, { displayName });
     }
-    await syncBackendUser(user, updated);
+    await guardarUsuarioBackend(user, updated);
   };
 
   return (
