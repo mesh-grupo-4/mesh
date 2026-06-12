@@ -91,10 +91,57 @@ frontend/
 
 ```bash
 npm start           # Inicia el dev server (escanear QR con Expo Go)
+npm run dev         # Alias de npm start
+npm run dev:tunnel  # Expo con túnel (redes con AP isolation: UTN, cafés)
 npm run android     # Abre en emulador/dispositivo Android
 npm run ios         # Abre en simulador iOS (requiere macOS)
 npm run web         # Abre en el navegador
 ```
+
+---
+
+## Desarrollo con celular físico
+
+La URL del backend se resuelve en `constants/Config.ts`. Por defecto **no hace falta** definir `EXPO_PUBLIC_API_URL` en `.env`: Expo Go expone la IP de la PC donde corre Metro y la app arma `http://<IP>:3000` automáticamente.
+
+### Flujo A — Casa / misma WiFi (recomendado)
+
+1. Copiá `.env.example` a `.env` y **no** definas `EXPO_PUBLIC_API_URL`.
+2. Terminal 1: `cd backend && npm run dev`
+3. Terminal 2: `cd frontend && npm start`
+4. Escaneá el QR con Expo Go en la **misma WiFi** que la PC.
+
+**Verificación:**
+
+- En Metro debe aparecer: `[Mesh] API_BASE_URL = http://<IP-de-tu-PC>:3000`
+- Desde el navegador del celular: `http://<IP>:3000/api/health` debe responder OK.
+
+### Flujo B — UTN / cafés / AP isolation (túneles)
+
+En redes institucionales o públicas el router suele bloquear que el celular hable con la PC aunque compartan WiFi. Hacen falta **dos túneles**:
+
+| Componente | Comando | Qué resuelve |
+|---|---|---|
+| Metro (bundler JS) | `npm run dev:tunnel` | Celular descarga la app por internet |
+| API + Socket.io | `ngrok http 3000` | REST y WebSockets por internet |
+
+Pasos:
+
+1. `cd backend && npm run dev`
+2. En otra terminal: `ngrok http 3000` → copiá la URL HTTPS (ej. `https://a1b2c3d4.ngrok-free.app`).
+3. En `frontend/.env`: `EXPO_PUBLIC_API_URL=https://a1b2c3d4.ngrok-free.app` (sin `/api` al final).
+4. `cd frontend && npm run dev:tunnel` → escaneá el QR.
+
+La URL de ngrok cambia al reiniciar ngrok (plan free). Actualizá `.env` cuando eso pase.
+
+### Síntomas frecuentes
+
+| Síntoma | Causa probable | Qué hacer |
+|---|---|---|
+| Timeout al login / sync | IP fija vieja en `.env` | Comentá `EXPO_PUBLIC_API_URL` y reiniciá Metro |
+| App carga pero API no responde | AP isolation (UTN, café) | Flujo B con túneles |
+| Backend OK en PC, app no conecta | Celular en otra red o datos móviles | Misma WiFi (A) o túnel (B) |
+| `10.0.2.2` en celular físico | Variable pensada para emulador | Quitá esa URL del `.env` |
 
 ---
 

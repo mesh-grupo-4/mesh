@@ -9,6 +9,22 @@ function hostFromUri(uri: string | undefined): string | null {
   return host || null;
 }
 
+function hostFromApiUrl(url: string): string | null {
+  try {
+    return new URL(url).hostname || null;
+  } catch {
+    return hostFromUri(url.replace(/^https?:\/\//, ''));
+  }
+}
+
+function isTunnelApiUrl(url: string): boolean {
+  try {
+    return new URL(url).protocol === 'https:';
+  } catch {
+    return url.startsWith('https://');
+  }
+}
+
 /** IP/host de la PC donde corre Metro (Expo Go en celular físico). */
 function resolveExpoDevHost(): string | null {
   const debuggerHost = Constants.expoGoConfig?.debuggerHost;
@@ -32,6 +48,16 @@ export function resolveApiBaseUrl(): string {
       console.warn(
         '[Mesh] 10.0.2.2 solo funciona en emulador Android. En celular físico usá la IP Wi‑Fi de tu PC.'
       );
+    }
+    if (__DEV__ && Constants.isDevice && !isTunnelApiUrl(fromEnv)) {
+      const envHost = hostFromApiUrl(fromEnv);
+      const devHost = resolveExpoDevHost();
+      if (envHost && devHost && envHost !== devHost) {
+        console.warn(
+          '[Mesh] EXPO_PUBLIC_API_URL no coincide con la IP de Metro. ' +
+            'Si estás en la misma WiFi, comentá esa variable en .env para usar auto-detect.'
+        );
+      }
     }
     return fromEnv.replace(/\/$/, '');
   }
