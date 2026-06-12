@@ -10,6 +10,8 @@ export type ViajeCreadoApi = {
   creador_id: string
   es_grupal: boolean
   tipo_actividad: TipoActividadApi
+  velocidad_esperada: number
+  distancia_max_separacion: number
   estado: 'planificado' | 'en_curso' | 'finalizado'
   fecha_programada: string
   invitaciones_enviadas?: number
@@ -21,6 +23,8 @@ export type ViajePlanificadoApi = {
   creador_id: string
   es_grupal: boolean
   tipo_actividad: TipoActividadApi
+  velocidad_esperada: number
+  distancia_max_separacion: number
   fecha_programada: string
   estado: 'planificado' | 'en_curso' | 'finalizado'
   mi_estado: 'creador' | 'confirmado' | 'pendiente' | 'rechazado' | null
@@ -143,6 +147,8 @@ export type ViajeDetalleApi = {
   creador_id: string
   es_grupal: boolean
   tipo_actividad: string
+  velocidad_esperada: number
+  distancia_max_separacion: number
   estado: 'planificado' | 'en_curso' | 'finalizado'
   fecha_programada: string
   fecha_inicio_real: string | null

@@ -8,6 +8,8 @@ export default function ConfigurarRutaLayout() {
         options={{
           title: 'Ruta y paradas',
           headerBackTitle: 'Volver',
+          headerTransparent: true,
+          headerBlurEffect: 'light',
         }}
       />
     </Stack>

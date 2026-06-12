@@ -11,6 +11,7 @@ import type {
   PutRutaInput,
   ResponderInvitacionViajeInput,
 } from './viajes.schemas'
+import { parametrosPorActividad } from './activityDefaults'
 
 export class ViajesService {
   constructor(private readonly prisma: PrismaClient) {}
@@ -85,6 +86,8 @@ export class ViajesService {
     const invitadosPorAmigo = new Set(amigoIds.filter((id) => !invitadosPorGrupo.has(id)))
     const totalInvitados = invitadosPorGrupo.size + invitadosPorAmigo.size
 
+    const params = parametrosPorActividad(input.tipoActividad)
+
     return this.prisma.$transaction(async (tx) => {
       const viaje = await tx.viaje.create({
         data: {
@@ -92,6 +95,8 @@ export class ViajesService {
           nombre: input.nombre,
           es_grupal: input.esGrupal,
           tipo_actividad: input.tipoActividad,
+          velocidad_esperada: params.velocidadEsperada,
+          distancia_max_separacion: params.distanciaMaxSeparacion,
           fecha_programada: input.fechaProgramada,
         },
       })
@@ -156,6 +161,8 @@ export class ViajesService {
         nombre: true,
         es_grupal: true,
         tipo_actividad: true,
+        velocidad_esperada: true,
+        distancia_max_separacion: true,
         fecha_programada: true,
         estado: true,
         integrantes: {
@@ -172,6 +179,8 @@ export class ViajesService {
       nombre: v.nombre,
       es_grupal: v.es_grupal,
       tipo_actividad: v.tipo_actividad,
+      velocidad_esperada: v.velocidad_esperada,
+      distancia_max_separacion: v.distancia_max_separacion,
       fecha_programada: v.fecha_programada,
       estado: v.estado,
       mi_estado: v.creador_id === usuarioId ? 'creador' : (v.integrantes[0]?.estado ?? null),

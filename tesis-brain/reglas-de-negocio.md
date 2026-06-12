@@ -655,14 +655,19 @@ Funcionalidades para **fases futuras**:
 
 ## 8. Parámetros por Defecto según Tipo de Actividad
 
+Valores por defecto asignados al crear el viaje (RN-021, SCRUM-25). Unidades: velocidad en **km/h**, separación en **metros**.
+
 | Parámetro | Moto | Bici | Running | Trekking |
 |---|---|---|---|---|
-| Velocidad promedio esperada | Alta | Media | Baja | Muy baja |
-| Distancia máx. separación grupo | Mayor | Media | Menor | Menor |
+| Velocidad máxima esperada (`velocidad_esperada`) | 120 km/h | 35 km/h | 15 km/h | 5 km/h |
+| Distancia máx. separación grupo (`distancia_max_separacion`) | 1000 m (1 km) | 300 m | 100 m | 50 m |
 | Tolerancia de atraso | Mayor | Media | Menor | Menor |
 | Interfaz | Pantalla completa, alto contraste, botones grandes | Estándar outdoor | Háptica + visual | Háptica + visual |
 | Ranking competitivo | **PROHIBIDO** | Sí | Sí | Sí |
 | Tabla de posiciones global | **EXCLUIDA** | Sí | Sí | Sí |
+| Perfil OSRM (cálculo de ruta) | `driving` | `cycling` | `walking` | `walking` |
+
+Implementación: el backend aplica estos defaults en `POST /api/viajes` según `tipo_actividad`. El frontend muestra preview al crear y resumen read-only al configurar la ruta.
 
 > **Nota crítica**: La exclusión de moto de rankings y tablas competitivas es una decisión de seguridad vial irrevocable. Nunca se debe incentivar la competencia de velocidad en motocicletas.
 

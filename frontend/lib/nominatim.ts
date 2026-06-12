@@ -10,7 +10,15 @@ export async function buscarLugares(query: string): Promise<NominatimHit[]> {
   const q = query.trim()
   if (q.length < 3) return []
 
-  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=6`
+  const params = new URLSearchParams({
+    q,
+    format: 'json',
+    addressdetails: '1',
+    limit: '5',
+    countrycodes: 'ar',
+  })
+
+  const url = `https://nominatim.openstreetmap.org/search?${params.toString()}`
   const res = await fetch(url, {
     headers: {
       'User-Agent': UA,

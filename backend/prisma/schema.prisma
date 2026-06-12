@@ -151,8 +151,10 @@ model Viaje {
   creador_id         String      @map("creador_id") @db.Uuid
   nombre             String?
   es_grupal          Boolean     @map("es_grupal")
-  tipo_actividad     TipoActividad @map("tipo_actividad")
-  estado             EstadoViaje @default(planificado)
+  tipo_actividad            TipoActividad @map("tipo_actividad")
+  velocidad_esperada        Float         @map("velocidad_esperada")
+  distancia_max_separacion  Int           @map("distancia_max_separacion")
+  estado                    EstadoViaje   @default(planificado)
   fecha_programada DateTime    @map("fecha_programada")
   fecha_inicio_real  DateTime?   @map("fecha_inicio_real")
   fecha_fin_real     DateTime?   @map("fecha_fin_real")

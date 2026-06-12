@@ -18,15 +18,13 @@ import { resolveBackendUserId } from '@/lib/apiClient'
 import { listarGrupos, type GrupoListItemApi } from '@/lib/gruposApi'
 import { listarAmigos, type AmigoApi } from '@/lib/amistadesApi'
 import { crearViaje, type TipoActividadApi } from '@/lib/viajesApi'
-import { Btn, Chip, ChipRow, useTheme } from '@/components/MeshUI'
+import {
+  ACTIVIDADES,
+  actividadInicialDesdePerfil,
+  textoParametrosActividad,
+} from '@/lib/activityDefaults'
+import { Btn, ActivityTile, useTheme } from '@/components/MeshUI'
 import { Collapsible } from '@/components/Collapsible'
-
-const ACTIVIDADES: { id: TipoActividadApi; label: string }[] = [
-  { id: 'moto', label: 'Moto' },
-  { id: 'bici', label: 'Bici' },
-  { id: 'running', label: 'Running' },
-  { id: 'trekking', label: 'Trekking' },
-]
 
 function fechaPorDefecto(): Date {
   const d = new Date()
@@ -47,13 +45,15 @@ function formatearFechaHora(d: Date): string {
 
 export default function CrearViajeScreen() {
   const theme = useTheme()
-  const { backendUserId } = useAuth()
+  const { backendUserId, profile } = useAuth()
   const [grupos, setGrupos] = useState<GrupoListItemApi[]>([])
   const [amigos, setAmigos] = useState<AmigoApi[]>([])
   const [cargandoInvitables, setCargandoInvitables] = useState(true)
   const [nombre, setNombre] = useState('')
   const [nombreFocus, setNombreFocus] = useState(false)
-  const [tipoActividad, setTipoActividad] = useState<TipoActividadApi>('bici')
+  const [tipoActividad, setTipoActividad] = useState<TipoActividadApi>(() =>
+    actividadInicialDesdePerfil(profile?.actividadPreferida)
+  )
   const [esGrupal, setEsGrupal] = useState(true)
   const [gruposSeleccionados, setGruposSeleccionados] = useState<Set<string>>(new Set())
   const [amigosSeleccionados, setAmigosSeleccionados] = useState<Set<string>>(new Set())
@@ -173,7 +173,10 @@ export default function CrearViajeScreen() {
           : 'Viaje creado correctamente.'
 
       Alert.alert('Listo', msg)
-      router.replace({ pathname: '/viaje/[viajeId]', params: { viajeId: viaje.id } })
+      router.replace({
+        pathname: '/configurar-ruta/[viajeId]',
+        params: { viajeId: viaje.id, userId },
+      })
     } catch (e: unknown) {
       Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo crear el viaje.')
     } finally {
@@ -237,18 +240,34 @@ export default function CrearViajeScreen() {
         </Btn>
       )}
 
-      <Text style={[styles.seccion, { color: theme.text }]}>Tipo de actividad</Text>
-      <ChipRow>
-        {ACTIVIDADES.map((a) => (
-          <Chip
-            key={a.id}
-            active={tipoActividad === a.id}
-            onPress={() => setTipoActividad(a.id)}
-          >
-            {a.label}
-          </Chip>
-        ))}
-      </ChipRow>
+      <Text style={[styles.seccion, { color: theme.text }]}>Modo de Actividad</Text>
+      <View style={styles.activityList}>
+        {ACTIVIDADES.map((a) => {
+          const isActive = tipoActividad === a.id
+          return (
+            <Pressable
+              key={a.id}
+              onPress={() => setTipoActividad(a.id)}
+              style={[
+                styles.activityItem,
+                {
+                  backgroundColor: isActive ? theme.accentWeak : theme.surface,
+                  borderColor: isActive ? theme.accentLine : theme.border,
+                },
+              ]}
+            >
+              <ActivityTile activity={a.id} />
+              <Text style={[styles.activityLabel, { color: theme.text }]}>{a.label}</Text>
+              {isActive ? (
+                <Feather name="check" size={20} color={theme.accent} style={styles.checkIcon} />
+              ) : null}
+            </Pressable>
+          )
+        })}
+      </View>
+      <Text style={[styles.paramHint, { color: theme.textDim }]}>
+        {textoParametrosActividad(tipoActividad)}
+      </Text>
 
       <Text style={[styles.seccion, { color: theme.text }]}>Modalidad</Text>
       <View style={styles.filaModalidad}>
@@ -395,6 +414,22 @@ const styles = StyleSheet.create({
   titulo: { fontSize: 24, fontWeight: '700', letterSpacing: -0.4 },
   hint: { fontSize: 14, lineHeight: 20 },
   seccion: { fontSize: 17, fontWeight: '600', marginTop: 16 },
+  activityList: { gap: 11, marginTop: 8 },
+  activityItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1.2,
+  },
+  activityLabel: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 14,
+  },
+  checkIcon: { marginRight: 4 },
+  paramHint: { fontSize: 14, lineHeight: 20, marginTop: 8 },
   filaModalidad: { flexDirection: 'row', gap: 10, marginTop: 8 },
   opcionModalidad: {
     flex: 1,

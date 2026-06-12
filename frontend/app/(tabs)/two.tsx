@@ -13,6 +13,8 @@ import { router, useFocusEffect } from 'expo-router'
 import { useAuth } from '@/context/AuthContext'
 import { resolveBackendUserId } from '@/lib/apiClient'
 import { Btn, useTheme } from '@/components/MeshUI'
+import { etiquetaActividad } from '@/lib/activityDefaults'
+import { etiquetaActividad } from '@/lib/activityDefaults'
 import {
   listarInvitacionesViajePendientes,
   listarViajesPlanificados,
@@ -29,16 +31,6 @@ function formatearFecha(iso: string): string {
     hour: '2-digit',
     minute: '2-digit',
   })
-}
-
-function etiquetaActividad(tipo: string): string {
-  const map: Record<string, string> = {
-    moto: 'Moto',
-    bici: 'Bici',
-    running: 'Running',
-    trekking: 'Trekking',
-  }
-  return map[tipo] ?? tipo
 }
 
 export default function ViajesScreen() {
