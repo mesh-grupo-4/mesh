@@ -18,11 +18,13 @@ export const MAP_STYLES: MapStyleConfig[] = [
     id: 'standard',
     label: 'Mapa',
     icon: 'map',
-    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    // tile.openstreetmap.org bloquea apps móviles sin User-Agent propio (403, osm.wiki/Blocked);
+    // CARTO sirve los mismos datos OSM vía CDN gratuito apto para apps.
+    urlTemplate: 'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
     maximumZ: 19,
     flipY: false,
     routeStrokeColor: '#2563eb',
-    attribution: '© OpenStreetMap',
+    attribution: '© CARTO · © OpenStreetMap',
   },
   {
     id: 'dark',

@@ -14,7 +14,6 @@ import { useAuth } from '@/context/AuthContext'
 import { resolveBackendUserId } from '@/lib/apiClient'
 import { Btn, useTheme } from '@/components/MeshUI'
 import { etiquetaActividad } from '@/lib/activityDefaults'
-import { etiquetaActividad } from '@/lib/activityDefaults'
 import {
   listarInvitacionesViajePendientes,
   listarViajesPlanificados,
