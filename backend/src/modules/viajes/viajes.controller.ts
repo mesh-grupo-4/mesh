@@ -37,6 +37,16 @@ export function crearViajesController(service: ViajesService) {
       res.json(invitaciones)
     }),
 
+    enCurso: asyncHandler(async (req, res) => {
+      const viaje = await service.viajeEnCurso(req.userId!)
+      res.json(viaje)
+    }),
+
+    estadisticas: asyncHandler(async (req, res) => {
+      const stats = await service.estadisticasUsuario(req.userId!)
+      res.json(stats)
+    }),
+
     responderInvitacion: asyncHandler(async (req, res) => {
       const viajeId = req.params.viajeId as string
       const body = responderInvitacionViajeSchema.parse(req.body)

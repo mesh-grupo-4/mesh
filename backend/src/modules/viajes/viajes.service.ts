@@ -413,6 +413,61 @@ export class ViajesService {
     })
   }
 
+  async viajeEnCurso(usuarioId: string) {
+    const viaje = await this.prisma.viaje.findFirst({
+      where: {
+        estado: 'en_curso',
+        OR: [
+          { creador_id: usuarioId },
+          { integrantes: { some: { usuario_id: usuarioId, estado: 'confirmado' } } },
+        ],
+      },
+      select: {
+        id: true,
+        nombre: true,
+        tipo_actividad: true,
+        fecha_inicio_real: true,
+        creador_id: true,
+      },
+    })
+    if (!viaje) return null
+    return {
+      id: viaje.id,
+      nombre: viaje.nombre,
+      tipo_actividad: viaje.tipo_actividad,
+      fecha_inicio_real: viaje.fecha_inicio_real?.toISOString() ?? null,
+      soy_creador: viaje.creador_id === usuarioId,
+    }
+  }
+
+  async estadisticasUsuario(usuarioId: string) {
+    const participanteWhere = {
+      estado: 'finalizado' as const,
+      OR: [
+        { creador_id: usuarioId },
+        { integrantes: { some: { usuario_id: usuarioId, estado: 'confirmado' } } },
+      ],
+    }
+
+    const [viajesFinalizados, porActividad] = await Promise.all([
+      this.prisma.viaje.count({ where: participanteWhere }),
+      this.prisma.viaje.groupBy({
+        by: ['tipo_actividad'],
+        where: participanteWhere,
+        _count: { tipo_actividad: true },
+        orderBy: { _count: { tipo_actividad: 'desc' } },
+        take: 1,
+      }),
+    ])
+
+    return {
+      viajes_finalizados: viajesFinalizados,
+      distancia_total_m: 0,
+      tiempo_total_seg: 0,
+      actividad_favorita: porActividad[0]?.tipo_actividad ?? null,
+    }
+  }
+
   async listarFinalizados(usuarioId: string) {
     const viajes = await this.prisma.viaje.findMany({
       where: {
