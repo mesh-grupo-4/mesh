@@ -50,6 +50,12 @@ export const responderInvitacionViajeSchema = z.object({
 
 export type ResponderInvitacionViajeInput = z.infer<typeof responderInvitacionViajeSchema>
 
+export const actualizarViajeSchema = z.object({
+  fechaProgramada: z.coerce.date(),
+})
+
+export type ActualizarViajeInput = z.infer<typeof actualizarViajeSchema>
+
 export const putRutaSchema = z.object({
   origen: pointSchema,
   destino: pointSchema,

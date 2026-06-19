@@ -1,5 +1,6 @@
 import type { Request, RequestHandler, Response } from 'express'
 import {
+  actualizarViajeSchema,
   createViajeSchema,
   postPosicionesSchema,
   putRutaSchema,
@@ -26,6 +27,11 @@ export function crearViajesController(service: ViajesService) {
       res.json(viajes)
     }),
 
+    listarFinalizados: asyncHandler(async (req, res) => {
+      const viajes = await service.listarFinalizados(req.userId!)
+      res.json(viajes)
+    }),
+
     listarInvitacionesPendientes: asyncHandler(async (req, res) => {
       const invitaciones = await service.listarInvitacionesPendientes(req.userId!)
       res.json(invitaciones)
@@ -47,6 +53,13 @@ export function crearViajesController(service: ViajesService) {
     detalle: asyncHandler(async (req, res) => {
       const viajeId = req.params.viajeId as string
       const viaje = await service.detalleParaUsuario(req.userId!, viajeId)
+      res.json(viaje)
+    }),
+
+    actualizar: asyncHandler(async (req, res) => {
+      const viajeId = req.params.viajeId as string
+      const body = actualizarViajeSchema.parse(req.body)
+      const viaje = await service.actualizarViaje(req.userId!, viajeId, body)
       res.json(viaje)
     }),
 

@@ -6,6 +6,7 @@ import { QR_EXPIRED_MESSAGE } from '../../lib/qrInvite'
 import { computeLineStringLengthMeters } from '../../lib/postgis'
 import { unirUsuarioAlViaje } from './viajes.membership'
 import type {
+  ActualizarViajeInput,
   CreateViajeInput,
   PostPosicionesInput,
   PutRutaInput,
@@ -260,17 +261,8 @@ export class ViajesService {
     }
   }
 
-  async listarParticipantes(creadorId: string, viajeId: string) {
-    const viaje = await this.prisma.viaje.findUnique({
-      where: { id: viajeId },
-      select: { creador_id: true },
-    })
-    if (!viaje) {
-      throw new HttpError(404, 'Viaje no encontrado', 'VIAJE_NOT_FOUND')
-    }
-    if (viaje.creador_id !== creadorId) {
-      throw new HttpError(403, 'Solo el creador puede ver los participantes', 'NOT_CREATOR')
-    }
+  async listarParticipantes(usuarioId: string, viajeId: string) {
+    await this.assertPuedeVerViaje(viajeId, usuarioId)
 
     const integrantes = await this.prisma.viajeIntegrante.findMany({
       where: { viaje_id: viajeId },
@@ -313,14 +305,8 @@ export class ViajesService {
     return { viajeId, yaEraParticipante: result.yaEraParticipante }
   }
 
-  async obtenerRuta(creadorId: string, viajeId: string) {
-    const viaje = await this.prisma.viaje.findUnique({ where: { id: viajeId } })
-    if (!viaje) {
-      throw new HttpError(404, 'Viaje no encontrado', 'VIAJE_NOT_FOUND')
-    }
-    if (viaje.creador_id !== creadorId) {
-      throw new HttpError(403, 'Solo el creador puede ver la ruta', 'NOT_CREATOR')
-    }
+  async obtenerRuta(usuarioId: string, viajeId: string) {
+    await this.assertPuedeVerViaje(viajeId, usuarioId)
 
     const ruta = await this.prisma.ruta.findUnique({
       where: { viaje_id: viajeId },
@@ -425,6 +411,84 @@ export class ViajesService {
 
       return ruta
     })
+  }
+
+  async listarFinalizados(usuarioId: string) {
+    const viajes = await this.prisma.viaje.findMany({
+      where: {
+        estado: 'finalizado',
+        OR: [
+          { creador_id: usuarioId },
+          {
+            integrantes: {
+              some: {
+                usuario_id: usuarioId,
+                estado: 'confirmado',
+              },
+            },
+          },
+        ],
+      },
+      select: {
+        id: true,
+        creador_id: true,
+        nombre: true,
+        es_grupal: true,
+        tipo_actividad: true,
+        velocidad_esperada: true,
+        distancia_max_separacion: true,
+        fecha_programada: true,
+        fecha_fin_real: true,
+        estado: true,
+        integrantes: {
+          where: { usuario_id: usuarioId },
+          select: { estado: true },
+        },
+      },
+      orderBy: { fecha_fin_real: 'desc' },
+    })
+
+    return viajes.map((v) => ({
+      id: v.id,
+      creador_id: v.creador_id,
+      nombre: v.nombre,
+      es_grupal: v.es_grupal,
+      tipo_actividad: v.tipo_actividad,
+      velocidad_esperada: v.velocidad_esperada,
+      distancia_max_separacion: v.distancia_max_separacion,
+      fecha_programada: v.fecha_programada,
+      fecha_fin_real: v.fecha_fin_real,
+      estado: v.estado as 'finalizado',
+      mi_estado: v.creador_id === usuarioId ? ('creador' as const) : (v.integrantes[0]?.estado ?? null),
+    }))
+  }
+
+  /** RN-030: solo el líder puede reprogramar un viaje aún planificado. */
+  async actualizarViaje(creadorId: string, viajeId: string, input: ActualizarViajeInput) {
+    const viaje = await this.prisma.viaje.findUnique({ where: { id: viajeId } })
+    if (!viaje) {
+      throw new HttpError(404, 'Viaje no encontrado', 'VIAJE_NOT_FOUND')
+    }
+    if (viaje.creador_id !== creadorId) {
+      throw new HttpError(403, 'Solo el creador puede modificar el viaje', 'NOT_CREATOR')
+    }
+    if (viaje.estado !== 'planificado') {
+      throw new HttpError(409, 'Solo se puede editar un viaje planificado', 'INVALID_STATE')
+    }
+    if (input.fechaProgramada.getTime() <= Date.now()) {
+      throw new HttpError(400, 'La fecha programada debe ser futura (UTC)', 'FECHA_PASADA')
+    }
+
+    const actualizado = await this.prisma.viaje.update({
+      where: { id: viajeId },
+      data: { fecha_programada: input.fechaProgramada },
+    })
+
+    return {
+      id: actualizado.id,
+      fecha_programada: actualizado.fecha_programada,
+      estado: actualizado.estado,
+    }
   }
 
   async iniciar(creadorId: string, viajeId: string) {

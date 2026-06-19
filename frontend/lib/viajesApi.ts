@@ -30,6 +30,20 @@ export type ViajePlanificadoApi = {
   mi_estado: 'creador' | 'confirmado' | 'pendiente' | 'rechazado' | null
 }
 
+export type ViajeFinalizadoApi = {
+  id: string
+  nombre?: string
+  creador_id: string
+  es_grupal: boolean
+  tipo_actividad: TipoActividadApi
+  velocidad_esperada: number
+  distancia_max_separacion: number
+  fecha_programada: string
+  fecha_fin_real: string | null
+  estado: 'finalizado'
+  mi_estado: 'creador' | 'confirmado' | null
+}
+
 export type InvitacionViajePendienteApi = {
   viaje_id: string
   nombre?: string
@@ -127,6 +141,16 @@ export async function listarViajesPlanificados(
   return parseJson<ViajePlanificadoApi[]>(res)
 }
 
+export async function listarViajesFinalizados(
+  userId: string,
+  baseUrl: string = API_BASE_URL
+): Promise<ViajeFinalizadoApi[]> {
+  const res = await meshFetch(apiUrl('/api/viajes/finalizados', baseUrl), {
+    headers: await authHeaders(userId),
+  })
+  return parseJson<ViajeFinalizadoApi[]>(res)
+}
+
 export async function listarInvitacionesViajePendientes(
   userId: string,
   baseUrl: string = API_BASE_URL
@@ -203,6 +227,29 @@ export async function obtenerViaje(
     headers: await authHeaders(userId),
   })
   return parseJson<ViajeDetalleApi>(res)
+}
+
+export type ViajeActualizadoApi = {
+  id: string
+  fecha_programada: string
+  estado: 'planificado' | 'en_curso' | 'finalizado'
+}
+
+export async function actualizarFechaViaje(
+  viajeId: string,
+  userId: string,
+  fechaProgramada: Date,
+  baseUrl: string = API_BASE_URL
+): Promise<ViajeActualizadoApi> {
+  const res = await meshFetch(apiUrl(`/api/viajes/${viajeId}`, baseUrl), {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(await authHeaders(userId)),
+    },
+    body: JSON.stringify({ fechaProgramada: fechaProgramada.toISOString() }),
+  })
+  return parseJson<ViajeActualizadoApi>(res)
 }
 
 export type ViajeIniciadoApi = {

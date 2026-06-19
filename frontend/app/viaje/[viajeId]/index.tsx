@@ -13,62 +13,72 @@ import {
   Text,
   View,
 } from 'react-native'
-import Svg, { Defs, Pattern, Path, Circle, Rect } from 'react-native-svg'
+import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { Feather } from '@expo/vector-icons'
 
-import { API_BASE_URL, DEV_USER_ID } from '@/constants/Config'
+import { DEV_USER_ID } from '@/constants/Config'
+import { useAuth } from '@/context/AuthContext'
 import { connectMeshSocket } from '@/lib/meshSocket'
 import { iniciarTrackingViaje, solicitarPermisosUbicacion } from '@/lib/tracking/trackingControl'
-import { 
-  iniciarViajeEnBackend, 
-  obtenerViaje, 
+import {
+  iniciarViajeEnBackend,
+  obtenerViaje,
+  obtenerRuta,
+  actualizarFechaViaje,
   listarParticipantesViaje,
-  type ViajeDetalleApi, 
-  type ViajeParticipanteApi 
+  type ViajeDetalleApi,
+  type ViajeParticipanteApi,
 } from '@/lib/viajesApi'
-import { 
-  TopBar, 
-  Btn, 
-  Badge, 
-  Field, 
-  Avatar, 
-  ActivityTile, 
-  useTheme 
+import { waypointsFromRutaDetalle } from '@/lib/routePayload'
+import { RouteMapView } from '@/components/route-config/RouteMapView'
+import {
+  REGION_FALLBACK,
+  waypointTieneCoords,
+  type RouteWaypoint,
+} from '@/components/route-config/routeTypes'
+import {
+  TopBar,
+  Btn,
+  Badge,
+  Avatar,
+  ActivityTile,
+  useTheme,
 } from '@/components/MeshUI'
 
-function RouteMini({ theme }: { theme: any }) {
+type RutaMapa = {
+  waypoints: RouteWaypoint[]
+  routeLine: [number, number][]
+}
+
+/** Mapa OSM real (solo lectura) con la ruta planificada del viaje. */
+function RutaMapaPreview({ ruta }: { ruta: RutaMapa }) {
+  const primero = ruta.waypoints.find(waypointTieneCoords)
+  const initialRegion = primero
+    ? {
+        latitude: primero.lat,
+        longitude: primero.lon,
+        latitudeDelta: 0.08,
+        longitudeDelta: 0.08,
+      }
+    : REGION_FALLBACK
+
+  const fitCoords =
+    ruta.routeLine.length > 1
+      ? ruta.routeLine.map(([lat, lng]) => ({ latitude: lat, longitude: lng }))
+      : null
+
   return (
-    <View style={{ position: 'relative', height: 120, backgroundColor: theme.mapBg, overflow: 'hidden' }}>
-      <Svg width="100%" height="120" viewBox="0 0 320 120" preserveAspectRatio="xMidYMid slice">
-        <Defs>
-          <Pattern id="rmgrid" width="26" height="26" patternUnits="userSpaceOnUse">
-            <Path d="M26 0H0V26" fill="none" stroke={theme.mapGrid} strokeWidth={1} />
-          </Pattern>
-        </Defs>
-        <Rect width="100%" height="120" fill="url(#rmgrid)" />
-        {/* Route curve */}
-        <Path 
-          d="M30 90 C 90 85, 80 40, 150 45 S 250 75, 292 25" 
-          fill="none" 
-          stroke={theme.mapRoute} 
-          strokeWidth={6} 
-          strokeLinecap="round" 
-        />
-        <Path 
-          d="M30 90 C 90 85, 80 40, 150 45 S 250 75, 292 25" 
-          fill="none" 
-          stroke={theme.accent} 
-          strokeWidth={2.5} 
-          strokeLinecap="round" 
-          strokeDasharray="2 7" 
-          opacity={0.95}
-        />
-        {/* Start dot */}
-        <Circle cx="30" cy="90" r="5" fill={theme.textDim} />
-        {/* Destination dot */}
-        <Circle cx="292" cy="25" r="6" fill={theme.accent} />
-        <Circle cx="292" cy="25" r="2" fill={theme.background} />
-      </Svg>
+    <View style={styles.mapBox}>
+      <RouteMapView
+        waypoints={ruta.waypoints}
+        routeLineLatLng={ruta.routeLine.length > 1 ? ruta.routeLine : null}
+        mapStyle="standard"
+        initialRegion={initialRegion}
+        cameraTarget={null}
+        fitRouteCoords={fitCoords}
+        mapPickMode={false}
+        calculando={false}
+      />
     </View>
   )
 }
@@ -76,6 +86,7 @@ function RouteMini({ theme }: { theme: any }) {
 export default function ViajeDetalleScreen() {
   const router = useRouter()
   const theme = useTheme()
+  const { backendUserId, backendSyncing } = useAuth()
   const params = useLocalSearchParams<{ viajeId: string | string[]; userId?: string | string[] }>()
 
   const viajeId = useMemo(() => {
@@ -83,21 +94,34 @@ export default function ViajeDetalleScreen() {
     return Array.isArray(v) ? v[0] : v
   }, [params.viajeId])
 
-  const userFromQuery = useMemo(() => {
+  const userId = useMemo(() => {
     const u = params.userId
     const raw = Array.isArray(u) ? u[0] : u
-    return raw?.trim() || DEV_USER_ID
-  }, [params.userId])
+    return raw?.trim() || backendUserId || DEV_USER_ID || ''
+  }, [params.userId, backendUserId])
 
-  const [userId, setUserId] = useState(userFromQuery)
   const [viaje, setViaje] = useState<ViajeDetalleApi | null>(null)
   const [participantes, setParticipantes] = useState<ViajeParticipanteApi[]>([])
+  const [rutaMapa, setRutaMapa] = useState<RutaMapa | null>(null)
   const [loading, setLoading] = useState(true)
   const [accion, setAccion] = useState(false)
   const [modalPermisos, setModalPermisos] = useState(false)
   const [ubicacionBloqueada, setUbicacionBloqueada] = useState(false)
+  const [showPicker, setShowPicker] = useState(false)
+  const [pickerMode, setPickerMode] = useState<'date' | 'time'>('date')
+  const [fechaEdit, setFechaEdit] = useState<Date>(() => new Date())
+  const [guardandoFecha, setGuardandoFecha] = useState(false)
 
-  const esLider = viaje != null && userId.trim() === viaje.creador_id
+  const esLider = viaje != null && userId === viaje.creador_id
+
+  const origenNombre = useMemo(
+    () => rutaMapa?.waypoints.find((w) => w.type === 'ORIGIN')?.name?.trim() || 'Inicio',
+    [rutaMapa]
+  )
+  const destinoNombre = useMemo(
+    () => rutaMapa?.waypoints.find((w) => w.type === 'DESTINATION')?.name?.trim() || 'Destino',
+    [rutaMapa]
+  )
 
   const formatFecha = (isoString: string) => {
     try {
@@ -118,16 +142,39 @@ export default function ViajeDetalleScreen() {
   }
 
   const cargar = useCallback(async () => {
-    if (!viajeId || !userId.trim()) return
+    if (!viajeId || !userId) return
     setLoading(true)
     try {
-      const v = await obtenerViaje(viajeId, userId.trim())
+      const v = await obtenerViaje(viajeId, userId)
       setViaje(v)
+
       try {
-        const parts = await listarParticipantesViaje(viajeId, userId.trim())
+        const parts = await listarParticipantesViaje(viajeId, userId)
         setParticipantes(parts)
       } catch (e) {
         console.warn('No se pudieron cargar los participantes:', e)
+      }
+
+      if (v.ruta) {
+        try {
+          const r = await obtenerRuta(viajeId, userId)
+          if (r) {
+            const h = waypointsFromRutaDetalle(r)
+            const waypoints: RouteWaypoint[] = [
+              { ...h.origen, id: 'origen' },
+              ...h.paradas.map((p, i) => ({ ...p, id: `parada-${i}` })),
+              { ...h.destino, id: 'destino' },
+            ]
+            setRutaMapa({ waypoints, routeLine: h.routeLineLatLng })
+          } else {
+            setRutaMapa(null)
+          }
+        } catch (e) {
+          console.warn('No se pudo cargar la ruta del viaje:', e)
+          setRutaMapa(null)
+        }
+      } else {
+        setRutaMapa(null)
       }
     } catch (e) {
       setViaje(null)
@@ -138,17 +185,68 @@ export default function ViajeDetalleScreen() {
   }, [viajeId, userId])
 
   useEffect(() => {
-    void cargar()
-  }, [cargar])
+    if (userId) void cargar()
+  }, [cargar, userId])
 
   useEffect(() => {
-    if (userId.trim()) {
-      void AsyncStorage.setItem('mesh:activeUserId', userId.trim())
-    }
+    if (userId) void AsyncStorage.setItem('mesh:activeUserId', userId)
   }, [userId])
 
   const abrirAjustes = () => {
     void Linking.openSettings()
+  }
+
+  const abrirPickerFecha = () => {
+    if (!viaje) return
+    setFechaEdit(new Date(viaje.fecha_programada))
+    setPickerMode('date')
+    setShowPicker(true)
+  }
+
+  const guardarFecha = useCallback(
+    async (nueva: Date) => {
+      if (!viajeId || !userId) return
+      if (nueva.getTime() <= Date.now()) {
+        Alert.alert('Fecha inválida', 'La fecha programada debe ser futura.')
+        return
+      }
+      setGuardandoFecha(true)
+      try {
+        await actualizarFechaViaje(viajeId, userId, nueva)
+        await cargar()
+      } catch (e) {
+        Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo actualizar la fecha')
+      } finally {
+        setGuardandoFecha(false)
+      }
+    },
+    [viajeId, userId, cargar]
+  )
+
+  const onChangeFecha = (event: DateTimePickerEvent, selected?: Date) => {
+    if (event.type === 'dismissed' || !selected) {
+      setShowPicker(false)
+      return
+    }
+
+    if (Platform.OS === 'android') {
+      if (pickerMode === 'date') {
+        const merged = new Date(fechaEdit)
+        merged.setFullYear(selected.getFullYear(), selected.getMonth(), selected.getDate())
+        setFechaEdit(merged)
+        setPickerMode('time')
+        // el picker sigue abierto para elegir la hora
+      } else {
+        const merged = new Date(fechaEdit)
+        merged.setHours(selected.getHours(), selected.getMinutes(), 0, 0)
+        setFechaEdit(merged)
+        setShowPicker(false)
+        void guardarFecha(merged)
+      }
+    } else {
+      // iOS: modo datetime en una sola pasada
+      setFechaEdit(selected)
+    }
   }
 
   const confirmarIniciar = () => {
@@ -160,21 +258,21 @@ export default function ViajeDetalleScreen() {
   }
 
   const ejecutarIniciar = async () => {
-    if (!viajeId || !userId.trim()) return
+    if (!viajeId || !userId) return
     setModalPermisos(false)
     setAccion(true)
     try {
       const perm = await solicitarPermisosUbicacion()
       setUbicacionBloqueada(!perm.foreground)
 
-      await iniciarViajeEnBackend(viajeId, userId.trim())
+      await iniciarViajeEnBackend(viajeId, userId)
       await cargar()
 
       const sock = await connectMeshSocket()
       sock.emit('join_viaje', { viajeId })
 
       if (perm.foreground) {
-        await iniciarTrackingViaje(viajeId, userId.trim())
+        await iniciarTrackingViaje(viajeId, userId)
       }
 
       router.push({ pathname: '/viaje/[viajeId]/live', params: { viajeId } })
@@ -201,10 +299,10 @@ export default function ViajeDetalleScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <TopBar 
-        title="Viaje" 
+      <TopBar
+        title="Viaje"
         sub={viaje ? (viaje.es_grupal ? 'Salida Grupal' : 'Salida Individual') : 'Cargando...'}
-        onBack={() => router.back()} 
+        onBack={() => router.back()}
         bordered={false}
         right={
           viaje ? (
@@ -221,7 +319,7 @@ export default function ViajeDetalleScreen() {
         }
       />
 
-      {loading ? (
+      {loading || backendSyncing || !userId ? (
         <View style={styles.center}>
           <ActivityIndicator color={theme.accent} size="large" />
         </View>
@@ -240,23 +338,23 @@ export default function ViajeDetalleScreen() {
               </Text>
             </View>
 
-            {/* Schematic route preview */}
+            {/* Mapa real de la ruta planificada */}
             <View style={[styles.cardRoute, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              {viaje.ruta ? (
+              {rutaMapa ? (
                 <>
-                  <RouteMini theme={theme} />
+                  <RutaMapaPreview ruta={rutaMapa} />
                   <View style={styles.routePoints}>
                     <View style={styles.routePointRow}>
                       <View style={[styles.routePointDot, { backgroundColor: theme.textDim }]} />
                       <Text style={[styles.routePointText, { color: theme.text }]} numberOfLines={1}>
-                        Inicio
+                        {origenNombre}
                       </Text>
                     </View>
                     <Feather name="arrow-right" size={14} color={theme.textMute} />
                     <View style={styles.routePointRow}>
                       <View style={[styles.routePointDot, { backgroundColor: theme.accent }]} />
                       <Text style={[styles.routePointText, { color: theme.text }]} numberOfLines={1}>
-                        Destino
+                        {destinoNombre}
                       </Text>
                     </View>
                   </View>
@@ -277,8 +375,8 @@ export default function ViajeDetalleScreen() {
               <View style={[styles.statCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                 <Feather name="activity" size={18} color={theme.accent} style={{ marginBottom: 6 }} />
                 <Text style={[styles.statNum, { color: theme.text }]} numberOfLines={1}>
-                  {viaje.ruta?.distancia_planeada_m 
-                    ? `${(viaje.ruta.distancia_planeada_m / 1000).toFixed(1)} km` 
+                  {viaje.ruta?.distancia_planeada_m
+                    ? `${(viaje.ruta.distancia_planeada_m / 1000).toFixed(1)} km`
                     : '--'}
                 </Text>
                 <Text style={[styles.statLabel, { color: theme.textDim }]}>Distancia</Text>
@@ -313,6 +411,39 @@ export default function ViajeDetalleScreen() {
             {/* Secondary operations inside ScrollView */}
             {viaje.estado === 'planificado' && esLider && (
               <View style={styles.optionsBlock}>
+                <Btn
+                  variant="secondary"
+                  block
+                  icon="clock"
+                  onPress={abrirPickerFecha}
+                  loading={guardandoFecha}
+                  disabled={guardandoFecha}
+                  style={{ marginBottom: 10 }}
+                >
+                  Editar fecha y hora
+                </Btn>
+                {showPicker && (
+                  <DateTimePicker
+                    value={fechaEdit}
+                    mode={Platform.OS === 'ios' ? 'datetime' : pickerMode}
+                    display={Platform.OS === 'ios' ? 'inline' : 'default'}
+                    minimumDate={new Date()}
+                    onChange={onChangeFecha}
+                  />
+                )}
+                {Platform.OS === 'ios' && showPicker && (
+                  <Btn
+                    variant="secondary"
+                    size="sm"
+                    onPress={() => {
+                      setShowPicker(false)
+                      void guardarFecha(fechaEdit)
+                    }}
+                    style={{ marginBottom: 10 }}
+                  >
+                    Guardar fecha
+                  </Btn>
+                )}
                 <Btn
                   variant="secondary"
                   block
@@ -359,25 +490,6 @@ export default function ViajeDetalleScreen() {
                 })}
               </View>
             )}
-
-            {/* Developer Simulation Panel */}
-            <View style={[styles.devCard, { backgroundColor: theme.surface2, borderColor: theme.border }]}>
-              <View style={styles.devHeader}>
-                <Feather name="terminal" size={13} color={theme.textDim} style={{ marginRight: 6 }} />
-                <Text style={[styles.devTitle, { color: theme.textDim }]}>Panel de Desarrollo</Text>
-              </View>
-              <Field
-                label="Usuario simulado"
-                value={userId}
-                onChangeText={setUserId}
-                placeholder="UUID"
-                autoCapitalize="none"
-                style={{ marginTop: 8 }}
-              />
-              <Text style={[styles.devHint, { color: theme.textMute }]}>
-                Cambiar el ID simula la vista del viaje desde la perspectiva de otro usuario.
-              </Text>
-            </View>
           </ScrollView>
 
           {/* Sticky Bottom Actions */}
@@ -482,6 +594,10 @@ const styles = StyleSheet.create({
     borderWidth: 1.2,
     overflow: 'hidden',
   },
+  mapBox: {
+    height: 220,
+    width: '100%',
+  },
   routePoints: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -575,27 +691,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14.5,
     fontWeight: '600',
-  },
-  devCard: {
-    borderRadius: 12,
-    borderWidth: 1.2,
-    padding: 14,
-    marginTop: 8,
-  },
-  devHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  devTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
-  },
-  devHint: {
-    fontSize: 11.5,
-    lineHeight: 16,
-    marginTop: 8,
   },
   bottomPad: {
     padding: 20,
