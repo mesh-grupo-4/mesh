@@ -82,6 +82,41 @@ export async function crearViaje(
   return parseJson<ViajeCreadoApi>(res)
 }
 
+export type ViajeEnCursoApi = {
+  id: string
+  nombre?: string | null
+  tipo_actividad: TipoActividadApi
+  fecha_inicio_real: string | null
+  soy_creador: boolean
+}
+
+export type EstadisticasUsuarioApi = {
+  viajes_finalizados: number
+  distancia_total_m: number
+  tiempo_total_seg: number
+  actividad_favorita: TipoActividadApi | null
+}
+
+export async function obtenerViajeEnCurso(
+  userId: string,
+  baseUrl: string = API_BASE_URL
+): Promise<ViajeEnCursoApi | null> {
+  const res = await meshFetch(apiUrl('/api/viajes/en-curso', baseUrl), {
+    headers: await authHeaders(userId),
+  })
+  return parseJson<ViajeEnCursoApi | null>(res)
+}
+
+export async function obtenerEstadisticasUsuario(
+  userId: string,
+  baseUrl: string = API_BASE_URL
+): Promise<EstadisticasUsuarioApi> {
+  const res = await meshFetch(apiUrl('/api/viajes/estadisticas', baseUrl), {
+    headers: await authHeaders(userId),
+  })
+  return parseJson<EstadisticasUsuarioApi>(res)
+}
+
 export async function listarViajesPlanificados(
   userId: string,
   baseUrl: string = API_BASE_URL

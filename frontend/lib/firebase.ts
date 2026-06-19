@@ -1,4 +1,6 @@
 import { initializeApp, getApps } from 'firebase/app';
+// getReactNativePersistence se exporta desde 'firebase/auth' bajo la condición de
+// resolución 'react-native' (Firebase v11+ eliminó el subpath 'firebase/auth/react-native').
 import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 
