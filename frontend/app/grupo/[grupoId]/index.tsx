@@ -8,29 +8,28 @@ import {
   Pressable,
   ScrollView,
   RefreshControl,
-  Platform,
 } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { resolveBackendUserId } from '@/lib/apiClient';
-import { TransferirLiderazgoModal } from '@/components/TransferirLiderazgoModal';
 import {
-  abandonarGrupo,
-  eliminarGrupo,
-  listarMiembrosGrupo,
   obtenerGrupo,
   type GrupoDetalleApi,
-  type GrupoMiembroApi,
 } from '@/lib/gruposApi';
 import { Btn, TopBar, Badge, useTheme } from '@/components/MeshUI';
 import { Feather } from '@expo/vector-icons';
 
-function formatearFecha(iso: string): string {
-  return new Date(iso).toLocaleDateString('es-AR', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
+const MESES_ABREV = [
+  'ene', 'feb', 'mar', 'abr', 'may', 'jun',
+  'jul', 'ago', 'sep', 'oct', 'nov', 'dic',
+];
+
+function formatearDesde(iso: string): string {
+  const fecha = new Date(iso);
+  if (Number.isNaN(fecha.getTime())) return '--';
+  const mes = MESES_ABREV[fecha.getMonth()] ?? '--';
+  const anio = String(fecha.getFullYear()).slice(2);
+  return `${mes} '${anio}`;
 }
 
 function getGroupColor(nombre: string): string {
@@ -48,10 +47,6 @@ export default function GrupoDetalleScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [modalTransferir, setModalTransferir] = useState(false);
-  const [miembrosTransferencia, setMiembrosTransferencia] = useState<GrupoMiembroApi[]>([]);
-  const [nuevoLiderId, setNuevoLiderId] = useState<string | null>(null);
-  const [procesandoAccion, setProcesandoAccion] = useState(false);
 
   const cargar = async (esRefresh = false) => {
     if (!grupoId) return;
@@ -77,144 +72,25 @@ export default function GrupoDetalleScreen() {
     void cargar();
   }, [grupoId, backendUserId]);
 
-  const redirigirTrasSalida = (mensaje: string) => {
-    router.replace('/(tabs)/grupos');
-    Alert.alert('Listo', mensaje);
-  };
-
-  const ejecutarAbandono = async (nuevoLider?: string) => {
-    if (!grupoId) return;
-    setProcesandoAccion(true);
-    try {
-      const userId = resolveBackendUserId(backendUserId);
-      const result = await abandonarGrupo(grupoId, userId, nuevoLider);
-      setModalTransferir(false);
-      if (result.accion === 'grupo_eliminado') {
-        redirigirTrasSalida('El grupo fue eliminado.');
-      } else {
-        redirigirTrasSalida('Abandonaste el grupo.');
-      }
-    } catch (e: unknown) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo abandonar el grupo.');
-    } finally {
-      setProcesandoAccion(false);
-    }
-  };
-
-  const ejecutarEliminacion = () => {
-    if (!grupoId) return;
-
-    Alert.alert(
-      'Eliminar grupo',
-      '¿Eliminar este grupo definitivamente? Esta acción no se puede deshacer y todos los miembros serán expulsados.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: () => {
-            void (async () => {
-              setProcesandoAccion(true);
-              try {
-                const userId = resolveBackendUserId(backendUserId);
-                await eliminarGrupo(grupoId, userId);
-                setModalTransferir(false);
-                redirigirTrasSalida('El grupo fue eliminado.');
-              } catch (e: unknown) {
-                Alert.alert(
-                  'Error',
-                  e instanceof Error ? e.message : 'No se pudo eliminar el grupo.'
-                );
-              } finally {
-                setProcesandoAccion(false);
-              }
-            })();
-          },
-        },
-      ]
-    );
-  };
-
-  const confirmarAbandonoParticipante = () => {
-    Alert.alert(
-      'Abandonar grupo',
-      '¿Estás seguro de que quieres abandonar este grupo?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Abandonar', style: 'destructive', onPress: () => void ejecutarAbandono() },
-      ]
-    );
-  };
-
-  const confirmarAbandonoLiderSolo = () => {
-    Alert.alert(
-      'Abandonar grupo',
-      'Sos el único integrante. Al abandonar, el grupo se eliminará permanentemente.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Eliminar y salir', style: 'destructive', onPress: () => void ejecutarAbandono() },
-      ]
-    );
-  };
-
-  const iniciarAbandono = () => {
-    if (!grupo || !grupoId) return;
-
-    if (grupo.mi_rol === 'participante') {
-      confirmarAbandonoParticipante();
-      return;
-    }
-
-    void (async () => {
-      try {
-        const userId = resolveBackendUserId(backendUserId);
-        const miembros = await listarMiembrosGrupo(grupoId, userId);
-        const otros = miembros.filter((m) => m.id !== userId);
-
-        if (otros.length === 0) {
-          confirmarAbandonoLiderSolo();
-          return;
-        }
-
-        setMiembrosTransferencia(otros);
-        setNuevoLiderId(null);
-        setModalTransferir(true);
-      } catch (e: unknown) {
-        Alert.alert('Error', e instanceof Error ? e.message : 'No se pudieron cargar los miembros.');
-      }
-    })();
-  };
-
-  const confirmarTransferenciaYAbandono = () => {
-    if (!nuevoLiderId) return;
-    void ejecutarAbandono(nuevoLiderId);
-  };
-
-  const cerrarModalTransferir = () => {
-    if (procesandoAccion) return;
-    setModalTransferir(false);
-    setNuevoLiderId(null);
-  };
-
   const esLider = grupo?.mi_rol === 'lider';
   const groupColor = grupo ? getGroupColor(grupo.nombre) : theme.accent;
 
-  const headerRight = esLider ? (
+  const headerRight = grupo ? (
     <Pressable
-      onPress={() => Alert.alert('Editar grupo', 'Funcionalidad de edición disponible próximamente.')}
+      onPress={() => router.push({ pathname: '/grupo/[grupoId]/editar', params: { grupoId } })}
       style={({ pressed }) => [
         styles.headerIconBtn,
         { backgroundColor: pressed ? theme.surface2 : theme.surface, borderColor: theme.border },
       ]}
     >
-      <Feather name="edit" size={17} color={theme.text} />
+      <Feather name="settings" size={17} color={theme.text} />
     </Pressable>
   ) : null;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      
+
       <TopBar title={grupo?.nombre ?? 'Grupo'} onBack={() => router.back()} bordered={false} right={headerRight} />
 
       <ScrollView
@@ -258,19 +134,23 @@ export default function GrupoDetalleScreen() {
               <Text style={[styles.nombre, { color: theme.text }]} numberOfLines={2}>
                 {grupo.nombre}
               </Text>
-              
+
               <View style={styles.cardStatsRow}>
                 <View style={styles.cardStat}>
-                  <Text style={[styles.statValue, { color: theme.text }]}>--</Text>
+                  <Text style={[styles.statValue, { color: theme.text }]}>
+                    {grupo.cantidad_miembros}
+                  </Text>
                   <Text style={[styles.statLabel, { color: theme.textDim }]}>Miembros</Text>
                 </View>
                 <View style={[styles.cardStat, styles.borderLeft, { borderLeftColor: theme.border }]}>
-                  <Text style={[styles.statValue, { color: theme.text }]}>--</Text>
+                  <Text style={[styles.statValue, { color: theme.text }]}>
+                    {grupo.cantidad_viajes}
+                  </Text>
                   <Text style={[styles.statLabel, { color: theme.textDim }]}>Viajes</Text>
                 </View>
                 <View style={[styles.cardStat, styles.borderLeft, { borderLeftColor: theme.border }]}>
                   <Text style={[styles.statValue, { color: theme.text }]}>
-                    {formatearFecha(grupo.fecha_creacion).split(' ')[1]}
+                    {formatearDesde(grupo.fecha_creacion)}
                   </Text>
                   <Text style={[styles.statLabel, { color: theme.textDim }]}>Desde</Text>
                 </View>
@@ -288,16 +168,6 @@ export default function GrupoDetalleScreen() {
               >
                 Nuevo viaje
               </Btn>
-              {esLider && (
-                <Btn
-                  variant="secondary"
-                  icon="share"
-                  onPress={() => router.push({ pathname: '/grupo/[grupoId]/invitar-desde-grupos', params: { grupoId } })}
-                  style={styles.shareBtn}
-                >
-                  Invitar
-                </Btn>
-              )}
             </View>
 
             {/* Enlaces de lista */}
@@ -354,69 +224,9 @@ export default function GrupoDetalleScreen() {
                 </Pressable>
               )}
             </View>
-
-            {/* Zona de peligro */}
-            <View
-              style={[
-                styles.zonaPeligro,
-                {
-                  backgroundColor: theme.dangerWeak,
-                  borderColor: theme.danger,
-                },
-              ]}
-            >
-              <View style={styles.dangerHeader}>
-                <Feather name="shield" size={16} color={theme.danger} style={{ marginRight: 6 }} />
-                <Text style={[styles.zonaTitulo, { color: theme.danger }]}>Zona de peligro</Text>
-              </View>
-              <Text style={[styles.zonaHint, { color: theme.textDim }]}>
-                Estas acciones son permanentes y no se pueden deshacer.
-              </Text>
-              
-              <Btn
-                variant="danger-outline"
-                size="sm"
-                block
-                onPress={iniciarAbandono}
-                disabled={procesandoAccion}
-              >
-                {procesandoAccion && !modalTransferir ? (
-                  <ActivityIndicator color={theme.danger} size="small" />
-                ) : (
-                  'Abandonar Grupo'
-                )}
-              </Btn>
-
-              {esLider && (
-                <Btn
-                  variant="danger"
-                  size="sm"
-                  block
-                  onPress={ejecutarEliminacion}
-                  disabled={procesandoAccion}
-                  style={{ marginTop: 6 }}
-                >
-                  Eliminar Grupo
-                </Btn>
-              )}
-            </View>
           </>
         ) : null}
       </ScrollView>
-
-      <TransferirLiderazgoModal
-        visible={modalTransferir}
-        miembros={miembrosTransferencia}
-        seleccionadoId={nuevoLiderId}
-        procesando={procesandoAccion}
-        onSeleccionar={setNuevoLiderId}
-        onConfirmar={confirmarTransferenciaYAbandono}
-        onEliminarGrupo={() => {
-          setModalTransferir(false);
-          ejecutarEliminacion();
-        }}
-        onCerrar={cerrarModalTransferir}
-      />
     </View>
   );
 }
@@ -494,9 +304,6 @@ const styles = StyleSheet.create({
   actionBtn: {
     flex: 1,
   },
-  shareBtn: {
-    paddingHorizontal: 16,
-  },
   linksContainer: {
     gap: 11,
   },
@@ -538,26 +345,4 @@ const styles = StyleSheet.create({
     marginTop: 24,
     fontWeight: '600',
   },
-  zonaPeligro: {
-    marginTop: 12,
-    padding: 16,
-    borderRadius: 14,
-    borderWidth: 1.2,
-    gap: 10,
-  },
-  dangerHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  zonaTitulo: {
-    fontSize: 15.5,
-    fontWeight: '700',
-  },
-  zonaHint: {
-    fontSize: 12.5,
-    lineHeight: 18,
-    marginTop: -4,
-    marginBottom: 4,
-  },
 });
-

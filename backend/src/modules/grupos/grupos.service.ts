@@ -140,6 +140,7 @@ export class GruposService {
           where: { usuario_id: usuarioId },
           select: { rol: true },
         },
+        _count: { select: { miembros: true, viajes: true } },
       },
     })
 
@@ -160,6 +161,8 @@ export class GruposService {
       fecha_creacion: grupo.fecha_creacion,
       lider_id: grupo.lider_id,
       mi_rol: rol,
+      cantidad_miembros: grupo._count?.miembros ?? 0,
+      cantidad_viajes: grupo._count?.viajes ?? 0,
     }
   }
 

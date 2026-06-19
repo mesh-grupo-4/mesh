@@ -95,6 +95,7 @@ model Grupo {
 
   lider                Usuario           @relation("GrupoLider", fields: [lider_id], references: [id], onDelete: Restrict)
   miembros             GrupoMiembro[]
+  viajes               ViajeGrupo[]
   invitaciones_destino GrupoInvitacion[] @relation("InvitacionesDestino")
   invitaciones_origen  GrupoInvitacion[] @relation("InvitacionesOrigen")
 
@@ -164,6 +165,7 @@ model Viaje {
 
   creador     Usuario           @relation("ViajeCreador", fields: [creador_id], references: [id], onDelete: Restrict)
   integrantes ViajeIntegrante[]
+  grupos      ViajeGrupo[]
 
   ruta    Ruta?
   resumen ResumenViaje?
@@ -171,6 +173,19 @@ model Viaje {
 
   @@index([creador_id])
   @@map("viaje")
+}
+
+model ViajeGrupo {
+  viaje_id   String   @map("viaje_id") @db.Uuid
+  grupo_id   String   @map("grupo_id") @db.Uuid
+  created_at DateTime @default(now()) @map("created_at")
+
+  viaje Viaje @relation(fields: [viaje_id], references: [id], onDelete: Cascade)
+  grupo Grupo @relation(fields: [grupo_id], references: [id], onDelete: Cascade)
+
+  @@id([viaje_id, grupo_id])
+  @@index([grupo_id])
+  @@map("viaje_grupo")
 }
 
 model ViajeIntegrante {

@@ -133,6 +133,16 @@ export class ViajesService {
         })
       }
 
+      if (grupoIds.length > 0) {
+        await tx.viajeGrupo.createMany({
+          data: grupoIds.map((grupoId) => ({
+            viaje_id: viaje.id,
+            grupo_id: grupoId,
+          })),
+          skipDuplicates: true,
+        })
+      }
+
       return {
         ...viaje,
         invitaciones_enviadas: totalInvitados,

@@ -838,12 +838,22 @@ components:
         - type: object
           required:
             - mi_rol
+            - cantidad_miembros
+            - cantidad_viajes
           properties:
             mi_rol:
               type: string
               enum:
                 - lider
                 - participante
+            cantidad_miembros:
+              type: integer
+              minimum: 0
+              description: Cantidad de miembros del grupo
+            cantidad_viajes:
+              type: integer
+              minimum: 0
+              description: Cantidad de viajes asociados al grupo
 
     GrupoMiembroResponse:
       type: object

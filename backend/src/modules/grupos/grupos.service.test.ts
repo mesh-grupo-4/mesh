@@ -122,6 +122,7 @@ describe('GruposService', () => {
         fecha_creacion: fecha,
         lider_id: creadorId,
         miembros: [{ rol: 'lider' }],
+        _count: { miembros: 4, viajes: 2 },
       })
 
       const service = new GruposService(prisma)
@@ -133,6 +134,8 @@ describe('GruposService', () => {
         fecha_creacion: fecha,
         lider_id: creadorId,
         mi_rol: 'lider',
+        cantidad_miembros: 4,
+        cantidad_viajes: 2,
       })
     })
 
@@ -146,6 +149,7 @@ describe('GruposService', () => {
         fecha_creacion: fecha,
         lider_id: creadorId,
         miembros: [{ rol: 'participante' }],
+        _count: { miembros: 2, viajes: 0 },
       })
 
       const service = new GruposService(prisma)
