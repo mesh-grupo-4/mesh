@@ -441,8 +441,8 @@ export class ViajesService {
   }
 
   async estadisticasUsuario(usuarioId: string) {
-    const participanteWhere = {
-      estado: 'finalizado' as const,
+    const participanteWhere: Prisma.ViajeWhereInput = {
+      estado: 'finalizado',
       OR: [
         { creador_id: usuarioId },
         { integrantes: { some: { usuario_id: usuarioId, estado: 'confirmado' } } },
