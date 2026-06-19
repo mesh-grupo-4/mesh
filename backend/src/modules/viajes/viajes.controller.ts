@@ -5,6 +5,7 @@ import {
   postPosicionesSchema,
   putRutaSchema,
   responderInvitacionViajeSchema,
+  upsertUbicacionVivaSchema,
 } from './viajes.schemas'
 import type { ViajesService } from './viajes.service'
 
@@ -78,6 +79,19 @@ export function crearViajesController(service: ViajesService) {
       const body = postPosicionesSchema.parse(req.body)
       const out = await service.ingresarPosiciones(req.userId!, viajeId, body)
       res.status(201).json(out)
+    }),
+
+    upsertUbicacionViva: asyncHandler(async (req, res) => {
+      const viajeId = req.params.viajeId as string
+      const body = upsertUbicacionVivaSchema.parse(req.body)
+      const out = await service.upsertUbicacionViva(req.userId!, viajeId, body)
+      res.json(out)
+    }),
+
+    listarUbicacionesVivas: asyncHandler(async (req, res) => {
+      const viajeId = req.params.viajeId as string
+      const out = await service.listarUbicacionesVivas(req.userId!, viajeId)
+      res.json(out)
     }),
 
     obtenerRuta: asyncHandler(async (req, res) => {

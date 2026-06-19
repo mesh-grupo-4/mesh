@@ -79,6 +79,7 @@ model Usuario {
   viajes_creados         Viaje[]            @relation("ViajeCreador")
   participaciones_viaje  ViajeIntegrante[]
   registros_gps          RegistroGPS[]
+  ubicacion_viva         UbicacionViva?
   invitaciones_recibidas GrupoInvitacion[]  @relation("InvitacionesRecibidas")
   invitaciones_enviadas  GrupoInvitacion[]  @relation("InvitacionesEnviadas")
   amistades_solicitadas  Amistad[]          @relation("AmistadSolicitante")
@@ -170,9 +171,25 @@ model Viaje {
   ruta    Ruta?
   resumen ResumenViaje?
   registros_gps RegistroGPS[]
+  ubicaciones_vivas UbicacionViva[]
 
   @@index([creador_id])
   @@map("viaje")
+}
+
+model UbicacionViva {
+  usuario_id  String   @id @map("usuario_id") @db.Uuid
+  viaje_id    String   @map("viaje_id") @db.Uuid
+  lat         Float
+  lng         Float
+  precision_m Float?   @map("precision_m")
+  updated_at  DateTime @updatedAt @map("updated_at")
+
+  usuario Usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  viaje   Viaje   @relation(fields: [viaje_id], references: [id], onDelete: Cascade)
+
+  @@index([viaje_id])
+  @@map("ubicacion_viva")
 }
 
 model ViajeGrupo {

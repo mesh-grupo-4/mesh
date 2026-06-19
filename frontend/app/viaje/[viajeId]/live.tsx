@@ -1,28 +1,46 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as Location from 'expo-location'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { useEffect, useMemo, useState } from 'react'
-import { Alert, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  ActivityIndicator,
+  Alert,
+  Platform,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native'
 
-import { API_BASE_URL, DEV_USER_ID } from '@/constants/Config'
-import { connectMeshSocket, getMeshSocket } from '@/lib/meshSocket'
+import { CenterLocationButton } from '@/components/live/CenterLocationButton'
+import { LiveMapView, type LiveMapViewHandle } from '@/components/live/LiveMapView'
+import { TripMetricsPanel } from '@/components/live/TripMetricsPanel'
+import { MapStylePicker } from '@/components/route-config/MapStylePicker'
+import type { MapStyleId } from '@/components/route-config/mapStyles'
+import { DEV_USER_ID, API_BASE_URL } from '@/constants/Config'
+import { useAuth } from '@/context/AuthContext'
+import { useLiveLocations } from '@/hooks/useLiveLocations'
+import { useTripMetrics } from '@/hooks/useTripMetrics'
+import { linestringToLatLng } from '@/lib/routePayload'
+import { connectMeshSocket } from '@/lib/meshSocket'
+import { isSupabaseConfigured } from '@/lib/supabase'
 import {
   detenerTrackingViaje,
   iniciarTrackingViaje,
   solicitarPermisosUbicacion,
 } from '@/lib/tracking/trackingControl'
-
-type UbicacionPeer = {
-  usuarioId: string
-  lat: number
-  lng: number
-  precision: number | null
-  recordedAt: string
-}
+import {
+  listarParticipantesViaje,
+  obtenerRuta,
+  obtenerViaje,
+  type ViajeDetalleApi,
+  type ViajeParticipanteApi,
+} from '@/lib/viajesApi'
 
 export default function ViajeLiveScreen() {
   const router = useRouter()
+  const { backendUserId } = useAuth()
   const params = useLocalSearchParams<{ viajeId: string | string[]; userId?: string | string[] }>()
+  const mapRef = useRef<LiveMapViewHandle>(null)
 
   const viajeId = useMemo(() => {
     const v = params.viajeId
@@ -32,16 +50,70 @@ export default function ViajeLiveScreen() {
   const userFromQuery = useMemo(() => {
     const u = params.userId
     const raw = Array.isArray(u) ? u[0] : u
-    return raw?.trim() || DEV_USER_ID
-  }, [params.userId])
+    return raw?.trim() || backendUserId || DEV_USER_ID || ''
+  }, [params.userId, backendUserId])
 
-  const [userId, setUserId] = useState(userFromQuery)
-  const [peers, setPeers] = useState<Record<string, UbicacionPeer>>({})
+  const userId = userFromQuery
+  const [viaje, setViaje] = useState<ViajeDetalleApi | null>(null)
+  const [participantes, setParticipantes] = useState<ViajeParticipanteApi[]>([])
+  const [routeLine, setRouteLine] = useState<[number, number][] | null>(null)
+  const [initialCenter, setInitialCenter] = useState<{ latitude: number; longitude: number } | null>(
+    null
+  )
   const [fg, setFg] = useState<boolean | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [mapStyle, setMapStyle] = useState<MapStyleId>('standard')
+
+  const nameByUserId = useMemo(() => {
+    const map: Record<string, string> = {}
+    if (viaje?.creador) {
+      map[viaje.creador.id] = viaje.creador.nombre
+    }
+    for (const p of participantes) {
+      if (p.estado === 'confirmado') {
+        map[p.usuario.id] = p.usuario.nombre
+      }
+    }
+    return map
+  }, [viaje, participantes])
+
+  const { memberList, realtimeOk } = useLiveLocations({ viajeId: viajeId ?? '', userId, nameByUserId })
+  const { elapsedLabel, distanceLabel } = useTripMetrics({
+    userId,
+    fechaInicioReal: viaje?.fecha_inicio_real ?? null,
+  })
 
   useEffect(() => {
     if (userId.trim()) void AsyncStorage.setItem('mesh:activeUserId', userId.trim())
   }, [userId])
+
+  useEffect(() => {
+    if (!viajeId || !userId.trim()) return
+    let cancelled = false
+
+    void (async () => {
+      setLoading(true)
+      try {
+        const [v, parts, ruta] = await Promise.all([
+          obtenerViaje(viajeId, userId),
+          listarParticipantesViaje(viajeId, userId),
+          obtenerRuta(viajeId, userId),
+        ])
+        if (cancelled) return
+        setViaje(v)
+        setParticipantes(parts)
+        if (ruta?.linestring) {
+          setRouteLine(linestringToLatLng(ruta.linestring))
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [viajeId, userId])
 
   useEffect(() => {
     if (!viajeId || !userId.trim()) return
@@ -52,27 +124,6 @@ export default function ViajeLiveScreen() {
       const sock = await connectMeshSocket()
       sock.emit('join_viaje', { viajeId })
 
-      const onUbi = (payload: {
-        viajeId: string
-        usuarioId: string
-        lat: number
-        lng: number
-        precision: number | null
-        recordedAt: string
-      }) => {
-        if (payload.viajeId !== viajeId) return
-        setPeers((prev) => ({
-          ...prev,
-          [payload.usuarioId]: {
-            usuarioId: payload.usuarioId,
-            lat: payload.lat,
-            lng: payload.lng,
-            precision: payload.precision,
-            recordedAt: payload.recordedAt,
-          },
-        }))
-      }
-
       const onFin = (payload: { viajeId: string }) => {
         if (payload.viajeId !== viajeId) return
         void detenerTrackingViaje()
@@ -81,13 +132,8 @@ export default function ViajeLiveScreen() {
         ])
       }
 
-      sock.on('viaje:ubicacion', onUbi)
       sock.on('viaje:finalizado', onFin)
-
-      cleanup = () => {
-        sock.off('viaje:ubicacion', onUbi)
-        sock.off('viaje:finalizado', onFin)
-      }
+      cleanup = () => sock.off('viaje:finalizado', onFin)
     })()
 
     return () => cleanup?.()
@@ -103,114 +149,137 @@ export default function ViajeLiveScreen() {
       if (perm.foreground) {
         await iniciarTrackingViaje(viajeId, userId.trim())
       }
+      try {
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
+        if (!cancelled) {
+          setInitialCenter({ latitude: pos.coords.latitude, longitude: pos.coords.longitude })
+        }
+      } catch {
+        if (routeLine?.[0] && !cancelled) {
+          const [lat, lng] = routeLine[0]
+          setInitialCenter({ latitude: lat, longitude: lng })
+        }
+      }
     })()
     return () => {
       cancelled = true
     }
-  }, [viajeId, userId])
+  }, [viajeId, userId, routeLine])
 
   useEffect(() => {
     void Location.getForegroundPermissionsAsync().then((r) => setFg(r.status === 'granted'))
   }, [])
 
-  useEffect(() => {
-    const sock = getMeshSocket()
-    if (!sock || !viajeId) return
-    const onInicio = () => {
-      void (async () => {
-        if (Platform.OS === 'web' || !userId.trim()) return
-        const p = await Location.getForegroundPermissionsAsync()
-        if (p.status === 'granted') {
-          await iniciarTrackingViaje(viajeId, userId.trim())
-        }
-      })()
-    }
-    sock.on('viaje:iniciado', onInicio)
-    return () => {
-      sock.off('viaje:iniciado', onInicio)
-    }
-  }, [viajeId, userId])
+  const handleCenterOnMe = () => {
+    void (async () => {
+      try {
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
+        mapRef.current?.focusOnCoordinate(pos.coords.latitude, pos.coords.longitude)
+      } catch {
+        const me = memberList.find((m) => m.usuarioId === userId)
+        if (me) mapRef.current?.focusOnCoordinate(me.lat, me.lng)
+      }
+    })()
+  }
 
-  const lista = Object.values(peers)
+  if (!viajeId) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.muted}>Viaje no especificado.</Text>
+      </View>
+    )
+  }
+
+  if (loading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color="#6366f1" />
+      </View>
+    )
+  }
 
   return (
-    <ScrollView contentContainerStyle={styles.wrap}>
-      <Text style={styles.h1}>Mapa en vivo</Text>
-      <Text style={styles.mono}>Viaje: {viajeId}</Text>
-      <Text style={styles.mono}>API: {API_BASE_URL}</Text>
-
-      <Text style={styles.label}>Usuario (x-user-id)</Text>
-      <TextInput
-        value={userId}
-        onChangeText={setUserId}
-        style={styles.input}
-        autoCapitalize="none"
-        placeholder="UUID"
-        placeholderTextColor="#888"
+    <View style={styles.root}>
+      <LiveMapView
+        ref={mapRef}
+        routeLineLatLng={routeLine}
+        members={memberList}
+        currentUserId={userId}
+        initialCenter={initialCenter}
+        mapStyle={mapStyle}
       />
 
+      <MapStylePicker value={mapStyle} onChange={setMapStyle} topOffset={8} />
+
+      <CenterLocationButton onPress={handleCenterOnMe} bottomOffset={140} />
+
       {fg === false ? (
-        <Text style={styles.warn}>
-          Ubicación desconocida: tu posición no se compartirá en el mapa del grupo hasta que otorgues permisos. El
-          resto del equipo no se bloquea.
-        </Text>
+        <View style={styles.warnBanner}>
+          <Text style={styles.warnTxt}>
+            Ubicación desconocida: tu posición no se compartirá hasta que otorgues permisos.
+          </Text>
+        </View>
       ) : null}
 
-      <Text style={styles.sub}>Últimas posiciones recibidas (tiempo real)</Text>
-      {lista.length === 0 ? (
-        <Text style={styles.muted}>Aún no hay ubicaciones por WebSocket.</Text>
-      ) : (
-        lista.map((p) => (
-          <View key={p.usuarioId} style={styles.card}>
-            <Text style={styles.peerId}>Usuario: {p.usuarioId.slice(0, 8)}…</Text>
-            <Text style={styles.peerTxt}>
-              {p.lat.toFixed(5)}, {p.lng.toFixed(5)} · precisión: {p.precision ?? '—'} m
-            </Text>
-            <Text style={styles.peerTs}>{p.recordedAt}</Text>
-          </View>
-        ))
-      )}
+      {!realtimeOk && isSupabaseConfigured() ? (
+        <View style={styles.infoBanner}>
+          <Text style={styles.infoTxt}>
+            Realtime Supabase desconectado; usamos WebSocket y refresco cada 15 s.
+          </Text>
+        </View>
+      ) : null}
 
-      <Text style={styles.muted}>
-        El trazado completo en mapa OSM y métricas se pueden integrar en la siguiente iteración; aquí se cumple el
-        canal en tiempo real y el tracking cada 5 s en móvil.
-      </Text>
-    </ScrollView>
+      {__DEV__ && Platform.OS === 'ios' && API_BASE_URL.includes('localhost') ? (
+        <View style={[styles.infoBanner, { top: Platform.OS === 'ios' ? 96 : 56 }]}>
+          <Text style={styles.infoTxt}>
+            iOS no puede usar localhost. Agregá EXPO_PUBLIC_API_URL=http://IP_PC:3000 en .env
+          </Text>
+        </View>
+      ) : null}
+
+      <TripMetricsPanel elapsedLabel={elapsedLabel} distanceLabel={distanceLabel} />
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
-  wrap: { padding: 16, paddingBottom: 40 },
-  h1: { fontSize: 22, fontWeight: '800' },
-  mono: { fontSize: 12, color: '#6b7280', marginTop: 4 },
-  label: { fontWeight: '600', marginTop: 14 },
-  input: {
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 10,
-    padding: 12,
-    marginTop: 6,
-    fontSize: 16,
+  root: {
+    flex: 1,
+    backgroundColor: '#f3f4f6',
   },
-  warn: {
-    marginTop: 14,
-    padding: 12,
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  muted: {
+    color: '#6b7280',
+    fontSize: 15,
+  },
+  warnBanner: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 52 : 12,
+    left: 12,
+    right: 12,
     backgroundColor: '#fef3c7',
+    padding: 10,
+    borderRadius: 10,
+  },
+  warnTxt: {
     color: '#92400e',
-    borderRadius: 10,
-    fontSize: 14,
+    fontSize: 13,
   },
-  sub: { marginTop: 20, fontSize: 16, fontWeight: '700' },
-  muted: { marginTop: 8, color: '#6b7280', fontSize: 14 },
-  card: {
-    marginTop: 10,
-    padding: 12,
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
+  infoBanner: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 52 : 12,
+    left: 12,
+    right: 12,
+    backgroundColor: '#dbeafe',
+    padding: 8,
+    borderRadius: 8,
   },
-  peerId: { fontWeight: '700', color: '#111827' },
-  peerTxt: { marginTop: 4, color: '#374151' },
-  peerTs: { marginTop: 4, fontSize: 12, color: '#6b7280' },
+  infoTxt: {
+    color: '#1e40af',
+    fontSize: 12,
+  },
 })

@@ -11,6 +11,7 @@ import {
 import { router, useFocusEffect } from 'expo-router'
 import { Feather } from '@expo/vector-icons'
 import { useAuth } from '@/context/AuthContext'
+import { useTripRealtime } from '@/context/TripRealtimeContext'
 import { resolveBackendUserId } from '@/lib/apiClient'
 import { Avatar, Badge, Btn, useTheme } from '@/components/MeshUI'
 import { etiquetaActividad } from '@/lib/activityDefaults'
@@ -49,6 +50,7 @@ function horaInicio(iso: string | null): string {
 export default function InicioScreen() {
   const theme = useTheme()
   const { profile, backendUserId, backendSyncing } = useAuth()
+  const { syncKnownTripIds } = useTripRealtime()
   const [enCurso, setEnCurso] = useState<ViajeEnCursoApi | null>(null)
   const [stats, setStats] = useState<EstadisticasUsuarioApi | null>(null)
   const [cargando, setCargando] = useState(true)
@@ -79,6 +81,7 @@ export default function InicioScreen() {
         ])
         setEnCurso(viaje)
         setStats(estadisticas)
+        if (viaje?.id) syncKnownTripIds([viaje.id])
       } catch {
         // Inicio es informativo: ante un fallo de red dejamos el último estado conocido.
       } finally {
@@ -86,7 +89,7 @@ export default function InicioScreen() {
         setRefreshing(false)
       }
     },
-    [backendUserId, backendSyncing]
+    [backendUserId, backendSyncing, syncKnownTripIds]
   )
 
   useFocusEffect(

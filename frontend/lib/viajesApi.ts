@@ -204,6 +204,7 @@ export async function unirseViajePorQr(
 export type ViajeDetalleApi = {
   id: string
   creador_id: string
+  nombre?: string | null
   es_grupal: boolean
   tipo_actividad: string
   velocidad_esperada: number
@@ -255,6 +256,7 @@ export async function actualizarFechaViaje(
 export type ViajeIniciadoApi = {
   id: string
   creador_id: string
+  nombre?: string | null
   estado: string
   fecha_inicio_real: string | null
 }
@@ -316,5 +318,46 @@ export async function obtenerRuta(
   }
 
   return parseJson<RutaDetalleApi>(res)
+}
+
+export type UbicacionVivaSnapshotApi = {
+  usuarioId: string
+  viajeId: string
+  lat: number
+  lng: number
+  precision: number | null
+  updatedAt: string
+  nombre: string
+}
+
+export async function upsertUbicacionViva(
+  viajeId: string,
+  userId: string,
+  body: { lat: number; lng: number; precision?: number | null; recordedAt: string },
+  baseUrl: string = API_BASE_URL
+): Promise<void> {
+  const res = await meshFetch(apiUrl(`/api/viajes/${viajeId}/ubicacion-viva`, baseUrl), {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(await authHeaders(userId)),
+    },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || `HTTP ${res.status}`)
+  }
+}
+
+export async function listarUbicacionesVivas(
+  viajeId: string,
+  userId: string,
+  baseUrl: string = API_BASE_URL
+): Promise<UbicacionVivaSnapshotApi[]> {
+  const res = await meshFetch(apiUrl(`/api/viajes/${viajeId}/ubicaciones-vivas`, baseUrl), {
+    headers: await authHeaders(userId),
+  })
+  return parseJson<UbicacionVivaSnapshotApi[]>(res)
 }
 

@@ -16,6 +16,7 @@ import {
 import { router, useFocusEffect, useNavigation } from 'expo-router'
 import { Feather } from '@expo/vector-icons'
 import { useAuth } from '@/context/AuthContext'
+import { useTripRealtime } from '@/context/TripRealtimeContext'
 import { resolveBackendUserId } from '@/lib/apiClient'
 import { Btn, useTheme, Badge, ActivityTile } from '@/components/MeshUI'
 import { etiquetaActividad } from '@/lib/activityDefaults'
@@ -178,6 +179,7 @@ export default function ViajesScreen() {
   const theme = useTheme()
   const navigation = useNavigation()
   const { backendUserId, backendSyncing } = useAuth()
+  const { syncKnownTripIds } = useTripRealtime()
 
   const [tab, setTab] = useState<Tab>('mis_viajes')
   const [viajes, setViajes] = useState<ViajePlanificadoApi[]>([])
@@ -265,6 +267,11 @@ export default function ViajesScreen() {
         setViajes(planificados)
         setFinalizados(pasados)
         setInvitaciones(pendientes)
+        syncKnownTripIds(
+          planificados
+            .filter((v) => v.mi_estado === 'confirmado' || v.mi_estado === 'creador' || v.estado === 'en_curso')
+            .map((v) => v.id)
+        )
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : 'No se pudieron cargar los viajes.'
         if (!esRefresh) Alert.alert('Error', msg)
@@ -273,7 +280,7 @@ export default function ViajesScreen() {
         setRefreshing(false)
       }
     },
-    [backendUserId, backendSyncing]
+    [backendUserId, backendSyncing, syncKnownTripIds]
   )
 
   useFocusEffect(

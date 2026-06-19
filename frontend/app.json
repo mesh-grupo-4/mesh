@@ -18,7 +18,11 @@
       "infoPlist": {
         "UIBackgroundModes": [
           "location"
-        ]
+        ],
+        "NSLocalNetworkUsageDescription": "Mesh se conecta al servidor de desarrollo en tu red local para sincronizar viajes y ubicaciones.",
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        }
       }
     },
     "android": {

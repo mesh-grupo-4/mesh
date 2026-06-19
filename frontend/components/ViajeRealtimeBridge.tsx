@@ -1,82 +1,61 @@
-import AsyncStorage from '@react-native-async-storage/async-storage'
-import Constants from 'expo-constants'
-import { useRouter } from 'expo-router'
-import { useEffect } from 'react'
-import { AppState, DeviceEventEmitter, Platform } from 'react-native'
-
+import { useAuth } from '@/context/AuthContext'
 import { connectMeshSocket, getMeshSocket } from '@/lib/meshSocket'
+import { upsertUbicacionViva } from '@/lib/viajesApi'
+import { useEffect } from 'react'
+import { AppState, DeviceEventEmitter } from 'react-native'
+
 import { flushGpsQueue } from '@/lib/tracking/gpsQueue'
 
-const isExpoGo = Constants.appOwnership === 'expo'
-
-async function initNotifications() {
-  if (Platform.OS === 'web' || isExpoGo) return
-  try {
-    const Notifications = await import('expo-notifications')
-    Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: false,
-        shouldSetBadge: false,
-        shouldShowBanner: true,
-        shouldShowList: true,
-      }),
-    })
-    await Notifications.requestPermissionsAsync()
-  } catch {
-    /* Expo Go / entorno sin push remota */
-  }
+type LocationTick = {
+  viajeId: string
+  userId: string
+  lat: number
+  lng: number
+  accuracy?: number
+  recordedAt: string
 }
 
-async function notifyLocal(title: string, body: string) {
-  if (Platform.OS === 'web' || isExpoGo) return
-  try {
-    const Notifications = await import('expo-notifications')
-    await Notifications.scheduleNotificationAsync({
-      content: { title, body },
-      trigger: null,
-    })
-  } catch {
-    /* ignorar */
+async function emitGpsPing(p: LocationTick, userId: string): Promise<void> {
+  const payload = {
+    viajeId: p.viajeId,
+    lat: p.lat,
+    lng: p.lng,
+    accuracy: p.accuracy,
+    recordedAt: p.recordedAt,
+    source: 'live' as const,
   }
+  let sock = getMeshSocket()
+  if (!sock?.connected) {
+    sock = await connectMeshSocket()
+  }
+  sock.emit('viaje:gps_ping', payload)
 }
 
 /**
- * Puente global: cola GPS, envío por socket en primer plano, y navegación al iniciar viaje.
- * Push remota (FCM) cuando la app está matada queda fuera del MVP.
+ * Puente global: cola GPS offline y envío de posición en vivo vía REST → Supabase Realtime.
+ * Si REST falla (ej. iOS sin reachability momentánea), fallback por Socket.io.
  */
 export function ViajeRealtimeBridge() {
-  const router = useRouter()
+  const { backendUserId } = useAuth()
 
   useEffect(() => {
-    void initNotifications()
-  }, [])
+    const sub = DeviceEventEmitter.addListener('mesh:location_tick', (p: LocationTick) => {
+      const userId = backendUserId?.trim() || p.userId
+      if (!userId) return
 
-  useEffect(() => {
-    const sub = DeviceEventEmitter.addListener(
-      'mesh:location_tick',
-      (p: {
-        viajeId: string
-        userId: string
-        lat: number
-        lng: number
-        accuracy?: number
-        recordedAt: string
-      }) => {
-        const sock = getMeshSocket()
-        if (!sock?.connected) return
-        sock.emit('viaje:gps_ping', {
-          viajeId: p.viajeId,
-          lat: p.lat,
-          lng: p.lng,
-          accuracy: p.accuracy,
-          recordedAt: p.recordedAt,
-          source: 'live',
+      void upsertUbicacionViva(p.viajeId, userId, {
+        lat: p.lat,
+        lng: p.lng,
+        precision: p.accuracy ?? null,
+        recordedAt: p.recordedAt,
+      }).catch(() => {
+        void emitGpsPing(p, userId).catch(() => {
+          /* offline: queda en SQLite y flushGpsQueue sincroniza */
         })
-      }
-    )
+      })
+    })
     return () => sub.remove()
-  }, [])
+  }, [backendUserId])
 
   useEffect(() => {
     const flush = () => void flushGpsQueue()
@@ -90,31 +69,6 @@ export function ViajeRealtimeBridge() {
       sub.remove()
     }
   }, [])
-
-  useEffect(() => {
-    let off: (() => void) | undefined
-
-    void (async () => {
-      const uid = await AsyncStorage.getItem('mesh:activeUserId')
-      if (!uid) return
-      const sock = await connectMeshSocket()
-      const onInicio = async (payload: { viajeId: string }) => {
-        await notifyLocal(
-          'Viaje iniciado',
-          'El líder ha iniciado el viaje. Tu ubicación puede compartirse en el mapa en vivo.'
-        )
-        router.push(`/viaje/${payload.viajeId}/live` as never)
-      }
-      sock.on('viaje:iniciado', onInicio)
-      off = () => {
-        sock.off('viaje:iniciado', onInicio)
-      }
-    })()
-
-    return () => {
-      off?.()
-    }
-  }, [router])
 
   return null
 }

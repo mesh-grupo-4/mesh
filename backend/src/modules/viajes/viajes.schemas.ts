@@ -91,3 +91,12 @@ export const postPosicionesSchema = z.object({
 })
 
 export type PostPosicionesInput = z.infer<typeof postPosicionesSchema>
+
+export const upsertUbicacionVivaSchema = z.object({
+  lat: z.number().min(-90).max(90),
+  lng: z.number().min(-180).max(180),
+  precision: z.number().optional().nullable(),
+  recordedAt: z.coerce.date(),
+})
+
+export type UpsertUbicacionVivaInput = z.infer<typeof upsertUbicacionVivaSchema>

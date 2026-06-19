@@ -222,9 +222,9 @@ paths:
     post:
       summary: Ingresar posiciones GPS (live y offline_sync)
       description: |
-        RN-031/RN-038. Ingreso masivo de registros GPS sin pérdida. Con `source: live`
-        emite la última posición por WebSocket (`viaje:ubicacion`). El viaje debe estar
-        `en_curso` y el usuario debe ser creador o integrante confirmado.
+        RN-031/RN-038. Ingreso masivo de registros GPS sin pérdida. Actualiza la última
+        posición en `ubicacion_viva` (Supabase Realtime). El viaje debe estar `en_curso`
+        y el usuario debe ser creador o integrante confirmado.
       operationId: ingresarPosicionesViaje
       tags: [Viajes]
       security: [{ UserIdHeader: [] }]
@@ -252,6 +252,66 @@ paths:
           description: Viaje no encontrado (VIAJE_NOT_FOUND)
         '409':
           description: El viaje no admite envío de GPS en este estado (INVALID_STATE)
+
+  /api/viajes/{viajeId}/ubicacion-viva:
+    put:
+      summary: Actualizar posición en vivo del usuario
+      description: |
+        Upsert en `ubicacion_viva` + registro histórico en `registro_gps` con `source: live`.
+        Los demás integrantes reciben el cambio vía Supabase Realtime (postgres_changes).
+      operationId: upsertUbicacionVivaViaje
+      tags: [Viajes]
+      security: [{ UserIdHeader: [] }]
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/ViajeId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpsertUbicacionVivaRequest'
+      responses:
+        '200':
+          description: Posición actualizada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UbicacionVivaRow'
+        '400':
+          description: Datos inválidos (validación Zod)
+        '403':
+          description: Sin acceso a este viaje (FORBIDDEN)
+        '404':
+          description: Viaje no encontrado (VIAJE_NOT_FOUND)
+        '409':
+          description: El viaje no admite envío de GPS en este estado (INVALID_STATE)
+
+  /api/viajes/{viajeId}/ubicaciones-vivas:
+    get:
+      summary: Snapshot de posiciones en vivo del grupo
+      description: |
+        Lista las filas actuales de `ubicacion_viva` para el viaje. Usado al montar la
+        pantalla de monitoreo antes de suscribirse a Supabase Realtime.
+      operationId: listarUbicacionesVivasViaje
+      tags: [Viajes]
+      security: [{ UserIdHeader: [] }]
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/ViajeId'
+      responses:
+        '200':
+          description: Posiciones actuales del grupo
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UbicacionVivaSnapshot'
+        '403':
+          description: Sin acceso a este viaje (FORBIDDEN)
+        '404':
+          description: Viaje no encontrado (VIAJE_NOT_FOUND)
 
   /api/viajes/{viajeId}/ruta:
     get:
@@ -713,6 +773,67 @@ components:
         insertados:
           type: integer
           description: Cantidad de registros GPS persistidos.
+
+    UpsertUbicacionVivaRequest:
+      type: object
+      required: [lat, lng, recordedAt]
+      properties:
+        lat:
+          type: number
+          minimum: -90
+          maximum: 90
+        lng:
+          type: number
+          minimum: -180
+          maximum: 180
+        precision:
+          type: number
+          nullable: true
+        recordedAt:
+          type: string
+          format: date-time
+
+    UbicacionVivaRow:
+      type: object
+      properties:
+        usuario_id:
+          type: string
+          format: uuid
+        viaje_id:
+          type: string
+          format: uuid
+        lat:
+          type: number
+        lng:
+          type: number
+        precision_m:
+          type: number
+          nullable: true
+        updated_at:
+          type: string
+          format: date-time
+
+    UbicacionVivaSnapshot:
+      type: object
+      properties:
+        usuarioId:
+          type: string
+          format: uuid
+        viajeId:
+          type: string
+          format: uuid
+        lat:
+          type: number
+        lng:
+          type: number
+        precision:
+          type: number
+          nullable: true
+        updatedAt:
+          type: string
+          format: date-time
+        nombre:
+          type: string
 
     GeoJsonPoint:
       type: object

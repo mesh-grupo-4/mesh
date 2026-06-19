@@ -11,6 +11,7 @@ import type {
   PostPosicionesInput,
   PutRutaInput,
   ResponderInvitacionViajeInput,
+  UpsertUbicacionVivaInput,
 } from './viajes.schemas'
 import { parametrosPorActividad } from './activityDefaults'
 
@@ -578,8 +579,10 @@ export class ViajesService {
 
     getIo().to(`viaje:${viajeId}`).emit('viaje:iniciado', {
       viajeId,
+      nombre: actualizado.nombre,
       estado: actualizado.estado,
       fechaInicioReal: actualizado.fecha_inicio_real?.toISOString() ?? null,
+      iniciadoPor: creadorId,
     })
 
     return actualizado
@@ -743,18 +746,59 @@ export class ViajesService {
     }))
     await this.prisma.registroGPS.createMany({ data: rows })
     const last = rows[rows.length - 1]
-    if (input.source === 'live' && last) {
-      getIo().to(`viaje:${viajeId}`).emit('viaje:ubicacion', {
+    if (last) {
+      await this.upsertUbicacionVivaSnapshot({
         viajeId,
         usuarioId,
         lat: last.lat,
         lng: last.lng,
         precision: last.precision_m,
-        recordedAt: last.timestamp.toISOString(),
-        source: input.source,
       })
     }
     return { insertados: rows.length }
+  }
+
+  async upsertUbicacionViva(usuarioId: string, viajeId: string, input: UpsertUbicacionVivaInput) {
+    await this.assertPuedeEnviarGps(viajeId, usuarioId)
+    await this.prisma.registroGPS.create({
+      data: {
+        viaje_id: viajeId,
+        usuario_id: usuarioId,
+        lat: input.lat,
+        lng: input.lng,
+        precision_m: input.precision ?? null,
+        timestamp: input.recordedAt,
+        source: 'live',
+      },
+    })
+    const row = await this.upsertUbicacionVivaSnapshot({
+      viajeId,
+      usuarioId,
+      lat: input.lat,
+      lng: input.lng,
+      precision: input.precision ?? null,
+    })
+    return row
+  }
+
+  async listarUbicacionesVivas(usuarioId: string, viajeId: string) {
+    await this.assertPuedeVerViaje(viajeId, usuarioId)
+    const rows = await this.prisma.ubicacionViva.findMany({
+      where: { viaje_id: viajeId },
+      include: {
+        usuario: { select: { id: true, nombre: true, apellido: true } },
+      },
+      orderBy: { updated_at: 'desc' },
+    })
+    return rows.map((r) => ({
+      usuarioId: r.usuario_id,
+      viajeId: r.viaje_id,
+      lat: r.lat,
+      lng: r.lng,
+      precision: r.precision_m,
+      updatedAt: r.updated_at.toISOString(),
+      nombre: [r.usuario.nombre, r.usuario.apellido].filter(Boolean).join(' ').trim(),
+    }))
   }
 
   async registrarPingUbicacion(
@@ -782,14 +826,65 @@ export class ViajesService {
         source,
       },
     })
-    getIo().to(`viaje:${viajeId}`).emit('viaje:ubicacion', {
+    await this.upsertUbicacionVivaSnapshot({
       viajeId,
       usuarioId,
       lat,
       lng,
       precision: accuracy ?? null,
-      recordedAt: ts.toISOString(),
-      source,
     })
+  }
+
+  private emitUbicacionLive(
+    viajeId: string,
+    usuarioId: string,
+    lat: number,
+    lng: number,
+    precision: number | null,
+    recordedAt: Date
+  ) {
+    getIo().to(`viaje:${viajeId}`).emit('viaje:ubicacion', {
+      viajeId,
+      usuarioId,
+      lat,
+      lng,
+      precision,
+      recordedAt: recordedAt.toISOString(),
+      source: 'live',
+    })
+  }
+
+  private async upsertUbicacionVivaSnapshot(input: {
+    viajeId: string
+    usuarioId: string
+    lat: number
+    lng: number
+    precision: number | null
+  }) {
+    const row = await this.prisma.ubicacionViva.upsert({
+      where: { usuario_id: input.usuarioId },
+      create: {
+        usuario_id: input.usuarioId,
+        viaje_id: input.viajeId,
+        lat: input.lat,
+        lng: input.lng,
+        precision_m: input.precision,
+      },
+      update: {
+        viaje_id: input.viajeId,
+        lat: input.lat,
+        lng: input.lng,
+        precision_m: input.precision,
+      },
+    })
+    this.emitUbicacionLive(
+      input.viajeId,
+      input.usuarioId,
+      input.lat,
+      input.lng,
+      input.precision,
+      row.updated_at
+    )
+    return row
   }
 }

@@ -8,15 +8,17 @@ import { MAP_STYLES, type MapStyleId } from './mapStyles'
 type Props = {
   value: MapStyleId
   onChange: (id: MapStyleId) => void
+  /** Offset desde safe area top; default 56 (debajo del header de planificación). */
+  topOffset?: number
 }
 
-export function MapStylePicker({ value, onChange }: Props) {
+export function MapStylePicker({ value, onChange, topOffset = 56 }: Props) {
   const insets = useSafeAreaInsets()
   const [abierto, setAbierto] = useState(false)
   const actual = MAP_STYLES.find((s) => s.id === value) ?? MAP_STYLES[0]
 
   return (
-    <View style={[styles.wrap, { top: insets.top + 56 }]} pointerEvents="box-none">
+    <View style={[styles.wrap, { top: insets.top + topOffset }]} pointerEvents="box-none">
       {abierto ? (
         <View style={styles.panel}>
           {MAP_STYLES.map((style) => {

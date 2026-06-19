@@ -18,7 +18,10 @@ import { Feather } from '@expo/vector-icons'
 
 import { DEV_USER_ID } from '@/constants/Config'
 import { useAuth } from '@/context/AuthContext'
+import { useTripRealtime } from '@/context/TripRealtimeContext'
 import { connectMeshSocket } from '@/lib/meshSocket'
+import { isSupabaseConfigured } from '@/lib/supabase'
+import { emitTripStartedWithRetry } from '@/lib/tripBroadcast'
 import { iniciarTrackingViaje, solicitarPermisosUbicacion } from '@/lib/tracking/trackingControl'
 import {
   iniciarViajeEnBackend,
@@ -113,6 +116,11 @@ export default function ViajeDetalleScreen() {
   const [guardandoFecha, setGuardandoFecha] = useState(false)
 
   const esLider = viaje != null && userId === viaje.creador_id
+  const { syncKnownTripIds } = useTripRealtime()
+
+  useEffect(() => {
+    if (viajeId) syncKnownTripIds([viajeId])
+  }, [viajeId, syncKnownTripIds])
 
   const origenNombre = useMemo(
     () => rutaMapa?.waypoints.find((w) => w.type === 'ORIGIN')?.name?.trim() || 'Inicio',
@@ -265,14 +273,42 @@ export default function ViajeDetalleScreen() {
       const perm = await solicitarPermisosUbicacion()
       setUbicacionBloqueada(!perm.foreground)
 
-      await iniciarViajeEnBackend(viajeId, userId)
+      const actualizado = await iniciarViajeEnBackend(viajeId, userId)
       await cargar()
+
+      if (isSupabaseConfigured()) {
+        try {
+          await emitTripStartedWithRetry(viajeId, {
+            viajeId,
+            nombre: actualizado.nombre ?? viaje?.nombre ?? null,
+            estado: 'en_curso',
+            fechaInicioReal: actualizado.fecha_inicio_real ?? new Date().toISOString(),
+            iniciadoPor: userId,
+          })
+        } catch (e) {
+          console.warn('Broadcast TRIP_STARTED falló:', e)
+          Alert.alert(
+            'Aviso',
+            'El viaje inició correctamente, pero no se pudo notificar al grupo en tiempo real.'
+          )
+        }
+      }
 
       const sock = await connectMeshSocket()
       sock.emit('join_viaje', { viajeId })
 
       if (perm.foreground) {
-        await iniciarTrackingViaje(viajeId, userId)
+        try {
+          await iniciarTrackingViaje(viajeId, userId)
+        } catch (e) {
+          console.warn('No se pudo iniciar tracking GPS:', e)
+          Alert.alert(
+            'Viaje iniciado',
+            perm.background
+              ? 'El viaje comenzó, pero no pudimos activar el GPS. Revisá permisos de ubicación en Ajustes.'
+              : 'El viaje comenzó. En iOS, para GPS con la pantalla bloqueada elegí "Siempre" en Ajustes → Mesh → Ubicación.'
+          )
+        }
       }
 
       router.push({ pathname: '/viaje/[viajeId]/live', params: { viajeId } })
@@ -502,7 +538,7 @@ export default function ViajeDetalleScreen() {
 
             {viaje.estado === 'planificado' && !esLider && (
               <Btn variant="secondary" block disabled>
-                Esperando al líder del viaje...
+                Esperando que el líder inicie el viaje
               </Btn>
             )}
 
@@ -531,8 +567,9 @@ export default function ViajeDetalleScreen() {
           <View style={[styles.modalCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <Text style={[styles.modalTitle, { color: theme.text }]}>Ubicación necesaria</Text>
             <Text style={[styles.modalBody, { color: theme.textDim }]}>
-              Para iniciar el viaje, Mesh necesita ubicación precisa y, en Android, permiso en segundo plano para el
-              servicio en primer plano (notificación fija) y envíos cada 5 segundos.
+              {Platform.OS === 'ios'
+                ? 'Mesh necesita tu ubicación para compartirla con el grupo cada 5 segundos. Para seguir transmitiendo con la pantalla apagada, elegí "Siempre" cuando iOS lo pregunte (o en Ajustes → Mesh → Ubicación).'
+                : 'Para iniciar el viaje, Mesh necesita ubicación precisa y permiso en segundo plano para la notificación fija y envíos cada 5 segundos.'}
             </Text>
             <View style={{ gap: 8, marginTop: 12 }}>
               <Btn variant="primary" block onPress={() => void ejecutarIniciar()} disabled={accion} loading={accion}>

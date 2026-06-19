@@ -1,4 +1,5 @@
 import { API_BASE_URL, DEV_USER_ID } from '@/constants/Config'
+import Constants from 'expo-constants'
 import { auth } from '@/lib/firebase'
 
 const FETCH_TIMEOUT_MS = 12_000
@@ -34,7 +35,11 @@ export async function meshFetch(url: string, init?: RequestInit): Promise<Respon
     return await fetch(url, { ...init, signal: controller.signal })
   } catch (e) {
     if (e instanceof Error && e.name === 'AbortError') {
-      throw new Error(`Tiempo de espera agotado al conectar con ${API_BASE_URL}`)
+      const hint =
+        Constants.isDevice && API_BASE_URL.includes('localhost')
+          ? ' En el celular, localhost no funciona: definí EXPO_PUBLIC_API_URL con la IP de tu PC (puerto 3000) o usá ngrok si estás en modo túnel.'
+          : ' Verificá que el backend esté corriendo (npm run dev), que iPhone y PC estén en la misma Wi‑Fi y que el firewall permita el puerto 3000.';
+      throw new Error(`Tiempo de espera agotado al conectar con ${API_BASE_URL}.${hint}`)
     }
     throw e
   } finally {

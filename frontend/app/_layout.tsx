@@ -10,6 +10,7 @@ import 'react-native-reanimated';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { AuthProvider, useAuth } from '@/context/AuthContext';
+import { TripRealtimeProvider } from '@/context/TripRealtimeContext';
 import Colors from '@/constants/Colors';
 import { ViajeRealtimeBridge } from '@/components/ViajeRealtimeBridge';
 
@@ -44,6 +45,20 @@ export default function RootLayout() {
   );
 }
 
+function AppStack() {
+  return (
+    <Stack>
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+      <Stack.Screen name="configurar-ruta" options={{ headerShown: false }} />
+      <Stack.Screen name="viaje" options={{ headerShown: false }} />
+      <Stack.Screen name="grupo" options={{ headerShown: false }} />
+      <Stack.Screen name="amigos" options={{ headerShown: false }} />
+      <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
+    </Stack>
+  );
+}
+
 function RootLayoutNav() {
   const { user, loading } = useAuth();
   const segments = useSegments();
@@ -71,16 +86,14 @@ function RootLayoutNav() {
 
   return (
     <ThemeProvider value={DarkTheme}>
-      {user && <ViajeRealtimeBridge />}
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-        <Stack.Screen name="configurar-ruta" options={{ headerShown: false }} />
-        <Stack.Screen name="viaje" options={{ headerShown: false }} />
-        <Stack.Screen name="grupo" options={{ headerShown: false }} />
-        <Stack.Screen name="amigos" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-      </Stack>
+      {user ? (
+        <TripRealtimeProvider>
+          <ViajeRealtimeBridge />
+          <AppStack />
+        </TripRealtimeProvider>
+      ) : (
+        <AppStack />
+      )}
     </ThemeProvider>
   );
 }
