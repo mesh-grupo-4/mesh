@@ -1,5 +1,5 @@
 import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { forwardRef, useCallback, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Platform,
@@ -19,6 +19,7 @@ import type { TipoActividadApi } from '@/lib/viajesApi'
 import { RouteTimelineConnector } from './RouteTimelineConnector'
 import { RouteWaypointRow } from './RouteWaypointRow'
 import type { RouteWaypoint } from './routeTypes'
+import type { RouteBottomSheetHandle } from './useRoutePlanner'
 
 type Props = {
   origen: RouteWaypoint
@@ -33,36 +34,55 @@ type Props = {
   resumenTiempo: string | null
   confirmarHabilitado: boolean
   guardando: boolean
-  onUpdateWaypoint: (id: string, patch: Partial<Pick<RouteWaypoint, 'lat' | 'lon' | 'name'>>) => void
+  mapPickMode: boolean
+  onUpdateWaypoint: (
+    id: string,
+    patch: Partial<Pick<RouteWaypoint, 'lat' | 'lon' | 'name' | 'category'>>
+  ) => void
   onAgregarParada: () => void
   onEliminarParada: (id: string) => void
   onMoverParada: (id: string, dir: 'up' | 'down') => void
+  onPickOnMap: (waypointId: string) => void
   onGuardar: () => void
 }
 
-export function RouteBottomSheet({
-  origen,
-  destino,
-  paradas,
-  tipoActividad,
-  velocidadEsperada,
-  distanciaMaxSeparacion,
-  calculando,
-  errorRuta,
-  resumenDistancia,
-  resumenTiempo,
-  confirmarHabilitado,
-  guardando,
-  onUpdateWaypoint,
-  onAgregarParada,
-  onEliminarParada,
-  onMoverParada,
-  onGuardar,
-}: Props) {
+export const RouteBottomSheet = forwardRef<RouteBottomSheetHandle, Props>(function RouteBottomSheet(
+  {
+    origen,
+    destino,
+    paradas,
+    tipoActividad,
+    velocidadEsperada,
+    distanciaMaxSeparacion,
+    calculando,
+    errorRuta,
+    resumenDistancia,
+    resumenTiempo,
+    confirmarHabilitado,
+    guardando,
+    mapPickMode,
+    onUpdateWaypoint,
+    onAgregarParada,
+    onEliminarParada,
+    onMoverParada,
+    onPickOnMap,
+    onGuardar,
+  },
+  ref
+) {
   const snapPoints = useMemo(() => ['18%', '48%', '88%'], [])
   const sheetRef = useRef<BottomSheet>(null)
   const sugerenciasAbiertas = useRef(new Set<string>())
   const [scrollSheetHabilitado, setScrollSheetHabilitado] = useState(true)
+
+  useImperativeHandle(ref, () => ({
+    snapToMin() {
+      sheetRef.current?.snapToIndex(0)
+    },
+    snapToDefault() {
+      sheetRef.current?.snapToIndex(1)
+    },
+  }))
 
   const onSuggestionsOpenChange = useCallback((waypointId: string, open: boolean) => {
     if (open) {
@@ -90,6 +110,8 @@ export function RouteBottomSheet({
         canMoveUp={waypoint.type === 'STOP' && (stopIndex ?? 0) > 0}
         canMoveDown={waypoint.type === 'STOP' && (stopIndex ?? 0) < paradas.length - 1}
         onSuggestionsOpenChange={(open) => onSuggestionsOpenChange(waypoint.id, open)}
+        onPickOnMap={() => onPickOnMap(waypoint.id)}
+        mapPickMode={mapPickMode}
       />
     </View>
   )
@@ -108,9 +130,10 @@ export function RouteBottomSheet({
       keyboardBehavior="interactive"
       keyboardBlurBehavior="restore"
       android_keyboardInputMode="adjustResize"
+      enableContentPanningGesture={!mapPickMode}
     >
       <BottomSheetScrollView
-        scrollEnabled={scrollSheetHabilitado}
+        scrollEnabled={scrollSheetHabilitado && !mapPickMode}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="always"
         nestedScrollEnabled
@@ -133,7 +156,7 @@ export function RouteBottomSheet({
 
         {paradas.map((p, i) => renderRow(p, i))}
 
-        <Pressable style={styles.addStopBtn} onPress={onAgregarParada}>
+        <Pressable style={styles.addStopBtn} onPress={onAgregarParada} disabled={mapPickMode}>
           <Text style={styles.addStopTxt}>+ Agregar parada</Text>
         </Pressable>
 
@@ -141,7 +164,10 @@ export function RouteBottomSheet({
 
         <View style={styles.resumen}>
           {calculando ? (
-            <Text style={styles.muted}>Calculando ruta…</Text>
+            <View style={styles.calculandoRow}>
+              <ActivityIndicator size="small" color="#6366f1" />
+              <Text style={styles.muted}>Calculando ruta…</Text>
+            </View>
           ) : errorRuta ? (
             <Text style={styles.errorText}>{errorRuta}</Text>
           ) : resumenDistancia && resumenTiempo ? (
@@ -168,7 +194,7 @@ export function RouteBottomSheet({
       </BottomSheetScrollView>
     </BottomSheet>
   )
-}
+})
 
 const styles = StyleSheet.create({
   handle: { backgroundColor: '#9ca3af', width: 40 },
@@ -217,6 +243,11 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     borderColor: '#e5e7eb',
+  },
+  calculandoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   resumenStrong: { fontSize: 17, fontWeight: '700', color: '#111827' },
   resumenTxt: { marginTop: 4, fontSize: 15, color: '#374151' },

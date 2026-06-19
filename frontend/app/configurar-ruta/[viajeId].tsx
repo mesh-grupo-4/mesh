@@ -1,19 +1,26 @@
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, StyleSheet, View } from 'react-native'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 
+import { MapPickOverlay } from '@/components/route-config/MapPickOverlay'
 import { RouteBottomSheet } from '@/components/route-config/RouteBottomSheet'
 import { MapStylePicker } from '@/components/route-config/MapStylePicker'
 import type { MapStyleId } from '@/components/route-config/mapStyles'
 import { RouteMapView } from '@/components/route-config/RouteMapView'
-import { useRoutePlanner } from '@/components/route-config/useRoutePlanner'
+import {
+  useRoutePlanner,
+  type RouteBottomSheetHandle,
+} from '@/components/route-config/useRoutePlanner'
+import { WaypointNameModal } from '@/components/route-config/WaypointNameModal'
+import { useAuth } from '@/context/AuthContext'
 import { parametrosPorActividad } from '@/lib/activityDefaults'
-import { DEV_USER_ID } from '@/constants/Config'
+import { resolveBackendUserId } from '@/lib/apiClient'
 import { obtenerViaje, type TipoActividadApi } from '@/lib/viajesApi'
 
 export default function ConfigurarRutaScreen() {
   const router = useRouter()
+  const { backendUserId, backendSyncing } = useAuth()
   const params = useLocalSearchParams<{ viajeId: string | string[]; userId?: string | string[] }>()
 
   const viajeId = useMemo(() => {
@@ -24,8 +31,10 @@ export default function ConfigurarRutaScreen() {
   const userId = useMemo(() => {
     const u = params.userId
     const raw = Array.isArray(u) ? u[0] : u
-    return raw?.trim() || DEV_USER_ID
-  }, [params.userId])
+    return resolveBackendUserId(raw ?? backendUserId)
+  }, [params.userId, backendUserId])
+
+  const sheetRef = useRef<RouteBottomSheetHandle>(null)
 
   const [tipoActividad, setTipoActividad] = useState<TipoActividadApi>('bici')
   const [velocidadEsperada, setVelocidadEsperada] = useState(35)
@@ -75,31 +84,45 @@ export default function ConfigurarRutaScreen() {
     regionInicial,
     cameraTarget,
     setCameraTarget,
+    fitRouteCoords,
     routeLineLatLng,
     waypointsConCoords,
     calculando,
+    cargandoRuta,
     errorRuta,
     resumenDistancia,
     resumenTiempo,
     confirmarHabilitado,
     guardando,
+    modoSeleccionMapa,
+    centroMapaPendiente,
+    nameModalVisible,
+    nameModalInitial,
+    nameModalLoading,
     actualizarWaypoint,
     agregarParada,
     eliminarParada,
     moverParada,
+    iniciarSeleccionMapa,
+    cancelarSeleccionMapa,
+    onRegionChangeComplete,
+    confirmarCentroMapa,
+    aplicarNombreMapa,
+    cancelarNombreMapa,
     guardar,
   } = useRoutePlanner({
     viajeId: viajeId ?? '',
     userId,
     tipoActividad,
     onSaved,
+    sheetRef,
   })
 
   const onCameraTargetApplied = useCallback(() => {
     setCameraTarget(null)
   }, [setCameraTarget])
 
-  if (cargandoViaje) {
+  if (cargandoViaje || backendSyncing || cargandoRuta || !userId) {
     return (
       <View style={styles.loading}>
         <ActivityIndicator size="large" color="#15803d" />
@@ -117,11 +140,25 @@ export default function ConfigurarRutaScreen() {
           initialRegion={regionInicial}
           cameraTarget={cameraTarget}
           onCameraTargetApplied={onCameraTargetApplied}
+          fitRouteCoords={fitRouteCoords}
+          mapPickMode={Boolean(modoSeleccionMapa)}
+          onRegionChangeComplete={onRegionChangeComplete}
+          calculando={calculando}
         />
 
-        <MapStylePicker value={mapStyle} onChange={setMapStyle} />
+        {!modoSeleccionMapa ? <MapStylePicker value={mapStyle} onChange={setMapStyle} /> : null}
+
+        {modoSeleccionMapa ? (
+          <MapPickOverlay
+            lat={centroMapaPendiente?.lat ?? null}
+            lon={centroMapaPendiente?.lon ?? null}
+            onConfirm={() => void confirmarCentroMapa()}
+            onCancel={cancelarSeleccionMapa}
+          />
+        ) : null}
 
         <RouteBottomSheet
+          ref={sheetRef}
           origen={origen}
           destino={destino}
           paradas={paradas}
@@ -134,11 +171,21 @@ export default function ConfigurarRutaScreen() {
           resumenTiempo={resumenTiempo}
           confirmarHabilitado={confirmarHabilitado}
           guardando={guardando}
+          mapPickMode={Boolean(modoSeleccionMapa)}
           onUpdateWaypoint={actualizarWaypoint}
           onAgregarParada={agregarParada}
           onEliminarParada={eliminarParada}
           onMoverParada={moverParada}
+          onPickOnMap={iniciarSeleccionMapa}
           onGuardar={() => void guardar()}
+        />
+
+        <WaypointNameModal
+          visible={nameModalVisible}
+          initialName={nameModalInitial}
+          loadingName={nameModalLoading}
+          onConfirm={aplicarNombreMapa}
+          onCancel={cancelarNombreMapa}
         />
       </View>
     </GestureHandlerRootView>

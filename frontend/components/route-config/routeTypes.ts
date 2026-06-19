@@ -1,11 +1,21 @@
 export type RouteWaypointType = 'ORIGIN' | 'STOP' | 'DESTINATION'
 
+export type StopCategory =
+  | 'kiosco'
+  | 'gastronomia'
+  | 'combustible'
+  | 'descanso'
+  | 'punto_control'
+  | 'otro'
+
 export type RouteWaypoint = {
   id: string
   type: RouteWaypointType
   lat: number | null
   lon: number | null
   name: string
+  category?: StopCategory | null
+  order: number
 }
 
 export function waypointTieneCoords(w: RouteWaypoint): w is RouteWaypoint & { lat: number; lon: number } {
@@ -41,3 +51,6 @@ export const REGION_FALLBACK = {
   latitudeDelta: 0.08,
   longitudeDelta: 0.08,
 }
+
+export const ROUTE_POLYLINE_COLOR = '#6366f1'
+export const ROUTE_POLYLINE_WIDTH = 5

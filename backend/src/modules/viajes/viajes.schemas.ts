@@ -53,6 +53,8 @@ export type ResponderInvitacionViajeInput = z.infer<typeof responderInvitacionVi
 export const putRutaSchema = z.object({
   origen: pointSchema,
   destino: pointSchema,
+  origenNombre: z.string().trim().max(200).optional().nullable(),
+  destinoNombre: z.string().trim().max(200).optional().nullable(),
   linestring: lineStringSchema,
   tiempoEstimadoSeg: z.number().int().positive().optional().nullable(),
   paradas: z
@@ -61,6 +63,7 @@ export const putRutaSchema = z.object({
         orden: z.number().int().min(0),
         lat: z.number().min(-90).max(90),
         lng: z.number().min(-180).max(180),
+        nombre: z.string().trim().max(200).optional().nullable(),
         categoria: z.nativeEnum(CategoriaParada).default(CategoriaParada.otro),
       })
     )

@@ -1,9 +1,16 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
-import { Platform, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native'
 import MapView, { Marker, Polyline, PROVIDER_DEFAULT, UrlTile } from 'react-native-maps'
+import type { Region } from 'react-native-maps'
 
 import { getMapStyle, type MapStyleId } from './mapStyles'
-import { colorMarcador, type RouteWaypoint, waypointTieneCoords } from './routeTypes'
+import {
+  colorMarcador,
+  ROUTE_POLYLINE_COLOR,
+  ROUTE_POLYLINE_WIDTH,
+  type RouteWaypoint,
+  waypointTieneCoords,
+} from './routeTypes'
 import type { CameraTarget } from './useRoutePlanner'
 
 export type RouteMapViewHandle = {
@@ -23,10 +30,25 @@ type Props = {
   }
   cameraTarget: CameraTarget | null
   onCameraTargetApplied?: () => void
+  fitRouteCoords?: { latitude: number; longitude: number }[] | null
+  mapPickMode?: boolean
+  onRegionChangeComplete?: (region: Region) => void
+  calculando?: boolean
 }
 
 export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function RouteMapView(
-  { waypoints, routeLineLatLng, mapStyle, initialRegion, cameraTarget, onCameraTargetApplied },
+  {
+    waypoints,
+    routeLineLatLng,
+    mapStyle,
+    initialRegion,
+    cameraTarget,
+    onCameraTargetApplied,
+    fitRouteCoords,
+    mapPickMode = false,
+    onRegionChangeComplete,
+    calculando = false,
+  },
   ref
 ) {
   const mapRef = useRef<MapView>(null)
@@ -59,13 +81,14 @@ export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function Route
   }, [cameraTarget, onCameraTargetApplied])
 
   useEffect(() => {
-    if (!routeLineLatLng || routeLineLatLng.length < 2) return
-    const coords = routeLineLatLng.map(([lat, lng]) => ({ latitude: lat, longitude: lng }))
+    if (mapPickMode) return
+    const coords = fitRouteCoords ?? (routeLineLatLng?.map(([lat, lng]) => ({ latitude: lat, longitude: lng })) ?? null)
+    if (!coords || coords.length < 2) return
     mapRef.current?.fitToCoordinates(coords, {
       edgePadding: { top: 80, right: 40, bottom: 280, left: 40 },
       animated: true,
     })
-  }, [routeLineLatLng])
+  }, [fitRouteCoords, routeLineLatLng, mapPickMode])
 
   const markers = waypoints.filter(waypointTieneCoords)
 
@@ -77,8 +100,9 @@ export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function Route
         provider={PROVIDER_DEFAULT}
         initialRegion={initialRegion}
         showsUserLocation
-        showsMyLocationButton={Platform.OS === 'android'}
+        showsMyLocationButton={Platform.OS === 'android' && !mapPickMode}
         mapType={Platform.OS === 'android' ? 'none' : 'mutedStandard'}
+        onRegionChangeComplete={onRegionChangeComplete}
       >
         <UrlTile
           key={capa.id}
@@ -87,25 +111,35 @@ export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function Route
           flipY={capa.flipY}
           zIndex={-1}
         />
-        {routeLineLatLng && routeLineLatLng.length > 1 ? (
+        {routeLineLatLng && routeLineLatLng.length > 1 && !mapPickMode ? (
           <Polyline
             coordinates={routeLineLatLng.map(([lat, lng]) => ({
               latitude: lat,
               longitude: lng,
             }))}
-            strokeColor={capa.routeStrokeColor}
-            strokeWidth={4}
+            strokeColor={ROUTE_POLYLINE_COLOR}
+            strokeWidth={ROUTE_POLYLINE_WIDTH}
           />
         ) : null}
-        {markers.map((w) => (
-          <Marker
-            key={w.id}
-            coordinate={{ latitude: w.lat, longitude: w.lon }}
-            title={w.name || undefined}
-            pinColor={colorMarcador(w.type)}
-          />
-        ))}
+        {!mapPickMode
+          ? markers.map((w) => (
+              <Marker
+                key={w.id}
+                coordinate={{ latitude: w.lat, longitude: w.lon }}
+                title={w.name || undefined}
+                pinColor={colorMarcador(w.type)}
+              />
+            ))
+          : null}
       </MapView>
+
+      {calculando && !mapPickMode ? (
+        <View style={styles.loadingOverlay} pointerEvents="none">
+          <ActivityIndicator size="large" color="#6366f1" />
+          <Text style={styles.loadingTxt}>Calculando ruta…</Text>
+        </View>
+      ) : null}
+
       <View style={styles.attribution} pointerEvents="none">
         <Text style={styles.attributionTxt} numberOfLines={1}>
           {capa.attribution}
@@ -116,6 +150,18 @@ export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function Route
 })
 
 const styles = StyleSheet.create({
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255,255,255,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  loadingTxt: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#374151',
+  },
   attribution: {
     position: 'absolute',
     left: 8,

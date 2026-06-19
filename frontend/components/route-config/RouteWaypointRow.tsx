@@ -1,7 +1,7 @@
+import { Ionicons } from '@expo/vector-icons'
 import { useEffect, useRef, useState } from 'react'
 import {
   ActivityIndicator,
-  FlatList,
   Keyboard,
   Platform,
   Pressable,
@@ -13,18 +13,24 @@ import {
 
 import { buscarLugares, type NominatimHit } from '@/lib/nominatim'
 
-import { labelTipoWaypoint, type RouteWaypoint } from './routeTypes'
+import { StopCategoryPicker } from './StopCategoryPicker'
+import { labelTipoWaypoint, type RouteWaypoint, type StopCategory } from './routeTypes'
 
 type Props = {
   waypoint: RouteWaypoint
   stopIndex?: number
-  onUpdate: (id: string, patch: Partial<Pick<RouteWaypoint, 'lat' | 'lon' | 'name'>>) => void
+  onUpdate: (
+    id: string,
+    patch: Partial<Pick<RouteWaypoint, 'lat' | 'lon' | 'name' | 'category'>>
+  ) => void
   onRemove?: (id: string) => void
   onMoveUp?: (id: string) => void
   onMoveDown?: (id: string) => void
   canMoveUp?: boolean
   canMoveDown?: boolean
   onSuggestionsOpenChange?: (open: boolean) => void
+  onPickOnMap: () => void
+  mapPickMode?: boolean
 }
 
 export function RouteWaypointRow({
@@ -37,12 +43,15 @@ export function RouteWaypointRow({
   canMoveUp,
   canMoveDown,
   onSuggestionsOpenChange,
+  onPickOnMap,
+  mapPickMode = false,
 }: Props) {
   const [query, setQuery] = useState(waypoint.name)
   const [debounced, setDebounced] = useState(waypoint.name)
   const [focused, setFocused] = useState(false)
   const [hits, setHits] = useState<NominatimHit[]>([])
   const [buscando, setBuscando] = useState(false)
+  const [searchError, setSearchError] = useState<string | null>(null)
   const selectingRef = useRef(false)
   const inputRef = useRef<TextInput>(null)
 
@@ -66,14 +75,19 @@ export function RouteWaypointRow({
     async function run() {
       if (!focused || debounced.length < 3) {
         setHits([])
+        setSearchError(null)
         return
       }
       setBuscando(true)
+      setSearchError(null)
       try {
         const r = await buscarLugares(debounced)
         if (!cancel) setHits(r)
       } catch {
-        if (!cancel) setHits([])
+        if (!cancel) {
+          setHits([])
+          setSearchError('Sin conexión. Probá seleccionar en el mapa.')
+        }
       } finally {
         if (!cancel) setBuscando(false)
       }
@@ -112,6 +126,7 @@ export function RouteWaypointRow({
   const cerrarSugerencias = () => {
     setFocused(false)
     setHits([])
+    setSearchError(null)
   }
 
   return (
@@ -137,6 +152,7 @@ export function RouteWaypointRow({
           style={styles.input}
           autoCorrect={false}
           autoCapitalize="none"
+          editable={!mapPickMode}
         />
         {waypoint.type === 'STOP' && onRemove ? (
           <Pressable onPress={() => onRemove(waypoint.id)} hitSlop={8} style={styles.removeBtn}>
@@ -144,6 +160,24 @@ export function RouteWaypointRow({
           </Pressable>
         ) : null}
       </View>
+
+      <Pressable
+        style={[styles.mapPickBtn, mapPickMode && styles.mapPickBtnActive]}
+        onPress={onPickOnMap}
+        disabled={mapPickMode}
+      >
+        <Ionicons name="map-outline" size={16} color={mapPickMode ? '#9ca3af' : '#2563eb'} />
+        <Text style={[styles.mapPickTxt, mapPickMode && styles.mapPickTxtOff]}>
+          Seleccionar en mapa
+        </Text>
+      </Pressable>
+
+      {waypoint.type === 'STOP' ? (
+        <StopCategoryPicker
+          value={(waypoint.category ?? 'otro') as StopCategory}
+          onChange={(category) => onUpdate(waypoint.id, { category })}
+        />
+      ) : null}
 
       {waypoint.type === 'STOP' && (onMoveUp || onMoveDown) ? (
         <View style={styles.reorderRow}>
@@ -172,31 +206,25 @@ export function RouteWaypointRow({
         <View style={styles.suggestions}>
           {buscando ? (
             <ActivityIndicator size="small" color="#374151" style={styles.loader} />
+          ) : searchError ? (
+            <Text style={styles.errorHits}>{searchError}</Text>
           ) : hits.length === 0 ? (
-            <Text style={styles.noHits}>Sin resultados</Text>
+            <Text style={styles.noHits}>Sin resultados. Probá otro texto o el mapa.</Text>
           ) : (
-            <FlatList
-              data={hits}
-              keyExtractor={(item, i) => `${item.lat},${item.lon}-${i}`}
-              style={styles.suggestionsList}
-              nestedScrollEnabled
-              keyboardShouldPersistTaps="always"
-              showsVerticalScrollIndicator
-              bounces={false}
-              renderItem={({ item }) => (
-                <Pressable
-                  style={styles.hitRow}
-                  onPressIn={() => {
-                    selectingRef.current = true
-                  }}
-                  onPress={() => onSelectHit(item)}
-                >
-                  <Text style={styles.hitText} numberOfLines={2}>
-                    {item.display_name}
-                  </Text>
-                </Pressable>
-              )}
-            />
+            hits.map((item, i) => (
+              <Pressable
+                key={`${item.lat},${item.lon}-${i}`}
+                style={styles.hitRow}
+                onPressIn={() => {
+                  selectingRef.current = true
+                }}
+                onPress={() => onSelectHit(item)}
+              >
+                <Text style={styles.hitText} numberOfLines={2}>
+                  {item.display_name}
+                </Text>
+              </Pressable>
+            ))
           )}
         </View>
       ) : null}
@@ -244,6 +272,25 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#b91c1c',
   },
+  mapPickBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 6,
+    alignSelf: 'flex-start',
+    paddingVertical: 4,
+  },
+  mapPickBtnActive: {
+    opacity: 0.5,
+  },
+  mapPickTxt: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2563eb',
+  },
+  mapPickTxtOff: {
+    color: '#9ca3af',
+  },
   reorderRow: {
     flexDirection: 'row',
     gap: 8,
@@ -266,11 +313,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     maxHeight: 180,
   },
-  suggestionsList: {
-    maxHeight: 180,
-  },
   loader: { padding: 12 },
   noHits: { padding: 12, fontSize: 14, color: '#6b7280' },
+  errorHits: { padding: 12, fontSize: 14, color: '#b91c1c' },
   hitRow: {
     paddingVertical: 10,
     paddingHorizontal: 12,

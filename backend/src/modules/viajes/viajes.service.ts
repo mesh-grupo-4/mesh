@@ -313,6 +313,50 @@ export class ViajesService {
     return { viajeId, yaEraParticipante: result.yaEraParticipante }
   }
 
+  async obtenerRuta(creadorId: string, viajeId: string) {
+    const viaje = await this.prisma.viaje.findUnique({ where: { id: viajeId } })
+    if (!viaje) {
+      throw new HttpError(404, 'Viaje no encontrado', 'VIAJE_NOT_FOUND')
+    }
+    if (viaje.creador_id !== creadorId) {
+      throw new HttpError(403, 'Solo el creador puede ver la ruta', 'NOT_CREATOR')
+    }
+
+    const ruta = await this.prisma.ruta.findUnique({
+      where: { viaje_id: viajeId },
+      include: {
+        paradas_intermedias: { orderBy: { orden: 'asc' } },
+      },
+    })
+
+    if (!ruta) {
+      throw new HttpError(404, 'Ruta no configurada', 'ROUTE_NOT_FOUND')
+    }
+
+    return {
+      origen: {
+        lat: ruta.origen_lat,
+        lng: ruta.origen_lng,
+        nombre: ruta.origen_nombre,
+      },
+      destino: {
+        lat: ruta.destino_lat,
+        lng: ruta.destino_lng,
+        nombre: ruta.destino_nombre,
+      },
+      linestring: ruta.linestring_geojson,
+      tiempo_estimado_seg: ruta.tiempo_estimado_seg,
+      distancia_planeada_m: ruta.distancia_planeada_m,
+      paradas: ruta.paradas_intermedias.map((p) => ({
+        orden: p.orden,
+        lat: p.lat,
+        lng: p.lng,
+        nombre: p.nombre,
+        categoria: p.categoria,
+      })),
+    }
+  }
+
   async guardarRuta(creadorId: string, viajeId: string, input: PutRutaInput) {
     const viaje = await this.prisma.viaje.findUnique({ where: { id: viajeId } })
     if (!viaje) {
@@ -344,8 +388,10 @@ export class ViajesService {
           viaje_id: viajeId,
           origen_lat: oLat,
           origen_lng: oLng,
+          origen_nombre: input.origenNombre ?? null,
           destino_lat: dLat,
           destino_lng: dLng,
+          destino_nombre: input.destinoNombre ?? null,
           linestring_geojson: input.linestring as unknown as Prisma.InputJsonValue,
           distancia_planeada_m: distanciaM,
           tiempo_estimado_seg: input.tiempoEstimadoSeg ?? null,
@@ -353,8 +399,10 @@ export class ViajesService {
         update: {
           origen_lat: oLat,
           origen_lng: oLng,
+          origen_nombre: input.origenNombre ?? null,
           destino_lat: dLat,
           destino_lng: dLng,
+          destino_nombre: input.destinoNombre ?? null,
           linestring_geojson: input.linestring as unknown as Prisma.InputJsonValue,
           distancia_planeada_m: distanciaM,
           tiempo_estimado_seg: input.tiempoEstimadoSeg ?? null,
@@ -369,6 +417,7 @@ export class ViajesService {
             orden: p.orden,
             lat: p.lat,
             lng: p.lng,
+            nombre: p.nombre ?? null,
             categoria: p.categoria,
           })),
         })

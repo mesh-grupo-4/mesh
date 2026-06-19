@@ -1,28 +1,37 @@
 import * as Crypto from 'expo-crypto'
 import * as Location from 'expo-location'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { Alert } from 'react-native'
+import type { Region } from 'react-native-maps'
 
 import {
   calcularRutaOsrm,
   perfilOsrmDesdeActividad,
   type OsrmRouteResult,
 } from '@/lib/osrm'
-import { guardarRutaEnBackend } from '@/lib/viajesApi'
-import type { PutRutaBody } from '@/lib/viajesTypes'
+import { reverseGeocode } from '@/lib/nominatim'
+import { toPutRutaBody, waypointsFromRutaDetalle } from '@/lib/routePayload'
+import { guardarRutaEnBackend, obtenerRuta } from '@/lib/viajesApi'
 import type { TipoActividadApi } from '@/lib/viajesApi'
 
-import { REGION_FALLBACK, type RouteWaypoint, waypointTieneCoords } from './routeTypes'
+import {
+  REGION_FALLBACK,
+  type RouteWaypoint,
+  type StopCategory,
+  waypointTieneCoords,
+} from './routeTypes'
 
 const MAX_PARADAS = 10
 
-function crearWaypoint(type: RouteWaypoint['type']): RouteWaypoint {
+function crearWaypoint(type: RouteWaypoint['type'], order: number): RouteWaypoint {
   return {
     id: Crypto.randomUUID(),
     type,
     lat: null,
     lon: null,
     name: '',
+    category: type === 'STOP' ? 'otro' : null,
+    order,
   }
 }
 
@@ -44,17 +53,30 @@ export type CameraTarget = {
   longitude: number
 }
 
+export type RouteBottomSheetHandle = {
+  snapToMin: () => void
+  snapToDefault: () => void
+}
+
 type UseRoutePlannerArgs = {
   viajeId: string
   userId: string
   tipoActividad?: TipoActividadApi
   onSaved?: () => void
+  sheetRef?: RefObject<RouteBottomSheetHandle | null>
 }
 
-export function useRoutePlanner({ viajeId, userId, tipoActividad, onSaved }: UseRoutePlannerArgs) {
-  const [origen, setOrigen] = useState<RouteWaypoint>(() => crearWaypoint('ORIGIN'))
-  const [destino, setDestino] = useState<RouteWaypoint>(() => crearWaypoint('DESTINATION'))
+export function useRoutePlanner({
+  viajeId,
+  userId,
+  tipoActividad,
+  onSaved,
+  sheetRef,
+}: UseRoutePlannerArgs) {
+  const [origen, setOrigen] = useState<RouteWaypoint>(() => crearWaypoint('ORIGIN', 0))
+  const [destino, setDestino] = useState<RouteWaypoint>(() => crearWaypoint('DESTINATION', 1))
   const [paradas, setParadas] = useState<RouteWaypoint[]>([])
+  const [cargandoRuta, setCargandoRuta] = useState(true)
 
   const movilidad = useMemo(
     () => perfilOsrmDesdeActividad(tipoActividad ?? 'bici'),
@@ -63,6 +85,9 @@ export function useRoutePlanner({ viajeId, userId, tipoActividad, onSaved }: Use
 
   const [regionInicial, setRegionInicial] = useState(REGION_FALLBACK)
   const [cameraTarget, setCameraTarget] = useState<CameraTarget | null>(null)
+  const [fitRouteCoords, setFitRouteCoords] = useState<{ latitude: number; longitude: number }[] | null>(
+    null
+  )
 
   const [rutaOk, setRutaOk] = useState<OsrmRouteResult | null>(null)
   const [routeLineLatLng, setRouteLineLatLng] = useState<[number, number][] | null>(null)
@@ -70,6 +95,15 @@ export function useRoutePlanner({ viajeId, userId, tipoActividad, onSaved }: Use
   const [calculando, setCalculando] = useState(false)
 
   const [guardando, setGuardando] = useState(false)
+
+  const [modoSeleccionMapa, setModoSeleccionMapa] = useState<{ waypointId: string } | null>(null)
+  const [centroMapaPendiente, setCentroMapaPendiente] = useState<{ lat: number; lon: number } | null>(
+    null
+  )
+  const [nameModalVisible, setNameModalVisible] = useState(false)
+  const [nameModalInitial, setNameModalInitial] = useState('Punto en mapa')
+  const [nameModalLoading, setNameModalLoading] = useState(false)
+  const pendingPickRef = useRef<{ waypointId: string; lat: number; lon: number } | null>(null)
 
   useEffect(() => {
     let cancel = false
@@ -97,6 +131,46 @@ export function useRoutePlanner({ viajeId, userId, tipoActividad, onSaved }: Use
     }
   }, [])
 
+  useEffect(() => {
+    let cancel = false
+    async function cargarRutaExistente() {
+      if (!viajeId || !userId?.trim()) {
+        setCargandoRuta(false)
+        return
+      }
+      setCargandoRuta(true)
+      try {
+        const ruta = await obtenerRuta(viajeId, userId.trim())
+        if (cancel || !ruta) return
+
+        const hydrated = waypointsFromRutaDetalle(ruta)
+        setOrigen({ ...hydrated.origen, id: Crypto.randomUUID() })
+        setDestino({ ...hydrated.destino, id: Crypto.randomUUID() })
+        setParadas(hydrated.paradas.map((p) => ({ ...p, id: Crypto.randomUUID() })))
+        setRouteLineLatLng(hydrated.routeLineLatLng)
+        setFitRouteCoords(
+          hydrated.routeLineLatLng.map(([lat, lng]) => ({ latitude: lat, longitude: lng }))
+        )
+        if (ruta.distancia_planeada_m != null && ruta.tiempo_estimado_seg != null) {
+          setRutaOk({
+            linestring: ruta.linestring,
+            polylineLatLng: hydrated.routeLineLatLng,
+            distanceM: ruta.distancia_planeada_m,
+            durationSec: ruta.tiempo_estimado_seg,
+          })
+        }
+      } catch {
+        /* sin ruta previa o error de red */
+      } finally {
+        if (!cancel) setCargandoRuta(false)
+      }
+    }
+    void cargarRutaExistente()
+    return () => {
+      cancel = true
+    }
+  }, [viajeId, userId])
+
   const waypointsOrdenados = useMemo(
     () => [origen, ...paradas, destino],
     [origen, paradas, destino]
@@ -108,6 +182,8 @@ export function useRoutePlanner({ viajeId, userId, tipoActividad, onSaved }: Use
   )
 
   useEffect(() => {
+    if (modoSeleccionMapa) return
+
     let cancel = false
     async function run() {
       const origenOk = waypointTieneCoords(origen)
@@ -139,11 +215,14 @@ export function useRoutePlanner({ viajeId, userId, tipoActividad, onSaved }: Use
         if (cancel) return
         setRutaOk(res)
         setRouteLineLatLng(res.polylineLatLng)
+        setFitRouteCoords(
+          res.polylineLatLng.map(([lat, lng]) => ({ latitude: lat, longitude: lng }))
+        )
       } catch {
         if (cancel) return
         setRutaOk(null)
         setRouteLineLatLng(null)
-        setErrorRuta('No se pudo calcular la ruta. Verifica la ubicación de los puntos.')
+        setErrorRuta('Sin conexión. No se pudo calcular la ruta.')
       } finally {
         if (!cancel) setCalculando(false)
       }
@@ -152,21 +231,27 @@ export function useRoutePlanner({ viajeId, userId, tipoActividad, onSaved }: Use
     return () => {
       cancel = true
     }
-  }, [origen, destino, paradas, movilidad, waypointsConCoords])
+  }, [origen, destino, paradas, movilidad, waypointsConCoords, modoSeleccionMapa])
 
-  const actualizarWaypoint = useCallback((id: string, patch: Partial<Pick<RouteWaypoint, 'lat' | 'lon' | 'name'>>) => {
-    const apply = (w: RouteWaypoint): RouteWaypoint => {
-      if (w.id !== id) return w
-      return { ...w, ...patch }
-    }
-    setOrigen((prev) => apply(prev))
-    setDestino((prev) => apply(prev))
-    setParadas((prev) => prev.map(apply))
+  const actualizarWaypoint = useCallback(
+    (
+      id: string,
+      patch: Partial<Pick<RouteWaypoint, 'lat' | 'lon' | 'name' | 'category'>>
+    ) => {
+      const apply = (w: RouteWaypoint): RouteWaypoint => {
+        if (w.id !== id) return w
+        return { ...w, ...patch }
+      }
+      setOrigen((prev) => apply(prev))
+      setDestino((prev) => apply(prev))
+      setParadas((prev) => prev.map(apply))
 
-    if (patch.lat != null && patch.lon != null) {
-      setCameraTarget({ latitude: patch.lat, longitude: patch.lon })
-    }
-  }, [])
+      if (patch.lat != null && patch.lon != null) {
+        setCameraTarget({ latitude: patch.lat, longitude: patch.lon })
+      }
+    },
+    []
+  )
 
   const agregarParada = useCallback(() => {
     setParadas((prev) => {
@@ -174,7 +259,7 @@ export function useRoutePlanner({ viajeId, userId, tipoActividad, onSaved }: Use
         Alert.alert('Límite', `Máximo ${MAX_PARADAS} paradas intermedias.`)
         return prev
       }
-      return [...prev, crearWaypoint('STOP')]
+      return [...prev, crearWaypoint('STOP', prev.length + 1)]
     })
   }, [])
 
@@ -196,6 +281,84 @@ export function useRoutePlanner({ viajeId, userId, tipoActividad, onSaved }: Use
     })
   }, [])
 
+  const iniciarSeleccionMapa = useCallback(
+    (waypointId: string) => {
+      setModoSeleccionMapa({ waypointId })
+      const wp = waypointsOrdenados.find((w) => w.id === waypointId)
+      if (wp && waypointTieneCoords(wp)) {
+        setCentroMapaPendiente({ lat: wp.lat, lon: wp.lon })
+        setCameraTarget({ latitude: wp.lat, longitude: wp.lon })
+      } else {
+        setCentroMapaPendiente({
+          lat: regionInicial.latitude,
+          lon: regionInicial.longitude,
+        })
+      }
+      sheetRef?.current?.snapToMin()
+    },
+    [waypointsOrdenados, regionInicial, sheetRef]
+  )
+
+  const cancelarSeleccionMapa = useCallback(() => {
+    setModoSeleccionMapa(null)
+    setCentroMapaPendiente(null)
+    pendingPickRef.current = null
+    sheetRef?.current?.snapToDefault()
+  }, [sheetRef])
+
+  const onRegionChangeComplete = useCallback((region: Region) => {
+    if (!modoSeleccionMapa) return
+    setCentroMapaPendiente({ lat: region.latitude, lon: region.longitude })
+  }, [modoSeleccionMapa])
+
+  const confirmarCentroMapa = useCallback(async () => {
+    if (!modoSeleccionMapa || !centroMapaPendiente) return
+
+    pendingPickRef.current = {
+      waypointId: modoSeleccionMapa.waypointId,
+      lat: centroMapaPendiente.lat,
+      lon: centroMapaPendiente.lon,
+    }
+
+    setNameModalVisible(true)
+    setNameModalInitial('Punto en mapa')
+    setNameModalLoading(true)
+
+    try {
+      const nombre = await reverseGeocode(centroMapaPendiente.lat, centroMapaPendiente.lon)
+      setNameModalInitial(nombre)
+    } catch {
+      setNameModalInitial('Punto en mapa')
+    } finally {
+      setNameModalLoading(false)
+    }
+  }, [modoSeleccionMapa, centroMapaPendiente])
+
+  const aplicarNombreMapa = useCallback(
+    (name: string) => {
+      const pending = pendingPickRef.current
+      if (!pending) return
+
+      actualizarWaypoint(pending.waypointId, {
+        lat: pending.lat,
+        lon: pending.lon,
+        name,
+      })
+
+      pendingPickRef.current = null
+      setModoSeleccionMapa(null)
+      setCentroMapaPendiente(null)
+      setNameModalVisible(false)
+      sheetRef?.current?.snapToDefault()
+    },
+    [actualizarWaypoint, sheetRef]
+  )
+
+  const cancelarNombreMapa = useCallback(() => {
+    setNameModalVisible(false)
+    pendingPickRef.current = null
+  }, [])
+
   const confirmarHabilitado =
     Boolean(viajeId) &&
     Boolean(userId?.trim()) &&
@@ -204,7 +367,8 @@ export function useRoutePlanner({ viajeId, userId, tipoActividad, onSaved }: Use
     paradas.every(waypointTieneCoords) &&
     Boolean(rutaOk) &&
     !calculando &&
-    !guardando
+    !guardando &&
+    !modoSeleccionMapa
 
   const resumenDistancia = rutaOk ? formatDistance(rutaOk.distanceM) : null
   const resumenTiempo = rutaOk ? formatDuration(rutaOk.durationSec) : null
@@ -216,18 +380,7 @@ export function useRoutePlanner({ viajeId, userId, tipoActividad, onSaved }: Use
 
     setGuardando(true)
     try {
-      const body: PutRutaBody = {
-        origen: { type: 'Point', coordinates: [origen.lon, origen.lat] },
-        destino: { type: 'Point', coordinates: [destino.lon, destino.lat] },
-        linestring: rutaOk.linestring,
-        tiempoEstimadoSeg: Math.round(rutaOk.durationSec),
-        paradas: paradas.filter(waypointTieneCoords).map((p, i) => ({
-          orden: i,
-          lat: p.lat,
-          lng: p.lon,
-          categoria: 'otro' as const,
-        })),
-      }
+      const body = toPutRutaBody(origen, paradas, destino, rutaOk)
       await guardarRutaEnBackend(viajeId, userId.trim(), body)
       Alert.alert('Listo', 'La ruta se guardó correctamente.', [{ text: 'OK', onPress: onSaved }])
     } catch (e) {
@@ -245,18 +398,31 @@ export function useRoutePlanner({ viajeId, userId, tipoActividad, onSaved }: Use
     regionInicial,
     cameraTarget,
     setCameraTarget,
+    fitRouteCoords,
     routeLineLatLng,
     waypointsConCoords,
     calculando,
+    cargandoRuta,
     errorRuta,
     resumenDistancia,
     resumenTiempo,
     confirmarHabilitado,
     guardando,
+    modoSeleccionMapa,
+    centroMapaPendiente,
+    nameModalVisible,
+    nameModalInitial,
+    nameModalLoading,
     actualizarWaypoint,
     agregarParada,
     eliminarParada,
     moverParada,
+    iniciarSeleccionMapa,
+    cancelarSeleccionMapa,
+    onRegionChangeComplete,
+    confirmarCentroMapa,
+    aplicarNombreMapa,
+    cancelarNombreMapa,
     guardar,
   }
 }

@@ -25,9 +25,11 @@ enum EstadoViaje {
 }
 
 enum CategoriaParada {
+  kiosco
   combustible
   descanso
   gastronomia
+  punto_control
   sanitario
   otro
 }
@@ -210,8 +212,10 @@ model Ruta {
   viaje_id             String  @unique @map("viaje_id") @db.Uuid
   origen_lat           Float   @map("origen_lat")
   origen_lng           Float   @map("origen_lng")
+  origen_nombre        String? @map("origen_nombre")
   destino_lat          Float   @map("destino_lat")
   destino_lng          Float   @map("destino_lng")
+  destino_nombre       String? @map("destino_nombre")
   linestring_geojson   Json    @map("linestring_geojson")
   distancia_planeada_m Float?  @map("distancia_planeada_m")
   tiempo_estimado_seg  Int?    @map("tiempo_estimado_seg")
@@ -228,6 +232,7 @@ model ParadaIntermedia {
   orden      Int
   lat        Float
   lng        Float
+  nombre     String?
   categoria  CategoriaParada @default(otro)
 
   ruta Ruta @relation(fields: [ruta_id], references: [id], onDelete: Cascade)

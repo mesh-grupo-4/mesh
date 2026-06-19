@@ -1,5 +1,5 @@
 import { API_BASE_URL } from '@/constants/Config'
-import type { PutRutaBody } from './viajesTypes'
+import type { PutRutaBody, RutaDetalleApi } from './viajesTypes'
 import { apiUrl, authHeaders, meshFetch, parseJson } from './apiClient'
 
 export type TipoActividadApi = 'moto' | 'bici' | 'running' | 'trekking'
@@ -217,5 +217,22 @@ export async function guardarRutaEnBackend(
   }
 
   return text ? JSON.parse(text) : null
+}
+
+export async function obtenerRuta(
+  viajeId: string,
+  userId: string,
+  baseUrl: string = API_BASE_URL
+): Promise<RutaDetalleApi | null> {
+  const res = await meshFetch(apiUrl(`/api/viajes/${viajeId}/ruta`, baseUrl), {
+    method: 'GET',
+    headers: await authHeaders(userId),
+  })
+
+  if (res.status === 404) {
+    return null
+  }
+
+  return parseJson<RutaDetalleApi>(res)
 }
 

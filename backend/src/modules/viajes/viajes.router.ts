@@ -17,6 +17,7 @@ viajesRouter.post('/:viajeId/invitacion/responder', requireUser, c.responderInvi
 viajesRouter.get('/:viajeId/participantes', requireUser, c.listarParticipantes)
 viajesRouter.get('/:viajeId', requireUser, c.detalle)
 viajesRouter.post('/:viajeId/posiciones', requireUser, c.ingresarPosiciones)
+viajesRouter.get('/:viajeId/ruta', requireUser, c.obtenerRuta)
 viajesRouter.put('/:viajeId/ruta', requireUser, c.guardarRuta)
 viajesRouter.post('/:viajeId/iniciar', requireUser, c.iniciar)
 viajesRouter.post('/:viajeId/finalizar', requireUser, c.finalizar)

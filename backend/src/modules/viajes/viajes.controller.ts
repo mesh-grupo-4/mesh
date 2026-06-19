@@ -57,6 +57,12 @@ export function crearViajesController(service: ViajesService) {
       res.status(201).json(out)
     }),
 
+    obtenerRuta: asyncHandler(async (req, res) => {
+      const viajeId = req.params.viajeId as string
+      const ruta = await service.obtenerRuta(req.userId!, viajeId)
+      res.json(ruta)
+    }),
+
     guardarRuta: asyncHandler(async (req, res) => {
       const viajeId = req.params.viajeId as string
       const body = putRutaSchema.parse(req.body)

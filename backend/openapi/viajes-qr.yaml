@@ -141,6 +141,33 @@ paths:
                 $ref: '#/components/schemas/UnirseQrResponse'
 
   /api/viajes/{viajeId}/ruta:
+    get:
+      summary: Obtener ruta del viaje
+      description: |
+        Devuelve origen, destino, geometría y paradas intermedias.
+        Solo el creador del viaje puede consultar la ruta completa.
+      operationId: obtenerRutaViaje
+      tags: [Viajes]
+      security: [{ UserIdHeader: [] }]
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - name: viajeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Ruta del viaje
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RutaDetalleResponse'
+        '403':
+          description: Solo el creador puede ver la ruta (NOT_CREATOR)
+        '404':
+          description: Viaje o ruta no encontrados (VIAJE_NOT_FOUND / ROUTE_NOT_FOUND)
     put:
       summary: Guardar o actualizar ruta del viaje
       description: |
@@ -370,8 +397,12 @@ components:
           maximum: 180
         categoria:
           type: string
-          enum: [combustible, descanso, gastronomia, sanitario, otro]
+          enum: [kiosco, combustible, descanso, gastronomia, punto_control, sanitario, otro]
           default: otro
+        nombre:
+          type: string
+          maxLength: 200
+          nullable: true
 
     PutRutaRequest:
       type: object
@@ -387,6 +418,14 @@ components:
           type: integer
           nullable: true
           description: Tiempo estimado en segundos (opcional, provisto por el cliente)
+        origenNombre:
+          type: string
+          maxLength: 200
+          nullable: true
+        destinoNombre:
+          type: string
+          maxLength: 200
+          nullable: true
         paradas:
           type: array
           maxItems: 10
@@ -406,10 +445,16 @@ components:
           type: number
         origen_lng:
           type: number
+        origen_nombre:
+          type: string
+          nullable: true
         destino_lat:
           type: number
         destino_lng:
           type: number
+        destino_nombre:
+          type: string
+          nullable: true
         linestring_geojson:
           $ref: '#/components/schemas/GeoJsonLineString'
         distancia_planeada_m:
@@ -418,3 +463,53 @@ components:
         tiempo_estimado_seg:
           type: integer
           nullable: true
+
+    RutaDetalleResponse:
+      type: object
+      required: [origen, destino, linestring, paradas]
+      properties:
+        origen:
+          $ref: '#/components/schemas/PuntoRuta'
+        destino:
+          $ref: '#/components/schemas/PuntoRuta'
+        linestring:
+          $ref: '#/components/schemas/GeoJsonLineString'
+        tiempo_estimado_seg:
+          type: integer
+          nullable: true
+        distancia_planeada_m:
+          type: number
+          nullable: true
+        paradas:
+          type: array
+          items:
+            $ref: '#/components/schemas/ParadaIntermediaDetalle'
+
+    PuntoRuta:
+      type: object
+      required: [lat, lng]
+      properties:
+        lat:
+          type: number
+        lng:
+          type: number
+        nombre:
+          type: string
+          nullable: true
+
+    ParadaIntermediaDetalle:
+      type: object
+      required: [orden, lat, lng, categoria]
+      properties:
+        orden:
+          type: integer
+        lat:
+          type: number
+        lng:
+          type: number
+        nombre:
+          type: string
+          nullable: true
+        categoria:
+          type: string
+          enum: [kiosco, combustible, descanso, gastronomia, punto_control, sanitario, otro]

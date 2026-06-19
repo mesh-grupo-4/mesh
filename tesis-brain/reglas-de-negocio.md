@@ -72,7 +72,7 @@ A diferencia de soluciones existentes (Strava, Garmin, Google Maps, Life360) que
 | RN-028 | Al crear un viaje grupal, el creador puede invitar por dos vías (UI: dos `Collapsible`, Grupos y Amigos): **(a) grupos** de los que es **miembro**, invitando en bloque a sus integrantes (`origen: grupo`); y **(b) amigos** individuales con amistad **aceptada** (`origen: amigo`, validado en backend con 403 `NOT_FRIEND` si no son amigos). Ambos `grupoIds` y `amigoIds` solo se aceptan en viajes grupales. Si un usuario llega por varios caminos (varios grupos, o grupo + amigo) recibe **una sola invitación** (se prioriza `origen: grupo`). El campo `invitaciones_enviadas` cuenta el total sin duplicar. El viaje se crea con `nombre` obligatorio (1–100) y `fecha_programada` futura definida por el creador. |
 | RN-029 | Las invitaciones al viaje (originadas por grupos o por amigos) requieren **confirmación** del invitado (aceptar/rechazar asistencia). El creador del viaje ve la lista de confirmados y rechazados. Distinto de RN-016 (QR al viaje) y de RN-018 (membresía de grupo). |
 | RN-021 | Los tipos de actividad disponibles son: **moto**, **bici**, **running**, **trekking**. Cada uno tiene parámetros por defecto diferentes. |
-| RN-022 | Las categorías de parada intermedia son: **combustible**, **descanso**, **gastronomía**, **sanitario**, **otro**. |
+| RN-022 | Las categorías de parada intermedia son: **kiosco**, **combustible**, **descanso**, **gastronomía**, **punto de control**, **sanitario**, **otro**. |
 | RN-023 | La estimación de tiempos depende del tipo de actividad seleccionado y la distancia, más el tiempo configurable de cada parada. |
 | RN-024 | Las rutas se trazan sobre OpenStreetMap; las paradas son reordenables. |
 | RN-025 | Los parámetros configurables por el líder son: velocidad promedio esperada, distancia máxima de separación del grupo y tiempo de tolerancia de atraso. |
@@ -440,7 +440,7 @@ ParadaIntermedia
 ├── ruta_id (FK)
 ├── orden (int)
 ├── ubicacion (point)
-├── categoria (enum: combustible, descanso, gastronomía, sanitario, otro)
+├── categoria (enum: kiosco, combustible, descanso, gastronomía, punto_control, sanitario, otro)
 ├── nombre
 └── tiempo_estimado_parada
 
