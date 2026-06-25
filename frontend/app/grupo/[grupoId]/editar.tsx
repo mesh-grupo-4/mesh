@@ -3,10 +3,10 @@ import {
   View,
   Text,
   StyleSheet,
-  ActivityIndicator,
-  Alert,
+  ActivityIndicator, 
   ScrollView,
 } from 'react-native';
+import { meshAlert } from '@/lib/meshAlert';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { resolveBackendUserId } from '@/lib/apiClient';
@@ -55,7 +55,7 @@ export default function EditarGrupoScreen() {
 
   const redirigirTrasSalida = (mensaje: string) => {
     router.replace('/(tabs)/grupos');
-    Alert.alert('Listo', mensaje);
+    meshAlert('Listo', mensaje);
   };
 
   const ejecutarAbandono = async (nuevoLider?: string) => {
@@ -71,7 +71,7 @@ export default function EditarGrupoScreen() {
         redirigirTrasSalida('Abandonaste el grupo.');
       }
     } catch (e: unknown) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo abandonar el grupo.');
+      meshAlert('Error', e instanceof Error ? e.message : 'No se pudo abandonar el grupo.');
     } finally {
       setProcesandoAccion(false);
     }
@@ -80,7 +80,7 @@ export default function EditarGrupoScreen() {
   const ejecutarEliminacion = () => {
     if (!grupoId) return;
 
-    Alert.alert(
+    meshAlert(
       'Eliminar grupo',
       '¿Eliminar este grupo definitivamente? Esta acción no se puede deshacer y todos los miembros serán expulsados.',
       [
@@ -97,7 +97,7 @@ export default function EditarGrupoScreen() {
                 setModalTransferir(false);
                 redirigirTrasSalida('El grupo fue eliminado.');
               } catch (e: unknown) {
-                Alert.alert(
+                meshAlert(
                   'Error',
                   e instanceof Error ? e.message : 'No se pudo eliminar el grupo.'
                 );
@@ -112,7 +112,7 @@ export default function EditarGrupoScreen() {
   };
 
   const confirmarAbandonoParticipante = () => {
-    Alert.alert(
+    meshAlert(
       'Abandonar grupo',
       '¿Estás seguro de que quieres abandonar este grupo?',
       [
@@ -123,7 +123,7 @@ export default function EditarGrupoScreen() {
   };
 
   const confirmarAbandonoLiderSolo = () => {
-    Alert.alert(
+    meshAlert(
       'Abandonar grupo',
       'Sos el único integrante. Al abandonar, el grupo se eliminará permanentemente.',
       [
@@ -156,7 +156,7 @@ export default function EditarGrupoScreen() {
         setNuevoLiderId(null);
         setModalTransferir(true);
       } catch (e: unknown) {
-        Alert.alert('Error', e instanceof Error ? e.message : 'No se pudieron cargar los miembros.');
+        meshAlert('Error', e instanceof Error ? e.message : 'No se pudieron cargar los miembros.');
       }
     })();
   };

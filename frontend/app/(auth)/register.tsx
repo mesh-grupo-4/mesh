@@ -4,11 +4,11 @@ import {
   Text,
   StyleSheet,
   KeyboardAvoidingView,
-  Platform,
-  Alert,
+  Platform, 
   ScrollView,
   Pressable,
 } from 'react-native';
+import { meshAlert } from '@/lib/meshAlert';
 import { router } from 'expo-router';
 import { useAuth, ActividadPreferida } from '@/context/AuthContext';
 import { Btn, Field, TopBar, ActivityTile, useTheme } from '@/components/MeshUI';
@@ -45,19 +45,19 @@ export default function RegisterScreen() {
 
   const handleNextStep = () => {
     if (!nombre.trim() || !apellido.trim() || !telefono.trim() || !email.trim() || !password || !confirm) {
-      Alert.alert('Campos requeridos', 'Completá todos los campos.');
+      meshAlert('Campos requeridos', 'Completá todos los campos.');
       return;
     }
     if (!telefonoArgentinoValido(telefono)) {
-      Alert.alert('Teléfono inválido', 'Ingresá un número de teléfono argentino válido.\nEj: 351 123-4567 o +54 9 11 4567-8901');
+      meshAlert('Teléfono inválido', 'Ingresá un número de teléfono argentino válido.\nEj: 351 123-4567 o +54 9 11 4567-8901');
       return;
     }
     if (password.length < 8) {
-      Alert.alert('Contraseña corta', 'La contraseña debe tener al menos 8 caracteres.');
+      meshAlert('Contraseña corta', 'La contraseña debe tener al menos 8 caracteres.');
       return;
     }
     if (password !== confirm) {
-      Alert.alert('Contraseñas distintas', 'Las contraseñas no coinciden.');
+      meshAlert('Contraseñas distintas', 'Las contraseñas no coinciden.');
       return;
     }
     setStep(1);
@@ -86,7 +86,7 @@ export default function RegisterScreen() {
 
       router.replace('/(tabs)');
     } catch (e: any) {
-      Alert.alert('Error al registrarse', mensajeFirebase(e.code));
+      meshAlert('Error al registrarse', mensajeFirebase(e.code));
     } finally {
       setLoading(false);
     }

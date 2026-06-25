@@ -1,5 +1,7 @@
 import { StyleSheet, View } from 'react-native'
 
+import { useTheme } from '@/components/MeshUI'
+
 import { colorMarcador, type RouteWaypointType } from './routeTypes'
 
 type Props = {
@@ -8,10 +10,12 @@ type Props = {
 }
 
 export function RouteTimelineConnector({ type, isLast = false }: Props) {
+  const theme = useTheme()
+
   return (
     <View style={styles.col}>
-      <View style={[styles.dot, { backgroundColor: colorMarcador(type) }]} />
-      {!isLast ? <View style={styles.line} /> : null}
+      <View style={[styles.dot, { backgroundColor: colorMarcador(type, theme) }]} />
+      {!isLast ? <View style={[styles.line, { backgroundColor: theme.borderStrong }]} /> : null}
     </View>
   )
 }
@@ -30,7 +34,6 @@ const styles = StyleSheet.create({
   line: {
     flex: 1,
     width: 2,
-    backgroundColor: '#d1d5db',
     marginVertical: 4,
     minHeight: 24,
   },

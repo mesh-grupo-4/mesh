@@ -3,24 +3,28 @@ import * as Location from 'expo-location'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  ActivityIndicator,
-  Alert,
+  ActivityIndicator, 
   Platform,
   StyleSheet,
   Text,
   View,
 } from 'react-native'
+import { meshAlert } from '@/lib/meshAlert';
 
 import { CenterLocationButton } from '@/components/live/CenterLocationButton'
 import { LiveMapView, type LiveMapViewHandle } from '@/components/live/LiveMapView'
+import type { LiveMember } from '@/components/live/LiveMembersBar'
+import { LiveTripHeader } from '@/components/live/LiveTripHeader'
 import { TripMetricsPanel } from '@/components/live/TripMetricsPanel'
 import { MapStylePicker } from '@/components/route-config/MapStylePicker'
 import type { MapStyleId } from '@/components/route-config/mapStyles'
 import { DEV_USER_ID, API_BASE_URL } from '@/constants/Config'
 import { useAuth } from '@/context/AuthContext'
 import { useLiveLocations } from '@/hooks/useLiveLocations'
+import { useNextStopEta } from '@/hooks/useNextStopEta'
 import { useTripMetrics } from '@/hooks/useTripMetrics'
-import { linestringToLatLng } from '@/lib/routePayload'
+import type { RouteStop } from '@/lib/geo/nextStop'
+import { linestringToLatLng, waypointsFromRutaDetalle } from '@/lib/routePayload'
 import { connectMeshSocket } from '@/lib/meshSocket'
 import { isSupabaseConfigured } from '@/lib/supabase'
 import {
@@ -57,6 +61,7 @@ export default function ViajeLiveScreen() {
   const [viaje, setViaje] = useState<ViajeDetalleApi | null>(null)
   const [participantes, setParticipantes] = useState<ViajeParticipanteApi[]>([])
   const [routeLine, setRouteLine] = useState<[number, number][] | null>(null)
+  const [routeStops, setRouteStops] = useState<RouteStop[]>([])
   const [initialCenter, setInitialCenter] = useState<{ latitude: number; longitude: number } | null>(
     null
   )
@@ -78,6 +83,47 @@ export default function ViajeLiveScreen() {
   }, [viaje, participantes])
 
   const { memberList, realtimeOk } = useLiveLocations({ viajeId: viajeId ?? '', userId, nameByUserId })
+
+  const myPosition = useMemo(() => {
+    const me = memberList.find((m) => m.usuarioId === userId)
+    if (me) return { lat: me.lat, lng: me.lng }
+    if (initialCenter) return { lat: initialCenter.latitude, lng: initialCenter.longitude }
+    return null
+  }, [memberList, userId, initialCenter])
+
+  const nextStop = useNextStopEta({
+    currentPos: myPosition,
+    stops: routeStops,
+    speedKmh: viaje?.velocidad_esperada ?? 30,
+  })
+
+  const liveMembers = useMemo((): LiveMember[] => {
+    const seen = new Set<string>()
+    const list: LiveMember[] = []
+    const onMap = new Set(memberList.map((m) => m.usuarioId))
+
+    const add = (id: string, nombre: string) => {
+      if (seen.has(id)) return
+      seen.add(id)
+      list.push({ id, nombre, enMapa: onMap.has(id) })
+    }
+
+    if (viaje?.creador) add(viaje.creador.id, viaje.creador.nombre)
+    for (const p of participantes) {
+      if (p.estado === 'confirmado') add(p.usuario.id, p.usuario.nombre)
+    }
+    for (const m of memberList) {
+      add(m.usuarioId, m.nombre)
+    }
+
+    return list
+  }, [viaje, participantes, memberList])
+
+  const tripDisplayName = useMemo(() => {
+    if (viaje?.nombre?.trim()) return viaje.nombre.trim()
+    return viaje?.es_grupal ? 'Salida grupal' : 'Salida individual'
+  }, [viaje])
+
   const { elapsedLabel, distanceLabel } = useTripMetrics({
     userId,
     fechaInicioReal: viaje?.fecha_inicio_real ?? null,
@@ -104,6 +150,25 @@ export default function ViajeLiveScreen() {
         setParticipantes(parts)
         if (ruta?.linestring) {
           setRouteLine(linestringToLatLng(ruta.linestring))
+          const h = waypointsFromRutaDetalle(ruta)
+          const stops: RouteStop[] = [
+            { lat: h.origen.lat, lng: h.origen.lon, name: h.origen.name || 'Origen', type: 'ORIGIN' },
+            ...h.paradas.map((p) => ({
+              lat: p.lat,
+              lng: p.lon,
+              name: p.name || 'Parada',
+              type: 'STOP' as const,
+            })),
+            {
+              lat: h.destino.lat,
+              lng: h.destino.lon,
+              name: h.destino.name || 'Destino',
+              type: 'DESTINATION',
+            },
+          ]
+          setRouteStops(stops)
+        } else {
+          setRouteStops([])
         }
       } finally {
         if (!cancelled) setLoading(false)
@@ -127,7 +192,7 @@ export default function ViajeLiveScreen() {
       const onFin = (payload: { viajeId: string }) => {
         if (payload.viajeId !== viajeId) return
         void detenerTrackingViaje()
-        Alert.alert('Viaje finalizado', 'Se detuvo el seguimiento GPS.', [
+        meshAlert('Viaje finalizado', 'Se detuvo el seguimiento GPS.', [
           { text: 'OK', onPress: () => router.replace({ pathname: '/viaje/[viajeId]', params: { viajeId } }) },
         ])
       }
@@ -209,7 +274,16 @@ export default function ViajeLiveScreen() {
         mapStyle={mapStyle}
       />
 
-      <MapStylePicker value={mapStyle} onChange={setMapStyle} topOffset={8} />
+      <LiveTripHeader
+        tripName={tripDisplayName}
+        nextStop={nextStop}
+        hasRoute={routeStops.length > 0}
+        members={liveMembers}
+        currentUserId={userId}
+        onBack={() => router.back()}
+      />
+
+      <MapStylePicker value={mapStyle} onChange={setMapStyle} topOffset={128} />
 
       <CenterLocationButton onPress={handleCenterOnMe} bottomOffset={140} />
 
@@ -222,7 +296,7 @@ export default function ViajeLiveScreen() {
       ) : null}
 
       {!realtimeOk && isSupabaseConfigured() ? (
-        <View style={styles.infoBanner}>
+        <View style={[styles.infoBanner, fg === false && styles.infoBannerBelowWarn]}>
           <Text style={styles.infoTxt}>
             Realtime Supabase desconectado; usamos WebSocket y refresco cada 15 s.
           </Text>
@@ -258,12 +332,13 @@ const styles = StyleSheet.create({
   },
   warnBanner: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 52 : 12,
+    top: 130,
     left: 12,
     right: 12,
     backgroundColor: '#fef3c7',
     padding: 10,
     borderRadius: 10,
+    zIndex: 15,
   },
   warnTxt: {
     color: '#92400e',
@@ -271,12 +346,16 @@ const styles = StyleSheet.create({
   },
   infoBanner: {
     position: 'absolute',
-    top: Platform.OS === 'ios' ? 52 : 12,
+    top: 130,
     left: 12,
     right: 12,
     backgroundColor: '#dbeafe',
     padding: 8,
     borderRadius: 8,
+    zIndex: 15,
+  },
+  infoBannerBelowWarn: {
+    top: 190,
   },
   infoTxt: {
     color: '#1e40af',

@@ -4,11 +4,11 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  ActivityIndicator,
-  Alert,
+  ActivityIndicator, 
   RefreshControl,
   Pressable,
 } from 'react-native';
+import { meshAlert } from '@/lib/meshAlert';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { resolveBackendUserId } from '@/lib/apiClient';
@@ -59,7 +59,7 @@ export default function MiembrosGrupoScreen() {
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : 'No se pudieron cargar los miembros.';
         setError(msg);
-        if (!esRefresh) Alert.alert('Error', msg);
+        if (!esRefresh) meshAlert('Error', msg);
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -95,7 +95,7 @@ export default function MiembrosGrupoScreen() {
       } catch {
         setMiembros(snapshot);
         if (nuevoRol === 'lider') setMiRol('lider');
-        Alert.alert('Error', 'Error al actualizar el rol. Inténtalo de nuevo.');
+        meshAlert('Error', 'Error al actualizar el rol. Inténtalo de nuevo.');
       } finally {
         setActualizandoId(null);
       }
@@ -103,7 +103,7 @@ export default function MiembrosGrupoScreen() {
   };
 
   const mostrarMenuRol = (miembro: GrupoMiembroApi) => {
-    Alert.alert(`Rol de ${miembro.nombre}`, 'Seleccioná el nuevo rol:', [
+    meshAlert(`Rol de ${miembro.nombre}`, 'Seleccioná el nuevo rol:', [
       {
         text: 'Líder',
         onPress: () => cambiarRol(miembro, 'lider'),

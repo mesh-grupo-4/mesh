@@ -4,12 +4,12 @@ import {
   Text,
   TextInput,
   StyleSheet,
-  ActivityIndicator,
-  Alert,
+  ActivityIndicator, 
   ScrollView,
   Pressable,
   Platform,
 } from 'react-native'
+import { meshAlert } from '@/lib/meshAlert';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { Feather } from '@expo/vector-icons'
 import { router, useFocusEffect } from 'expo-router'
@@ -73,7 +73,7 @@ export default function CrearViajeScreen() {
       setGrupos(dataGrupos)
       setAmigos(dataAmigos)
     } catch (e: unknown) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudieron cargar grupos y amigos.')
+      meshAlert('Error', e instanceof Error ? e.message : 'No se pudieron cargar grupos y amigos.')
     } finally {
       setCargandoInvitables(false)
     }
@@ -135,17 +135,17 @@ export default function CrearViajeScreen() {
 
   const handleCrear = async () => {
     if (!nombre.trim()) {
-      Alert.alert('Campo requerido', 'El nombre del viaje es obligatorio.')
+      meshAlert('Campo requerido', 'El nombre del viaje es obligatorio.')
       return
     }
 
     if (fecha.getTime() <= Date.now()) {
-      Alert.alert('Fecha inválida', 'La fecha programada debe ser futura.')
+      meshAlert('Fecha inválida', 'La fecha programada debe ser futura.')
       return
     }
 
     if (esGrupal && gruposSeleccionados.size === 0 && amigosSeleccionados.size === 0) {
-      Alert.alert(
+      meshAlert(
         'Invitados opcionales',
         'Podés crear el viaje grupal sin invitar a nadie y sumar gente después por QR o link.'
       )
@@ -172,13 +172,13 @@ export default function CrearViajeScreen() {
           ? `Viaje creado. Se enviaron ${viaje.invitaciones_enviadas} invitaciones pendientes.`
           : 'Viaje creado correctamente.'
 
-      Alert.alert('Listo', msg)
+      meshAlert('Listo', msg)
       router.replace({
         pathname: '/configurar-ruta/[viajeId]',
         params: { viajeId: viaje.id, userId },
       })
     } catch (e: unknown) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo crear el viaje.')
+      meshAlert('Error', e instanceof Error ? e.message : 'No se pudo crear el viaje.')
     } finally {
       setGuardando(false)
     }

@@ -6,7 +6,6 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Alert,
   ScrollView,
   RefreshControl,
   Pressable,
@@ -16,6 +15,7 @@ import { useAuth } from '@/context/AuthContext';
 import { resolveBackendUserId } from '@/lib/apiClient';
 import {
   crearGrupo,
+  eliminarGrupo,
   listarGrupos,
   listarInvitacionesPendientes,
   responderInvitacion,
@@ -23,6 +23,16 @@ import {
   type InvitacionPendienteApi,
 } from '@/lib/gruposApi';
 import { Btn, Field, TopBar, useTheme } from '@/components/MeshUI';
+import { SelectableCard } from '@/components/SelectableCard';
+import { SelectionActionBar } from '@/components/SelectionActionBar';
+import { SelectionHeader } from '@/components/SelectionHeader';
+import { useSelectionMode } from '@/hooks/useSelectionMode';
+import {
+  bulkDeleteSummary,
+  formatItemList,
+  runBulkDelete,
+} from '@/lib/bulkDelete';
+import { meshAlert, meshConfirmDestructive, meshError, meshSuccess, meshWarning } from '@/lib/meshAlert';
 import { Feather } from '@expo/vector-icons';
 
 function formatearFecha(iso: string): string {
@@ -42,6 +52,7 @@ function getGroupColor(nombre: string): string {
 export default function GruposScreen() {
   const { backendUserId, backendSyncing } = useAuth();
   const theme = useTheme();
+  const selection = useSelectionMode();
 
   const [grupos, setGrupos] = useState<GrupoListItemApi[]>([]);
   const [invitaciones, setInvitaciones] = useState<InvitacionPendienteApi[]>([]);
@@ -51,6 +62,67 @@ export default function GruposScreen() {
   const [nombre, setNombre] = useState('');
   const [loading, setLoading] = useState(false);
   const [respondiendoId, setRespondiendoId] = useState<string | null>(null);
+  const [eliminandoBulk, setEliminandoBulk] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => selection.exit();
+    }, [selection.exit])
+  );
+
+  const gruposEliminables = grupos.filter((g) => g.mi_rol === 'lider');
+  const gruposSeleccionados = grupos.filter((g) => selection.isSelected(g.id));
+  const todosSeleccionados =
+    gruposEliminables.length > 0 &&
+    gruposEliminables.every((g) => selection.isSelected(g.id));
+
+  const toggleSeleccionarTodos = () => {
+    if (todosSeleccionados) {
+      selection.clear();
+      return;
+    }
+    selection.selectAll(gruposEliminables.map((g) => g.id));
+  };
+
+  const confirmarEliminarSeleccionados = () => {
+    if (selection.count === 0) return;
+
+    const nombres = gruposSeleccionados.map((g) => g.nombre);
+    meshConfirmDestructive({
+      title: 'Eliminar grupos',
+      message: `¿Eliminar definitivamente ${selection.count === 1 ? 'este grupo' : `estos ${selection.count} grupos`} (${formatItemList(nombres)})? Se perderán invitaciones pendientes. Esta acción no se puede deshacer.`,
+      confirmLabel: `Eliminar (${selection.count})`,
+      onConfirm: () => void ejecutarEliminarBulk(),
+    });
+  };
+
+  const ejecutarEliminarBulk = async () => {
+    setEliminandoBulk(true);
+    try {
+      const userId = resolveBackendUserId(backendUserId);
+      const items = gruposSeleccionados.map((g) => ({ id: g.id, label: g.nombre }));
+
+      const result = await runBulkDelete(items, async (item) => {
+        await eliminarGrupo(item.id, userId);
+      });
+
+      const idsOk = new Set(
+        items.filter((i) => !result.failed.some((f) => f.id === i.id)).map((i) => i.id)
+      );
+      setGrupos((prev) => prev.filter((g) => !idsOk.has(g.id)));
+      selection.exit();
+
+      if (result.failed.length === 0) {
+        meshSuccess('Listo', bulkDeleteSummary(result, 'grupo'));
+      } else {
+        meshAlert('Resultado parcial', bulkDeleteSummary(result, 'grupo'), [{ text: 'Entendido' }]);
+      }
+    } catch (e: unknown) {
+      meshError('Error', e instanceof Error ? e.message : 'No se pudo completar la eliminación.');
+    } finally {
+      setEliminandoBulk(false);
+    }
+  };
 
   const cargarGrupos = useCallback(async (esRefresh = false) => {
     if (backendSyncing) return;
@@ -79,7 +151,7 @@ export default function GruposScreen() {
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'No se pudieron cargar los grupos.';
       if (!esRefresh) {
-        Alert.alert('Error', msg);
+        meshError('Error', msg);
       }
     } finally {
       setCargandoLista(false);
@@ -92,7 +164,7 @@ export default function GruposScreen() {
     try {
       userId = resolveBackendUserId(backendUserId);
     } catch {
-      Alert.alert('Error', 'No se pudo identificar tu usuario.');
+      meshError('Error', 'No se pudo identificar tu usuario.');
       return;
     }
 
@@ -102,13 +174,13 @@ export default function GruposScreen() {
       await cargarGrupos(true);
 
       if (accion === 'aceptar') {
-        Alert.alert('Listo', `Te uniste al grupo "${resultado.grupo_nombre}".`);
+        meshSuccess('Listo', `Te uniste al grupo "${resultado.grupo_nombre}".`);
         router.push({ pathname: '/grupo/[grupoId]', params: { grupoId: resultado.grupo_id } });
       } else {
-        Alert.alert('Listo', `Rechazaste la invitación a "${resultado.grupo_nombre}".`);
+        meshSuccess('Listo', `Rechazaste la invitación a "${resultado.grupo_nombre}".`);
       }
     } catch (e: unknown) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo responder la invitación.');
+      meshError('Error', e instanceof Error ? e.message : 'No se pudo responder la invitación.');
     } finally {
       setRespondiendoId(null);
     }
@@ -122,7 +194,7 @@ export default function GruposScreen() {
 
   const handleCrear = async () => {
     if (!nombre.trim()) {
-      Alert.alert('Campo requerido', 'El nombre del grupo es obligatorio.');
+      meshWarning('Campo requerido', 'El nombre del grupo es obligatorio.');
       return;
     }
 
@@ -130,7 +202,7 @@ export default function GruposScreen() {
     try {
       userId = resolveBackendUserId(backendUserId);
     } catch {
-      Alert.alert('Error', 'No se pudo identificar tu usuario. Volvé a iniciar sesión.');
+      meshError('Error', 'No se pudo identificar tu usuario. Volvé a iniciar sesión.');
       return;
     }
 
@@ -141,11 +213,11 @@ export default function GruposScreen() {
       setMostrarFormulario(false);
       await cargarGrupos();
       router.push({ pathname: '/grupo/[grupoId]', params: { grupoId: grupo.id } });
-      Alert.alert('Listo', 'Grupo creado correctamente.');
+      meshSuccess('Listo', 'Grupo creado correctamente.');
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : '';
       const esRed = msg.includes('Network') || msg.includes('Failed to fetch');
-      Alert.alert(
+      meshError(
         'Error',
         esRed || !msg
           ? 'Hubo un error al crear el grupo. Inténtalo más tarde.'
@@ -306,6 +378,13 @@ export default function GruposScreen() {
                 </Text>
               </View>
 
+              <SelectionHeader
+                visible={selection.active}
+                allSelected={todosSeleccionados}
+                onToggleAll={toggleSeleccionarTodos}
+                onCancel={selection.exit}
+              />
+
               {cargandoLista ? (
                 <ActivityIndicator color={theme.accent} style={{ marginTop: 32 }} />
               ) : grupos.length === 0 ? (
@@ -315,20 +394,33 @@ export default function GruposScreen() {
                   </Text>
                 </View>
               ) : (
-                <View style={styles.lista}>
+                <View style={[styles.lista, selection.active && styles.listaConBarra]}>
                   {grupos.map((g) => {
                     const groupColor = getGroupColor(g.nombre);
+                    const esLider = g.mi_rol === 'lider';
+
                     return (
-                      <Pressable
+                      <SelectableCard
                         key={g.id}
-                        style={({ pressed }) => [
+                        itemId={g.id}
+                        selectionActive={selection.active}
+                        selected={selection.isSelected(g.id)}
+                        disabled={!esLider}
+                        onEnterSelection={selection.enter}
+                        onToggle={selection.toggle}
+                        onPress={() =>
+                          router.push({ pathname: '/grupo/[grupoId]', params: { grupoId: g.id } })
+                        }
+                        onDisabledPress={() =>
+                          meshWarning(
+                            'No podés eliminar este grupo',
+                            'Solo el líder puede eliminar el grupo. Podés abandonarlo desde Ajustes del grupo.'
+                          )
+                        }
+                        style={[
                           styles.tarjetaGrupo,
-                          {
-                            backgroundColor: pressed ? theme.surface2 : theme.surface,
-                            borderColor: theme.border,
-                          },
+                          { backgroundColor: theme.surface, borderColor: theme.border },
                         ]}
-                        onPress={() => router.push({ pathname: '/grupo/[grupoId]', params: { grupoId: g.id } })}
                       >
                         <View
                           style={[
@@ -345,12 +437,14 @@ export default function GruposScreen() {
                           </Text>
                           <Text style={[styles.tarjetaMeta, { color: theme.textDim }]}>
                             {`${g.cantidad_miembros} ${g.cantidad_miembros === 1 ? 'miembro' : 'miembros'}`}
-                            {g.mi_rol === 'lider' ? ' · Líder' : ' · Participante'}
+                            {esLider ? ' · Líder' : ' · Participante'}
                           </Text>
                         </View>
 
-                        <Feather name="chevron-right" size={18} color={theme.textMute} />
-                      </Pressable>
+                        {!selection.active ? (
+                          <Feather name="chevron-right" size={18} color={theme.textMute} />
+                        ) : null}
+                      </SelectableCard>
                     );
                   })}
                 </View>
@@ -376,6 +470,14 @@ export default function GruposScreen() {
           <Text style={[styles.fabText, { color: theme.onAccent }]}>Crear grupo</Text>
         </Pressable>
       )}
+
+      <SelectionActionBar
+        visible={selection.active && !mostrarFormulario}
+        count={selection.count}
+        deleting={eliminandoBulk}
+        onCancel={selection.exit}
+        onDelete={confirmarEliminarSeleccionados}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -424,6 +526,9 @@ const styles = StyleSheet.create({
   },
   lista: {
     gap: 11,
+  },
+  listaConBarra: {
+    paddingBottom: 88,
   },
   titulo: {
     fontSize: 22,

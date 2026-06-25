@@ -535,7 +535,7 @@ export function ActivityTile({
   const getIcon = () => {
     switch (activity) {
       case 'moto':
-        return <MaterialCommunityIcons name={"motorcycle" as any} size={size * 0.52} color={col} />;
+        return <MaterialCommunityIcons name="motorbike" size={size * 0.52} color={col} />;
       case 'bici':
         return <MaterialCommunityIcons name="bike" size={size * 0.52} color={col} />;
       case 'running':

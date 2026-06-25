@@ -4,10 +4,10 @@ import {
   Text,
   StyleSheet,
   KeyboardAvoidingView,
-  Platform,
-  Alert,
+  Platform, 
   ScrollView,
 } from 'react-native';
+import { meshAlert } from '@/lib/meshAlert';
 import { router } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { Btn, Field, MeshMark, useTheme } from '@/components/MeshUI';
@@ -22,7 +22,7 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     if (!email.trim() || !password) {
-      Alert.alert('Campos requeridos', 'Completá el email y la contraseña.');
+      meshAlert('Campos requeridos', 'Completá el email y la contraseña.');
       return;
     }
     setLoading(true);
@@ -30,7 +30,7 @@ export default function LoginScreen() {
       await login(email.trim(), password);
       router.replace('/(tabs)');
     } catch (e: any) {
-      Alert.alert('Error al ingresar', mensajeFirebase(e.code));
+      meshAlert('Error al ingresar', mensajeFirebase(e.code));
     } finally {
       setLoading(false);
     }

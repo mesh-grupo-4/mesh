@@ -4,10 +4,10 @@ import {
   Text,
   StyleSheet,
   Share,
-  Platform,
-  Alert,
+  Platform, 
   ScrollView,
 } from 'react-native'
+import { meshAlert } from '@/lib/meshAlert';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import QRCode from 'react-native-qrcode-svg'
 import ViewShot from 'react-native-view-shot'
@@ -44,7 +44,7 @@ export default function ViajeQrScreen() {
         title: 'Invitación Mesh',
       })
     } catch {
-      Alert.alert('Error', 'No se pudo abrir el menú de compartir.')
+      meshAlert('Error', 'No se pudo abrir el menú de compartir.')
     }
   }
 

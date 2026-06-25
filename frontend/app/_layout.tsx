@@ -10,6 +10,7 @@ import 'react-native-reanimated';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { AuthProvider, useAuth } from '@/context/AuthContext';
+import { MeshDialogProvider } from '@/context/MeshDialogContext';
 import { TripRealtimeProvider } from '@/context/TripRealtimeContext';
 import Colors from '@/constants/Colors';
 import { ViajeRealtimeBridge } from '@/components/ViajeRealtimeBridge';
@@ -40,7 +41,9 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
-      <RootLayoutNav />
+      <MeshDialogProvider>
+        <RootLayoutNav />
+      </MeshDialogProvider>
     </AuthProvider>
   );
 }

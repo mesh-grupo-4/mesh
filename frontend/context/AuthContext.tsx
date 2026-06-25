@@ -8,7 +8,7 @@ import {
   sendPasswordResetEmail,
   updateProfile as firebaseUpdateProfile,
 } from 'firebase/auth';
-import { Alert } from 'react-native';
+import { meshAlert } from '@/lib/meshAlert';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth } from '@/lib/firebase';
 import { syncUsuario, obtenerMiPerfil, type UsuarioPerfilResponse } from '@/lib/usuariosApi';
@@ -102,7 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (syncAlertShown.current) return;
     syncAlertShown.current = true;
     const detail = error instanceof Error ? error.message : 'Error de red';
-    Alert.alert(
+    meshAlert(
       'No se pudo conectar con el servidor',
       `No pudimos sincronizar tu usuario con la base de datos.\n\n` +
         `Backend: ${API_BASE_URL}\n\n` +

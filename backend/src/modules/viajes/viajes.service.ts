@@ -557,6 +557,24 @@ export class ViajesService {
     }
   }
 
+  /** RN-030: solo el creador puede eliminar un viaje planificado. */
+  async eliminarViaje(creadorId: string, viajeId: string) {
+    const viaje = await this.prisma.viaje.findUnique({ where: { id: viajeId } })
+    if (!viaje) {
+      throw new HttpError(404, 'Viaje no encontrado', 'VIAJE_NOT_FOUND')
+    }
+    if (viaje.creador_id !== creadorId) {
+      throw new HttpError(403, 'Solo el creador puede eliminar el viaje', 'NOT_CREATOR')
+    }
+    if (viaje.estado !== 'planificado') {
+      throw new HttpError(409, 'Solo se puede eliminar un viaje planificado', 'INVALID_STATE')
+    }
+
+    await this.prisma.viaje.delete({ where: { id: viajeId } })
+
+    return { viaje_id: viajeId, accion: 'eliminado' as const }
+  }
+
   async iniciar(creadorId: string, viajeId: string) {
     const viaje = await this.prisma.viaje.findUnique({ where: { id: viajeId } })
     if (!viaje) {

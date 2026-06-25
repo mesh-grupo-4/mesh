@@ -1,5 +1,7 @@
 import { Ionicons } from '@expo/vector-icons'
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Pressable, ScrollView, StyleSheet, Text } from 'react-native'
+
+import { useTheme } from '@/components/MeshUI'
 
 import type { StopCategory } from './routeTypes'
 
@@ -24,6 +26,8 @@ type Props = {
 }
 
 export function StopCategoryPicker({ value, onChange }: Props) {
+  const theme = useTheme()
+
   return (
     <ScrollView
       horizontal
@@ -37,10 +41,28 @@ export function StopCategoryPicker({ value, onChange }: Props) {
           <Pressable
             key={opt.value}
             onPress={() => onChange(opt.value)}
-            style={[styles.chip, selected && styles.chipSelected]}
+            style={[
+              styles.chip,
+              {
+                backgroundColor: selected ? theme.accent : theme.surface2,
+                borderColor: selected ? theme.accentLine : theme.border,
+              },
+            ]}
           >
-            <Ionicons name={opt.icon} size={16} color={selected ? '#fff' : '#374151'} />
-            <Text style={[styles.chipLabel, selected && styles.chipLabelSelected]}>{opt.label}</Text>
+            <Ionicons
+              name={opt.icon}
+              size={16}
+              color={selected ? theme.onAccent : theme.textDim}
+            />
+            <Text
+              style={[
+                styles.chipLabel,
+                { color: selected ? theme.onAccent : theme.textDim },
+                selected && styles.chipLabelSelected,
+              ]}
+            >
+              {opt.label}
+            </Text>
           </Pressable>
         )
       })}
@@ -62,19 +84,12 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#f9fafb',
-  },
-  chipSelected: {
-    backgroundColor: '#2563eb',
-    borderColor: '#2563eb',
   },
   chipLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#374151',
   },
   chipLabelSelected: {
-    color: '#fff',
+    fontWeight: '700',
   },
 })

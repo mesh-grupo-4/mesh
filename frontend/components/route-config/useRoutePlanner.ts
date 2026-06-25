@@ -1,8 +1,8 @@
 import * as Crypto from 'expo-crypto'
 import * as Location from 'expo-location'
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
-import { Alert } from 'react-native'
 import type { Region } from 'react-native-maps'
+import { meshAlert } from '@/lib/meshAlert'
 
 import {
   calcularRutaOsrm,
@@ -256,7 +256,7 @@ export function useRoutePlanner({
   const agregarParada = useCallback(() => {
     setParadas((prev) => {
       if (prev.length >= MAX_PARADAS) {
-        Alert.alert('Límite', `Máximo ${MAX_PARADAS} paradas intermedias.`)
+        meshAlert('Límite', `Máximo ${MAX_PARADAS} paradas intermedias.`)
         return prev
       }
       return [...prev, crearWaypoint('STOP', prev.length + 1)]
@@ -382,10 +382,10 @@ export function useRoutePlanner({
     try {
       const body = toPutRutaBody(origen, paradas, destino, rutaOk)
       await guardarRutaEnBackend(viajeId, userId.trim(), body)
-      Alert.alert('Listo', 'La ruta se guardó correctamente.', [{ text: 'OK', onPress: onSaved }])
+      meshAlert('Listo', 'La ruta se guardó correctamente.', [{ text: 'OK', onPress: onSaved }])
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Error al guardar'
-      Alert.alert('Error', msg)
+      meshAlert('Error', msg)
     } finally {
       setGuardando(false)
     }

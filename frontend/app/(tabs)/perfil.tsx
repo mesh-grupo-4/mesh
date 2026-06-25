@@ -4,10 +4,10 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  ActivityIndicator,
-  Alert,
+  ActivityIndicator, 
   Pressable,
 } from 'react-native';
+import { meshAlert } from '@/lib/meshAlert';
 import { useAuth, ActividadPreferida } from '@/context/AuthContext';
 import { router, useFocusEffect } from 'expo-router';
 import { resolveBackendUserId } from '@/lib/apiClient';
@@ -62,7 +62,7 @@ export default function PerfilScreen() {
   }, [profile]);
 
   const cerrarSesion = () => {
-    Alert.alert('Cerrar sesión', '¿Estás seguro que querés cerrar sesión?', [
+    meshAlert('Cerrar sesión', '¿Estás seguro que querés cerrar sesión?', [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Cerrar sesión',
@@ -92,10 +92,10 @@ export default function PerfilScreen() {
 
   const guardar = () => {
     if (!nombre.trim() || !apellido.trim()) {
-      Alert.alert('Campos requeridos', 'El nombre y apellido no pueden estar vacíos.');
+      meshAlert('Campos requeridos', 'El nombre y apellido no pueden estar vacíos.');
       return;
     }
-    Alert.alert('Guardar cambios', '¿Estás seguro que querés guardar los cambios?', [
+    meshAlert('Guardar cambios', '¿Estás seguro que querés guardar los cambios?', [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Guardar',
@@ -112,7 +112,7 @@ export default function PerfilScreen() {
             setModoEdicion(false);
             setTimeout(() => setGuardado(false), 2500);
           } catch {
-            Alert.alert('Error', 'No se pudieron guardar los cambios. Intentá de nuevo.');
+            meshAlert('Error', 'No se pudieron guardar los cambios. Intentá de nuevo.');
           } finally {
             setLoading(false);
           }

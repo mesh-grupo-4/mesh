@@ -4,12 +4,13 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
-  Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native'
+
+import { Btn, useTheme } from '@/components/MeshUI'
 
 type Props = {
   visible: boolean
@@ -26,6 +27,7 @@ export function WaypointNameModal({
   onConfirm,
   onCancel,
 }: Props) {
+  const theme = useTheme()
   const [name, setName] = useState(initialName)
 
   useEffect(() => {
@@ -37,38 +39,51 @@ export function WaypointNameModal({
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <KeyboardAvoidingView
-        style={styles.backdrop}
+        style={[styles.backdrop, { backgroundColor: theme.scrim }]}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <View style={styles.card}>
-          <Text style={styles.title}>Nombre del punto</Text>
-          <Text style={styles.subtitle}>Podés personalizarlo (ej. Kiosquito de la esquina)</Text>
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: theme.surface, borderColor: theme.border },
+          ]}
+        >
+          <Text style={[styles.title, { color: theme.text }]}>Nombre del punto</Text>
+          <Text style={[styles.subtitle, { color: theme.textDim }]}>
+            Podés personalizarlo (ej. Kiosquito de la esquina)
+          </Text>
 
           {loadingName ? (
-            <ActivityIndicator size="small" color="#374151" style={styles.loader} />
+            <ActivityIndicator size="small" color={theme.accent} style={styles.loader} />
           ) : (
             <TextInput
               value={name}
               onChangeText={setName}
               placeholder="Nombre del lugar"
-              placeholderTextColor="#9ca3af"
-              style={styles.input}
+              placeholderTextColor={theme.textMute}
+              style={[
+                styles.input,
+                {
+                  backgroundColor: theme.surface2,
+                  borderColor: theme.border,
+                  color: theme.text,
+                },
+              ]}
               autoFocus
               autoCorrect={false}
             />
           )}
 
           <View style={styles.actions}>
-            <Pressable style={styles.cancelBtn} onPress={onCancel}>
-              <Text style={styles.cancelTxt}>Cancelar</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.confirmBtn, !name.trim() && styles.confirmBtnOff]}
+            <Btn variant="ghost" onPress={onCancel}>
+              Cancelar
+            </Btn>
+            <Btn
               disabled={!name.trim() || loadingName}
               onPress={() => onConfirm(name.trim())}
             >
-              <Text style={styles.confirmTxt}>Confirmar</Text>
-            </Pressable>
+              Confirmar
+            </Btn>
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -79,66 +94,38 @@ export function WaypointNameModal({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
     justifyContent: 'center',
     paddingHorizontal: 24,
   },
   card: {
-    backgroundColor: '#fff',
     borderRadius: 16,
+    borderWidth: 1,
     padding: 20,
   },
   title: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#111827',
   },
   subtitle: {
     marginTop: 4,
     fontSize: 14,
-    color: '#6b7280',
+    lineHeight: 20,
   },
   loader: {
     marginVertical: 20,
   },
   input: {
     marginTop: 16,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderWidth: 1.2,
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: Platform.OS === 'ios' ? 12 : 10,
     fontSize: 16,
-    color: '#111827',
-    backgroundColor: '#f9fafb',
   },
   actions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    gap: 12,
+    gap: 8,
     marginTop: 20,
-  },
-  cancelBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
-  cancelTxt: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#6b7280',
-  },
-  confirmBtn: {
-    backgroundColor: '#15803d',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 10,
-  },
-  confirmBtnOff: {
-    opacity: 0.45,
-  },
-  confirmTxt: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#fff',
   },
 })

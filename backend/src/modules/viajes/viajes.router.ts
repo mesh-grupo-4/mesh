@@ -20,6 +20,7 @@ viajesRouter.post('/:viajeId/invitacion/responder', requireUser, c.responderInvi
 viajesRouter.get('/:viajeId/participantes', requireUser, c.listarParticipantes)
 viajesRouter.get('/:viajeId', requireUser, c.detalle)
 viajesRouter.patch('/:viajeId', requireUser, c.actualizar)
+viajesRouter.delete('/:viajeId', requireUser, c.eliminar)
 viajesRouter.post('/:viajeId/posiciones', requireUser, c.ingresarPosiciones)
 viajesRouter.put('/:viajeId/ubicacion-viva', requireUser, c.upsertUbicacionViva)
 viajesRouter.get('/:viajeId/ubicaciones-vivas', requireUser, c.listarUbicacionesVivas)

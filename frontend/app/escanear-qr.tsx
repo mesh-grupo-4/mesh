@@ -3,10 +3,10 @@ import {
   View,
   Text,
   StyleSheet,
-  Linking,
-  Alert,
+  Linking, 
   ActivityIndicator,
 } from 'react-native'
+import { meshAlert } from '@/lib/meshAlert';
 import { Stack, router } from 'expo-router'
 import { CameraView, useCameraPermissions } from 'expo-camera'
 import Animated, {
@@ -60,7 +60,7 @@ export default function EscanearQrScreen() {
         await ejecutarUnionPorQr(viajeId, userId)
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : 'No se pudo procesar el código.'
-        Alert.alert('Error', msg)
+        meshAlert('Error', msg)
         setProcesando(false)
       }
     },

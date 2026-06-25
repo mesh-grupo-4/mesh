@@ -3,10 +3,11 @@ import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-nativ
 import MapView, { Marker, Polyline, PROVIDER_DEFAULT, UrlTile } from 'react-native-maps'
 import type { Region } from 'react-native-maps'
 
+import { useTheme } from '@/components/MeshUI'
+
 import { getMapStyle, type MapStyleId } from './mapStyles'
 import {
   colorMarcador,
-  ROUTE_POLYLINE_COLOR,
   ROUTE_POLYLINE_WIDTH,
   type RouteWaypoint,
   waypointTieneCoords,
@@ -51,6 +52,7 @@ export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function Route
   },
   ref
 ) {
+  const theme = useTheme()
   const mapRef = useRef<MapView>(null)
   const capa = getMapStyle(mapStyle)
 
@@ -117,7 +119,7 @@ export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function Route
               latitude: lat,
               longitude: lng,
             }))}
-            strokeColor={ROUTE_POLYLINE_COLOR}
+            strokeColor={theme.accent}
             strokeWidth={ROUTE_POLYLINE_WIDTH}
           />
         ) : null}
@@ -127,21 +129,30 @@ export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function Route
                 key={w.id}
                 coordinate={{ latitude: w.lat, longitude: w.lon }}
                 title={w.name || undefined}
-                pinColor={colorMarcador(w.type)}
+                pinColor={colorMarcador(w.type, theme)}
               />
             ))
           : null}
       </MapView>
 
       {calculando && !mapPickMode ? (
-        <View style={styles.loadingOverlay} pointerEvents="none">
-          <ActivityIndicator size="large" color="#6366f1" />
-          <Text style={styles.loadingTxt}>Calculando ruta…</Text>
+        <View style={[styles.loadingOverlay, { backgroundColor: theme.scrim }]} pointerEvents="none">
+          <ActivityIndicator size="large" color={theme.accent} />
+          <Text style={[styles.loadingTxt, { color: theme.text }]}>Calculando ruta…</Text>
         </View>
       ) : null}
 
-      <View style={styles.attribution} pointerEvents="none">
-        <Text style={styles.attributionTxt} numberOfLines={1}>
+      <View
+        style={[
+          styles.attribution,
+          {
+            backgroundColor: theme.surface,
+            borderColor: theme.border,
+          },
+        ]}
+        pointerEvents="none"
+      >
+        <Text style={[styles.attributionTxt, { color: theme.textDim }]} numberOfLines={1}>
           {capa.attribution}
         </Text>
       </View>
@@ -152,7 +163,6 @@ export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function Route
 const styles = StyleSheet.create({
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.35)',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
@@ -160,13 +170,12 @@ const styles = StyleSheet.create({
   loadingTxt: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#374151',
   },
   attribution: {
     position: 'absolute',
     left: 8,
     top: Platform.OS === 'ios' ? 96 : 72,
-    backgroundColor: 'rgba(255,255,255,0.85)',
+    borderWidth: 1,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
@@ -174,6 +183,5 @@ const styles = StyleSheet.create({
   },
   attributionTxt: {
     fontSize: 10,
-    color: '#374151',
   },
 })

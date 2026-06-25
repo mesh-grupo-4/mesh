@@ -273,6 +273,23 @@ export async function iniciarViajeEnBackend(
   return parseJson<ViajeIniciadoApi>(res)
 }
 
+export type EliminarViajeResponse = {
+  viaje_id: string
+  accion: 'eliminado'
+}
+
+export async function eliminarViaje(
+  viajeId: string,
+  userId: string,
+  baseUrl: string = API_BASE_URL
+): Promise<EliminarViajeResponse> {
+  const res = await meshFetch(apiUrl(`/api/viajes/${viajeId}`, baseUrl), {
+    method: 'DELETE',
+    headers: await authHeaders(userId),
+  })
+  return parseJson<EliminarViajeResponse>(res)
+}
+
 export async function guardarRutaEnBackend(
   viajeId: string,
   userId: string,

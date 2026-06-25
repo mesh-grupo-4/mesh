@@ -2,7 +2,9 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, StyleSheet, View } from 'react-native'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
+import { SafeAreaView } from 'react-native-safe-area-context'
 
+import { TopBar, useTheme } from '@/components/MeshUI'
 import { MapPickOverlay } from '@/components/route-config/MapPickOverlay'
 import { RouteBottomSheet } from '@/components/route-config/RouteBottomSheet'
 import { MapStylePicker } from '@/components/route-config/MapStylePicker'
@@ -19,6 +21,7 @@ import { resolveBackendUserId } from '@/lib/apiClient'
 import { obtenerViaje, type TipoActividadApi } from '@/lib/viajesApi'
 
 export default function ConfigurarRutaScreen() {
+  const theme = useTheme()
   const router = useRouter()
   const { backendUserId, backendSyncing } = useAuth()
   const params = useLocalSearchParams<{ viajeId: string | string[]; userId?: string | string[] }>()
@@ -124,14 +127,14 @@ export default function ConfigurarRutaScreen() {
 
   if (cargandoViaje || backendSyncing || cargandoRuta || !userId) {
     return (
-      <View style={styles.loading}>
-        <ActivityIndicator size="large" color="#15803d" />
+      <View style={[styles.loading, { backgroundColor: theme.background }]}>
+        <ActivityIndicator size="large" color={theme.accent} />
       </View>
     )
   }
 
   return (
-    <GestureHandlerRootView style={styles.root}>
+    <GestureHandlerRootView style={[styles.root, { backgroundColor: theme.mapBg }]}>
       <View style={styles.root}>
         <RouteMapView
           waypoints={waypointsConCoords}
@@ -145,6 +148,19 @@ export default function ConfigurarRutaScreen() {
           onRegionChangeComplete={onRegionChangeComplete}
           calculando={calculando}
         />
+
+        {!modoSeleccionMapa ? (
+          <View style={styles.header} pointerEvents="box-none">
+            <SafeAreaView edges={['top']} style={{ backgroundColor: theme.background }}>
+              <TopBar
+                title="Ruta y paradas"
+                sub="Definí origen, paradas y destino"
+                onBack={() => router.back()}
+                bordered={false}
+              />
+            </SafeAreaView>
+          </View>
+        ) : null}
 
         {!modoSeleccionMapa ? <MapStylePicker value={mapStyle} onChange={setMapStyle} /> : null}
 
@@ -193,6 +209,13 @@ export default function ConfigurarRutaScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#e5e7eb' },
-  loading: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f9fafb' },
+  root: { flex: 1 },
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  header: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 12,
+  },
 })

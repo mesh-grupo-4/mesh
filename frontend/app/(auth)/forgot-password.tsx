@@ -4,10 +4,10 @@ import {
   Text,
   StyleSheet,
   KeyboardAvoidingView,
-  Platform,
-  Alert,
+  Platform, 
   ScrollView,
 } from 'react-native';
+import { meshAlert } from '@/lib/meshAlert';
 import { router } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { Btn, Field, TopBar, useTheme } from '@/components/MeshUI';
@@ -23,7 +23,7 @@ export default function ForgotPasswordScreen() {
 
   const handleReset = async () => {
     if (!email.trim()) {
-      Alert.alert('Email requerido', 'Ingresá tu email para continuar.');
+      meshAlert('Email requerido', 'Ingresá tu email para continuar.');
       return;
     }
     setLoading(true);
@@ -31,7 +31,7 @@ export default function ForgotPasswordScreen() {
       await resetPassword(email.trim());
       setSent(true);
     } catch (e: any) {
-      Alert.alert('Error', mensajeFirebase(e.code));
+      meshAlert('Error', mensajeFirebase(e.code));
     } finally {
       setLoading(false);
     }

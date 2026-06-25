@@ -4,10 +4,10 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  ActivityIndicator,
-  Alert,
+  ActivityIndicator, 
   Pressable,
 } from 'react-native';
+import { meshAlert } from '@/lib/meshAlert';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { Toast } from '@/components/Toast';
 import { useAuth } from '@/context/AuthContext';
@@ -114,7 +114,7 @@ export default function AgregarIntegranteScreen() {
       setIdsInvitadosEnSesion((prev) => new Set([...prev, usuario.id]));
       setToastVisible(true);
     } catch (e: unknown) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo enviar la invitación.');
+      meshAlert('Error', e instanceof Error ? e.message : 'No se pudo enviar la invitación.');
     } finally {
       setInvitandoId(null);
     }
@@ -125,9 +125,9 @@ export default function AgregarIntegranteScreen() {
     try {
       const userId = resolveBackendUserId(backendUserId);
       await solicitarAmistad(usuario.id, userId);
-      Alert.alert('Listo', `Solicitud de amistad enviada a ${usuario.nombre}.`);
+      meshAlert('Listo', `Solicitud de amistad enviada a ${usuario.nombre}.`);
     } catch (e: unknown) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo enviar la solicitud.');
+      meshAlert('Error', e instanceof Error ? e.message : 'No se pudo enviar la solicitud.');
     } finally {
       setSolicitandoAmistadId(null);
     }

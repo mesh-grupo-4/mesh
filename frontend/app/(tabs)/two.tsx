@@ -3,11 +3,9 @@ import {
   View,
   Text,
   TextInput,
-  TouchableOpacity,
   Pressable,
   StyleSheet,
   ActivityIndicator,
-  Alert,
   ScrollView,
   RefreshControl,
   Modal,
@@ -19,8 +17,19 @@ import { useAuth } from '@/context/AuthContext'
 import { useTripRealtime } from '@/context/TripRealtimeContext'
 import { resolveBackendUserId } from '@/lib/apiClient'
 import { Btn, useTheme, Badge, ActivityTile } from '@/components/MeshUI'
+import { SelectableCard } from '@/components/SelectableCard'
+import { SelectionActionBar } from '@/components/SelectionActionBar'
+import { SelectionHeader } from '@/components/SelectionHeader'
+import { useSelectionMode } from '@/hooks/useSelectionMode'
 import { etiquetaActividad } from '@/lib/activityDefaults'
 import {
+  bulkDeleteSummary,
+  formatItemList,
+  runBulkDelete,
+} from '@/lib/bulkDelete'
+import { meshAlert, meshConfirmDestructive, meshError, meshSuccess, meshWarning } from '@/lib/meshAlert'
+import {
+  eliminarViaje,
   listarInvitacionesViajePendientes,
   listarViajesPlanificados,
   listarViajesFinalizados,
@@ -95,25 +104,43 @@ function Chip({
   )
 }
 
+function puedeEliminarViaje(v: ViajePlanificadoApi): boolean {
+  return v.mi_estado === 'creador' && v.estado === 'planificado'
+}
+
+function motivoNoEliminable(v: ViajePlanificadoApi): string {
+  if (v.mi_estado !== 'creador') {
+    return 'Solo el creador puede cancelar un viaje planificado.'
+  }
+  if (v.estado === 'en_curso') {
+    return 'No podés eliminar un viaje en curso. Finalizalo primero.'
+  }
+  return 'Este viaje no se puede eliminar.'
+}
+
 function TarjetaViaje({
   v,
   dimmed = false,
   theme,
+  selectionActive = false,
+  selected = false,
+  selectable = false,
+  onEnterSelection,
+  onToggle,
+  onDisabledPress,
 }: {
   v: ViajePlanificadoApi
   dimmed?: boolean
   theme: ReturnType<typeof useTheme>
+  selectionActive?: boolean
+  selected?: boolean
+  selectable?: boolean
+  onEnterSelection?: (id: string) => void
+  onToggle?: (id: string) => void
+  onDisabledPress?: () => void
 }) {
-  return (
-    <TouchableOpacity
-      style={[
-        styles.tarjeta,
-        { backgroundColor: theme.surface, borderColor: theme.border },
-        dimmed && styles.tarjetaDimmed,
-      ]}
-      onPress={() => router.push({ pathname: '/viaje/[viajeId]', params: { viajeId: v.id } })}
-      activeOpacity={0.75}
-    >
+  const contenido = (
+    <>
       <View style={styles.tarjetaHeader}>
         <ActivityTile activity={v.tipo_actividad} size={22} />
         <Text
@@ -136,22 +163,65 @@ function TarjetaViaje({
       <Text style={[styles.tarjetaRol, { color: theme.textMute }]}>
         {v.mi_estado === 'creador' ? 'Organizador' : v.mi_estado === 'confirmado' ? 'Participante' : ''}
       </Text>
-    </TouchableOpacity>
+    </>
+  )
+
+  if (!onEnterSelection || !onToggle) {
+    return (
+      <Pressable
+        style={[
+          styles.tarjeta,
+          { backgroundColor: theme.surface, borderColor: theme.border },
+          dimmed && styles.tarjetaDimmed,
+        ]}
+        onPress={() => router.push({ pathname: '/viaje/[viajeId]', params: { viajeId: v.id } })}
+      >
+        {contenido}
+      </Pressable>
+    )
+  }
+
+  return (
+    <SelectableCard
+      itemId={v.id}
+      selectionActive={selectionActive}
+      selected={selected}
+      disabled={!selectable}
+      onEnterSelection={onEnterSelection}
+      onToggle={onToggle}
+      onPress={() => router.push({ pathname: '/viaje/[viajeId]', params: { viajeId: v.id } })}
+      onDisabledPress={onDisabledPress}
+      style={[
+        styles.tarjeta,
+        { backgroundColor: theme.surface, borderColor: theme.border },
+        dimmed && styles.tarjetaDimmed,
+      ]}
+    >
+      {contenido}
+    </SelectableCard>
   )
 }
 
 function TarjetaFinalizado({
   v,
   theme,
+  onLongPressDisabled,
 }: {
   v: ViajeFinalizadoApi
   theme: ReturnType<typeof useTheme>
+  onLongPressDisabled?: () => void
 }) {
   return (
-    <TouchableOpacity
-      style={[styles.tarjeta, styles.tarjetaDimmed, { backgroundColor: theme.surface, borderColor: theme.border }]}
+    <SelectableCard
+      itemId={v.id}
+      selectionActive={false}
+      selected={false}
+      disabled
+      onEnterSelection={() => onLongPressDisabled?.()}
+      onToggle={() => onLongPressDisabled?.()}
+      onDisabledPress={onLongPressDisabled}
       onPress={() => router.push({ pathname: '/viaje/[viajeId]', params: { viajeId: v.id } })}
-      activeOpacity={0.75}
+      style={[styles.tarjeta, styles.tarjetaDimmed, { backgroundColor: theme.surface, borderColor: theme.border }]}
     >
       <View style={styles.tarjetaHeader}>
         <ActivityTile activity={v.tipo_actividad} size={22} />
@@ -171,7 +241,7 @@ function TarjetaFinalizado({
       <Text style={[styles.tarjetaRol, { color: theme.textMute }]}>
         {v.mi_estado === 'creador' ? 'Organizador' : 'Participante'}
       </Text>
-    </TouchableOpacity>
+    </SelectableCard>
   )
 }
 
@@ -180,6 +250,7 @@ export default function ViajesScreen() {
   const navigation = useNavigation()
   const { backendUserId, backendSyncing } = useAuth()
   const { syncKnownTripIds } = useTripRealtime()
+  const selection = useSelectionMode()
 
   const [tab, setTab] = useState<Tab>('mis_viajes')
   const [viajes, setViajes] = useState<ViajePlanificadoApi[]>([])
@@ -190,6 +261,81 @@ export default function ViajesScreen() {
   const [respondiendoId, setRespondiendoId] = useState<string | null>(null)
   const [modalInvitaciones, setModalInvitaciones] = useState(false)
   const [noRealizadosAbierto, setNoRealizadosAbierto] = useState(false)
+  const [eliminandoBulk, setEliminandoBulk] = useState(false)
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => selection.exit()
+    }, [selection.exit])
+  )
+
+  const viajesEliminables = useMemo(
+    () => viajes.filter(puedeEliminarViaje),
+    [viajes]
+  )
+
+  const viajesSeleccionados = viajes.filter((v) => selection.isSelected(v.id))
+  const todosSeleccionados =
+    viajesEliminables.length > 0 &&
+    viajesEliminables.every((v) => selection.isSelected(v.id))
+
+  const toggleSeleccionarTodos = () => {
+    if (todosSeleccionados) {
+      selection.clear()
+      return
+    }
+    selection.selectAll(viajesEliminables.map((v) => v.id))
+  }
+
+  const confirmarEliminarSeleccionados = () => {
+    if (selection.count === 0) return
+
+    const nombres = viajesSeleccionados.map(
+      (v) => v.nombre ?? etiquetaActividad(v.tipo_actividad)
+    )
+
+    meshConfirmDestructive({
+      title: 'Cancelar viajes',
+      message: `¿Cancelar ${selection.count === 1 ? 'este viaje planificado' : `estos ${selection.count} viajes planificados`} (${formatItemList(nombres)})? Esta acción no se puede deshacer.`,
+      confirmLabel: `Eliminar (${selection.count})`,
+      onConfirm: () => void ejecutarEliminarBulk(),
+    })
+  }
+
+  const ejecutarEliminarBulk = async () => {
+    setEliminandoBulk(true)
+    try {
+      const userId = resolveBackendUserId(backendUserId)
+      const items = viajesSeleccionados.map((v) => ({
+        id: v.id,
+        label: v.nombre ?? etiquetaActividad(v.tipo_actividad),
+      }))
+
+      const result = await runBulkDelete(items, async (item) => {
+        await eliminarViaje(item.id, userId)
+      })
+
+      const idsOk = new Set(
+        items.filter((i) => !result.failed.some((f) => f.id === i.id)).map((i) => i.id)
+      )
+      setViajes((prev) => prev.filter((v) => !idsOk.has(v.id)))
+      selection.exit()
+
+      if (result.failed.length === 0) {
+        meshSuccess('Listo', bulkDeleteSummary(result, 'viaje'))
+      } else {
+        meshAlert('Resultado parcial', bulkDeleteSummary(result, 'viaje'), [{ text: 'Entendido' }])
+      }
+    } catch (e: unknown) {
+      meshError('Error', e instanceof Error ? e.message : 'No se pudo completar la eliminación.')
+    } finally {
+      setEliminandoBulk(false)
+    }
+  }
+
+  const avisoViajePasado = () => {
+    meshWarning('No se puede eliminar', 'Los viajes finalizados o pasados no se pueden eliminar desde esta lista.')
+  }
 
   // Filtros
   const [busqueda, setBusqueda] = useState('')
@@ -274,7 +420,7 @@ export default function ViajesScreen() {
         )
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : 'No se pudieron cargar los viajes.'
-        if (!esRefresh) Alert.alert('Error', msg)
+        if (!esRefresh) meshError('Error', msg)
       } finally {
         setCargando(false)
         setRefreshing(false)
@@ -328,7 +474,7 @@ export default function ViajesScreen() {
     try {
       userId = resolveBackendUserId(backendUserId)
     } catch {
-      Alert.alert('Error', 'No se pudo identificar tu usuario.')
+      meshError('Error', 'No se pudo identificar tu usuario.')
       return
     }
 
@@ -341,7 +487,7 @@ export default function ViajesScreen() {
         router.push({ pathname: '/viaje/[viajeId]', params: { viajeId } })
       }
     } catch (e: unknown) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo responder.')
+      meshError('Error', e instanceof Error ? e.message : 'No se pudo responder.')
     } finally {
       setRespondiendoId(null)
     }
@@ -353,7 +499,14 @@ export default function ViajesScreen() {
       {/* Tabs internos fijos */}
       <View style={[styles.tabRow, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
         {(['mis_viajes', 'pasados'] as Tab[]).map((t) => (
-          <Pressable key={t} style={styles.tabBtn} onPress={() => setTab(t)}>
+          <Pressable
+            key={t}
+            style={styles.tabBtn}
+            onPress={() => {
+              selection.exit()
+              setTab(t)
+            }}
+          >
             <Text style={[styles.tabBtnText, { color: tab === t ? theme.accent : theme.textDim }]}>
               {t === 'mis_viajes' ? 'Mis viajes' : 'Viajes pasados'}
             </Text>
@@ -454,6 +607,13 @@ export default function ViajesScreen() {
                 Crear viaje
               </Btn>
 
+              <SelectionHeader
+                visible={selection.active}
+                allSelected={todosSeleccionados}
+                onToggleAll={toggleSeleccionarTodos}
+                onCancel={selection.exit}
+              />
+
               {viajesFuturos.length === 0 ? (
                 <View style={[styles.emptyCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                   <Feather name="map" size={28} color={theme.textMute} />
@@ -475,7 +635,19 @@ export default function ViajesScreen() {
                 </View>
               ) : (
                 viajesFuturosFiltrados.map((v) => (
-                  <TarjetaViaje key={v.id} v={v} theme={theme} />
+                  <TarjetaViaje
+                    key={v.id}
+                    v={v}
+                    theme={theme}
+                    selectionActive={selection.active}
+                    selected={selection.isSelected(v.id)}
+                    selectable={puedeEliminarViaje(v)}
+                    onEnterSelection={selection.enter}
+                    onToggle={selection.toggle}
+                    onDisabledPress={() =>
+                      meshWarning('No se puede eliminar', motivoNoEliminable(v))
+                    }
+                  />
                 ))
               )}
             </>
@@ -506,7 +678,12 @@ export default function ViajesScreen() {
               ) : (
                 <>
                   {finalizadosFiltrados.map((v) => (
-                    <TarjetaFinalizado key={v.id} v={v} theme={theme} />
+                    <TarjetaFinalizado
+                      key={v.id}
+                      v={v}
+                      theme={theme}
+                      onLongPressDisabled={avisoViajePasado}
+                    />
                   ))}
 
                   {viajesNoRealizadosFiltrados.length > 0 && (
@@ -529,7 +706,16 @@ export default function ViajesScreen() {
                       {noRealizadosAbierto && (
                         <View style={styles.desplegableContent}>
                           {viajesNoRealizadosFiltrados.map((v) => (
-                            <TarjetaViaje key={v.id} v={v} dimmed theme={theme} />
+                            <TarjetaViaje
+                              key={v.id}
+                              v={v}
+                              dimmed
+                              theme={theme}
+                              onEnterSelection={() => avisoViajePasado()}
+                              onToggle={() => avisoViajePasado()}
+                              selectable={false}
+                              onDisabledPress={avisoViajePasado}
+                            />
                           ))}
                         </View>
                       )}
@@ -616,6 +802,14 @@ export default function ViajesScreen() {
           </ScrollView>
         </SafeAreaView>
       </Modal>
+
+      <SelectionActionBar
+        visible={selection.active && tab === 'mis_viajes'}
+        count={selection.count}
+        deleting={eliminandoBulk}
+        onCancel={selection.exit}
+        onDelete={confirmarEliminarSeleccionados}
+      />
     </View>
   )
 }

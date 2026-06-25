@@ -74,6 +74,12 @@ export function crearViajesController(service: ViajesService) {
       res.json(viaje)
     }),
 
+    eliminar: asyncHandler(async (req, res) => {
+      const viajeId = req.params.viajeId as string
+      const result = await service.eliminarViaje(req.userId!, viajeId)
+      res.json(result)
+    }),
+
     ingresarPosiciones: asyncHandler(async (req, res) => {
       const viajeId = req.params.viajeId as string
       const body = postPosicionesSchema.parse(req.body)

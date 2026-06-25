@@ -33,14 +33,20 @@ export function labelTipoWaypoint(type: RouteWaypointType): string {
   }
 }
 
-export function colorMarcador(type: RouteWaypointType): string {
+type ThemeColors = {
+  good: string
+  accent: string
+  danger: string
+}
+
+export function colorMarcador(type: RouteWaypointType, theme: ThemeColors): string {
   switch (type) {
     case 'ORIGIN':
-      return '#15803d'
+      return theme.good
     case 'STOP':
-      return '#ca8a04'
+      return theme.accent
     case 'DESTINATION':
-      return '#b91c1c'
+      return theme.danger
   }
 }
 
@@ -52,5 +58,4 @@ export const REGION_FALLBACK = {
   longitudeDelta: 0.08,
 }
 
-export const ROUTE_POLYLINE_COLOR = '#6366f1'
 export const ROUTE_POLYLINE_WIDTH = 5

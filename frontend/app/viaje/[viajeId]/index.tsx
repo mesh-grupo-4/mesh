@@ -1,9 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
+import { useFocusEffect, useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  ActivityIndicator,
-  Alert,
+  ActivityIndicator, 
   Linking,
   Modal,
   Platform,
@@ -13,6 +12,7 @@ import {
   Text,
   View,
 } from 'react-native'
+import { meshAlert } from '@/lib/meshAlert';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { Feather } from '@expo/vector-icons'
 
@@ -163,38 +163,36 @@ export default function ViajeDetalleScreen() {
         console.warn('No se pudieron cargar los participantes:', e)
       }
 
-      if (v.ruta) {
-        try {
-          const r = await obtenerRuta(viajeId, userId)
-          if (r) {
-            const h = waypointsFromRutaDetalle(r)
-            const waypoints: RouteWaypoint[] = [
-              { ...h.origen, id: 'origen' },
-              ...h.paradas.map((p, i) => ({ ...p, id: `parada-${i}` })),
-              { ...h.destino, id: 'destino' },
-            ]
-            setRutaMapa({ waypoints, routeLine: h.routeLineLatLng })
-          } else {
-            setRutaMapa(null)
-          }
-        } catch (e) {
-          console.warn('No se pudo cargar la ruta del viaje:', e)
+      try {
+        const r = await obtenerRuta(viajeId, userId)
+        if (r) {
+          const h = waypointsFromRutaDetalle(r)
+          const waypoints: RouteWaypoint[] = [
+            { ...h.origen, id: 'origen' },
+            ...h.paradas.map((p, i) => ({ ...p, id: `parada-${i}` })),
+            { ...h.destino, id: 'destino' },
+          ]
+          setRutaMapa({ waypoints, routeLine: h.routeLineLatLng })
+        } else {
           setRutaMapa(null)
         }
-      } else {
+      } catch (e) {
+        console.warn('No se pudo cargar la ruta del viaje:', e)
         setRutaMapa(null)
       }
     } catch (e) {
       setViaje(null)
-      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo cargar el viaje')
+      meshAlert('Error', e instanceof Error ? e.message : 'No se pudo cargar el viaje')
     } finally {
       setLoading(false)
     }
   }, [viajeId, userId])
 
-  useEffect(() => {
-    if (userId) void cargar()
-  }, [cargar, userId])
+  useFocusEffect(
+    useCallback(() => {
+      if (userId) void cargar()
+    }, [cargar, userId])
+  )
 
   useEffect(() => {
     if (userId) void AsyncStorage.setItem('mesh:activeUserId', userId)
@@ -215,7 +213,7 @@ export default function ViajeDetalleScreen() {
     async (nueva: Date) => {
       if (!viajeId || !userId) return
       if (nueva.getTime() <= Date.now()) {
-        Alert.alert('Fecha inválida', 'La fecha programada debe ser futura.')
+        meshAlert('Fecha inválida', 'La fecha programada debe ser futura.')
         return
       }
       setGuardandoFecha(true)
@@ -223,7 +221,7 @@ export default function ViajeDetalleScreen() {
         await actualizarFechaViaje(viajeId, userId, nueva)
         await cargar()
       } catch (e) {
-        Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo actualizar la fecha')
+        meshAlert('Error', e instanceof Error ? e.message : 'No se pudo actualizar la fecha')
       } finally {
         setGuardandoFecha(false)
       }
@@ -259,7 +257,7 @@ export default function ViajeDetalleScreen() {
 
   const confirmarIniciar = () => {
     if (Platform.OS === 'web') {
-      Alert.alert('Solo móvil', 'El tracking GPS está disponible en Android / iOS.')
+      meshAlert('Solo móvil', 'El tracking GPS está disponible en Android / iOS.')
       return
     }
     setModalPermisos(true)
@@ -287,7 +285,7 @@ export default function ViajeDetalleScreen() {
           })
         } catch (e) {
           console.warn('Broadcast TRIP_STARTED falló:', e)
-          Alert.alert(
+          meshAlert(
             'Aviso',
             'El viaje inició correctamente, pero no se pudo notificar al grupo en tiempo real.'
           )
@@ -302,7 +300,7 @@ export default function ViajeDetalleScreen() {
           await iniciarTrackingViaje(viajeId, userId)
         } catch (e) {
           console.warn('No se pudo iniciar tracking GPS:', e)
-          Alert.alert(
+          meshAlert(
             'Viaje iniciado',
             perm.background
               ? 'El viaje comenzó, pero no pudimos activar el GPS. Revisá permisos de ubicación en Ajustes.'
@@ -313,7 +311,7 @@ export default function ViajeDetalleScreen() {
 
       router.push({ pathname: '/viaje/[viajeId]/live', params: { viajeId } })
     } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo iniciar')
+      meshAlert('Error', e instanceof Error ? e.message : 'No se pudo iniciar')
     } finally {
       setAccion(false)
     }
@@ -370,7 +368,7 @@ export default function ViajeDetalleScreen() {
                 <ActivityTile activity={viaje.tipo_actividad} size={28} />
               </View>
               <Text style={[styles.title, { color: theme.text }]}>
-                {viaje.es_grupal ? `Salida con ${viaje.creador.nombre}` : `Salida individual`}
+                {viaje.nombre?.trim() || (viaje.es_grupal ? 'Salida grupal' : 'Salida individual')}
               </Text>
             </View>
 

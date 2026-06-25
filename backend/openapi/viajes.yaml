@@ -217,6 +217,30 @@ paths:
           description: Viaje no encontrado (VIAJE_NOT_FOUND)
         '409':
           description: Solo se puede editar un viaje planificado (INVALID_STATE)
+    delete:
+      summary: Eliminar viaje planificado (solo creador)
+      description: |
+        RN-030. Elimina definitivamente un viaje en estado `planificado` y sus datos
+        asociados (ruta, integrantes, invitaciones). Requiere confirmación explícita en UI.
+      operationId: eliminarViaje
+      tags: [Viajes]
+      security: [{ UserIdHeader: [] }]
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/ViajeId'
+      responses:
+        '200':
+          description: Viaje eliminado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EliminarViajeResponse'
+        '403':
+          description: Solo el creador puede eliminar el viaje (NOT_CREATOR)
+        '404':
+          description: Viaje no encontrado (VIAJE_NOT_FOUND)
+        '409':
+          description: Solo se puede eliminar un viaje planificado (INVALID_STATE)
 
   /api/viajes/{viajeId}/posiciones:
     post:
@@ -730,6 +754,17 @@ components:
         estado:
           type: string
           enum: [planificado, en_curso, finalizado]
+
+    EliminarViajeResponse:
+      type: object
+      required: [viaje_id, accion]
+      properties:
+        viaje_id:
+          type: string
+          format: uuid
+        accion:
+          type: string
+          enum: [eliminado]
 
     PosicionInput:
       type: object

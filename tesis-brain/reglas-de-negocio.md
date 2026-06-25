@@ -84,6 +84,7 @@ A diferencia de soluciones existentes (Strava, Garmin, Google Maps, Life360) que
 | ID | Regla |
 |---|---|
 | RN-030 | Solo el **creador del viaje** (`creador_id`) puede iniciar y finalizar un viaje. Esto es independiente del rol de líder en cualquier grupo. |
+| RN-030b | Solo el **creador** puede **eliminar** un viaje en estado `planificado`. La eliminación requiere confirmación explícita en UI y borra en cascada ruta, integrantes e invitaciones (`DELETE /api/viajes/:viajeId`). No se puede eliminar un viaje `en_curso` ni `finalizado`. |
 | RN-031 | Al iniciar, el sistema recolecta ubicación GPS cada **5 segundos**. |
 | RN-032 | La latencia máxima aceptable de actualización de posición en el mapa es **10 segundos**. |
 | RN-033 | El sistema soporta hasta **150–200 usuarios concurrentes** por viaje. |

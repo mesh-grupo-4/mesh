@@ -1,5 +1,5 @@
-import { Alert } from 'react-native'
 import { router } from 'expo-router'
+import { meshAlert } from '@/lib/meshAlert'
 
 import { MeshApiError } from '@/lib/apiClient'
 import { unirseViajePorQr } from '@/lib/viajesApi'
@@ -9,7 +9,7 @@ export async function ejecutarUnionPorQr(viajeId: string, userId: string): Promi
   try {
     const result = await unirseViajePorQr(viajeId, userId)
     router.replace({ pathname: '/viaje/[viajeId]', params: { viajeId: result.viajeId } })
-    Alert.alert(
+    meshAlert(
       '¡Listo!',
       result.yaEraParticipante
         ? 'Ya formabas parte de este viaje.'
@@ -18,11 +18,11 @@ export async function ejecutarUnionPorQr(viajeId: string, userId: string): Promi
     return true
   } catch (e: unknown) {
     if (e instanceof MeshApiError && e.status === 410) {
-      Alert.alert('QR expirado', QR_EXPIRED_MESSAGE)
+      meshAlert('QR expirado', QR_EXPIRED_MESSAGE)
       return false
     }
     const msg = e instanceof Error ? e.message : 'No se pudo unir al viaje.'
-    Alert.alert('Error', msg)
+    meshAlert('Error', msg)
     return false
   }
 }

@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native'
 
+import { useTheme } from '@/components/MeshUI'
 import { buscarLugares, type NominatimHit } from '@/lib/nominatim'
 
 import { StopCategoryPicker } from './StopCategoryPicker'
@@ -46,6 +47,7 @@ export function RouteWaypointRow({
   onPickOnMap,
   mapPickMode = false,
 }: Props) {
+  const theme = useTheme()
   const [query, setQuery] = useState(waypoint.name)
   const [debounced, setDebounced] = useState(waypoint.name)
   const [focused, setFocused] = useState(false)
@@ -131,7 +133,7 @@ export function RouteWaypointRow({
 
   return (
     <View style={styles.wrap}>
-      <Text style={styles.label}>{label}</Text>
+      <Text style={[styles.label, { color: theme.textDim }]}>{label}</Text>
       <View style={styles.inputRow}>
         <TextInput
           ref={inputRef}
@@ -148,15 +150,26 @@ export function RouteWaypointRow({
             }, 250)
           }}
           placeholder={placeholder}
-          placeholderTextColor="#9ca3af"
-          style={styles.input}
+          placeholderTextColor={theme.textMute}
+          style={[
+            styles.input,
+            {
+              backgroundColor: theme.surface2,
+              borderColor: focused ? theme.accent : theme.border,
+              color: theme.text,
+            },
+          ]}
           autoCorrect={false}
           autoCapitalize="none"
           editable={!mapPickMode}
         />
         {waypoint.type === 'STOP' && onRemove ? (
-          <Pressable onPress={() => onRemove(waypoint.id)} hitSlop={8} style={styles.removeBtn}>
-            <Text style={styles.removeTxt}>✕</Text>
+          <Pressable
+            onPress={() => onRemove(waypoint.id)}
+            hitSlop={8}
+            style={[styles.removeBtn, { backgroundColor: theme.dangerWeak }]}
+          >
+            <Text style={[styles.removeTxt, { color: theme.danger }]}>✕</Text>
           </Pressable>
         ) : null}
       </View>
@@ -166,8 +179,17 @@ export function RouteWaypointRow({
         onPress={onPickOnMap}
         disabled={mapPickMode}
       >
-        <Ionicons name="map-outline" size={16} color={mapPickMode ? '#9ca3af' : '#2563eb'} />
-        <Text style={[styles.mapPickTxt, mapPickMode && styles.mapPickTxtOff]}>
+        <Ionicons
+          name="map-outline"
+          size={16}
+          color={mapPickMode ? theme.textMute : theme.accent}
+        />
+        <Text
+          style={[
+            styles.mapPickTxt,
+            { color: mapPickMode ? theme.textMute : theme.accent },
+          ]}
+        >
           Seleccionar en mapa
         </Text>
       </Pressable>
@@ -185,42 +207,57 @@ export function RouteWaypointRow({
             <Pressable
               onPress={() => onMoveUp(waypoint.id)}
               disabled={!canMoveUp}
-              style={[styles.reorderBtn, !canMoveUp && styles.reorderBtnOff]}
+              style={[
+                styles.reorderBtn,
+                { backgroundColor: theme.surface3 },
+                !canMoveUp && styles.reorderBtnOff,
+              ]}
             >
-              <Text style={styles.reorderTxt}>↑</Text>
+              <Text style={[styles.reorderTxt, { color: theme.text }]}>↑</Text>
             </Pressable>
           ) : null}
           {onMoveDown ? (
             <Pressable
               onPress={() => onMoveDown(waypoint.id)}
               disabled={!canMoveDown}
-              style={[styles.reorderBtn, !canMoveDown && styles.reorderBtnOff]}
+              style={[
+                styles.reorderBtn,
+                { backgroundColor: theme.surface3 },
+                !canMoveDown && styles.reorderBtnOff,
+              ]}
             >
-              <Text style={styles.reorderTxt}>↓</Text>
+              <Text style={[styles.reorderTxt, { color: theme.text }]}>↓</Text>
             </Pressable>
           ) : null}
         </View>
       ) : null}
 
       {suggestionsVisibles ? (
-        <View style={styles.suggestions}>
+        <View
+          style={[
+            styles.suggestions,
+            { backgroundColor: theme.surface, borderColor: theme.border },
+          ]}
+        >
           {buscando ? (
-            <ActivityIndicator size="small" color="#374151" style={styles.loader} />
+            <ActivityIndicator size="small" color={theme.accent} style={styles.loader} />
           ) : searchError ? (
-            <Text style={styles.errorHits}>{searchError}</Text>
+            <Text style={[styles.errorHits, { color: theme.danger }]}>{searchError}</Text>
           ) : hits.length === 0 ? (
-            <Text style={styles.noHits}>Sin resultados. Probá otro texto o el mapa.</Text>
+            <Text style={[styles.noHits, { color: theme.textDim }]}>
+              Sin resultados. Probá otro texto o el mapa.
+            </Text>
           ) : (
             hits.map((item, i) => (
               <Pressable
                 key={`${item.lat},${item.lon}-${i}`}
-                style={styles.hitRow}
+                style={[styles.hitRow, { borderColor: theme.border }]}
                 onPressIn={() => {
                   selectingRef.current = true
                 }}
                 onPress={() => onSelectHit(item)}
               >
-                <Text style={styles.hitText} numberOfLines={2}>
+                <Text style={[styles.hitText, { color: theme.text }]} numberOfLines={2}>
                   {item.display_name}
                 </Text>
               </Pressable>
@@ -240,7 +277,6 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#6b7280',
     marginBottom: 4,
   },
   inputRow: {
@@ -250,27 +286,22 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderWidth: 1.2,
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: Platform.OS === 'ios' ? 12 : 10,
     fontSize: 16,
-    backgroundColor: '#f9fafb',
-    color: '#111827',
   },
   removeBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#fee2e2',
     alignItems: 'center',
     justifyContent: 'center',
   },
   removeTxt: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#b91c1c',
   },
   mapPickBtn: {
     flexDirection: 'row',
@@ -286,10 +317,6 @@ const styles = StyleSheet.create({
   mapPickTxt: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#2563eb',
-  },
-  mapPickTxtOff: {
-    color: '#9ca3af',
   },
   reorderRow: {
     flexDirection: 'row',
@@ -300,27 +327,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 6,
-    backgroundColor: '#e5e7eb',
   },
   reorderBtnOff: { opacity: 0.35 },
-  reorderTxt: { fontSize: 16, fontWeight: '700', color: '#374151' },
+  reorderTxt: { fontSize: 16, fontWeight: '700' },
   suggestions: {
     marginTop: 4,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
     borderRadius: 10,
-    backgroundColor: '#fff',
     overflow: 'hidden',
     maxHeight: 180,
   },
   loader: { padding: 12 },
-  noHits: { padding: 12, fontSize: 14, color: '#6b7280' },
-  errorHits: { padding: 12, fontSize: 14, color: '#b91c1c' },
+  noHits: { padding: 12, fontSize: 14 },
+  errorHits: { padding: 12, fontSize: 14 },
   hitRow: {
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e5e7eb',
   },
-  hitText: { fontSize: 14, color: '#111827' },
+  hitText: { fontSize: 14 },
 })

@@ -3,12 +3,12 @@ import {
   View,
   Text,
   StyleSheet,
-  ActivityIndicator,
-  Alert,
+  ActivityIndicator, 
   Pressable,
   ScrollView,
   RefreshControl,
 } from 'react-native';
+import { meshAlert } from '@/lib/meshAlert';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { resolveBackendUserId } from '@/lib/apiClient';
@@ -61,7 +61,7 @@ export default function GrupoDetalleScreen() {
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'No se pudo cargar el grupo.';
       setError(msg);
-      if (!esRefresh) Alert.alert('Error', msg);
+      if (!esRefresh) meshAlert('Error', msg);
     } finally {
       setLoading(false);
       setRefreshing(false);

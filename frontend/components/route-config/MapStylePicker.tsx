@@ -3,16 +3,19 @@ import { useState } from 'react'
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
+import { useTheme } from '@/components/MeshUI'
+
 import { MAP_STYLES, type MapStyleId } from './mapStyles'
 
 type Props = {
   value: MapStyleId
   onChange: (id: MapStyleId) => void
-  /** Offset desde safe area top; default 56 (debajo del header de planificación). */
+  /** Offset desde safe area top; default 72 (debajo del TopBar). */
   topOffset?: number
 }
 
-export function MapStylePicker({ value, onChange, topOffset = 56 }: Props) {
+export function MapStylePicker({ value, onChange, topOffset = 72 }: Props) {
+  const theme = useTheme()
   const insets = useSafeAreaInsets()
   const [abierto, setAbierto] = useState(false)
   const actual = MAP_STYLES.find((s) => s.id === value) ?? MAP_STYLES[0]
@@ -20,13 +23,22 @@ export function MapStylePicker({ value, onChange, topOffset = 56 }: Props) {
   return (
     <View style={[styles.wrap, { top: insets.top + topOffset }]} pointerEvents="box-none">
       {abierto ? (
-        <View style={styles.panel}>
+        <View
+          style={[
+            styles.panel,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.border,
+              shadowColor: theme.shadow,
+            },
+          ]}
+        >
           {MAP_STYLES.map((style) => {
             const activo = style.id === value
             return (
               <Pressable
                 key={style.id}
-                style={[styles.opcion, activo && styles.opcionActiva]}
+                style={[styles.opcion, activo && { backgroundColor: theme.accentWeak }]}
                 onPress={() => {
                   onChange(style.id)
                   setAbierto(false)
@@ -35,9 +47,15 @@ export function MapStylePicker({ value, onChange, topOffset = 56 }: Props) {
                 <Feather
                   name={style.icon}
                   size={18}
-                  color={activo ? '#2563eb' : '#374151'}
+                  color={activo ? theme.accent : theme.textDim}
                 />
-                <Text style={[styles.opcionTxt, activo && styles.opcionTxtActiva]}>
+                <Text
+                  style={[
+                    styles.opcionTxt,
+                    { color: theme.textDim },
+                    activo && { color: theme.accent, fontWeight: '700' },
+                  ]}
+                >
                   {style.label}
                 </Text>
               </Pressable>
@@ -47,11 +65,18 @@ export function MapStylePicker({ value, onChange, topOffset = 56 }: Props) {
       ) : null}
 
       <Pressable
-        style={styles.btn}
+        style={[
+          styles.btn,
+          {
+            backgroundColor: theme.surface,
+            borderColor: theme.border,
+            shadowColor: theme.shadow,
+          },
+        ]}
         onPress={() => setAbierto((v) => !v)}
         accessibilityLabel="Cambiar estilo del mapa"
       >
-        <Feather name={actual.icon} size={20} color="#111827" />
+        <Feather name={actual.icon} size={20} color={theme.text} />
       </Pressable>
     </View>
   )
@@ -69,23 +94,21 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#fff',
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 4,
   },
   panel: {
-    backgroundColor: '#fff',
     borderRadius: 12,
+    borderWidth: 1,
     paddingVertical: 6,
     minWidth: 140,
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
+    shadowOpacity: 0.15,
     shadowRadius: 6,
     elevation: 5,
   },
@@ -96,16 +119,8 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 14,
   },
-  opcionActiva: {
-    backgroundColor: '#eff6ff',
-  },
   opcionTxt: {
     fontSize: 15,
     fontWeight: '500',
-    color: '#374151',
-  },
-  opcionTxtActiva: {
-    color: '#2563eb',
-    fontWeight: '700',
   },
 })

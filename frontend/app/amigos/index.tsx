@@ -7,14 +7,23 @@ import {
   StyleSheet,
   FlatList,
   ActivityIndicator,
-  Alert,
   RefreshControl,
 } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useFocusEffect } from 'expo-router';
 import { AvatarFallback } from '@/components/AvatarFallback';
+import { SelectableCard } from '@/components/SelectableCard';
+import { SelectionActionBar } from '@/components/SelectionActionBar';
+import { SelectionHeader } from '@/components/SelectionHeader';
 import { useAuth } from '@/context/AuthContext';
 import { resolveBackendUserId } from '@/lib/apiClient';
 import { useTheme } from '@/components/MeshUI';
+import { useSelectionMode } from '@/hooks/useSelectionMode';
+import {
+  bulkDeleteSummary,
+  formatItemList,
+  runBulkDelete,
+} from '@/lib/bulkDelete';
+import { meshAlert, meshConfirmDestructive, meshError, meshSuccess } from '@/lib/meshAlert';
 import {
   buscarUsuariosAmistad,
   eliminarAmigo,
@@ -33,6 +42,7 @@ type TabAmigos = 'amigos' | 'solicitudes';
 export default function AmigosScreen() {
   const theme = useTheme();
   const { backendUserId } = useAuth();
+  const selection = useSelectionMode();
   const [tab, setTab] = useState<TabAmigos>('amigos');
   const [amigos, setAmigos] = useState<AmigoApi[]>([]);
   const [solicitudes, setSolicitudes] = useState<SolicitudAmistadPendienteApi[]>([]);
@@ -42,12 +52,18 @@ export default function AmigosScreen() {
   const [buscando, setBuscando] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [solicitandoId, setSolicitandoId] = useState<string | null>(null);
-  const [eliminandoId, setEliminandoId] = useState<string | null>(null);
   const [respondiendoId, setRespondiendoId] = useState<string | null>(null);
+  const [eliminandoBulk, setEliminandoBulk] = useState(false);
   const [relacionesLocales, setRelacionesLocales] = useState<Map<string, RelacionAmistad>>(
     new Map()
   );
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => selection.exit();
+    }, [selection.exit])
+  );
 
   const cargarDatos = useCallback(
     async (esRefresh = false) => {
@@ -64,7 +80,7 @@ export default function AmigosScreen() {
         setSolicitudes(listaSolicitudes);
       } catch (e: unknown) {
         if (!esRefresh) {
-          Alert.alert('Error', e instanceof Error ? e.message : 'No se pudieron cargar los datos.');
+          meshError('Error', e instanceof Error ? e.message : 'No se pudieron cargar los datos.');
         }
       } finally {
         setLoading(false);
@@ -96,7 +112,7 @@ export default function AmigosScreen() {
           const resultados = await buscarUsuariosAmistad(q, userId);
           setResultadosBusqueda(resultados);
         } catch (e: unknown) {
-          Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo buscar usuarios.');
+          meshError('Error', e instanceof Error ? e.message : 'No se pudo buscar usuarios.');
         } finally {
           setBuscando(false);
         }
@@ -124,37 +140,63 @@ export default function AmigosScreen() {
         )
       );
     } catch (e: unknown) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo enviar la solicitud.');
+      meshError('Error', e instanceof Error ? e.message : 'No se pudo enviar la solicitud.');
     } finally {
       setSolicitandoId(null);
     }
   };
 
-  const confirmarEliminar = (amigo: AmigoApi) => {
-    Alert.alert(
-      'Eliminar amigo',
-      `¿Querés eliminar a ${amigo.nombre} de tu lista de amigos?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: () => void ejecutarEliminar(amigo),
-        },
-      ]
-    );
+  const amigosSeleccionados = amigos.filter((a) => selection.isSelected(a.id));
+  const todosSeleccionados =
+    amigos.length > 0 && amigos.every((a) => selection.isSelected(a.id));
+
+  const toggleSeleccionarTodos = () => {
+    if (todosSeleccionados) {
+      selection.clear();
+      return;
+    }
+    selection.selectAll(amigos.map((a) => a.id));
   };
 
-  const ejecutarEliminar = async (amigo: AmigoApi) => {
-    setEliminandoId(amigo.id);
+  const confirmarEliminarSeleccionados = () => {
+    if (selection.count === 0) return;
+
+    const nombres = amigosSeleccionados.map((a) => a.nombre);
+    const lista = formatItemList(nombres);
+
+    meshConfirmDestructive({
+      title: 'Eliminar amigos',
+      message: `¿Querés eliminar a ${lista} de tu lista de amigos? Esta acción no se puede deshacer.`,
+      confirmLabel: `Eliminar (${selection.count})`,
+      onConfirm: () => void ejecutarEliminarBulk(),
+    });
+  };
+
+  const ejecutarEliminarBulk = async () => {
+    setEliminandoBulk(true);
     try {
       const userId = resolveBackendUserId(backendUserId);
-      await eliminarAmigo(amigo.id, userId);
-      setAmigos((prev) => prev.filter((a) => a.id !== amigo.id));
+      const items = amigosSeleccionados.map((a) => ({ id: a.id, label: a.nombre }));
+
+      const result = await runBulkDelete(items, async (item) => {
+        await eliminarAmigo(item.id, userId);
+      });
+
+      const idsOk = new Set(
+        items.filter((i) => !result.failed.some((f) => f.id === i.id)).map((i) => i.id)
+      );
+      setAmigos((prev) => prev.filter((a) => !idsOk.has(a.id)));
+      selection.exit();
+
+      if (result.failed.length === 0) {
+        meshSuccess('Listo', bulkDeleteSummary(result, 'amigo'));
+      } else {
+        meshAlert('Resultado parcial', bulkDeleteSummary(result, 'amigo'), [{ text: 'Entendido' }]);
+      }
     } catch (e: unknown) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo eliminar al amigo.');
+      meshError('Error', e instanceof Error ? e.message : 'No se pudo completar la eliminación.');
     } finally {
-      setEliminandoId(null);
+      setEliminandoBulk(false);
     }
   };
 
@@ -167,10 +209,10 @@ export default function AmigosScreen() {
 
       if (accion === 'aceptar') {
         await cargarDatos(true);
-        Alert.alert('Listo', `${resultado.amigo_nombre} ahora es tu amigo.`);
+        meshSuccess('Listo', `${resultado.amigo_nombre} ahora es tu amigo.`);
       }
     } catch (e: unknown) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'No se pudo responder la solicitud.');
+      meshError('Error', e instanceof Error ? e.message : 'No se pudo responder la solicitud.');
     } finally {
       setRespondiendoId(null);
     }
@@ -211,34 +253,22 @@ export default function AmigosScreen() {
     );
   };
 
-  const renderFilaAmigo = ({ item }: { item: AmigoApi }) => {
-    const eliminando = eliminandoId === item.id;
-
-    return (
-      <View style={[styles.fila, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <AvatarFallback nombre={item.nombre} />
-        <View style={styles.filaContenido}>
-          <Text style={[styles.nombre, { color: theme.text }]}>{item.nombre}</Text>
-          <Text style={[styles.email, { color: theme.textDim }]}>{item.email}</Text>
-        </View>
-        <TouchableOpacity
-          style={[
-            styles.botonEliminar,
-            { borderColor: theme.danger },
-            eliminando && styles.botonDeshabilitado,
-          ]}
-          onPress={() => confirmarEliminar(item)}
-          disabled={eliminando}
-        >
-          {eliminando ? (
-            <ActivityIndicator color={theme.danger} size="small" />
-          ) : (
-            <Text style={[styles.botonEliminarTexto, { color: theme.danger }]}>Eliminar</Text>
-          )}
-        </TouchableOpacity>
+  const renderFilaAmigo = ({ item }: { item: AmigoApi }) => (
+    <SelectableCard
+      itemId={item.id}
+      selectionActive={selection.active}
+      selected={selection.isSelected(item.id)}
+      onEnterSelection={selection.enter}
+      onToggle={selection.toggle}
+      style={[styles.fila, { backgroundColor: theme.surface, borderColor: theme.border }]}
+    >
+      <AvatarFallback nombre={item.nombre} />
+      <View style={styles.filaContenido}>
+        <Text style={[styles.nombre, { color: theme.text }]}>{item.nombre}</Text>
+        <Text style={[styles.email, { color: theme.textDim }]}>{item.email}</Text>
       </View>
-    );
-  };
+    </SelectableCard>
+  );
 
   const renderFilaBusqueda = ({ item }: { item: UsuarioBusquedaAmistadApi }) => (
     <View style={[styles.fila, { backgroundColor: theme.surface, borderColor: theme.border }]}>
@@ -301,7 +331,10 @@ export default function AmigosScreen() {
               { backgroundColor: theme.surface },
               tab === 'amigos' && { backgroundColor: theme.accentWeak },
             ]}
-            onPress={() => setTab('amigos')}
+            onPress={() => {
+              selection.exit();
+              setTab('amigos');
+            }}
           >
             <Text style={[styles.tabTexto, { color: tab === 'amigos' ? theme.accent : theme.textDim }]}>
               Mis Amigos
@@ -313,13 +346,25 @@ export default function AmigosScreen() {
               { backgroundColor: theme.surface },
               tab === 'solicitudes' && { backgroundColor: theme.accentWeak },
             ]}
-            onPress={() => setTab('solicitudes')}
+            onPress={() => {
+              selection.exit();
+              setTab('solicitudes');
+            }}
           >
             <Text style={[styles.tabTexto, { color: tab === 'solicitudes' ? theme.accent : theme.textDim }]}>
               Solicitudes{solicitudes.length > 0 ? ` (${solicitudes.length})` : ''}
             </Text>
           </TouchableOpacity>
         </View>
+
+        {tab === 'amigos' && !enModoBusqueda ? (
+          <SelectionHeader
+            visible={selection.active}
+            allSelected={todosSeleccionados}
+            onToggleAll={toggleSeleccionarTodos}
+            onCancel={selection.exit}
+          />
+        ) : null}
 
         {tab === 'amigos' && (
           <>
@@ -331,7 +376,10 @@ export default function AmigosScreen() {
               placeholder="Buscar por nombre o email..."
               placeholderTextColor={theme.textMute}
               value={busqueda}
-              onChangeText={setBusqueda}
+              onChangeText={(text) => {
+                if (text.trim().length >= 2) selection.exit();
+                setBusqueda(text);
+              }}
               autoCapitalize="none"
               autoCorrect={false}
             />
@@ -362,10 +410,14 @@ export default function AmigosScreen() {
                 data={amigos}
                 keyExtractor={(item) => item.id}
                 renderItem={renderFilaAmigo}
-                contentContainerStyle={amigos.length === 0 ? styles.listaVacia : undefined}
+                contentContainerStyle={[
+                  amigos.length === 0 ? styles.listaVacia : undefined,
+                  selection.active && styles.listaConBarra,
+                ]}
                 ListEmptyComponent={
                   <Text style={[styles.vacio, { color: theme.textMute }]}>
                     No tenés amigos todavía. Buscá usuarios y enviá solicitudes de amistad.
+                    {'\n\n'}Mantené apretado un contacto para seleccionar y eliminar.
                   </Text>
                 }
                 refreshControl={
@@ -402,6 +454,14 @@ export default function AmigosScreen() {
             />
           )
         )}
+
+        <SelectionActionBar
+          visible={selection.active && tab === 'amigos' && !enModoBusqueda}
+          count={selection.count}
+          deleting={eliminandoBulk}
+          onCancel={selection.exit}
+          onDelete={confirmarEliminarSeleccionados}
+        />
       </View>
     </>
   );
@@ -431,6 +491,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   listaVacia: { flexGrow: 1, justifyContent: 'center' },
+  listaConBarra: { paddingBottom: 88 },
   fila: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -452,15 +513,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   botonAgregarTexto: { fontSize: 12, fontWeight: '600' },
-  botonEliminar: {
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderWidth: 1,
-    minWidth: 90,
-    alignItems: 'center',
-  },
-  botonEliminarTexto: { fontSize: 12, fontWeight: '600' },
   botonDeshabilitado: { opacity: 0.5 },
   hintRelacion: { fontSize: 12, fontStyle: 'italic' },
   tarjetaSolicitud: {
