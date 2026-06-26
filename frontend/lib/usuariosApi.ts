@@ -40,6 +40,21 @@ export async function syncUsuario(
   return parseJson<UsuarioPerfilResponse>(res)
 }
 
+export async function registrarPushToken(token: string): Promise<void> {
+  try {
+    await meshFetch(apiUrl('/api/usuarios/push-token'), {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(await bearerAuthHeaders()),
+      },
+      body: JSON.stringify({ token }),
+    })
+  } catch (e) {
+    console.warn('[Push] No se pudo registrar el token:', e)
+  }
+}
+
 // Lee el perfil del usuario autenticado directamente desde la base de datos.
 export async function obtenerMiPerfil(baseUrl?: string): Promise<UsuarioPerfilResponse> {
   const res = await meshFetch(apiUrl('/api/usuarios/me', baseUrl), {

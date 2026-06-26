@@ -73,6 +73,7 @@ model Usuario {
   apellido            String?
   telefono            String?
   actividad_preferida TipoActividad? @map("actividad_preferida")
+  push_token          String?        @map("push_token")
 
   grupos_liderados       Grupo[]            @relation("GrupoLider")
   membresias             GrupoMiembro[]

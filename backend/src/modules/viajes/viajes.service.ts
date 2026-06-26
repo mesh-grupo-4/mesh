@@ -154,7 +154,7 @@ export class ViajesService {
   async listarPlanificados(usuarioId: string) {
     const viajes = await this.prisma.viaje.findMany({
       where: {
-        estado: 'planificado',
+        estado: { in: ['planificado', 'en_curso'] },
         OR: [
           { creador_id: usuarioId },
           {
@@ -566,8 +566,8 @@ export class ViajesService {
     if (viaje.creador_id !== creadorId) {
       throw new HttpError(403, 'Solo el creador puede eliminar el viaje', 'NOT_CREATOR')
     }
-    if (viaje.estado !== 'planificado') {
-      throw new HttpError(409, 'Solo se puede eliminar un viaje planificado', 'INVALID_STATE')
+    if (viaje.estado === 'en_curso') {
+      throw new HttpError(409, 'No se puede eliminar un viaje en curso. Finalizalo primero.', 'INVALID_STATE')
     }
 
     await this.prisma.viaje.delete({ where: { id: viajeId } })
@@ -604,6 +604,35 @@ export class ViajesService {
     })
 
     return actualizado
+  }
+
+  async salirViaje(usuarioId: string, viajeId: string) {
+    const viaje = await this.prisma.viaje.findUnique({
+      where: { id: viajeId },
+      select: { id: true, creador_id: true, estado: true },
+    })
+    if (!viaje) throw new HttpError(404, 'Viaje no encontrado', 'VIAJE_NOT_FOUND')
+    if (viaje.creador_id === usuarioId) {
+      throw new HttpError(403, 'El líder no puede salir del viaje, debe finalizarlo', 'LEADER_CANNOT_LEAVE')
+    }
+
+    const integrante = await this.prisma.viajeIntegrante.findUnique({
+      where: { viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId } },
+      select: { estado: true },
+    })
+    if (!integrante || integrante.estado !== 'confirmado') {
+      throw new HttpError(403, 'No sos participante confirmado de este viaje', 'NOT_PARTICIPANT')
+    }
+
+    await this.prisma.viajeIntegrante.delete({
+      where: { viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId } },
+    })
+
+    if (viaje.estado === 'en_curso') {
+      getIo().to(`viaje:${viajeId}`).emit('viaje:participante_salio', { viajeId, usuarioId })
+    }
+
+    return { viaje_id: viajeId, accion: 'salido' as const }
   }
 
   async finalizar(creadorId: string, viajeId: string) {
@@ -668,7 +697,38 @@ export class ViajesService {
       fechaFinReal: actualizado.fecha_fin_real?.toISOString() ?? null,
     })
 
+    // Push notifications a participantes confirmados (no al creador que ya finalizó)
+    void this.notificarFinViaje(viajeId, viaje.nombre ?? null, creadorId)
+
     return actualizado
+  }
+
+  private async notificarFinViaje(
+    viajeId: string,
+    nombre: string | null,
+    creadorId: string
+  ): Promise<void> {
+    try {
+      const integrantes = await this.prisma.viajeIntegrante.findMany({
+        where: { viaje_id: viajeId, estado: 'confirmado' },
+        select: { usuario: { select: { id: true, push_token: true } } },
+      })
+
+      const { sendExpoPush } = await import('../../lib/expoPush')
+      const mensajes = integrantes
+        .filter((i) => i.usuario.id !== creadorId && i.usuario.push_token)
+        .map((i) => ({
+          to: i.usuario.push_token!,
+          title: 'Viaje finalizado',
+          body: nombre ? `"${nombre}" ha concluido.` : 'El viaje ha concluido.',
+          data: { viajeId },
+          sound: 'default' as const,
+        }))
+
+      await sendExpoPush(mensajes)
+    } catch (e) {
+      console.warn('[viajes] notificarFinViaje falló:', e)
+    }
   }
 
   private async assertPuedeVerViaje(viajeId: string, usuarioId: string): Promise<void> {

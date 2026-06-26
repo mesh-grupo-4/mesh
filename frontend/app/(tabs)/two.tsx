@@ -30,6 +30,7 @@ import {
 import { meshAlert, meshConfirmDestructive, meshError, meshSuccess, meshWarning } from '@/lib/meshAlert'
 import {
   eliminarViaje,
+  salirViaje,
   listarInvitacionesViajePendientes,
   listarViajesPlanificados,
   listarViajesFinalizados,
@@ -106,6 +107,10 @@ function Chip({
 
 function puedeEliminarViaje(v: ViajePlanificadoApi): boolean {
   return v.mi_estado === 'creador' && v.estado === 'planificado'
+}
+
+function puedeGestionarFinalizado(v: ViajeFinalizadoApi): boolean {
+  return v.mi_estado === 'creador' || v.mi_estado === 'confirmado'
 }
 
 function motivoNoEliminable(v: ViajePlanificadoApi): string {
@@ -205,21 +210,28 @@ function TarjetaViaje({
 function TarjetaFinalizado({
   v,
   theme,
-  onLongPressDisabled,
+  selectionActive = false,
+  selected = false,
+  selectable = false,
+  onEnterSelection,
+  onToggle,
 }: {
   v: ViajeFinalizadoApi
   theme: ReturnType<typeof useTheme>
-  onLongPressDisabled?: () => void
+  selectionActive?: boolean
+  selected?: boolean
+  selectable?: boolean
+  onEnterSelection?: (id: string) => void
+  onToggle?: (id: string) => void
 }) {
   return (
     <SelectableCard
       itemId={v.id}
-      selectionActive={false}
-      selected={false}
-      disabled
-      onEnterSelection={() => onLongPressDisabled?.()}
-      onToggle={() => onLongPressDisabled?.()}
-      onDisabledPress={onLongPressDisabled}
+      selectionActive={selectionActive}
+      selected={selected}
+      disabled={!selectable}
+      onEnterSelection={onEnterSelection ?? (() => {})}
+      onToggle={onToggle ?? (() => {})}
       onPress={() => router.push({ pathname: '/viaje/[viajeId]', params: { viajeId: v.id } })}
       style={[styles.tarjeta, styles.tarjetaDimmed, { backgroundColor: theme.surface, borderColor: theme.border }]}
     >
@@ -333,8 +345,60 @@ export default function ViajesScreen() {
     }
   }
 
-  const avisoViajePasado = () => {
-    meshWarning('No se puede eliminar', 'Los viajes finalizados o pasados no se pueden eliminar desde esta lista.')
+  const confirmarEliminarFinalizados = () => {
+    if (selection.count === 0) return
+    meshConfirmDestructive({
+      title: 'Quitar viajes',
+      message: `¿Quitar ${selection.count === 1 ? 'este viaje' : `estos ${selection.count} viajes`} de tu historial? Esta acción no se puede deshacer.`,
+      confirmLabel: `Quitar (${selection.count})`,
+      onConfirm: () => void ejecutarEliminarBulkPasados(),
+    })
+  }
+
+  const ejecutarEliminarBulkPasados = async () => {
+    setEliminandoBulk(true)
+    try {
+      const userId = resolveBackendUserId(backendUserId)
+
+      // Lookup de mi_estado para cualquier viaje seleccionado (finalizado o no-realizado)
+      const miEstadoMap = new Map<string, string | null>([
+        ...finalizados.map((v) => [v.id, v.mi_estado] as const),
+        ...viajesNoRealizados.map((v) => [v.id, v.mi_estado] as const),
+      ])
+
+      const items = pasadosGestionables
+        .filter((v) => selection.isSelected(v.id))
+        .map((v) => ({
+          id: v.id,
+          label: v.nombre ?? etiquetaActividad(v.tipo_actividad),
+        }))
+
+      const result = await runBulkDelete(items, async (item) => {
+        const miEstado = miEstadoMap.get(item.id)
+        if (miEstado === 'creador') {
+          await eliminarViaje(item.id, userId)
+        } else {
+          await salirViaje(item.id, userId)
+        }
+      })
+
+      const idsOk = new Set(
+        items.filter((i) => !result.failed.some((f) => f.id === i.id)).map((i) => i.id)
+      )
+      setFinalizados((prev) => prev.filter((v) => !idsOk.has(v.id)))
+      setViajes((prev) => prev.filter((v) => !idsOk.has(v.id)))
+      selection.exit()
+
+      if (result.failed.length === 0) {
+        meshSuccess('Listo', bulkDeleteSummary(result, 'viaje'))
+      } else {
+        meshAlert('Resultado parcial', bulkDeleteSummary(result, 'viaje'), [{ text: 'Entendido' }])
+      }
+    } catch (e: unknown) {
+      meshError('Error', e instanceof Error ? e.message : 'No se pudo completar la operación.')
+    } finally {
+      setEliminandoBulk(false)
+    }
   }
 
   // Filtros
@@ -368,6 +432,25 @@ export default function ViajesScreen() {
         .sort((a, b) => new Date(b.fecha_programada).getTime() - new Date(a.fecha_programada).getTime()),
     [viajes, ahora]
   )
+
+  const pasadosGestionables = useMemo(
+    () => [
+      ...finalizados.filter(puedeGestionarFinalizado),
+      ...viajesNoRealizados.filter(puedeEliminarViaje),
+    ],
+    [finalizados, viajesNoRealizados]
+  )
+  const todosPasadosSeleccionados =
+    pasadosGestionables.length > 0 &&
+    pasadosGestionables.every((v) => selection.isSelected(v.id))
+
+  const toggleSeleccionarTodosPasados = () => {
+    if (todosPasadosSeleccionados) {
+      selection.clear()
+      return
+    }
+    selection.selectAll(pasadosGestionables.map((v) => v.id))
+  }
 
   // Listas filtradas
   const viajesFuturosFiltrados = useMemo(
@@ -677,12 +760,22 @@ export default function ViajesScreen() {
                 </View>
               ) : (
                 <>
+                  <SelectionHeader
+                    visible={selection.active && tab === 'pasados'}
+                    allSelected={todosPasadosSeleccionados}
+                    onToggleAll={toggleSeleccionarTodosPasados}
+                    onCancel={selection.exit}
+                  />
                   {finalizadosFiltrados.map((v) => (
                     <TarjetaFinalizado
                       key={v.id}
                       v={v}
                       theme={theme}
-                      onLongPressDisabled={avisoViajePasado}
+                      selectionActive={selection.active}
+                      selected={selection.isSelected(v.id)}
+                      selectable={puedeGestionarFinalizado(v)}
+                      onEnterSelection={selection.enter}
+                      onToggle={selection.toggle}
                     />
                   ))}
 
@@ -711,10 +804,14 @@ export default function ViajesScreen() {
                               v={v}
                               dimmed
                               theme={theme}
-                              onEnterSelection={() => avisoViajePasado()}
-                              onToggle={() => avisoViajePasado()}
-                              selectable={false}
-                              onDisabledPress={avisoViajePasado}
+                              selectionActive={selection.active}
+                              selected={selection.isSelected(v.id)}
+                              selectable={puedeEliminarViaje(v)}
+                              onEnterSelection={selection.enter}
+                              onToggle={selection.toggle}
+                              onDisabledPress={() =>
+                                meshWarning('Sin permisos', 'Solo el organizador puede cancelar este viaje.')
+                              }
                             />
                           ))}
                         </View>
@@ -804,11 +901,11 @@ export default function ViajesScreen() {
       </Modal>
 
       <SelectionActionBar
-        visible={selection.active && tab === 'mis_viajes'}
+        visible={selection.active && (tab === 'mis_viajes' || tab === 'pasados')}
         count={selection.count}
         deleting={eliminandoBulk}
         onCancel={selection.exit}
-        onDelete={confirmarEliminarSeleccionados}
+        onDelete={tab === 'mis_viajes' ? confirmarEliminarSeleccionados : confirmarEliminarFinalizados}
       />
     </View>
   )

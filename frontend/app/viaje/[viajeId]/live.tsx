@@ -3,8 +3,9 @@ import * as Location from 'expo-location'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  ActivityIndicator, 
+  ActivityIndicator,
   Platform,
+  Pressable,
   StyleSheet,
   Text,
   View,
@@ -36,6 +37,8 @@ import {
   listarParticipantesViaje,
   obtenerRuta,
   obtenerViaje,
+  finalizarViaje,
+  salirViaje,
   type ViajeDetalleApi,
   type ViajeParticipanteApi,
 } from '@/lib/viajesApi'
@@ -68,6 +71,7 @@ export default function ViajeLiveScreen() {
   const [fg, setFg] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
   const [mapStyle, setMapStyle] = useState<MapStyleId>('standard')
+  const [accion, setAccion] = useState(false)
 
   const nameByUserId = useMemo(() => {
     const map: Record<string, string> = {}
@@ -192,9 +196,10 @@ export default function ViajeLiveScreen() {
       const onFin = (payload: { viajeId: string }) => {
         if (payload.viajeId !== viajeId) return
         void detenerTrackingViaje()
-        meshAlert('Viaje finalizado', 'Se detuvo el seguimiento GPS.', [
-          { text: 'OK', onPress: () => router.replace({ pathname: '/viaje/[viajeId]', params: { viajeId } }) },
-        ])
+        // El líder que finalizó maneja su propia navegación en ejecutarFinalizar.
+        if (finalizandoRef.current) return
+        // Para participantes: salir del mapa inmediatamente.
+        router.replace({ pathname: '/viaje/[viajeId]', params: { viajeId } })
       }
 
       sock.on('viaje:finalizado', onFin)
@@ -234,6 +239,62 @@ export default function ViajeLiveScreen() {
   useEffect(() => {
     void Location.getForegroundPermissionsAsync().then((r) => setFg(r.status === 'granted'))
   }, [])
+
+  const esLider = viaje != null && userId === viaje.creador_id
+
+  // Evita que el socket `viaje:finalizado` muestre un segundo diálogo cuando
+  // es el propio líder quien acaba de finalizar el viaje.
+  const finalizandoRef = useRef(false)
+
+  const confirmarFinalizar = () => {
+    meshAlert(
+      'Finalizar viaje',
+      '¿Estás seguro? Esto detendrá el tracking de todos los participantes.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Finalizar', style: 'destructive', onPress: () => void ejecutarFinalizar() },
+      ]
+    )
+  }
+
+  const ejecutarFinalizar = async () => {
+    if (!viajeId || !userId) return
+    setAccion(true)
+    finalizandoRef.current = true
+    try {
+      await finalizarViaje(viajeId, userId)
+      void detenerTrackingViaje()
+      router.replace({ pathname: '/viaje/[viajeId]', params: { viajeId } })
+    } catch (e) {
+      finalizandoRef.current = false
+      meshAlert('Error', e instanceof Error ? e.message : 'No se pudo finalizar el viaje')
+      setAccion(false)
+    }
+  }
+
+  const confirmarSalir = () => {
+    meshAlert(
+      'Salir del viaje',
+      '¿Estás seguro? Dejarás de compartir tu ubicación con el grupo.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Salir', style: 'destructive', onPress: () => void ejecutarSalir() },
+      ]
+    )
+  }
+
+  const ejecutarSalir = async () => {
+    if (!viajeId || !userId) return
+    setAccion(true)
+    try {
+      await salirViaje(viajeId, userId)
+      await detenerTrackingViaje()
+      router.replace('/(tabs)')
+    } catch (e) {
+      meshAlert('Error', e instanceof Error ? e.message : 'No se pudo salir del viaje')
+      setAccion(false)
+    }
+  }
 
   const handleCenterOnMe = () => {
     void (async () => {
@@ -312,6 +373,21 @@ export default function ViajeLiveScreen() {
       ) : null}
 
       <TripMetricsPanel elapsedLabel={elapsedLabel} distanceLabel={distanceLabel} />
+
+      <Pressable
+        style={({ pressed }) => [
+          styles.endBar,
+          esLider ? styles.endBarDanger : styles.endBarGhost,
+          pressed && styles.endBarPressed,
+          accion && styles.endBarDisabled,
+        ]}
+        onPress={esLider ? confirmarFinalizar : confirmarSalir}
+        disabled={accion}
+      >
+        <Text style={[styles.endBarText, esLider ? styles.endBarTextDanger : styles.endBarTextGhost]}>
+          {accion ? 'Procesando...' : esLider ? 'Finalizar viaje' : 'Salir del viaje'}
+        </Text>
+      </Pressable>
     </View>
   )
 }
@@ -329,6 +405,36 @@ const styles = StyleSheet.create({
   muted: {
     color: '#6b7280',
     fontSize: 15,
+  },
+  endBar: {
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderTopWidth: 1,
+  },
+  endBarDanger: {
+    backgroundColor: '#fff1f2',
+    borderTopColor: '#fecaca',
+  },
+  endBarGhost: {
+    backgroundColor: '#f9fafb',
+    borderTopColor: '#e5e7eb',
+  },
+  endBarPressed: {
+    opacity: 0.7,
+  },
+  endBarDisabled: {
+    opacity: 0.45,
+  },
+  endBarText: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  endBarTextDanger: {
+    color: '#dc2626',
+  },
+  endBarTextGhost: {
+    color: '#6b7280',
   },
   warnBanner: {
     position: 'absolute',

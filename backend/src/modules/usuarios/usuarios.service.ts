@@ -38,6 +38,13 @@ export class UsuariosService {
     })
   }
 
+  async upsertPushToken(userId: string, token: string): Promise<void> {
+    await this.prisma.usuario.update({
+      where: { id: userId },
+      data: { push_token: token },
+    })
+  }
+
   async sync(userId: string, input: SyncUsuarioInput) {
     return this.prisma.usuario.update({
       where: { id: userId },

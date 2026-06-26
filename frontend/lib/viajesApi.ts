@@ -290,6 +290,41 @@ export async function eliminarViaje(
   return parseJson<EliminarViajeResponse>(res)
 }
 
+export type ViajeFinalizadoBackendApi = {
+  id: string
+  estado: string
+  fecha_fin_real: string | null
+}
+
+export async function finalizarViaje(
+  viajeId: string,
+  userId: string,
+  baseUrl: string = API_BASE_URL
+): Promise<ViajeFinalizadoBackendApi> {
+  const res = await meshFetch(apiUrl(`/api/viajes/${viajeId}/finalizar`, baseUrl), {
+    method: 'POST',
+    headers: await authHeaders(userId),
+  })
+  return parseJson<ViajeFinalizadoBackendApi>(res)
+}
+
+export type SalirViajeResponse = {
+  viaje_id: string
+  accion: 'salido'
+}
+
+export async function salirViaje(
+  viajeId: string,
+  userId: string,
+  baseUrl: string = API_BASE_URL
+): Promise<SalirViajeResponse> {
+  const res = await meshFetch(apiUrl(`/api/viajes/${viajeId}/salir`, baseUrl), {
+    method: 'POST',
+    headers: await authHeaders(userId),
+  })
+  return parseJson<SalirViajeResponse>(res)
+}
+
 export async function guardarRutaEnBackend(
   viajeId: string,
   userId: string,

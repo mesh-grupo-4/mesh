@@ -11,3 +11,4 @@ export const usuariosRouter = Router()
 
 usuariosRouter.get('/me', requireUser, c.getMe)
 usuariosRouter.post('/sync', requireUser, c.sync)
+usuariosRouter.put('/push-token', requireUser, c.upsertPushToken)

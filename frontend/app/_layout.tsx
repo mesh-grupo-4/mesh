@@ -14,6 +14,7 @@ import { MeshDialogProvider } from '@/context/MeshDialogContext';
 import { TripRealtimeProvider } from '@/context/TripRealtimeContext';
 import Colors from '@/constants/Colors';
 import { ViajeRealtimeBridge } from '@/components/ViajeRealtimeBridge';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -63,9 +64,11 @@ function AppStack() {
 }
 
 function RootLayoutNav() {
-  const { user, loading } = useAuth();
+  const { user, loading, backendUserId } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+
+  usePushNotifications(backendUserId);
 
   useEffect(() => {
     if (loading) return;
@@ -89,14 +92,10 @@ function RootLayoutNav() {
 
   return (
     <ThemeProvider value={DarkTheme}>
-      {user ? (
-        <TripRealtimeProvider>
-          <ViajeRealtimeBridge />
-          <AppStack />
-        </TripRealtimeProvider>
-      ) : (
+      <TripRealtimeProvider>
+        {user && <ViajeRealtimeBridge />}
         <AppStack />
-      )}
+      </TripRealtimeProvider>
     </ThemeProvider>
   );
 }

@@ -24,5 +24,15 @@ export function crearUsuariosController(service: UsuariosService) {
       const usuario = await service.sync(req.userId!, body)
       res.status(200).json(usuario)
     }),
+
+    upsertPushToken: asyncHandler(async (req, res) => {
+      const { token } = req.body as { token?: unknown }
+      if (!token || typeof token !== 'string') {
+        res.status(400).json({ error: 'token requerido' })
+        return
+      }
+      await service.upsertPushToken(req.userId!, token)
+      res.json({ ok: true })
+    }),
   }
 }

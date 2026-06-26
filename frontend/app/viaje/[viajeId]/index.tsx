@@ -19,12 +19,14 @@ import { Feather } from '@expo/vector-icons'
 import { DEV_USER_ID } from '@/constants/Config'
 import { useAuth } from '@/context/AuthContext'
 import { useTripRealtime } from '@/context/TripRealtimeContext'
-import { connectMeshSocket } from '@/lib/meshSocket'
 import { isSupabaseConfigured } from '@/lib/supabase'
 import { emitTripStartedWithRetry } from '@/lib/tripBroadcast'
-import { iniciarTrackingViaje, solicitarPermisosUbicacion } from '@/lib/tracking/trackingControl'
+import { detenerTrackingViaje, solicitarPermisosUbicacion } from '@/lib/tracking/trackingControl'
 import {
   iniciarViajeEnBackend,
+  finalizarViaje,
+  salirViaje,
+  eliminarViaje,
   obtenerViaje,
   obtenerRuta,
   actualizarFechaViaje,
@@ -272,47 +274,104 @@ export default function ViajeDetalleScreen() {
       setUbicacionBloqueada(!perm.foreground)
 
       const actualizado = await iniciarViajeEnBackend(viajeId, userId)
-      await cargar()
 
-      if (isSupabaseConfigured()) {
-        try {
-          await emitTripStartedWithRetry(viajeId, {
-            viajeId,
-            nombre: actualizado.nombre ?? viaje?.nombre ?? null,
-            estado: 'en_curso',
-            fechaInicioReal: actualizado.fecha_inicio_real ?? new Date().toISOString(),
-            iniciadoPor: userId,
-          })
-        } catch (e) {
-          console.warn('Broadcast TRIP_STARTED falló:', e)
-          meshAlert(
-            'Aviso',
-            'El viaje inició correctamente, pero no se pudo notificar al grupo en tiempo real.'
-          )
-        }
-      }
-
-      const sock = await connectMeshSocket()
-      sock.emit('join_viaje', { viajeId })
-
-      if (perm.foreground) {
-        try {
-          await iniciarTrackingViaje(viajeId, userId)
-        } catch (e) {
-          console.warn('No se pudo iniciar tracking GPS:', e)
-          meshAlert(
-            'Viaje iniciado',
-            perm.background
-              ? 'El viaje comenzó, pero no pudimos activar el GPS. Revisá permisos de ubicación en Ajustes.'
-              : 'El viaje comenzó. En iOS, para GPS con la pantalla bloqueada elegí "Siempre" en Ajustes → Mesh → Ubicación.'
-          )
-        }
-      }
-
+      // Navegar a live inmediatamente para que el usuario no vea el botón
+      // "Finalizar viaje" en loading state mientras se hace el setup posterior.
       router.push({ pathname: '/viaje/[viajeId]/live', params: { viajeId } })
+
+      // Supabase broadcast en background; socket y tracking los maneja live.tsx.
+      if (isSupabaseConfigured()) {
+        void emitTripStartedWithRetry(viajeId, {
+          viajeId,
+          nombre: actualizado.nombre ?? viaje?.nombre ?? null,
+          estado: 'en_curso',
+          fechaInicioReal: actualizado.fecha_inicio_real ?? new Date().toISOString(),
+          iniciadoPor: userId,
+        }).catch((e) => console.warn('Broadcast TRIP_STARTED falló:', e))
+      }
     } catch (e) {
       meshAlert('Error', e instanceof Error ? e.message : 'No se pudo iniciar')
     } finally {
+      setAccion(false)
+    }
+  }
+
+  const confirmarEliminar = () => {
+    meshAlert(
+      'Cancelar viaje',
+      '¿Estás seguro? Esto eliminará el viaje para todos los participantes.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Eliminar', style: 'destructive', onPress: () => void ejecutarEliminar() },
+      ]
+    )
+  }
+
+  const ejecutarEliminar = async () => {
+    if (!viajeId || !userId) return
+    setAccion(true)
+    try {
+      await eliminarViaje(viajeId, userId)
+      router.replace('/(tabs)')
+    } catch (e) {
+      meshAlert('Error', e instanceof Error ? e.message : 'No se pudo eliminar el viaje')
+      setAccion(false)
+    }
+  }
+
+  const confirmarFinalizar = () => {
+    meshAlert(
+      'Finalizar viaje',
+      '¿Estás seguro? Esto detendrá el tracking de todos los participantes.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Finalizar',
+          style: 'destructive',
+          onPress: () => void ejecutarFinalizar(),
+        },
+      ]
+    )
+  }
+
+  const ejecutarFinalizar = async () => {
+    if (!viajeId || !userId) return
+    setAccion(true)
+    try {
+      await finalizarViaje(viajeId, userId)
+      await detenerTrackingViaje()
+      await cargar()
+    } catch (e) {
+      meshAlert('Error', e instanceof Error ? e.message : 'No se pudo finalizar el viaje')
+    } finally {
+      setAccion(false)
+    }
+  }
+
+  const confirmarSalir = () => {
+    meshAlert(
+      'Salir del viaje',
+      '¿Estás seguro? Dejarás de compartir tu ubicación con el grupo.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Salir',
+          style: 'destructive',
+          onPress: () => void ejecutarSalir(),
+        },
+      ]
+    )
+  }
+
+  const ejecutarSalir = async () => {
+    if (!viajeId || !userId) return
+    setAccion(true)
+    try {
+      await salirViaje(viajeId, userId)
+      await detenerTrackingViaje()
+      router.replace('/(tabs)')
+    } catch (e) {
+      meshAlert('Error', e instanceof Error ? e.message : 'No se pudo salir del viaje')
       setAccion(false)
     }
   }
@@ -529,21 +588,37 @@ export default function ViajeDetalleScreen() {
           {/* Sticky Bottom Actions */}
           <View style={[styles.bottomPad, { backgroundColor: theme.background, borderTopColor: theme.border }]}>
             {viaje.estado === 'planificado' && esLider && (
-              <Btn variant="primary" block icon="play" onPress={confirmarIniciar} disabled={accion} loading={accion}>
-                Iniciar viaje en vivo
-              </Btn>
+              <View style={{ gap: 10 }}>
+                <Btn variant="primary" block icon="play" onPress={confirmarIniciar} disabled={accion} loading={accion}>
+                  Iniciar viaje en vivo
+                </Btn>
+                <Btn variant="danger" block icon="trash-2" onPress={confirmarEliminar} disabled={accion}>
+                  Cancelar viaje
+                </Btn>
+              </View>
             )}
 
             {viaje.estado === 'planificado' && !esLider && (
-              <Btn variant="secondary" block disabled>
-                Esperando que el líder inicie el viaje
+              <Btn variant="ghost" block icon="log-out" onPress={confirmarSalir} disabled={accion} loading={accion}>
+                Salir del viaje
               </Btn>
             )}
 
             {viaje.estado === 'en_curso' && (
-              <Btn variant="primary" block icon="navigation" onPress={irLive}>
-                Ver mapa en vivo
-              </Btn>
+              <View style={{ gap: 10 }}>
+                <Btn variant="primary" block icon="navigation" onPress={irLive}>
+                  Ver mapa en vivo
+                </Btn>
+                {esLider ? (
+                  <Btn variant="danger" block icon="stop-circle" onPress={confirmarFinalizar} disabled={accion} loading={accion}>
+                    Finalizar viaje
+                  </Btn>
+                ) : (
+                  <Btn variant="ghost" block icon="log-out" onPress={confirmarSalir} disabled={accion} loading={accion}>
+                    Salir del viaje
+                  </Btn>
+                )}
+              </View>
             )}
 
             {viaje.estado === 'finalizado' && (

@@ -125,6 +125,12 @@ export function crearViajesController(service: ViajesService) {
       res.json(viaje)
     }),
 
+    salir: asyncHandler(async (req, res) => {
+      const viajeId = req.params.viajeId as string
+      const result = await service.salirViaje(req.userId!, viajeId)
+      res.json(result)
+    }),
+
     unirseQr: asyncHandler(async (req, res) => {
       const viajeId = req.params.viajeId as string
       const result = await service.unirsePorQr(req.userId!, viajeId)

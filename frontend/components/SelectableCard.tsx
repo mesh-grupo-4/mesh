@@ -31,12 +31,12 @@ export function SelectableCard({
   const theme = useTheme()
 
   const handlePress = () => {
-    if (disabled) {
-      onDisabledPress?.()
-      return
-    }
     if (selectionActive) {
-      onToggle(itemId)
+      if (disabled) {
+        onDisabledPress?.()
+      } else {
+        onToggle(itemId)
+      }
       return
     }
     onPress?.()
@@ -58,12 +58,12 @@ export function SelectableCard({
       style={({ pressed }) => [
         styles.wrap,
         style,
-        disabled && styles.disabled,
+        selectionActive && disabled && styles.disabled,
         selectionActive && selected && {
           borderColor: theme.accent,
           backgroundColor: theme.accentWeak,
         },
-        pressed && !disabled && { opacity: 0.92 },
+        pressed && { opacity: 0.92 },
       ]}
     >
       {selectionActive && !disabled ? (

@@ -216,7 +216,7 @@ export default function GrupoDetalleScreen() {
                         Invitar personas
                       </Text>
                       <Text style={[styles.liLinkSub, { color: theme.textDim }]}>
-                        Por QR o desde otros grupos
+                        Por usuario o desde otros grupos
                       </Text>
                     </View>
                   </View>
