@@ -2,7 +2,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, StyleSheet, View } from 'react-native'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
-import { SafeAreaView } from 'react-native-safe-area-context'
 
 import { TopBar, useTheme } from '@/components/MeshUI'
 import { MapPickOverlay } from '@/components/route-config/MapPickOverlay'
@@ -151,14 +150,14 @@ export default function ConfigurarRutaScreen() {
 
         {!modoSeleccionMapa ? (
           <View style={styles.header} pointerEvents="box-none">
-            <SafeAreaView edges={['top']} style={{ backgroundColor: theme.background }}>
+            <View style={{ backgroundColor: theme.background }}>
               <TopBar
                 title="Ruta y paradas"
                 sub="Definí origen, paradas y destino"
                 onBack={() => router.back()}
                 bordered={false}
               />
-            </SafeAreaView>
+            </View>
           </View>
         ) : null}
 

@@ -1,6 +1,6 @@
-import BottomSheet, { BottomSheetScrollView } from '@gorhom/bottom-sheet'
-import { forwardRef, useCallback, useImperativeHandle, useMemo, useRef, useState } from 'react'
-import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native'
+import BottomSheet, { BottomSheetScrollView, BottomSheetTextInput } from '@gorhom/bottom-sheet'
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type ElementRef } from 'react'
+import { ActivityIndicator, Keyboard, Platform, StyleSheet, Text, View } from 'react-native'
 
 import { ActivityTile, Btn, useTheme } from '@/components/MeshUI'
 import {
@@ -66,8 +66,11 @@ export const RouteBottomSheet = forwardRef<RouteBottomSheetHandle, Props>(functi
   const theme = useTheme()
   const snapPoints = useMemo(() => ['18%', '48%', '88%'], [])
   const sheetRef = useRef<BottomSheet>(null)
+  const scrollRef = useRef<ElementRef<typeof BottomSheetScrollView>>(null)
+  const rowOffsetsRef = useRef<Map<string, number>>(new Map())
   const sugerenciasAbiertas = useRef(new Set<string>())
   const [scrollSheetHabilitado, setScrollSheetHabilitado] = useState(true)
+  const [keyboardHeight, setKeyboardHeight] = useState(0)
 
   useImperativeHandle(ref, () => ({
     snapToMin() {
@@ -91,8 +94,34 @@ export const RouteBottomSheet = forwardRef<RouteBottomSheetHandle, Props>(functi
     }
   }, [])
 
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow'
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide'
+    const show = Keyboard.addListener(showEvent, (e) => {
+      setKeyboardHeight(e.endCoordinates.height)
+    })
+    const hide = Keyboard.addListener(hideEvent, () => setKeyboardHeight(0))
+    return () => {
+      show.remove()
+      hide.remove()
+    }
+  }, [])
+
+  const onInputFocus = useCallback((waypointId: string) => {
+    sheetRef.current?.snapToIndex(2)
+    const y = rowOffsetsRef.current.get(waypointId)
+    if (y == null) return
+    setTimeout(() => {
+      scrollRef.current?.scrollTo({ y: Math.max(0, y - 12), animated: true })
+    }, Platform.OS === 'ios' ? 80 : 120)
+  }, [])
+
   const renderRow = (waypoint: RouteWaypoint, stopIndex?: number, isLast = false) => (
-    <View key={waypoint.id} style={styles.timelineRow}>
+    <View
+      key={waypoint.id}
+      style={styles.timelineRow}
+      onLayout={(e) => rowOffsetsRef.current.set(waypoint.id, e.nativeEvent.layout.y)}
+    >
       <RouteTimelineConnector type={waypoint.type} isLast={isLast} />
       <RouteWaypointRow
         waypoint={waypoint}
@@ -104,8 +133,10 @@ export const RouteBottomSheet = forwardRef<RouteBottomSheetHandle, Props>(functi
         canMoveUp={waypoint.type === 'STOP' && (stopIndex ?? 0) > 0}
         canMoveDown={waypoint.type === 'STOP' && (stopIndex ?? 0) < paradas.length - 1}
         onSuggestionsOpenChange={(open) => onSuggestionsOpenChange(waypoint.id, open)}
+        onInputFocus={() => onInputFocus(waypoint.id)}
         onPickOnMap={() => onPickOnMap(waypoint.id)}
         mapPickMode={mapPickMode}
+        InputComponent={BottomSheetTextInput}
       />
     </View>
   )
@@ -122,14 +153,18 @@ export const RouteBottomSheet = forwardRef<RouteBottomSheetHandle, Props>(functi
       snapPoints={snapPoints}
       backgroundStyle={{ backgroundColor: theme.surface }}
       handleIndicatorStyle={{ backgroundColor: theme.textMute, width: 40 }}
-      keyboardBehavior="interactive"
+      keyboardBehavior="extend"
       keyboardBlurBehavior="restore"
       android_keyboardInputMode="adjustResize"
       enableContentPanningGesture={!mapPickMode}
     >
       <BottomSheetScrollView
+        ref={scrollRef}
         scrollEnabled={scrollSheetHabilitado && !mapPickMode}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          keyboardHeight > 0 && { paddingBottom: keyboardHeight + (Platform.OS === 'ios' ? 24 : 16) },
+        ]}
         keyboardShouldPersistTaps="always"
         nestedScrollEnabled
       >

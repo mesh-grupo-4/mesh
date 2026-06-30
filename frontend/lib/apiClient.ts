@@ -15,17 +15,38 @@ export class MeshApiError extends Error {
   }
 }
 
-export async function getFirebaseIdToken(): Promise<string> {
+export async function getFirebaseIdToken(forceRefresh = false): Promise<string> {
+  await auth.authStateReady()
   const user = auth.currentUser
   if (!user) {
     throw new Error('No hay sesión activa. Iniciá sesión nuevamente.')
   }
-  return user.getIdToken()
+  return user.getIdToken(forceRefresh)
 }
 
-export async function bearerAuthHeaders(): Promise<Record<string, string>> {
-  const token = await getFirebaseIdToken()
+export async function bearerAuthHeaders(forceRefresh = false): Promise<Record<string, string>> {
+  const token = await getFirebaseIdToken(forceRefresh)
   return { Authorization: `Bearer ${token}` }
+}
+
+/** Fetch autenticado con reintento automático si el token expiró (401). */
+export async function meshFetchAuthed(url: string, init?: RequestInit): Promise<Response> {
+  const attempt = async (forceRefresh: boolean) =>
+    meshFetch(url, {
+      ...init,
+      headers: {
+        ...(init?.headers as Record<string, string> | undefined),
+        ...(await bearerAuthHeaders(forceRefresh)),
+      },
+    })
+
+  const res = await attempt(false)
+  if (res.status === 401) return attempt(true)
+  return res
+}
+
+export function isAuthApiError(error: unknown): boolean {
+  return error instanceof MeshApiError && error.status === 401
 }
 
 export async function meshFetch(url: string, init?: RequestInit): Promise<Response> {
@@ -71,6 +92,8 @@ export function apiUrl(path: string, baseUrl: string = API_BASE_URL): string {
 export function authHeaders(_userId?: string): Promise<Record<string, string>> {
   return bearerAuthHeaders()
 }
+
+export { meshFetchAuthed as meshFetchWithAuth }
 
 export function resolveBackendUserId(
   backendUserId: string | null | undefined

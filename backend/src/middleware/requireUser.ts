@@ -11,12 +11,23 @@ export const requireUser: RequestHandler = async (req, res, next) => {
   }
 
   const token = authHeader.slice(7)
+  let decoded
   try {
-    const decoded = await firebaseAuth.verifyIdToken(token)
+    decoded = await firebaseAuth.verifyIdToken(token)
+  } catch (err) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('[requireUser] Token rechazado:', err instanceof Error ? err.message : err)
+    }
+    res.status(401).json({ error: 'Token inválido o expirado' })
+    return
+  }
+
+  try {
     const usuario = await findOrCreateByFirebaseUid(decoded.uid)
     req.userId = usuario.id
     next()
-  } catch {
-    res.status(401).json({ error: 'Token inválido o expirado' })
+  } catch (err) {
+    console.error('[requireUser] Error al resolver usuario:', err)
+    res.status(500).json({ error: 'Error interno al resolver usuario' })
   }
 }

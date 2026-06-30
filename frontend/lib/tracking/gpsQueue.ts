@@ -81,15 +81,20 @@ export async function flushGpsQueue(baseUrl: string = API_BASE_URL): Promise<voi
     }))
 
     try {
-      const auth = await bearerAuthHeaders()
-      const res = await fetch(`${root}/api/viajes/${viajeId}/posiciones`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...auth,
-        },
-        body: JSON.stringify({ source: 'offline_sync', posiciones }),
-      })
+      const postBatch = async (forceRefresh: boolean) => {
+        const auth = await bearerAuthHeaders(forceRefresh)
+        return fetch(`${root}/api/viajes/${viajeId}/posiciones`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...auth,
+          },
+          body: JSON.stringify({ source: 'offline_sync', posiciones }),
+        })
+      }
+
+      let res = await postBatch(false)
+      if (res.status === 401) res = await postBatch(true)
       if (!res.ok) continue
       const ids = batch.map((b) => b.id)
       const ph = ids.map(() => '?').join(',')

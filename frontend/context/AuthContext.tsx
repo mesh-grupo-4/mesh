@@ -175,6 +175,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
 
       void (async () => {
+        await auth.authStateReady();
         if (firebaseUser) {
           const stored = await loadProfile(firebaseUser.uid);
           setProfile(stored);

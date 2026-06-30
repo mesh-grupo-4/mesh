@@ -1,4 +1,4 @@
-import { apiUrl, authHeaders, meshFetch, parseJson } from './apiClient'
+import { apiUrl, meshFetchAuthed, parseJson } from './apiClient'
 
 export type AmigoApi = {
   id: string
@@ -42,8 +42,7 @@ export async function listarAmigos(
   userId: string,
   baseUrl?: string
 ): Promise<AmigoApi[]> {
-  const res = await meshFetch(apiUrl('/api/amistades', baseUrl), {
-    headers: await authHeaders(userId),
+  const res = await meshFetchAuthed(apiUrl('/api/amistades', baseUrl), {
   })
   return parseJson<AmigoApi[]>(res)
 }
@@ -52,8 +51,7 @@ export async function listarSolicitudesAmistadPendientes(
   userId: string,
   baseUrl?: string
 ): Promise<SolicitudAmistadPendienteApi[]> {
-  const res = await meshFetch(apiUrl('/api/amistades/solicitudes/pendientes', baseUrl), {
-    headers: await authHeaders(userId),
+  const res = await meshFetchAuthed(apiUrl('/api/amistades/solicitudes/pendientes', baseUrl), {
   })
   return parseJson<SolicitudAmistadPendienteApi[]>(res)
 }
@@ -63,11 +61,10 @@ export async function solicitarAmistad(
   userId: string,
   baseUrl?: string
 ): Promise<SolicitarAmistadResponse> {
-  const res = await meshFetch(apiUrl('/api/amistades/solicitar', baseUrl), {
+  const res = await meshFetchAuthed(apiUrl('/api/amistades/solicitar', baseUrl), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(await authHeaders(userId)),
     },
     body: JSON.stringify({ usuario_id: destinatarioId }),
   })
@@ -80,13 +77,12 @@ export async function responderSolicitudAmistad(
   userId: string,
   baseUrl?: string
 ): Promise<ResponderSolicitudAmistadResponse> {
-  const res = await meshFetch(
+  const res = await meshFetchAuthed(
     apiUrl(`/api/amistades/solicitudes/${solicitudId}/responder`, baseUrl),
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(await authHeaders(userId)),
       },
       body: JSON.stringify({ accion }),
     }
@@ -100,8 +96,7 @@ export async function buscarUsuariosAmistad(
   baseUrl?: string
 ): Promise<UsuarioBusquedaAmistadApi[]> {
   const params = new URLSearchParams({ q: query })
-  const res = await meshFetch(apiUrl(`/api/amistades/buscar?${params}`, baseUrl), {
-    headers: await authHeaders(userId),
+  const res = await meshFetchAuthed(apiUrl(`/api/amistades/buscar?${params}`, baseUrl), {
   })
   return parseJson<UsuarioBusquedaAmistadApi[]>(res)
 }
@@ -111,9 +106,8 @@ export async function eliminarAmigo(
   userId: string,
   baseUrl?: string
 ): Promise<EliminarAmigoResponse> {
-  const res = await meshFetch(apiUrl(`/api/amistades/${amigoId}`, baseUrl), {
+  const res = await meshFetchAuthed(apiUrl(`/api/amistades/${amigoId}`, baseUrl), {
     method: 'DELETE',
-    headers: await authHeaders(userId),
   })
   return parseJson<EliminarAmigoResponse>(res)
 }

@@ -21,6 +21,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Colors from '@/constants/Colors';
 
 // Hook auxiliar para acceder al tema activo
@@ -578,6 +579,7 @@ interface TopBarProps {
 export function TopBar({ title, sub, onBack, bordered = true, right }: TopBarProps) {
   const theme = useTheme();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const handleBack = () => {
     if (onBack) {
@@ -595,6 +597,7 @@ export function TopBar({ title, sub, onBack, bordered = true, right }: TopBarPro
           backgroundColor: theme.background,
           borderBottomColor: theme.border,
           borderBottomWidth: bordered ? 1 : 0,
+          paddingTop: insets.top + 8,
         },
       ]}
     >
@@ -797,8 +800,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    minHeight: 64,
+    paddingBottom: 12,
+    minHeight: 56,
   },
   topBarLeft: {
     flexDirection: 'row',

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import {
   View,
   Text,
@@ -11,12 +11,12 @@ import {
   Modal,
   SafeAreaView,
 } from 'react-native'
-import { router, useFocusEffect, useNavigation } from 'expo-router'
+import { router, useFocusEffect } from 'expo-router'
 import { Feather } from '@expo/vector-icons'
 import { useAuth } from '@/context/AuthContext'
 import { useTripRealtime } from '@/context/TripRealtimeContext'
 import { resolveBackendUserId } from '@/lib/apiClient'
-import { Btn, useTheme, Badge, ActivityTile } from '@/components/MeshUI'
+import { Btn, TopBar, useTheme, Badge, ActivityTile } from '@/components/MeshUI'
 import { SelectableCard } from '@/components/SelectableCard'
 import { SelectionActionBar } from '@/components/SelectionActionBar'
 import { SelectionHeader } from '@/components/SelectionHeader'
@@ -259,7 +259,6 @@ function TarjetaFinalizado({
 
 export default function ViajesScreen() {
   const theme = useTheme()
-  const navigation = useNavigation()
   const { backendUserId, backendSyncing } = useAuth()
   const { syncKnownTripIds } = useTripRealtime()
   const selection = useSelectionMode()
@@ -518,40 +517,6 @@ export default function ViajesScreen() {
     }, [cargar])
   )
 
-  useEffect(() => {
-    navigation.setOptions({
-      headerRight: () => (
-        <View style={styles.headerBtns}>
-          <Pressable
-            style={styles.headerBtn}
-            onPress={() => router.push('/escanear-qr')}
-            hitSlop={8}
-          >
-            <Feather name="camera" size={22} color={theme.text} />
-          </Pressable>
-          <Pressable
-            style={styles.headerBtn}
-            onPress={() => setModalInvitaciones(true)}
-            hitSlop={8}
-          >
-            <Feather
-              name="bell"
-              size={22}
-              color={invitaciones.length > 0 ? theme.accent : theme.text}
-            />
-            {invitaciones.length > 0 && (
-              <View style={[styles.bellBadge, { backgroundColor: theme.accent }]}>
-                <Text style={styles.bellBadgeText}>
-                  {invitaciones.length > 9 ? '9+' : String(invitaciones.length)}
-                </Text>
-              </View>
-            )}
-          </Pressable>
-        </View>
-      ),
-    })
-  }, [navigation, invitaciones.length, theme])
-
   const responder = async (viajeId: string, accion: 'aceptar' | 'rechazar') => {
     let userId: string
     try {
@@ -578,6 +543,39 @@ export default function ViajesScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: theme.background }]}>
+      <TopBar
+        title="Viajes"
+        bordered={false}
+        right={
+          <View style={styles.headerBtns}>
+            <Pressable
+              style={styles.headerBtn}
+              onPress={() => router.push('/escanear-qr')}
+              hitSlop={8}
+            >
+              <Feather name="camera" size={22} color={theme.text} />
+            </Pressable>
+            <Pressable
+              style={styles.headerBtn}
+              onPress={() => setModalInvitaciones(true)}
+              hitSlop={8}
+            >
+              <Feather
+                name="bell"
+                size={22}
+                color={invitaciones.length > 0 ? theme.accent : theme.text}
+              />
+              {invitaciones.length > 0 && (
+                <View style={[styles.bellBadge, { backgroundColor: theme.accent }]}>
+                  <Text style={styles.bellBadgeText}>
+                    {invitaciones.length > 9 ? '9+' : String(invitaciones.length)}
+                  </Text>
+                </View>
+              )}
+            </Pressable>
+          </View>
+        }
+      />
 
       {/* Tabs internos fijos */}
       <View style={[styles.tabRow, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
@@ -916,7 +914,7 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
   // Header derecho
-  headerBtns: { flexDirection: 'row', alignItems: 'center', gap: 4, marginRight: 8 },
+  headerBtns: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   headerBtn: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
   bellBadge: {
     position: 'absolute',

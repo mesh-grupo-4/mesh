@@ -48,6 +48,14 @@ export async function connectMeshSocket(): Promise<Socket> {
     reconnectionAttempts: 8,
   })
 
+  socket.io.on('reconnect_attempt', () => {
+    void getFirebaseIdToken(true).then((freshToken) => {
+      if (!socket) return
+      socket.auth = { token: freshToken }
+      socket.io.opts.extraHeaders = { Authorization: `Bearer ${freshToken}` }
+    })
+  })
+
   return waitForConnect(socket)
 }
 

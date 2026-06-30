@@ -10,6 +10,7 @@ import {
 } from 'react-native'
 import { router, useFocusEffect } from 'expo-router'
 import { Feather } from '@expo/vector-icons'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useAuth } from '@/context/AuthContext'
 import { useTripRealtime } from '@/context/TripRealtimeContext'
 import { resolveBackendUserId } from '@/lib/apiClient'
@@ -49,6 +50,7 @@ function horaInicio(iso: string | null): string {
 
 export default function InicioScreen() {
   const theme = useTheme()
+  const insets = useSafeAreaInsets()
   const { profile, backendUserId, backendSyncing } = useAuth()
   const { syncKnownTripIds } = useTripRealtime()
   const [enCurso, setEnCurso] = useState<ViajeEnCursoApi | null>(null)
@@ -108,7 +110,7 @@ export default function InicioScreen() {
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: theme.background }]}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
       refreshControl={
         <RefreshControl
           refreshing={refreshing}

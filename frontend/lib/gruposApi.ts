@@ -1,4 +1,4 @@
-import { apiUrl, authHeaders, meshFetch, parseJson } from './apiClient'
+import { apiUrl, meshFetchAuthed, parseJson } from './apiClient'
 
 export type RolGrupoApi = 'lider' | 'participante'
 
@@ -96,8 +96,7 @@ export async function listarGrupos(
   userId: string,
   baseUrl?: string
 ): Promise<GrupoListItemApi[]> {
-  const res = await meshFetch(apiUrl('/api/grupos', baseUrl), {
-    headers: await authHeaders(userId),
+  const res = await meshFetchAuthed(apiUrl('/api/grupos', baseUrl), {
   })
   return parseJson<GrupoListItemApi[]>(res)
 }
@@ -107,11 +106,10 @@ export async function crearGrupo(
   userId: string,
   baseUrl?: string
 ): Promise<GrupoApi> {
-  const res = await meshFetch(apiUrl('/api/grupos', baseUrl), {
+  const res = await meshFetchAuthed(apiUrl('/api/grupos', baseUrl), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(await authHeaders(userId)),
     },
     body: JSON.stringify({ nombre }),
   })
@@ -123,8 +121,7 @@ export async function obtenerGrupo(
   userId: string,
   baseUrl?: string
 ): Promise<GrupoDetalleApi> {
-  const res = await meshFetch(apiUrl(`/api/grupos/${grupoId}`, baseUrl), {
-    headers: await authHeaders(userId),
+  const res = await meshFetchAuthed(apiUrl(`/api/grupos/${grupoId}`, baseUrl), {
   })
   return parseJson<GrupoDetalleApi>(res)
 }
@@ -134,8 +131,7 @@ export async function listarMiembrosGrupo(
   userId: string,
   baseUrl?: string
 ): Promise<GrupoMiembroApi[]> {
-  const res = await meshFetch(apiUrl(`/api/grupos/${grupoId}/miembros`, baseUrl), {
-    headers: await authHeaders(userId),
+  const res = await meshFetchAuthed(apiUrl(`/api/grupos/${grupoId}/miembros`, baseUrl), {
   })
   return parseJson<GrupoMiembroApi[]>(res)
 }
@@ -147,13 +143,12 @@ export async function cambiarRolMiembroGrupo(
   userId: string,
   baseUrl?: string
 ): Promise<CambiarRolMiembroResponse> {
-  const res = await meshFetch(
+  const res = await meshFetchAuthed(
     apiUrl(`/api/grupos/${grupoId}/miembros/${miembroId}/rol`, baseUrl),
     {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
-        ...(await authHeaders(userId)),
       },
       body: JSON.stringify({ rol }),
     }
@@ -168,11 +163,10 @@ export async function abandonarGrupo(
   baseUrl?: string
 ): Promise<GrupoMutationResponse> {
   const body = nuevoLiderId ? { nuevo_lider_id: nuevoLiderId } : {}
-  const res = await meshFetch(apiUrl(`/api/grupos/${grupoId}/abandonar`, baseUrl), {
+  const res = await meshFetchAuthed(apiUrl(`/api/grupos/${grupoId}/abandonar`, baseUrl), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(await authHeaders(userId)),
     },
     body: JSON.stringify(body),
   })
@@ -184,9 +178,8 @@ export async function eliminarGrupo(
   userId: string,
   baseUrl?: string
 ): Promise<GrupoMutationResponse> {
-  const res = await meshFetch(apiUrl(`/api/grupos/${grupoId}`, baseUrl), {
+  const res = await meshFetchAuthed(apiUrl(`/api/grupos/${grupoId}`, baseUrl), {
     method: 'DELETE',
-    headers: await authHeaders(userId),
   })
   return parseJson<GrupoMutationResponse>(res)
 }
@@ -196,9 +189,8 @@ export async function listarAmigosParaInvitar(
   userId: string,
   baseUrl?: string
 ): Promise<UsuarioParaInvitarApi[]> {
-  const res = await meshFetch(
+  const res = await meshFetchAuthed(
     apiUrl(`/api/grupos/${grupoDestinoId}/amigos-para-invitar`, baseUrl),
-    { headers: await authHeaders(userId) }
   )
   return parseJson<UsuarioParaInvitarApi[]>(res)
 }
@@ -210,9 +202,8 @@ export async function buscarUsuariosParaInvitar(
   baseUrl?: string
 ): Promise<UsuarioParaInvitarApi[]> {
   const params = new URLSearchParams({ q: query })
-  const res = await meshFetch(
+  const res = await meshFetchAuthed(
     apiUrl(`/api/grupos/${grupoDestinoId}/buscar-usuarios?${params}`, baseUrl),
-    { headers: await authHeaders(userId) }
   )
   return parseJson<UsuarioParaInvitarApi[]>(res)
 }
@@ -222,9 +213,8 @@ export async function listarUsuariosParaInvitar(
   userId: string,
   baseUrl?: string
 ): Promise<UsuarioInvitableApi[]> {
-  const res = await meshFetch(
+  const res = await meshFetchAuthed(
     apiUrl(`/api/grupos/${grupoDestinoId}/usuarios-para-invitar`, baseUrl),
-    { headers: await authHeaders(userId) }
   )
   return parseJson<UsuarioInvitableApi[]>(res)
 }
@@ -235,13 +225,12 @@ export async function invitarUsuarios(
   userId: string,
   baseUrl?: string
 ): Promise<InvitarUsuariosResponse> {
-  const res = await meshFetch(
+  const res = await meshFetchAuthed(
     apiUrl(`/api/grupos/${grupoDestinoId}/invitar-usuarios`, baseUrl),
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(await authHeaders(userId)),
       },
       body: JSON.stringify({ usuario_ids: usuarioIds }),
     }
@@ -254,9 +243,8 @@ export async function listarGruposParaInvitar(
   userId: string,
   baseUrl?: string
 ): Promise<GrupoInvitableApi[]> {
-  const res = await meshFetch(
+  const res = await meshFetchAuthed(
     apiUrl(`/api/grupos/${grupoDestinoId}/grupos-para-invitar`, baseUrl),
-    { headers: await authHeaders(userId) }
   )
   return parseJson<GrupoInvitableApi[]>(res)
 }
@@ -267,13 +255,12 @@ export async function invitarDesdeGrupos(
   userId: string,
   baseUrl?: string
 ): Promise<InvitarDesdeGruposResponse> {
-  const res = await meshFetch(
+  const res = await meshFetchAuthed(
     apiUrl(`/api/grupos/${grupoDestinoId}/invitar-desde-grupos`, baseUrl),
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(await authHeaders(userId)),
       },
       body: JSON.stringify({ grupo_origen_ids: grupoOrigenIds }),
     }
@@ -285,8 +272,7 @@ export async function listarInvitacionesPendientes(
   userId: string,
   baseUrl?: string
 ): Promise<InvitacionPendienteApi[]> {
-  const res = await meshFetch(apiUrl('/api/grupos/invitaciones/pendientes', baseUrl), {
-    headers: await authHeaders(userId),
+  const res = await meshFetchAuthed(apiUrl('/api/grupos/invitaciones/pendientes', baseUrl), {
   })
   return parseJson<InvitacionPendienteApi[]>(res)
 }
@@ -297,13 +283,12 @@ export async function responderInvitacion(
   userId: string,
   baseUrl?: string
 ): Promise<ResponderInvitacionResponse> {
-  const res = await meshFetch(
+  const res = await meshFetchAuthed(
     apiUrl(`/api/grupos/invitaciones/${invitacionId}/responder`, baseUrl),
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(await authHeaders(userId)),
       },
       body: JSON.stringify({ accion }),
     }

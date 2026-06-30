@@ -1,6 +1,6 @@
 import { API_BASE_URL } from '@/constants/Config'
 import type { PutRutaBody, RutaDetalleApi } from './viajesTypes'
-import { apiUrl, authHeaders, meshFetch, parseJson } from './apiClient'
+import { apiUrl, meshFetchAuthed, parseJson } from './apiClient'
 
 export type TipoActividadApi = 'moto' | 'bici' | 'running' | 'trekking'
 
@@ -78,11 +78,10 @@ export async function crearViaje(
   userId: string,
   baseUrl: string = API_BASE_URL
 ): Promise<ViajeCreadoApi> {
-  const res = await meshFetch(apiUrl('/api/viajes', baseUrl), {
+  const res = await meshFetchAuthed(apiUrl('/api/viajes', baseUrl), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(await authHeaders(userId)),
     },
     body: JSON.stringify({
       nombre: input.nombre,
@@ -115,8 +114,7 @@ export async function obtenerViajeEnCurso(
   userId: string,
   baseUrl: string = API_BASE_URL
 ): Promise<ViajeEnCursoApi | null> {
-  const res = await meshFetch(apiUrl('/api/viajes/en-curso', baseUrl), {
-    headers: await authHeaders(userId),
+  const res = await meshFetchAuthed(apiUrl('/api/viajes/en-curso', baseUrl), {
   })
   return parseJson<ViajeEnCursoApi | null>(res)
 }
@@ -125,8 +123,7 @@ export async function obtenerEstadisticasUsuario(
   userId: string,
   baseUrl: string = API_BASE_URL
 ): Promise<EstadisticasUsuarioApi> {
-  const res = await meshFetch(apiUrl('/api/viajes/estadisticas', baseUrl), {
-    headers: await authHeaders(userId),
+  const res = await meshFetchAuthed(apiUrl('/api/viajes/estadisticas', baseUrl), {
   })
   return parseJson<EstadisticasUsuarioApi>(res)
 }
@@ -135,8 +132,7 @@ export async function listarViajesPlanificados(
   userId: string,
   baseUrl: string = API_BASE_URL
 ): Promise<ViajePlanificadoApi[]> {
-  const res = await meshFetch(apiUrl('/api/viajes/planificados', baseUrl), {
-    headers: await authHeaders(userId),
+  const res = await meshFetchAuthed(apiUrl('/api/viajes/planificados', baseUrl), {
   })
   return parseJson<ViajePlanificadoApi[]>(res)
 }
@@ -145,8 +141,7 @@ export async function listarViajesFinalizados(
   userId: string,
   baseUrl: string = API_BASE_URL
 ): Promise<ViajeFinalizadoApi[]> {
-  const res = await meshFetch(apiUrl('/api/viajes/finalizados', baseUrl), {
-    headers: await authHeaders(userId),
+  const res = await meshFetchAuthed(apiUrl('/api/viajes/finalizados', baseUrl), {
   })
   return parseJson<ViajeFinalizadoApi[]>(res)
 }
@@ -155,8 +150,7 @@ export async function listarInvitacionesViajePendientes(
   userId: string,
   baseUrl: string = API_BASE_URL
 ): Promise<InvitacionViajePendienteApi[]> {
-  const res = await meshFetch(apiUrl('/api/viajes/invitaciones/pendientes', baseUrl), {
-    headers: await authHeaders(userId),
+  const res = await meshFetchAuthed(apiUrl('/api/viajes/invitaciones/pendientes', baseUrl), {
   })
   return parseJson<InvitacionViajePendienteApi[]>(res)
 }
@@ -167,11 +161,10 @@ export async function responderInvitacionViaje(
   userId: string,
   baseUrl: string = API_BASE_URL
 ) {
-  const res = await meshFetch(apiUrl(`/api/viajes/${viajeId}/invitacion/responder`, baseUrl), {
+  const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}/invitacion/responder`, baseUrl), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(await authHeaders(userId)),
     },
     body: JSON.stringify({ accion }),
   })
@@ -183,8 +176,7 @@ export async function listarParticipantesViaje(
   userId: string,
   baseUrl: string = API_BASE_URL
 ): Promise<ViajeParticipanteApi[]> {
-  const res = await meshFetch(apiUrl(`/api/viajes/${viajeId}/participantes`, baseUrl), {
-    headers: await authHeaders(userId),
+  const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}/participantes`, baseUrl), {
   })
   return parseJson<ViajeParticipanteApi[]>(res)
 }
@@ -194,9 +186,8 @@ export async function unirseViajePorQr(
   userId: string,
   baseUrl: string = API_BASE_URL
 ): Promise<UnirseQrViajeResponse> {
-  const res = await meshFetch(apiUrl(`/api/viajes/${viajeId}/unirse-qr`, baseUrl), {
+  const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}/unirse-qr`, baseUrl), {
     method: 'POST',
-    headers: await authHeaders(userId),
   })
   return parseJson<UnirseQrViajeResponse>(res)
 }
@@ -224,8 +215,7 @@ export async function obtenerViaje(
   userId: string,
   baseUrl: string = API_BASE_URL
 ): Promise<ViajeDetalleApi> {
-  const res = await meshFetch(apiUrl(`/api/viajes/${viajeId}`, baseUrl), {
-    headers: await authHeaders(userId),
+  const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}`, baseUrl), {
   })
   return parseJson<ViajeDetalleApi>(res)
 }
@@ -242,11 +232,10 @@ export async function actualizarFechaViaje(
   fechaProgramada: Date,
   baseUrl: string = API_BASE_URL
 ): Promise<ViajeActualizadoApi> {
-  const res = await meshFetch(apiUrl(`/api/viajes/${viajeId}`, baseUrl), {
+  const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}`, baseUrl), {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
-      ...(await authHeaders(userId)),
     },
     body: JSON.stringify({ fechaProgramada: fechaProgramada.toISOString() }),
   })
@@ -266,9 +255,8 @@ export async function iniciarViajeEnBackend(
   userId: string,
   baseUrl: string = API_BASE_URL
 ): Promise<ViajeIniciadoApi> {
-  const res = await meshFetch(apiUrl(`/api/viajes/${viajeId}/iniciar`, baseUrl), {
+  const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}/iniciar`, baseUrl), {
     method: 'POST',
-    headers: await authHeaders(userId),
   })
   return parseJson<ViajeIniciadoApi>(res)
 }
@@ -283,9 +271,8 @@ export async function eliminarViaje(
   userId: string,
   baseUrl: string = API_BASE_URL
 ): Promise<EliminarViajeResponse> {
-  const res = await meshFetch(apiUrl(`/api/viajes/${viajeId}`, baseUrl), {
+  const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}`, baseUrl), {
     method: 'DELETE',
-    headers: await authHeaders(userId),
   })
   return parseJson<EliminarViajeResponse>(res)
 }
@@ -301,9 +288,8 @@ export async function finalizarViaje(
   userId: string,
   baseUrl: string = API_BASE_URL
 ): Promise<ViajeFinalizadoBackendApi> {
-  const res = await meshFetch(apiUrl(`/api/viajes/${viajeId}/finalizar`, baseUrl), {
+  const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}/finalizar`, baseUrl), {
     method: 'POST',
-    headers: await authHeaders(userId),
   })
   return parseJson<ViajeFinalizadoBackendApi>(res)
 }
@@ -318,9 +304,8 @@ export async function salirViaje(
   userId: string,
   baseUrl: string = API_BASE_URL
 ): Promise<SalirViajeResponse> {
-  const res = await meshFetch(apiUrl(`/api/viajes/${viajeId}/salir`, baseUrl), {
+  const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}/salir`, baseUrl), {
     method: 'POST',
-    headers: await authHeaders(userId),
   })
   return parseJson<SalirViajeResponse>(res)
 }
@@ -331,11 +316,10 @@ export async function guardarRutaEnBackend(
   body: PutRutaBody,
   baseUrl: string = API_BASE_URL
 ): Promise<unknown> {
-  const res = await meshFetch(apiUrl(`/api/viajes/${viajeId}/ruta`, baseUrl), {
+  const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}/ruta`, baseUrl), {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
-      ...(await authHeaders(userId)),
     },
     body: JSON.stringify(body),
   })
@@ -360,9 +344,8 @@ export async function obtenerRuta(
   userId: string,
   baseUrl: string = API_BASE_URL
 ): Promise<RutaDetalleApi | null> {
-  const res = await meshFetch(apiUrl(`/api/viajes/${viajeId}/ruta`, baseUrl), {
+  const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}/ruta`, baseUrl), {
     method: 'GET',
-    headers: await authHeaders(userId),
   })
 
   if (res.status === 404) {
@@ -388,11 +371,10 @@ export async function upsertUbicacionViva(
   body: { lat: number; lng: number; precision?: number | null; recordedAt: string },
   baseUrl: string = API_BASE_URL
 ): Promise<void> {
-  const res = await meshFetch(apiUrl(`/api/viajes/${viajeId}/ubicacion-viva`, baseUrl), {
+  const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}/ubicacion-viva`, baseUrl), {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
-      ...(await authHeaders(userId)),
     },
     body: JSON.stringify(body),
   })
@@ -407,8 +389,7 @@ export async function listarUbicacionesVivas(
   userId: string,
   baseUrl: string = API_BASE_URL
 ): Promise<UbicacionVivaSnapshotApi[]> {
-  const res = await meshFetch(apiUrl(`/api/viajes/${viajeId}/ubicaciones-vivas`, baseUrl), {
-    headers: await authHeaders(userId),
+  const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}/ubicaciones-vivas`, baseUrl), {
   })
   return parseJson<UbicacionVivaSnapshotApi[]>(res)
 }

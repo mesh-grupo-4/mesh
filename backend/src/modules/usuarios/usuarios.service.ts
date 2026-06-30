@@ -11,12 +11,24 @@ export async function findOrCreateByFirebaseUid(firebaseUid: string) {
   if (existing) return existing
 
   const firebaseUser = await firebaseAuth.getUser(firebaseUid)
+  const email = firebaseUser.email ?? ''
+
+  // Cuenta legacy: mismo email en BD con firebase_uid desactualizado (migración / re-login).
+  if (email) {
+    const byEmail = await defaultPrisma.usuario.findUnique({ where: { email } })
+    if (byEmail) {
+      return defaultPrisma.usuario.update({
+        where: { id: byEmail.id },
+        data: { firebase_uid: firebaseUid },
+      })
+    }
+  }
 
   return defaultPrisma.usuario.create({
     data: {
       firebase_uid: firebaseUid,
-      email: firebaseUser.email ?? '',
-      nombre: firebaseUser.displayName ?? firebaseUser.email?.split('@')[0] ?? 'Usuario',
+      email,
+      nombre: firebaseUser.displayName ?? email.split('@')[0] ?? 'Usuario',
     },
   })
 }

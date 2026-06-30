@@ -7,6 +7,7 @@ import {
   Platform, 
   ScrollView,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { meshAlert } from '@/lib/meshAlert';
 import { router } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
@@ -15,6 +16,7 @@ import { Btn, Field, MeshMark, useTheme } from '@/components/MeshUI';
 export default function LoginScreen() {
   const { login } = useAuth();
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -42,7 +44,7 @@ export default function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       {/* Botón superior de volver mediante barra vacía */}
-      <View style={styles.headerSpacer} />
+      <View style={{ height: insets.top }} />
 
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <View style={styles.inner}>
@@ -134,9 +136,6 @@ function mensajeFirebase(code: string): string {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  headerSpacer: {
-    height: Platform.OS === 'ios' ? 44 : 20,
   },
   scrollContent: {
     flexGrow: 1,

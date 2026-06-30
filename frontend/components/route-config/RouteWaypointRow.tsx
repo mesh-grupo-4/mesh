@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ComponentType } from 'react'
 import {
   ActivityIndicator,
   Keyboard,
@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  type TextInputProps,
   View,
 } from 'react-native'
 
@@ -30,8 +31,10 @@ type Props = {
   canMoveUp?: boolean
   canMoveDown?: boolean
   onSuggestionsOpenChange?: (open: boolean) => void
+  onInputFocus?: () => void
   onPickOnMap: () => void
   mapPickMode?: boolean
+  InputComponent?: ComponentType<TextInputProps>
 }
 
 export function RouteWaypointRow({
@@ -44,8 +47,10 @@ export function RouteWaypointRow({
   canMoveUp,
   canMoveDown,
   onSuggestionsOpenChange,
+  onInputFocus,
   onPickOnMap,
   mapPickMode = false,
+  InputComponent = TextInput,
 }: Props) {
   const theme = useTheme()
   const [query, setQuery] = useState(waypoint.name)
@@ -55,7 +60,7 @@ export function RouteWaypointRow({
   const [buscando, setBuscando] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
   const selectingRef = useRef(false)
-  const inputRef = useRef<TextInput>(null)
+  const inputRef = useRef<TextInput | null>(null)
 
   const suggestionsVisibles = focused && debounced.length >= 3
 
@@ -135,33 +140,38 @@ export function RouteWaypointRow({
     <View style={styles.wrap}>
       <Text style={[styles.label, { color: theme.textDim }]}>{label}</Text>
       <View style={styles.inputRow}>
-        <TextInput
-          ref={inputRef}
-          value={query}
-          onChangeText={setQuery}
-          onFocus={() => setFocused(true)}
-          onBlur={() => {
-            setTimeout(() => {
-              if (selectingRef.current) {
-                selectingRef.current = false
-                return
-              }
-              cerrarSugerencias()
-            }, 250)
-          }}
-          placeholder={placeholder}
-          placeholderTextColor={theme.textMute}
-          style={[
-            styles.input,
-            {
-              backgroundColor: theme.surface2,
-              borderColor: focused ? theme.accent : theme.border,
-              color: theme.text,
+        <InputComponent
+          {...({
+            ref: inputRef,
+            value: query,
+            onChangeText: setQuery,
+            onFocus: () => {
+              setFocused(true)
+              onInputFocus?.()
             },
-          ]}
-          autoCorrect={false}
-          autoCapitalize="none"
-          editable={!mapPickMode}
+            onBlur: () => {
+              setTimeout(() => {
+                if (selectingRef.current) {
+                  selectingRef.current = false
+                  return
+                }
+                cerrarSugerencias()
+              }, 250)
+            },
+            placeholder,
+            placeholderTextColor: theme.textMute,
+            style: [
+              styles.input,
+              {
+                backgroundColor: theme.surface2,
+                borderColor: focused ? theme.accent : theme.border,
+                color: theme.text,
+              },
+            ],
+            autoCorrect: false,
+            autoCapitalize: 'none',
+            editable: !mapPickMode,
+          } as TextInputProps)}
         />
         {waypoint.type === 'STOP' && onRemove ? (
           <Pressable

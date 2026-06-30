@@ -8,6 +8,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { MeshDialogProvider } from '@/context/MeshDialogContext';
@@ -41,11 +42,13 @@ export default function RootLayout() {
   if (!loaded) return null;
 
   return (
-    <AuthProvider>
-      <MeshDialogProvider>
-        <RootLayoutNav />
-      </MeshDialogProvider>
-    </AuthProvider>
+    <SafeAreaProvider>
+      <AuthProvider>
+        <MeshDialogProvider>
+          <RootLayoutNav />
+        </MeshDialogProvider>
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }
 

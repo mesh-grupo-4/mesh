@@ -1,7 +1,7 @@
 import { initializeApp, getApps } from 'firebase/app';
 // getReactNativePersistence se exporta desde 'firebase/auth' bajo la condición de
 // resolución 'react-native' (Firebase v11+ eliminó el subpath 'firebase/auth/react-native').
-import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
+import { getAuth, initializeAuth, getReactNativePersistence } from 'firebase/auth';
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
@@ -15,6 +15,15 @@ const firebaseConfig = {
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 
-export const auth = initializeAuth(app, {
-  persistence: getReactNativePersistence(ReactNativeAsyncStorage),
-});
+function createAuth() {
+  try {
+    return initializeAuth(app, {
+      persistence: getReactNativePersistence(ReactNativeAsyncStorage),
+    });
+  } catch {
+    // Hot reload de Metro puede re-ejecutar el módulo con auth ya inicializado.
+    return getAuth(app);
+  }
+}
+
+export const auth = createAuth();
