@@ -1,4 +1,5 @@
 import 'dotenv/config'
+import './config/timezone'
 import express from 'express'
 import { createServer } from 'http'
 import { Server } from 'socket.io'

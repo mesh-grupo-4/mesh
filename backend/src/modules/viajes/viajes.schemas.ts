@@ -12,6 +12,20 @@ const lineStringSchema: z.ZodType<GeoJsonLineString> = z.object({
   coordinates: z.array(z.tuple([z.number(), z.number()])).min(2),
 })
 
+/** Fecha/hora de salida: debe ser estrictamente posterior a ahora (RN-028). */
+const fechaProgramadaFuturaSchema = z.coerce.date().superRefine((d, ctx) => {
+  if (Number.isNaN(d.getTime())) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Fecha programada inválida' })
+    return
+  }
+  if (d.getTime() <= Date.now()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'La fecha programada debe ser futura',
+    })
+  }
+})
+
 export const createViajeSchema = z
   .object({
     nombre: z.string().trim().min(1, 'El nombre del viaje es obligatorio').max(100),
@@ -19,7 +33,7 @@ export const createViajeSchema = z
     grupoIds: z.array(z.string().uuid()).optional().default([]),
     amigoIds: z.array(z.string().uuid()).optional().default([]),
     tipoActividad: z.nativeEnum(TipoActividad),
-    fechaProgramada: z.coerce.date(),
+    fechaProgramada: fechaProgramadaFuturaSchema,
   })
   .superRefine((data, ctx) => {
     const grupoIds = data.grupoIds ?? []
@@ -51,7 +65,7 @@ export const responderInvitacionViajeSchema = z.object({
 export type ResponderInvitacionViajeInput = z.infer<typeof responderInvitacionViajeSchema>
 
 export const actualizarViajeSchema = z.object({
-  fechaProgramada: z.coerce.date(),
+  fechaProgramada: fechaProgramadaFuturaSchema,
 })
 
 export type ActualizarViajeInput = z.infer<typeof actualizarViajeSchema>

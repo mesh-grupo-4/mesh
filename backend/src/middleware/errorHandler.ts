@@ -11,6 +11,16 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
     return
   }
   if (err instanceof ZodError) {
+    const fechaPasada = err.issues.find(
+      (i) => i.path.includes('fechaProgramada') && i.message.includes('futura')
+    )
+    if (fechaPasada) {
+      res.status(400).json({
+        error: fechaPasada.message,
+        code: 'FECHA_PASADA',
+      })
+      return
+    }
     res.status(400).json({
       error: 'Validación fallida',
       details: err.flatten(),

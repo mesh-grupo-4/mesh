@@ -189,7 +189,7 @@ paths:
       summary: Reprogramar viaje (solo creador)
       description: |
         RN-030. Permite al líder cambiar la fecha y hora programada mientras el viaje
-        sigue `planificado`. La fecha debe ser futura (UTC).
+        sigue `planificado`. La fecha debe ser futura (RN-107).
       operationId: actualizarViaje
       tags: [Viajes]
       security: [{ UserIdHeader: [] }]
@@ -584,7 +584,9 @@ components:
         fechaProgramada:
           type: string
           format: date-time
-          description: Debe ser futura (UTC).
+          description: |
+            Instante UTC en ISO 8601. Debe ser futuro (RN-107).
+            El cliente lo presenta e interpreta en hora argentina, UTC-3 (RN-105).
 
     ViajeCreadoResponse:
       type: object
@@ -888,7 +890,9 @@ components:
         fechaProgramada:
           type: string
           format: date-time
-          description: Nueva fecha y hora programada. Debe ser futura (UTC).
+          description: |
+            Nueva fecha y hora programada, instante UTC en ISO 8601. Debe ser futura (RN-107).
+            El cliente la presenta e interpreta en hora argentina, UTC-3 (RN-105).
 
     ActualizarViajeResponse:
       type: object

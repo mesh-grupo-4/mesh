@@ -25,7 +25,7 @@ export class ViajesService {
     }
 
     if (input.fechaProgramada.getTime() <= Date.now()) {
-      throw new HttpError(400, 'La fecha programada debe ser futura (UTC)', 'FECHA_PASADA')
+      throw new HttpError(400, 'La fecha programada debe ser futura', 'FECHA_PASADA')
     }
 
     const grupoIds = [...new Set(input.grupoIds ?? [])]
@@ -465,7 +465,7 @@ export class ViajesService {
       ],
     }
 
-    const [viajesFinalizados, porActividad] = await Promise.all([
+    const [viajesFinalizados, porActividad, metricasAgg] = await Promise.all([
       this.prisma.viaje.count({ where: participanteWhere }),
       this.prisma.viaje.groupBy({
         by: ['tipo_actividad'],
@@ -474,12 +474,16 @@ export class ViajesService {
         orderBy: { _count: { tipo_actividad: 'desc' } },
         take: 1,
       }),
+      this.prisma.metricaViaje.aggregate({
+        where: { usuario_id: usuarioId },
+        _sum: { distancia_m: true, tiempo_movimiento_seg: true },
+      }),
     ])
 
     return {
       viajes_finalizados: viajesFinalizados,
-      distancia_total_m: 0,
-      tiempo_total_seg: 0,
+      distancia_total_m: metricasAgg._sum.distancia_m ?? 0,
+      tiempo_total_seg: metricasAgg._sum.tiempo_movimiento_seg ?? 0,
       actividad_favorita: porActividad[0]?.tipo_actividad ?? null,
     }
   }
@@ -548,7 +552,7 @@ export class ViajesService {
       throw new HttpError(409, 'Solo se puede editar un viaje planificado', 'INVALID_STATE')
     }
     if (input.fechaProgramada.getTime() <= Date.now()) {
-      throw new HttpError(400, 'La fecha programada debe ser futura (UTC)', 'FECHA_PASADA')
+      throw new HttpError(400, 'La fecha programada debe ser futura', 'FECHA_PASADA')
     }
 
     const actualizado = await this.prisma.viaje.update({
