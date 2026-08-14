@@ -354,6 +354,9 @@ export type MetricaIntegranteApi = {
   pace_min_km: number | null
   velocidad_promedio_kmh: number | null
   velocidad_maxima_kmh: number | null
+  puesto_distancia: number | null
+  puesto_tiempo: number | null
+  puesto_velocidad: number | null
 }
 
 export type MetricasGrupalesApi = {

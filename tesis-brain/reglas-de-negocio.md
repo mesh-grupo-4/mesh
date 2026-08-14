@@ -119,8 +119,8 @@ A diferencia de soluciones existentes (Strava, Garmin, Google Maps, Life360) que
 | RN-060 | Al finalizar un viaje se detiene el tracking de todos los integrantes y se genera automáticamente el resumen. |
 | RN-061 | Métricas individuales: distancia recorrida, tiempo total, tiempo en movimiento, tiempo detenido, velocidad promedio. |
 | RN-062 | Métricas grupales: integrantes totales, distancia promedio, cantidad de alertas generadas. |
-| RN-063 | El ranking de viaje se ordena por velocidad promedio, distancia o tiempo en movimiento. |
-| RN-064 | El resumen visual (tipo "Wrapped") se genera mensual y anualmente; es compartible como imagen. |
+| RN-063 | El ranking de **este viaje** (recap post-cierre, cards con tabs) se ordena por velocidad promedio, distancia o tiempo en movimiento. Solo viajes **grupales** y **no moto**. Usa los números ya calculados en `metrica_viaje`; no es una tabla global ni el Wrapped de período. |
+| RN-064 | El resumen visual (tipo "Wrapped") se genera **mensual y anualmente**; es compartible como imagen. Distinto del recap de un viaje (RN-063). |
 
 #### Definición operativa: "distancia real del viaje"
 
@@ -134,9 +134,12 @@ descartando lecturas con más de 100 m de error declarado, saltos mayores a 500 
 temporales de más de 120 s. Por esos filtros el valor difiere en torno a un 2-5 % del contador
 en vivo del dispositivo, que no filtra.
 
-Las métricas individuales (`metrica_viaje`) cubren hoy distancia, tiempo en movimiento y
-velocidad promedio. Tiempo detenido y tiempo total de RN-061 quedan pendientes: requieren la
-tabla de paradas reales, que todavía no existe.
+Las métricas individuales (`metrica_viaje`) cubren hoy distancia, tiempo en movimiento,
+velocidad promedio y velocidad máxima. Tiempo detenido de RN-061 se estima en el recorte
+actual como duración del viaje menos tiempo en movimiento.
+
+El recap de ranking (RN-063) **no** introduce métricas nuevas: solo asigna puestos sobre
+esas filas cuando `es_grupal && tipo_actividad !== 'moto'`. Ver [`us-ranking-viaje.md`](us-ranking-viaje.md).
 
 ### 2.8 Reglas de Gamificación y Competición
 
@@ -385,15 +388,16 @@ Si el PO prefiere un criterio más conservador, la alternativa es devolver
     │
     ├── Se detiene tracking de todos los integrantes
     │
-    ├── Generación automática de métricas
-    │     ├── Individuales: distancia, tiempo total/movimiento/detenido, velocidad promedio
-    │     └── Grupales: integrantes totales, distancia promedio, alertas generadas
+    ├── Generación automática de métricas (mismas tablas para todo E06)
+    │     ├── Individuales: distancia, tiempo movimiento, vel. promedio/máxima
+    │     ├── Grupales: desglose por integrante (hechos, no podio)
+    │     └── Resumen: totales del viaje + métricas de quien consulta
     │
-    ├── Ranking del viaje (por velocidad, distancia o tiempo)
-    │     └── EXCEPCIÓN: moto no tiene ranking
+    ├── Ranking / recap del viaje (RN-063): cards + tabs sobre esas métricas
+    │     └── EXCEPCIÓN: moto e individual no tienen ranking
     │
-    ├── [Avanzado] Resumen visual tipo "Wrapped" / Spotify
-    │     └── Compartible como imagen
+    ├── [Avanzado] Wrapped de período (RN-064, mensual/anual)
+    │     └── Compartible como imagen — no es el recap de un viaje
     │
     ├── [Avanzado] Métricas de entrenamiento
     │     └── Comparación con promedio de últimas N salidas (mejora/empeora)
@@ -703,7 +707,7 @@ Las funcionalidades sin las cuales la app **no cumple su propósito mínimo viab
 
 Funcionalidades de alto valor que **diferencian al producto** de la competencia:
 
-6. **E06** — Cierre, métricas y estadísticas (resumen de viaje, ranking, wrapped, entrenamiento)
+6. **E06** — Cierre, métricas y estadísticas (resumen de viaje, ranking/recap, wrapped, entrenamiento). Recap de un viaje: [`us-ranking-viaje.md`](us-ranking-viaje.md).
 7. **E07** — Ghost tracking y competición (fantasma, modo competitivo/recreativo)
 
 ### Tier Deseable
@@ -767,7 +771,8 @@ Implementación: el backend aplica estos defaults en `POST /api/viajes` según `
 | **Posta** | Parada intermedia planificada dentro de una ruta. |
 | **Ghost / Fantasma** | Marcador virtual que reproduce un recorrido histórico sobre el mapa en tiempo real para comparar rendimiento. |
 | **Motor de eventos** | Lógica backend autónoma que analiza las coordenadas GPS en tiempo real y detecta desvíos, atrasos y detenciones sospechosas. |
-| **Wrapped** | Resumen visual y atractivo de estadísticas de un período (inspirado en Spotify Wrapped). |
+| **Wrapped** | Resumen visual de estadísticas de un **período** (mensual/anual, RN-064). No es el recap de un viaje. |
+| **Recap de viaje** | Cards post-cierre del **mismo** viaje grupal (RN-063): puestos por distancia, ritmo o tiempo en movimiento. Fuera de moto. |
 | **Wearable** | Dispositivo electrónico portátil (reloj inteligente, pulsera de actividad) con sensores de movimiento y conectividad. |
 | **QR de invitación** | Código QR único generado por viaje que permite unirse **al viaje** escaneándolo (RN-015/016). Expira al iniciar el viaje. No agrega al usuario a ningún grupo. |
 | **Link de ruta / plantilla** | Link con token opaco que comparte el **snapshot planificado** de una ruta (geometría + postas) para que otro usuario lo guarde en su perfil y lo use como base de un viaje propio. **No** une al viaje fuente ni expira al iniciar (contraste con QR). Backlog: [`us-compartir-ruta.md`](us-compartir-ruta.md) (E10). |

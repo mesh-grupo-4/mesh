@@ -18,6 +18,7 @@ import type {
   UpsertUbicacionVivaInput,
 } from './viajes.schemas'
 import { parametrosPorActividad } from './activityDefaults'
+import { aplicarPuestosRanking } from './ranking'
 import { RutasCompartidasService } from '../rutas-compartidas/rutas-compartidas.service'
 
 export class ViajesService {
@@ -998,10 +999,18 @@ export class ViajesService {
         velocidad_maxima_kmh: null as number | null,
       }))
 
+    // Recap RN-063: puestos solo en viaje grupal no moto. Los números siguen
+    // siendo los de metrica_viaje; acá solo se ordena (no se recalcula GPS).
+    const rankingHabilitado = viaje.es_grupal && !esMoto
+    const por_integrante = aplicarPuestosRanking(
+      [...porIntegrante, ...sinGps],
+      rankingHabilitado
+    )
+
     return {
       tipo_actividad: viaje.tipo_actividad,
       es_grupal: viaje.es_grupal,
-      ranking_habilitado: !esMoto,
+      ranking_habilitado: rankingHabilitado,
       grupo: {
         duracion_segundos: resumen?.duracion_segundos ?? null,
         distancia_real_m: resumen?.distancia_real_m ?? null,
@@ -1009,7 +1018,7 @@ export class ViajesService {
         cantidad_paradas: resumen?.cantidad_paradas ?? 0,
         cantidad_integrantes: integrantes.length + 1,
       },
-      por_integrante: [...porIntegrante, ...sinGps],
+      por_integrante,
     }
   }
 

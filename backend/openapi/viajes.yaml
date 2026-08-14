@@ -529,6 +529,60 @@ paths:
         '409':
           description: El viaje todavía no finalizó (TRIP_NOT_FINISHED)
 
+  /api/viajes/{viajeId}/metricas-grupales:
+    get:
+      summary: Métricas por integrante y puestos del recap (RN-063)
+      description: |
+        Hechos del grupo (`por_integrante`) calculados desde `metrica_viaje`.
+        No recalcula GPS.
+
+        Cuando el viaje es **grupal y no moto**, cada fila incluye puestos de
+        competición (1, 2, 2, 4) por distancia, tiempo en movimiento y velocidad
+        promedio. La velocidad máxima nunca es criterio de ranking.
+
+        `ranking_habilitado` es `true` solo en ese caso. En moto o viaje individual
+        los puestos van `null` y las velocidades de moto también (RN-070).
+
+        Distinto de `GET /resumen` (solo métricas propias) y de `GET /mis-metricas`
+        (detalle personal + perfil de velocidad).
+      operationId: obtenerMetricasGrupales
+      tags: [Viajes]
+      security: [{ UserIdHeader: [] }]
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/ViajeId'
+      responses:
+        '200':
+          description: Métricas grupales
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricasGrupalesResponse'
+        '403':
+          description: Sin acceso a este viaje (FORBIDDEN)
+        '404':
+          description: Viaje no encontrado (VIAJE_NOT_FOUND)
+        '409':
+          description: El viaje todavía no finalizó (TRIP_NOT_FINISHED)
+
+  /api/viajes/{viajeId}/mis-metricas:
+    get:
+      summary: Métricas individuales detalladas del consultante
+      description: |
+        Detalle personal (incluye pace, tiempo detenido estimado y perfil de
+        velocidad). En moto las velocidades van `null` (RN-070).
+      operationId: obtenerMisMetricas
+      tags: [Viajes]
+      security: [{ UserIdHeader: [] }]
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/ViajeId'
+      responses:
+        '200':
+          description: Métricas individuales
+        '409':
+          description: El viaje todavía no finalizó (TRIP_NOT_FINISHED)
+
 components:
   securitySchemes:
     UserIdHeader:
@@ -771,6 +825,54 @@ components:
             RN-070. false cuando tipo_actividad es `moto`: esa modalidad está excluida
             de rankings y de cualquier comparación de velocidad.
         generado_en: { type: string, format: date-time, nullable: true }
+
+    MetricasGrupalesResponse:
+      type: object
+      required: [tipo_actividad, es_grupal, ranking_habilitado, grupo, por_integrante]
+      properties:
+        tipo_actividad:
+          type: string
+          enum: [moto, bici, running, trekking]
+        es_grupal: { type: boolean }
+        ranking_habilitado:
+          type: boolean
+          description: true solo si es_grupal y tipo_actividad no es moto (RN-063 / RN-070).
+        grupo:
+          type: object
+          properties:
+            duracion_segundos: { type: integer, nullable: true }
+            distancia_real_m: { type: number, nullable: true }
+            distancia_planeada_m: { type: number, nullable: true }
+            cantidad_paradas: { type: integer }
+            cantidad_integrantes: { type: integer }
+        por_integrante:
+          type: array
+          items:
+            $ref: '#/components/schemas/MetricaIntegrante'
+
+    MetricaIntegrante:
+      type: object
+      required: [usuario_id, nombre]
+      properties:
+        usuario_id: { type: string, format: uuid }
+        nombre: { type: string }
+        distancia_m: { type: number, nullable: true }
+        tiempo_movimiento_seg: { type: integer, nullable: true }
+        tiempo_detenido_seg: { type: integer, nullable: true }
+        pace_min_km: { type: number, nullable: true }
+        velocidad_promedio_kmh: { type: number, nullable: true }
+        velocidad_maxima_kmh: { type: number, nullable: true }
+        puesto_distancia:
+          type: integer
+          nullable: true
+          description: Puesto RN-063 (competición). Null si no hay ranking o sin GPS.
+        puesto_tiempo:
+          type: integer
+          nullable: true
+        puesto_velocidad:
+          type: integer
+          nullable: true
+          description: Orden por velocidad promedio. Nunca por máxima.
 
     ParticipanteViaje:
       type: object

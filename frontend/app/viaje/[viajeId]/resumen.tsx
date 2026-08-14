@@ -288,6 +288,20 @@ export default function ViajeResumenScreen() {
             </>
           ) : null}
 
+          {esGrupal && grupales?.ranking_habilitado ? (
+            <Btn
+              variant="secondary"
+              block
+              icon="award"
+              onPress={() =>
+                router.push({ pathname: '/viaje/[viajeId]/recap', params: { viajeId } })
+              }
+              style={styles.cta}
+            >
+              Recap del grupo
+            </Btn>
+          ) : null}
+
           <Btn
             variant="outline"
             block
