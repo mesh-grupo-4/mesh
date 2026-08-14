@@ -22,6 +22,7 @@ import { SelectionActionBar } from '@/components/SelectionActionBar'
 import { SelectionHeader } from '@/components/SelectionHeader'
 import { useSelectionMode } from '@/hooks/useSelectionMode'
 import { etiquetaActividad } from '@/lib/activityDefaults'
+import { formatearEnArg } from '@/lib/tiempoArg'
 import {
   bulkDeleteSummary,
   formatItemList,
@@ -46,7 +47,7 @@ type FiltroActividad = 'all' | TipoActividadApi
 type FiltroRol = 'todos' | 'creador' | 'participante'
 
 function formatearFecha(iso: string): string {
-  return new Date(iso).toLocaleDateString('es-AR', {
+  return formatearEnArg(iso, {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
@@ -56,7 +57,7 @@ function formatearFecha(iso: string): string {
 }
 
 function formatearFechaCorta(iso: string): string {
-  return new Date(iso).toLocaleDateString('es-AR', {
+  return formatearEnArg(iso, {
     day: 'numeric',
     month: 'short',
     year: 'numeric',

@@ -35,6 +35,8 @@ import {
   type ViajeParticipanteApi,
 } from '@/lib/viajesApi'
 import { waypointsFromRutaDetalle } from '@/lib/routePayload'
+import { ajustarSiQuedoEnPasado, esFechaFutura } from '@/lib/fechaProgramada'
+import { aCamposArg, ahoraEnCamposArg, desdeCamposArg, formatearEnArg } from '@/lib/tiempoArg'
 import { RouteMapView } from '@/components/route-config/RouteMapView'
 import {
   REGION_FALLBACK,
@@ -150,23 +152,15 @@ export default function ViajeDetalleScreen() {
     [rutaMapa]
   )
 
-  const formatFecha = (isoString: string) => {
-    try {
-      const d = new Date(isoString)
-      return d.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })
-    } catch {
-      return isoString
-    }
-  }
+  const formatFecha = (isoString: string) =>
+    formatearEnArg(
+      isoString,
+      { weekday: 'short', day: 'numeric', month: 'short' },
+      isoString
+    )
 
-  const formatHora = (isoString: string) => {
-    try {
-      const d = new Date(isoString)
-      return d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
-    } catch {
-      return ''
-    }
-  }
+  const formatHora = (isoString: string) =>
+    formatearEnArg(isoString, { hour: '2-digit', minute: '2-digit' }, '')
 
   const cargar = useCallback(async () => {
     if (!viajeId || !userId) return
@@ -231,8 +225,8 @@ export default function ViajeDetalleScreen() {
   const guardarFecha = useCallback(
     async (nueva: Date) => {
       if (!viajeId || !userId) return
-      if (nueva.getTime() <= Date.now()) {
-        meshAlert('Fecha inválida', 'La fecha programada debe ser futura.')
+      if (!esFechaFutura(nueva)) {
+        meshAlert('Fecha inválida', 'La fecha y hora programadas deben ser futuras.')
         return
       }
       setGuardandoFecha(true)
@@ -254,24 +248,36 @@ export default function ViajeDetalleScreen() {
       return
     }
 
-    if (Platform.OS === 'android') {
+    // El picker nativo lee y escribe en la zona del dispositivo, así que lo que
+    // devuelve se interpreta como campos de hora argentina (RN-105).
+    const campos = aCamposArg(fechaEdit)
+
+    if (Platform.OS !== 'ios') {
       if (pickerMode === 'date') {
-        const merged = new Date(fechaEdit)
-        merged.setFullYear(selected.getFullYear(), selected.getMonth(), selected.getDate())
-        setFechaEdit(merged)
+        campos.setFullYear(selected.getFullYear(), selected.getMonth(), selected.getDate())
+        setFechaEdit(ajustarSiQuedoEnPasado(desdeCamposArg(campos)))
         setPickerMode('time')
         // el picker sigue abierto para elegir la hora
       } else {
-        const merged = new Date(fechaEdit)
-        merged.setHours(selected.getHours(), selected.getMinutes(), 0, 0)
-        setFechaEdit(merged)
+        campos.setHours(selected.getHours(), selected.getMinutes(), 0, 0)
+        const instante = desdeCamposArg(campos)
         setShowPicker(false)
-        void guardarFecha(merged)
+        if (!esFechaFutura(instante)) {
+          meshAlert('Fecha inválida', 'La fecha y hora programadas deben ser futuras.')
+          return
+        }
+        setFechaEdit(instante)
+        void guardarFecha(instante)
       }
-    } else {
-      // iOS: modo datetime en una sola pasada
-      setFechaEdit(selected)
+      return
     }
+
+    const instante = desdeCamposArg(selected)
+    if (!esFechaFutura(instante)) {
+      meshAlert('Fecha inválida', 'La fecha y hora programadas deben ser futuras.')
+      return
+    }
+    setFechaEdit(instante)
   }
 
   const confirmarIniciar = () => {
@@ -534,10 +540,13 @@ export default function ViajeDetalleScreen() {
                 </Btn>
                 {showPicker && (
                   <DateTimePicker
-                    value={fechaEdit}
+                    key={pickerMode}
+                    value={aCamposArg(
+                      esFechaFutura(fechaEdit) ? fechaEdit : ajustarSiQuedoEnPasado(fechaEdit)
+                    )}
                     mode={Platform.OS === 'ios' ? 'datetime' : pickerMode}
                     display={Platform.OS === 'ios' ? 'inline' : 'default'}
-                    minimumDate={new Date()}
+                    minimumDate={ahoraEnCamposArg()}
                     onChange={onChangeFecha}
                   />
                 )}

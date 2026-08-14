@@ -13,6 +13,7 @@ import {
 import { router, useFocusEffect } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { resolveBackendUserId } from '@/lib/apiClient';
+import { formatearEnArg } from '@/lib/tiempoArg';
 import {
   crearGrupo,
   eliminarGrupo,
@@ -36,7 +37,7 @@ import { meshAlert, meshConfirmDestructive, meshError, meshSuccess, meshWarning 
 import { Feather } from '@expo/vector-icons';
 
 function formatearFecha(iso: string): string {
-  return new Date(iso).toLocaleDateString('es-AR', {
+  return formatearEnArg(iso, {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
