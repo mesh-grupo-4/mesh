@@ -34,6 +34,8 @@ export const createViajeSchema = z
     amigoIds: z.array(z.string().uuid()).optional().default([]),
     tipoActividad: z.nativeEnum(TipoActividad),
     fechaProgramada: fechaProgramadaFuturaSchema,
+    /** Opcional: precarga la ruta desde una plantilla propia del creador. */
+    rutaPlantillaId: z.string().uuid().optional().nullable(),
   })
   .superRefine((data, ctx) => {
     const grupoIds = data.grupoIds ?? []

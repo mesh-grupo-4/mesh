@@ -14,9 +14,14 @@ import type {
   UpsertUbicacionVivaInput,
 } from './viajes.schemas'
 import { parametrosPorActividad } from './activityDefaults'
+import { RutasCompartidasService } from '../rutas-compartidas/rutas-compartidas.service'
 
 export class ViajesService {
-  constructor(private readonly prisma: PrismaClient) {}
+  private readonly rutasCompartidas: RutasCompartidasService
+
+  constructor(private readonly prisma: PrismaClient) {
+    this.rutasCompartidas = new RutasCompartidasService(prisma)
+  }
 
   async crearViaje(creadorId: string, input: CreateViajeInput) {
     const existe = await this.prisma.usuario.findUnique({ where: { id: creadorId } })
@@ -88,7 +93,19 @@ export class ViajesService {
     const invitadosPorAmigo = new Set(amigoIds.filter((id) => !invitadosPorGrupo.has(id)))
     const totalInvitados = invitadosPorGrupo.size + invitadosPorAmigo.size
 
-    const params = parametrosPorActividad(input.tipoActividad)
+    let tipoActividad = input.tipoActividad
+    if (input.rutaPlantillaId) {
+      const plantilla = await this.prisma.rutaPlantilla.findUnique({
+        where: { id: input.rutaPlantillaId },
+        select: { usuario_id: true, tipo_actividad: true },
+      })
+      if (!plantilla || plantilla.usuario_id !== creadorId) {
+        throw new HttpError(404, 'Plantilla no encontrada', 'PLANTILLA_NOT_FOUND')
+      }
+      tipoActividad = plantilla.tipo_actividad
+    }
+
+    const params = parametrosPorActividad(tipoActividad)
 
     return this.prisma.$transaction(async (tx) => {
       const viaje = await tx.viaje.create({
@@ -96,7 +113,7 @@ export class ViajesService {
           creador_id: creadorId,
           nombre: input.nombre,
           es_grupal: input.esGrupal,
-          tipo_actividad: input.tipoActividad,
+          tipo_actividad: tipoActividad,
           velocidad_esperada: params.velocidadEsperada,
           distancia_max_separacion: params.distanciaMaxSeparacion,
           fecha_programada: input.fechaProgramada,
@@ -144,9 +161,21 @@ export class ViajesService {
         })
       }
 
+      let ruta_precargada = false
+      if (input.rutaPlantillaId) {
+        await this.rutasCompartidas.copiarPlantillaAViaje(
+          tx,
+          creadorId,
+          viaje.id,
+          input.rutaPlantillaId
+        )
+        ruta_precargada = true
+      }
+
       return {
         ...viaje,
         invitaciones_enviadas: totalInvitados,
+        ruta_precargada,
       }
     })
   }

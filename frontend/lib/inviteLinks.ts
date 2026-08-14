@@ -12,10 +12,38 @@ export function buildInviteUrl(viajeId: string): string {
   return `${MESH_INVITE_SCHEME}://unirse?viajeId=${encodeURIComponent(viajeId)}`
 }
 
+/** RN-088: deep link de ruta compartida (distinto del QR de unirse). */
+export function buildRouteShareUrl(token: string): string {
+  return `${MESH_INVITE_SCHEME}://ruta?token=${encodeURIComponent(token)}`
+}
+
+/** Extrae token de `mesh://ruta?token=...` o URL equivalente. */
+export function parseRouteShareToken(raw: string): string | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return null
+
+  try {
+    const withScheme = trimmed.includes('://') ? trimmed : `${MESH_INVITE_SCHEME}://${trimmed}`
+    const url = new URL(withScheme)
+    const hostOrPath = `${url.host}${url.pathname}`.replace(/^\//, '')
+    if (hostOrPath === 'ruta' || url.pathname.replace(/^\//, '') === 'ruta') {
+      const token = url.searchParams.get('token')?.trim()
+      if (token && /^[A-Za-z0-9_-]{16,64}$/.test(token)) return token
+    }
+  } catch {
+    /* no es URL válida */
+  }
+
+  return null
+}
+
 /** Extrae viajeId de un QR escaneado o link pegado. */
 export function parseViajeIdFromInviteData(raw: string): string | null {
   const trimmed = raw.trim()
   if (!trimmed) return null
+
+  // No confundir con link de ruta compartida
+  if (parseRouteShareToken(trimmed)) return null
 
   try {
     const withScheme = trimmed.includes('://') ? trimmed : `${MESH_INVITE_SCHEME}://${trimmed}`

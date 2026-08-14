@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import {
   View,
   Text,
@@ -12,7 +12,7 @@ import {
 import { meshAlert } from '@/lib/meshAlert';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { Feather } from '@expo/vector-icons'
-import { router, Stack, useFocusEffect } from 'expo-router'
+import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router'
 import { useAuth } from '@/context/AuthContext'
 import { resolveBackendUserId } from '@/lib/apiClient'
 import { listarGrupos, type GrupoListItemApi } from '@/lib/gruposApi'
@@ -51,13 +51,28 @@ function formatearFechaHora(d: Date): string {
 export default function CrearViajeScreen() {
   const theme = useTheme()
   const { backendUserId, profile } = useAuth()
+  const params = useLocalSearchParams<{
+    plantillaId?: string | string[]
+    tipoActividad?: string | string[]
+  }>()
+  const plantillaId = useMemo(() => {
+    const p = params.plantillaId
+    return (Array.isArray(p) ? p[0] : p)?.trim() || null
+  }, [params.plantillaId])
+  const tipoDesdePlantilla = useMemo(() => {
+    const t = params.tipoActividad
+    const raw = (Array.isArray(t) ? t[0] : t)?.trim()
+    if (raw === 'moto' || raw === 'bici' || raw === 'running' || raw === 'trekking') return raw
+    return null
+  }, [params.tipoActividad])
+
   const [grupos, setGrupos] = useState<GrupoListItemApi[]>([])
   const [amigos, setAmigos] = useState<AmigoApi[]>([])
   const [cargandoInvitables, setCargandoInvitables] = useState(true)
   const [nombre, setNombre] = useState('')
   const [nombreFocus, setNombreFocus] = useState(false)
   const [tipoActividad, setTipoActividad] = useState<TipoActividadApi>(() =>
-    actividadInicialDesdePerfil(profile?.actividadPreferida)
+    tipoDesdePlantilla ?? actividadInicialDesdePerfil(profile?.actividadPreferida)
   )
   const [esGrupal, setEsGrupal] = useState(true)
   const [gruposSeleccionados, setGruposSeleccionados] = useState<Set<string>>(new Set())
@@ -184,6 +199,7 @@ export default function CrearViajeScreen() {
           amigoIds: esGrupal ? [...amigosSeleccionados] : [],
           tipoActividad,
           fechaProgramada: fecha,
+          rutaPlantillaId: plantillaId,
         },
         userId
       )
@@ -191,7 +207,9 @@ export default function CrearViajeScreen() {
       const msg =
         viaje.invitaciones_enviadas && viaje.invitaciones_enviadas > 0
           ? `Viaje creado. Se enviaron ${viaje.invitaciones_enviadas} invitaciones pendientes.`
-          : 'Viaje creado correctamente.'
+          : viaje.ruta_precargada
+            ? 'Viaje creado con la ruta de tu plantilla. Podés ajustarla antes de iniciar.'
+            : 'Viaje creado correctamente.'
 
       meshAlert('Listo', msg)
       router.replace({
@@ -217,6 +235,27 @@ export default function CrearViajeScreen() {
       <Text style={[styles.hint, { color: theme.textDim }]}>
         Elegí la actividad, la fecha y, si querés, grupos o amigos para invitar (RN-028).
       </Text>
+
+      {plantillaId ? (
+        <View
+          style={{
+            backgroundColor: theme.surface,
+            borderColor: theme.border,
+            borderWidth: 1,
+            borderRadius: 10,
+            padding: 12,
+            marginBottom: 16,
+            flexDirection: 'row',
+            gap: 10,
+            alignItems: 'center',
+          }}
+        >
+          <Feather name="map" size={18} color={theme.accent} />
+          <Text style={{ color: theme.textDim, flex: 1, fontWeight: '600', fontSize: 13 }}>
+            Vas a crear el viaje con una ruta de Mis rutas. Podés ajustarla después.
+          </Text>
+        </View>
+      ) : null}
 
       <Text style={[styles.seccion, { color: theme.text }]}>Nombre del viaje</Text>
       <TextInput

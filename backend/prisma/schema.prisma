@@ -88,6 +88,7 @@ model Usuario {
   invitaciones_enviadas  GrupoInvitacion[]  @relation("InvitacionesEnviadas")
   amistades_solicitadas  Amistad[]          @relation("AmistadSolicitante")
   amistades_recibidas    Amistad[]          @relation("AmistadDestinatario")
+  rutas_plantilla        RutaPlantilla[]
 
   @@map("usuario")
 }
@@ -260,8 +261,66 @@ model Ruta {
 
   viaje               Viaje               @relation(fields: [viaje_id], references: [id], onDelete: Cascade)
   paradas_intermedias ParadaIntermedia[]
+  compartida          RutaCompartida?
 
   @@map("ruta")
+}
+
+/// Link privado de una ruta planificada (RN-085–088). Snapshot congelado al generar el token.
+model RutaCompartida {
+  id           String    @id @default(uuid()) @db.Uuid
+  ruta_id      String?   @unique @map("ruta_id") @db.Uuid
+  token        String    @unique @db.VarChar(64)
+  snapshot     Json
+  created_at   DateTime  @default(now()) @map("created_at")
+  revocado_en  DateTime? @map("revocado_en")
+
+  ruta       Ruta?           @relation(fields: [ruta_id], references: [id], onDelete: SetNull)
+  plantillas RutaPlantilla[]
+
+  @@map("ruta_compartida")
+}
+
+/// Copia independiente de una ruta compartida en el perfil del usuario.
+model RutaPlantilla {
+  id                   String        @id @default(uuid()) @db.Uuid
+  usuario_id           String        @map("usuario_id") @db.Uuid
+  ruta_compartida_id   String        @map("ruta_compartida_id") @db.Uuid
+  nombre               String
+  tipo_actividad       TipoActividad @map("tipo_actividad")
+  origen_lat           Float         @map("origen_lat")
+  origen_lng           Float         @map("origen_lng")
+  origen_nombre        String?       @map("origen_nombre")
+  destino_lat          Float         @map("destino_lat")
+  destino_lng          Float         @map("destino_lng")
+  destino_nombre       String?       @map("destino_nombre")
+  linestring_geojson   Json          @map("linestring_geojson")
+  distancia_planeada_m Float?        @map("distancia_planeada_m")
+  tiempo_estimado_seg  Int?          @map("tiempo_estimado_seg")
+  created_at           DateTime      @default(now()) @map("created_at")
+
+  usuario         Usuario              @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  ruta_compartida RutaCompartida       @relation(fields: [ruta_compartida_id], references: [id], onDelete: Restrict)
+  paradas         RutaPlantillaParada[]
+
+  @@unique([usuario_id, ruta_compartida_id])
+  @@index([usuario_id, created_at])
+  @@map("ruta_plantilla")
+}
+
+model RutaPlantillaParada {
+  id                String          @id @default(uuid()) @db.Uuid
+  ruta_plantilla_id String          @map("ruta_plantilla_id") @db.Uuid
+  orden             Int
+  lat               Float
+  lng               Float
+  nombre            String?
+  categoria         CategoriaParada @default(otro)
+
+  plantilla RutaPlantilla @relation(fields: [ruta_plantilla_id], references: [id], onDelete: Cascade)
+
+  @@unique([ruta_plantilla_id, orden])
+  @@map("ruta_plantilla_parada")
 }
 
 model ParadaIntermedia {

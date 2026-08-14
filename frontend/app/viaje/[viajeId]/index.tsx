@@ -8,6 +8,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   View,
@@ -34,6 +35,11 @@ import {
   type ViajeDetalleApi,
   type ViajeParticipanteApi,
 } from '@/lib/viajesApi'
+import {
+  compartirRutaViaje,
+  revocarCompartirRutaViaje,
+} from '@/lib/rutasCompartidasApi'
+import { MeshApiError } from '@/lib/apiClient'
 import { waypointsFromRutaDetalle } from '@/lib/routePayload'
 import { ajustarSiQuedoEnPasado, esFechaFutura } from '@/lib/fechaProgramada'
 import { aCamposArg, ahoraEnCamposArg, desdeCamposArg, formatearEnArg } from '@/lib/tiempoArg'
@@ -137,6 +143,9 @@ export default function ViajeDetalleScreen() {
   const [guardandoFecha, setGuardandoFecha] = useState(false)
 
   const esLider = viaje != null && userId === viaje.creador_id
+  const puedeCompartirRuta =
+    !!rutaMapa &&
+    (esLider || viaje?.mi_participacion?.estado === 'confirmado')
   const { syncKnownTripIds } = useTripRealtime()
 
   useEffect(() => {
@@ -215,11 +224,65 @@ export default function ViajeDetalleScreen() {
     void Linking.openSettings()
   }
 
-  const abrirPickerFecha = () => {
-    if (!viaje) return
+  const compartirRuta = useCallback(async () => {
+    if (!viajeId || !userId) return
+    setAccion(true)
+    try {
+      const out = await compartirRutaViaje(viajeId, userId)
+      await Share.share(
+        Platform.OS === 'ios'
+          ? { url: out.link, message: 'Te comparto una ruta de Mesh' }
+          : { message: `Te comparto una ruta de Mesh: ${out.link}` }
+      )
+    } catch (e) {
+      const msg =
+        e instanceof MeshApiError && e.code === 'RUTA_INCOMPLETA'
+          ? 'Configurá la ruta completa antes de compartirla.'
+          : e instanceof Error
+            ? e.message
+            : 'No se pudo compartir la ruta'
+      meshAlert('Error', msg)
+    } finally {
+      setAccion(false)
+    }
+  }, [viajeId, userId])
+
+  const revocarLinkRuta = useCallback(() => {
+    if (!viajeId || !userId) return
+    meshAlert('Revocar link', '¿Quienes tengan el link ya no podrán ver ni importar esta ruta?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Revocar',
+        style: 'destructive',
+        onPress: () => {
+          void (async () => {
+            setAccion(true)
+            try {
+              await revocarCompartirRutaViaje(viajeId, userId)
+              meshAlert('Listo', 'El link de la ruta fue revocado.')
+            } catch (e) {
+              meshAlert('Error', e instanceof Error ? e.message : 'No se pudo revocar')
+            } finally {
+              setAccion(false)
+            }
+          })()
+        },
+      },
+    ])
+  }, [viajeId, userId])
+
+  const puedeEditarPlan = viaje?.estado === 'planificado' && esLider
+
+  const abrirPicker = (mode: 'date' | 'time') => {
+    if (!viaje || !puedeEditarPlan) return
     setFechaEdit(new Date(viaje.fecha_programada))
-    setPickerMode('date')
+    setPickerMode(mode)
     setShowPicker(true)
+  }
+
+  const irConfigurarRecorrido = () => {
+    if (!viajeId || !puedeEditarPlan) return
+    router.push({ pathname: '/configurar-ruta/[viajeId]', params: { viajeId } })
   }
 
   const guardarFecha = useCallback(
@@ -251,28 +314,24 @@ export default function ViajeDetalleScreen() {
     // El picker nativo lee y escribe en la zona del dispositivo, así que lo que
     // devuelve se interpreta como campos de hora argentina (RN-105).
     const campos = aCamposArg(fechaEdit)
+    if (pickerMode === 'date') {
+      campos.setFullYear(selected.getFullYear(), selected.getMonth(), selected.getDate())
+    } else {
+      campos.setHours(selected.getHours(), selected.getMinutes(), 0, 0)
+    }
+    const instante = ajustarSiQuedoEnPasado(desdeCamposArg(campos))
 
     if (Platform.OS !== 'ios') {
-      if (pickerMode === 'date') {
-        campos.setFullYear(selected.getFullYear(), selected.getMonth(), selected.getDate())
-        setFechaEdit(ajustarSiQuedoEnPasado(desdeCamposArg(campos)))
-        setPickerMode('time')
-        // el picker sigue abierto para elegir la hora
-      } else {
-        campos.setHours(selected.getHours(), selected.getMinutes(), 0, 0)
-        const instante = desdeCamposArg(campos)
-        setShowPicker(false)
-        if (!esFechaFutura(instante)) {
-          meshAlert('Fecha inválida', 'La fecha y hora programadas deben ser futuras.')
-          return
-        }
-        setFechaEdit(instante)
-        void guardarFecha(instante)
+      setShowPicker(false)
+      if (!esFechaFutura(instante)) {
+        meshAlert('Fecha inválida', 'La fecha y hora programadas deben ser futuras.')
+        return
       }
+      setFechaEdit(instante)
+      void guardarFecha(instante)
       return
     }
 
-    const instante = desdeCamposArg(selected)
     if (!esFechaFutura(instante)) {
       meshAlert('Fecha inválida', 'La fecha y hora programadas deben ser futuras.')
       return
@@ -455,10 +514,26 @@ export default function ViajeDetalleScreen() {
             </View>
 
             {/* Mapa real de la ruta planificada */}
-            <View style={[styles.cardRoute, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <Pressable
+              onPress={irConfigurarRecorrido}
+              disabled={!puedeEditarPlan}
+              style={({ pressed }) => [
+                styles.cardRoute,
+                {
+                  backgroundColor: theme.surface,
+                  borderColor: theme.border,
+                  opacity: pressed && puedeEditarPlan ? 0.92 : 1,
+                },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Configurar recorrido"
+            >
               {rutaMapa ? (
                 <>
-                  <RutaMapaPreview ruta={rutaMapa} />
+                  <View>
+                    <RutaMapaPreview ruta={rutaMapa} />
+                    {puedeEditarPlan ? <View style={StyleSheet.absoluteFill} /> : null}
+                  </View>
                   <View style={styles.routePoints}>
                     <View style={styles.routePointRow}>
                       <View style={[styles.routePointDot, { backgroundColor: theme.textDim }]} />
@@ -480,11 +555,13 @@ export default function ViajeDetalleScreen() {
                   <Feather name="map" size={28} color={theme.textMute} style={{ marginBottom: 6 }} />
                   <Text style={[styles.noRouteTitle, { color: theme.text }]}>Recorrido sin configurar</Text>
                   <Text style={[styles.noRouteBody, { color: theme.textDim }]}>
-                    Definí el trayecto para habilitar la guía GPS en vivo.
+                    {puedeEditarPlan
+                      ? 'Tocá acá para definir el trayecto y habilitar la guía GPS en vivo.'
+                      : 'Definí el trayecto para habilitar la guía GPS en vivo.'}
                   </Text>
                 </View>
               )}
-            </View>
+            </Pressable>
 
             {/* Stats row */}
             <View style={styles.statsRow}>
@@ -498,22 +575,77 @@ export default function ViajeDetalleScreen() {
                 <Text style={[styles.statLabel, { color: theme.textDim }]}>Distancia</Text>
               </View>
 
-              <View style={[styles.statCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <Pressable
+                onPress={() => abrirPicker('time')}
+                disabled={!puedeEditarPlan || guardandoFecha}
+                style={({ pressed }) => [
+                  styles.statCard,
+                  {
+                    backgroundColor: theme.surface,
+                    borderColor: theme.border,
+                    opacity: pressed && puedeEditarPlan ? 0.85 : 1,
+                  },
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Editar hora"
+              >
                 <Feather name="clock" size={18} color={theme.accent} style={{ marginBottom: 6 }} />
                 <Text style={[styles.statNum, { color: theme.text }]} numberOfLines={1}>
                   {formatHora(viaje.fecha_programada)}
                 </Text>
                 <Text style={[styles.statLabel, { color: theme.textDim }]}>Hora</Text>
-              </View>
+              </Pressable>
 
-              <View style={[styles.statCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <Pressable
+                onPress={() => abrirPicker('date')}
+                disabled={!puedeEditarPlan || guardandoFecha}
+                style={({ pressed }) => [
+                  styles.statCard,
+                  {
+                    backgroundColor: theme.surface,
+                    borderColor: theme.border,
+                    opacity: pressed && puedeEditarPlan ? 0.85 : 1,
+                  },
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Editar fecha"
+              >
                 <Feather name="calendar" size={18} color={theme.accent} style={{ marginBottom: 6 }} />
                 <Text style={[styles.statNum, { color: theme.text }]} numberOfLines={1}>
                   {formatFecha(viaje.fecha_programada)}
                 </Text>
                 <Text style={[styles.statLabel, { color: theme.textDim }]}>Fecha</Text>
-              </View>
+              </Pressable>
             </View>
+
+            {puedeEditarPlan && showPicker && (
+              <View>
+                <DateTimePicker
+                  key={pickerMode}
+                  value={aCamposArg(
+                    esFechaFutura(fechaEdit) ? fechaEdit : ajustarSiQuedoEnPasado(fechaEdit)
+                  )}
+                  mode={pickerMode}
+                  display={Platform.OS === 'ios' ? (pickerMode === 'date' ? 'inline' : 'spinner') : 'default'}
+                  minimumDate={pickerMode === 'date' ? ahoraEnCamposArg() : undefined}
+                  onChange={onChangeFecha}
+                />
+                {Platform.OS === 'ios' ? (
+                  <Btn
+                    variant="secondary"
+                    size="sm"
+                    onPress={() => {
+                      setShowPicker(false)
+                      void guardarFecha(fechaEdit)
+                    }}
+                    loading={guardandoFecha}
+                    disabled={guardandoFecha}
+                  >
+                    Guardar {pickerMode === 'date' ? 'fecha' : 'hora'}
+                  </Btn>
+                ) : null}
+              </View>
+            )}
 
             {ubicacionBloqueada && (
               <View style={[styles.warnCard, { backgroundColor: theme.dangerWeak, borderColor: theme.danger }]}>
@@ -524,54 +656,8 @@ export default function ViajeDetalleScreen() {
               </View>
             )}
 
-            {/* Secondary operations inside ScrollView */}
             {viaje.estado === 'planificado' && esLider && (
               <View style={styles.optionsBlock}>
-                <Btn
-                  variant="secondary"
-                  block
-                  icon="clock"
-                  onPress={abrirPickerFecha}
-                  loading={guardandoFecha}
-                  disabled={guardandoFecha}
-                  style={{ marginBottom: 10 }}
-                >
-                  Editar fecha y hora
-                </Btn>
-                {showPicker && (
-                  <DateTimePicker
-                    key={pickerMode}
-                    value={aCamposArg(
-                      esFechaFutura(fechaEdit) ? fechaEdit : ajustarSiQuedoEnPasado(fechaEdit)
-                    )}
-                    mode={Platform.OS === 'ios' ? 'datetime' : pickerMode}
-                    display={Platform.OS === 'ios' ? 'inline' : 'default'}
-                    minimumDate={ahoraEnCamposArg()}
-                    onChange={onChangeFecha}
-                  />
-                )}
-                {Platform.OS === 'ios' && showPicker && (
-                  <Btn
-                    variant="secondary"
-                    size="sm"
-                    onPress={() => {
-                      setShowPicker(false)
-                      void guardarFecha(fechaEdit)
-                    }}
-                    style={{ marginBottom: 10 }}
-                  >
-                    Guardar fecha
-                  </Btn>
-                )}
-                <Btn
-                  variant="secondary"
-                  block
-                  icon="map"
-                  onPress={() => router.push({ pathname: '/configurar-ruta/[viajeId]', params: { viajeId } })}
-                  style={{ marginBottom: 10 }}
-                >
-                  Configurar recorrido
-                </Btn>
                 <Btn
                   variant="secondary"
                   block
@@ -580,6 +666,33 @@ export default function ViajeDetalleScreen() {
                 >
                   Invitar / Compartir QR
                 </Btn>
+              </View>
+            )}
+
+            {puedeCompartirRuta && (
+              <View style={styles.optionsBlock}>
+                <Btn
+                  variant="secondary"
+                  block
+                  icon="map"
+                  onPress={() => void compartirRuta()}
+                  disabled={accion}
+                  loading={accion}
+                  style={{ marginBottom: esLider ? 10 : 0 }}
+                >
+                  Compartir ruta
+                </Btn>
+                {esLider ? (
+                  <Btn
+                    variant="ghost"
+                    block
+                  icon="x-circle"
+                  onPress={revocarLinkRuta}
+                    disabled={accion}
+                  >
+                    Revocar link de ruta
+                  </Btn>
+                ) : null}
               </View>
             )}
 

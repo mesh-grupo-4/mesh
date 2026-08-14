@@ -35,6 +35,10 @@ type Props = {
   mapPickMode?: boolean
   onRegionChangeComplete?: (region: Region) => void
   calculando?: boolean
+  /** Por defecto true; desactivar en previews de rutas ajenas. */
+  showsUserLocation?: boolean
+  /** Padding inferior al ajustar la ruta (default 280 del editor). */
+  fitBottomPadding?: number
 }
 
 export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function RouteMapView(
@@ -49,6 +53,8 @@ export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function Route
     mapPickMode = false,
     onRegionChangeComplete,
     calculando = false,
+    showsUserLocation = true,
+    fitBottomPadding = 280,
   },
   ref
 ) {
@@ -60,7 +66,7 @@ export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function Route
     fitRoute(coords) {
       if (!mapRef.current || coords.length < 2) return
       mapRef.current.fitToCoordinates(coords, {
-        edgePadding: { top: 80, right: 40, bottom: 280, left: 40 },
+        edgePadding: { top: 80, right: 40, bottom: fitBottomPadding, left: 40 },
         animated: true,
       })
     },
@@ -87,7 +93,7 @@ export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function Route
     const coords = fitRouteCoords ?? (routeLineLatLng?.map(([lat, lng]) => ({ latitude: lat, longitude: lng })) ?? null)
     if (!coords || coords.length < 2) return
     mapRef.current?.fitToCoordinates(coords, {
-      edgePadding: { top: 80, right: 40, bottom: 280, left: 40 },
+      edgePadding: { top: 80, right: 40, bottom: fitBottomPadding, left: 40 },
       animated: true,
     })
   }, [fitRouteCoords, routeLineLatLng, mapPickMode])
@@ -101,8 +107,8 @@ export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function Route
         style={StyleSheet.absoluteFillObject}
         provider={PROVIDER_DEFAULT}
         initialRegion={initialRegion}
-        showsUserLocation
-        showsMyLocationButton={Platform.OS === 'android' && !mapPickMode}
+        showsUserLocation={showsUserLocation}
+        showsMyLocationButton={Platform.OS === 'android' && !mapPickMode && showsUserLocation}
         mapType={Platform.OS === 'android' ? 'none' : 'mutedStandard'}
         onRegionChangeComplete={onRegionChangeComplete}
       >

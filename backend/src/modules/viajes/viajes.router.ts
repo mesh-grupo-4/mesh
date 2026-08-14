@@ -3,6 +3,7 @@ import { prisma } from '../../config/prisma'
 import { requireUser } from '../../middleware/requireUser'
 import { ViajesService } from './viajes.service'
 import { crearViajesController } from './viajes.controller'
+import { rutasCompartirHandlers } from '../rutas-compartidas/rutas-compartidas.router'
 
 const service = new ViajesService(prisma)
 const c = crearViajesController(service)
@@ -27,6 +28,8 @@ viajesRouter.put('/:viajeId/ubicacion-viva', requireUser, c.upsertUbicacionViva)
 viajesRouter.get('/:viajeId/ubicaciones-vivas', requireUser, c.listarUbicacionesVivas)
 viajesRouter.get('/:viajeId/ruta', requireUser, c.obtenerRuta)
 viajesRouter.put('/:viajeId/ruta', requireUser, c.guardarRuta)
+viajesRouter.post('/:viajeId/ruta/compartir', requireUser, rutasCompartirHandlers.compartir)
+viajesRouter.delete('/:viajeId/ruta/compartir', requireUser, rutasCompartirHandlers.revocar)
 viajesRouter.post('/:viajeId/iniciar', requireUser, c.iniciar)
 viajesRouter.post('/:viajeId/finalizar', requireUser, c.finalizar)
 viajesRouter.post('/:viajeId/salir', requireUser, c.salir)
