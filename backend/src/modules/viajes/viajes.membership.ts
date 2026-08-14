@@ -24,7 +24,8 @@ export async function unirUsuarioAlViaje(
         where: {
           viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId },
         },
-        data: { estado: 'confirmado', origen },
+        // `fecha_salida: null` limpia una salida previa: si vuelve, ya no "salió antes".
+        data: { estado: 'confirmado', origen, fecha_salida: null },
       })
       return { yaEraParticipante: false }
     }

@@ -41,7 +41,7 @@ export type ViajeFinalizadoApi = {
   fecha_programada: string
   fecha_fin_real: string | null
   estado: 'finalizado'
-  mi_estado: 'creador' | 'confirmado' | null
+  mi_estado: 'creador' | 'confirmado' | 'salido' | null
 }
 
 export type InvitacionViajePendienteApi = {
@@ -55,8 +55,8 @@ export type InvitacionViajePendienteApi = {
 }
 
 export type ViajeParticipanteApi = {
-  usuario: { id: string; nombre: string; email: string }
-  estado: 'pendiente' | 'confirmado' | 'rechazado'
+  usuario: { id: string; nombre: string; apellido: string | null; email: string }
+  estado: 'pendiente' | 'confirmado' | 'rechazado' | 'salido'
   origen: 'creador' | 'qr' | 'link' | 'grupo' | 'amigo'
   created_at: string
 }
@@ -205,7 +205,7 @@ export type ViajeDetalleApi = {
   fecha_inicio_real: string | null
   fecha_fin_real: string | null
   created_at: string
-  creador: { id: string; nombre: string; email: string }
+  creador: { id: string; nombre: string; apellido: string | null; email: string }
   ruta: { id: string; distancia_planeada_m: number | null } | null
   mi_participacion: { estado: string; origen: string } | null
 }
@@ -308,6 +308,46 @@ export async function salirViaje(
     method: 'POST',
   })
   return parseJson<SalirViajeResponse>(res)
+}
+
+/**
+ * Resumen de un viaje finalizado. `mis_metricas` son solo del usuario que consulta:
+ * el backend nunca devuelve métricas de terceros (RN-070).
+ */
+export type ResumenViajeApi = {
+  viaje: {
+    id: string
+    nombre: string | null
+    es_grupal: boolean
+    tipo_actividad: TipoActividadApi
+    fecha_inicio_real: string | null
+    fecha_fin_real: string | null
+  }
+  totales: {
+    duracion_segundos: number | null
+    distancia_planeada_m: number | null
+    distancia_real_m: number | null
+    cantidad_integrantes: number
+    cantidad_paradas: number
+  }
+  mis_metricas: {
+    distancia_m: number | null
+    tiempo_movimiento_seg: number | null
+    velocidad_promedio_kmh: number | null
+    sali_antes: boolean
+    fecha_salida: string | null
+  }
+  ranking_habilitado: boolean
+  generado_en: string | null
+}
+
+export async function obtenerResumenViaje(
+  viajeId: string,
+  userId: string,
+  baseUrl: string = API_BASE_URL
+): Promise<ResumenViajeApi> {
+  const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}/resumen`, baseUrl), {})
+  return parseJson<ResumenViajeApi>(res)
 }
 
 export async function guardarRutaEnBackend(

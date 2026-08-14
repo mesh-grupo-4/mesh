@@ -3,7 +3,7 @@ import type { PrismaClient } from '@prisma/client'
 import { getIo } from '../../realtime/ioRegistry'
 import { HttpError } from '../../lib/httpError'
 import { QR_EXPIRED_MESSAGE } from '../../lib/qrInvite'
-import { computeLineStringLengthMeters } from '../../lib/postgis'
+import { computeLineStringLengthMeters, computeMetricasGpsPorUsuario } from '../../lib/postgis'
 import { unirUsuarioAlViaje } from './viajes.membership'
 import type {
   ActualizarViajeInput,
@@ -278,7 +278,7 @@ export class ViajesService {
     const integrantes = await this.prisma.viajeIntegrante.findMany({
       where: { viaje_id: viajeId },
       include: {
-        usuario: { select: { id: true, nombre: true, email: true } },
+        usuario: { select: { id: true, nombre: true, apellido: true, email: true } },
       },
       orderBy: [{ estado: 'asc' }, { created_at: 'asc' }],
     })
@@ -452,11 +452,16 @@ export class ViajesService {
   }
 
   async estadisticasUsuario(usuarioId: string) {
+    // Incluye 'salido': quien abandonó a mitad igual recorrió y el viaje cuenta en su historial.
     const participanteWhere: Prisma.ViajeWhereInput = {
       estado: 'finalizado',
       OR: [
         { creador_id: usuarioId },
-        { integrantes: { some: { usuario_id: usuarioId, estado: 'confirmado' } } },
+        {
+          integrantes: {
+            some: { usuario_id: usuarioId, estado: { in: ['confirmado', 'salido'] } },
+          },
+        },
       ],
     }
 
@@ -489,7 +494,8 @@ export class ViajesService {
             integrantes: {
               some: {
                 usuario_id: usuarioId,
-                estado: 'confirmado',
+                // 'salido' incluido: si no, quien abandonó no llegaría nunca al resumen.
+                estado: { in: ['confirmado', 'salido'] },
               },
             },
           },
@@ -606,12 +612,20 @@ export class ViajesService {
     return actualizado
   }
 
+  /**
+   * Salida blanda: el integrante deja de compartir ubicación pero conserva su fila,
+   * para seguir figurando en el resumen del viaje con lo que recorrió.
+   * El viaje NO se cierra para los demás; eso solo lo hace `finalizar()`.
+   */
   async salirViaje(usuarioId: string, viajeId: string) {
     const viaje = await this.prisma.viaje.findUnique({
       where: { id: viajeId },
-      select: { id: true, creador_id: true, estado: true },
+      select: { id: true, creador_id: true, estado: true, es_grupal: true },
     })
     if (!viaje) throw new HttpError(404, 'Viaje no encontrado', 'VIAJE_NOT_FOUND')
+    if (!viaje.es_grupal) {
+      throw new HttpError(409, 'Un viaje individual no se abandona, se finaliza', 'INDIVIDUAL_TRIP')
+    }
     if (viaje.creador_id === usuarioId) {
       throw new HttpError(403, 'El líder no puede salir del viaje, debe finalizarlo', 'LEADER_CANNOT_LEAVE')
     }
@@ -624,8 +638,9 @@ export class ViajesService {
       throw new HttpError(403, 'No sos participante confirmado de este viaje', 'NOT_PARTICIPANT')
     }
 
-    await this.prisma.viajeIntegrante.delete({
+    await this.prisma.viajeIntegrante.update({
       where: { viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId } },
+      data: { estado: 'salido', fecha_salida: new Date() },
     })
 
     if (viaje.estado === 'en_curso') {
@@ -652,43 +667,15 @@ export class ViajesService {
 
     const fechaFin = new Date()
 
-    const actualizado = await this.prisma.$transaction(async (tx) => {
-      const v = await tx.viaje.update({
-        where: { id: viajeId },
-        data: {
-          estado: 'finalizado',
-          fecha_fin_real: fechaFin,
-        },
-      })
-
-      const inicio = v.fecha_inicio_real
-      const duracionSegundos =
-        inicio != null ? Math.round((fechaFin.getTime() - inicio.getTime()) / 1000) : null
-
-      const distanciaPlaneadaM = viaje.ruta?.distancia_planeada_m ?? null
-
-      /** Paradas voluntarias (bitácora). MVP: sin tabla de eventos aún → 0. */
-      const cantidadParadasVoluntarias = 0
-
-      await tx.resumenViaje.upsert({
-        where: { viaje_id: viajeId },
-        create: {
-          viaje_id: viajeId,
-          duracion_segundos: duracionSegundos,
-          distancia_planeada_m: distanciaPlaneadaM,
-          distancia_real_m: null,
-          cantidad_paradas: cantidadParadasVoluntarias,
-        },
-        update: {
-          duracion_segundos: duracionSegundos,
-          distancia_planeada_m: distanciaPlaneadaM,
-          distancia_real_m: null,
-          cantidad_paradas: cantidadParadasVoluntarias,
-          generado_en: new Date(),
-        },
-      })
-
-      return v
+    // El cambio de estado va solo, fuera de transacción: a partir de acá
+    // `assertPuedeEnviarGps` rechaza pings nuevos y la foto de registro_gps
+    // queda congelada para calcular el resumen.
+    const actualizado = await this.prisma.viaje.update({
+      where: { id: viajeId },
+      data: {
+        estado: 'finalizado',
+        fecha_fin_real: fechaFin,
+      },
     })
 
     getIo().to(`viaje:${viajeId}`).emit('viaje:finalizado', {
@@ -697,10 +684,170 @@ export class ViajesService {
       fechaFinReal: actualizado.fecha_fin_real?.toISOString() ?? null,
     })
 
+    // Agregar cientos de miles de filas GPS puede tardar; si falla, el viaje ya
+    // quedó cerrado igual y el GET /resumen lo recalcula (backfill perezoso).
+    try {
+      await this.generarResumen(viajeId)
+    } catch (err) {
+      console.error('[finalizar] No se pudo generar el resumen:', err)
+    }
+
     // Push notifications a participantes confirmados (no al creador que ya finalizó)
     void this.notificarFinViaje(viajeId, viaje.nombre ?? null, creadorId)
 
     return actualizado
+  }
+
+  /**
+   * Calcula y persiste el resumen del viaje y las métricas por integrante a
+   * partir de `registro_gps`. Idempotente: se puede correr de nuevo sin duplicar.
+   */
+  private async generarResumen(viajeId: string) {
+    const viaje = await this.prisma.viaje.findUnique({
+      where: { id: viajeId },
+      include: { ruta: { select: { distancia_planeada_m: true } } },
+    })
+    if (!viaje) {
+      throw new HttpError(404, 'Viaje no encontrado', 'VIAJE_NOT_FOUND')
+    }
+
+    const metricas = await computeMetricasGpsPorUsuario(this.prisma, viajeId)
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.metricaViaje.deleteMany({ where: { viaje_id: viajeId } })
+      if (metricas.length > 0) {
+        await tx.metricaViaje.createMany({
+          data: metricas.map((m) => ({
+            viaje_id: viajeId,
+            usuario_id: m.usuario_id,
+            distancia_m: m.distancia_m,
+            tiempo_movimiento_seg: Math.round(m.segundos_movimiento),
+            velocidad_promedio_kmh:
+              m.segundos_movimiento > 0
+                ? m.distancia_m / 1000 / (m.segundos_movimiento / 3600)
+                : null,
+          })),
+        })
+      }
+
+      const inicio = viaje.fecha_inicio_real
+      const fin = viaje.fecha_fin_real
+      const duracionSegundos =
+        inicio != null && fin != null ? Math.round((fin.getTime() - inicio.getTime()) / 1000) : null
+
+      // La distancia del viaje es la traza del creador, NO la suma de todos:
+      // sumar N integrantes daría N veces el recorrido. Si el creador no tiene
+      // GPS (p. ej. quedó sin batería), caemos al máximo entre los integrantes.
+      const delCreador = metricas.find((m) => m.usuario_id === viaje.creador_id)
+      const distanciaRealM =
+        delCreador?.distancia_m ??
+        (metricas.length > 0 ? Math.max(...metricas.map((m) => m.distancia_m)) : null)
+
+      /** Paradas voluntarias (bitácora). MVP: sin tabla de eventos aún → 0. */
+      const cantidadParadasVoluntarias = 0
+
+      const datos = {
+        duracion_segundos: duracionSegundos,
+        distancia_planeada_m: viaje.ruta?.distancia_planeada_m ?? null,
+        distancia_real_m: distanciaRealM,
+        cantidad_paradas: cantidadParadasVoluntarias,
+      }
+
+      await tx.resumenViaje.upsert({
+        where: { viaje_id: viajeId },
+        create: { viaje_id: viajeId, ...datos },
+        update: { ...datos, generado_en: new Date() },
+      })
+    })
+  }
+
+  /**
+   * Resumen del viaje finalizado + las métricas del usuario que consulta.
+   * Nunca devuelve métricas de terceros (RN-070: sin comparación entre integrantes).
+   */
+  async obtenerResumen(usuarioId: string, viajeId: string) {
+    await this.assertPuedeVerViaje(viajeId, usuarioId)
+
+    const viaje = await this.prisma.viaje.findUnique({
+      where: { id: viajeId },
+      select: {
+        id: true,
+        nombre: true,
+        es_grupal: true,
+        tipo_actividad: true,
+        estado: true,
+        fecha_inicio_real: true,
+        fecha_fin_real: true,
+      },
+    })
+    if (!viaje) {
+      throw new HttpError(404, 'Viaje no encontrado', 'VIAJE_NOT_FOUND')
+    }
+    if (viaje.estado !== 'finalizado') {
+      throw new HttpError(409, 'El viaje todavía no finalizó', 'TRIP_NOT_FINISHED')
+    }
+
+    // Backfill perezoso: cubre viajes cerrados antes de esta feature y el caso
+    // de que `generarResumen` haya fallado al finalizar.
+    let resumen = await this.prisma.resumenViaje.findUnique({ where: { viaje_id: viajeId } })
+    const cantidadMetricas = await this.prisma.metricaViaje.count({ where: { viaje_id: viajeId } })
+
+    // Si no hay métricas puede ser que falten por calcular, o que el viaje
+    // sencillamente no tenga GPS. Este count (indexado por viaje_id) es barato y
+    // evita reintentar el agregado PostGIS en cada consulta de un viaje sin traza.
+    const faltanMetricas =
+      cantidadMetricas === 0 &&
+      (await this.prisma.registroGPS.findFirst({
+        where: { viaje_id: viajeId },
+        select: { id: true },
+      })) != null
+
+    if (!resumen || faltanMetricas) {
+      await this.generarResumen(viajeId)
+      resumen = await this.prisma.resumenViaje.findUnique({ where: { viaje_id: viajeId } })
+    }
+
+    const [cantidadIntegrantes, mia, miIntegrante] = await Promise.all([
+      this.prisma.viajeIntegrante.count({
+        where: { viaje_id: viajeId, estado: { in: ['confirmado', 'salido'] } },
+      }),
+      this.prisma.metricaViaje.findUnique({
+        where: { viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId } },
+      }),
+      this.prisma.viajeIntegrante.findUnique({
+        where: { viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId } },
+        select: { estado: true, fecha_salida: true },
+      }),
+    ])
+
+    return {
+      viaje: {
+        id: viaje.id,
+        nombre: viaje.nombre,
+        es_grupal: viaje.es_grupal,
+        tipo_actividad: viaje.tipo_actividad,
+        fecha_inicio_real: viaje.fecha_inicio_real,
+        fecha_fin_real: viaje.fecha_fin_real,
+      },
+      totales: {
+        duracion_segundos: resumen?.duracion_segundos ?? null,
+        distancia_planeada_m: resumen?.distancia_planeada_m ?? null,
+        distancia_real_m: resumen?.distancia_real_m ?? null,
+        // El creador no tiene fila en viaje_integrante: se suma aparte.
+        cantidad_integrantes: cantidadIntegrantes + 1,
+        cantidad_paradas: resumen?.cantidad_paradas ?? 0,
+      },
+      mis_metricas: {
+        distancia_m: mia?.distancia_m ?? null,
+        tiempo_movimiento_seg: mia?.tiempo_movimiento_seg ?? null,
+        velocidad_promedio_kmh: mia?.velocidad_promedio_kmh ?? null,
+        sali_antes: miIntegrante?.estado === 'salido',
+        fecha_salida: miIntegrante?.fecha_salida ?? null,
+      },
+      // RN-070: compuerta única para cualquier feature comparativa futura.
+      ranking_habilitado: viaje.tipo_actividad !== 'moto',
+      generado_en: resumen?.generado_en ?? null,
+    }
   }
 
   private async notificarFinViaje(
@@ -731,7 +878,12 @@ export class ViajesService {
     }
   }
 
-  private async assertPuedeVerViaje(viajeId: string, usuarioId: string): Promise<void> {
+  /**
+   * RN-030: acceso de LECTURA al viaje (detalle, ruta, participantes, resumen).
+   * Deliberadamente laxa: incluye a quien salió, para que pueda ver el resumen.
+   * Para datos en vivo usar `assertPuedeVerEnVivo`, que es estricta.
+   */
+  async assertPuedeVerViaje(viajeId: string, usuarioId: string): Promise<void> {
     const viaje = await this.prisma.viaje.findUnique({
       where: { id: viajeId },
       select: { creador_id: true },
@@ -748,6 +900,31 @@ export class ViajesService {
       select: { estado: true },
     })
     if (integrante && integrante.estado !== 'rechazado') return
+
+    throw new HttpError(403, 'Sin acceso a este viaje', 'FORBIDDEN')
+  }
+
+  /**
+   * Acceso a datos EN VIVO (room de sockets, ubicaciones vivas). Estricta: exige
+   * `confirmado`, así quien salió del viaje deja de recibir el GPS del grupo.
+   */
+  async assertPuedeVerEnVivo(viajeId: string, usuarioId: string): Promise<void> {
+    const viaje = await this.prisma.viaje.findUnique({
+      where: { id: viajeId },
+      select: { creador_id: true },
+    })
+    if (!viaje) {
+      throw new HttpError(404, 'Viaje no encontrado', 'VIAJE_NOT_FOUND')
+    }
+    if (viaje.creador_id === usuarioId) return
+
+    const integrante = await this.prisma.viajeIntegrante.findUnique({
+      where: {
+        viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId },
+      },
+      select: { estado: true },
+    })
+    if (integrante?.estado === 'confirmado') return
 
     throw new HttpError(403, 'Sin acceso a este viaje', 'FORBIDDEN')
   }
@@ -787,7 +964,7 @@ export class ViajesService {
     const viaje = await this.prisma.viaje.findUnique({
       where: { id: viajeId },
       include: {
-        creador: { select: { id: true, nombre: true, email: true } },
+        creador: { select: { id: true, nombre: true, apellido: true, email: true } },
         ruta: { select: { id: true, distancia_planeada_m: true } },
         integrantes: {
           where: { usuario_id: usuarioId },
@@ -860,7 +1037,7 @@ export class ViajesService {
   }
 
   async listarUbicacionesVivas(usuarioId: string, viajeId: string) {
-    await this.assertPuedeVerViaje(viajeId, usuarioId)
+    await this.assertPuedeVerEnVivo(viajeId, usuarioId)
     const rows = await this.prisma.ubicacionViva.findMany({
       where: { viaje_id: viajeId },
       include: {

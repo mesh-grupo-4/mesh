@@ -55,6 +55,8 @@ enum EstadoViajeIntegrante {
   pendiente
   confirmado
   rechazado
+  /// Abandonó el viaje en curso. Salida blanda: conserva su histórico y figura en el resumen.
+  salido
 }
 
 enum OrigenViajeIntegrante {
@@ -80,6 +82,7 @@ model Usuario {
   viajes_creados         Viaje[]            @relation("ViajeCreador")
   participaciones_viaje  ViajeIntegrante[]
   registros_gps          RegistroGPS[]
+  metricas_viaje         MetricaViaje[]
   ubicacion_viva         UbicacionViva?
   invitaciones_recibidas GrupoInvitacion[]  @relation("InvitacionesRecibidas")
   invitaciones_enviadas  GrupoInvitacion[]  @relation("InvitacionesEnviadas")
@@ -173,6 +176,7 @@ model Viaje {
   resumen ResumenViaje?
   registros_gps RegistroGPS[]
   ubicaciones_vivas UbicacionViva[]
+  metricas MetricaViaje[]
 
   @@index([creador_id])
   @@map("viaje")
@@ -207,11 +211,12 @@ model ViajeGrupo {
 }
 
 model ViajeIntegrante {
-  viaje_id   String                @map("viaje_id") @db.Uuid
-  usuario_id String                @map("usuario_id") @db.Uuid
-  estado     EstadoViajeIntegrante
-  origen     OrigenViajeIntegrante
-  created_at DateTime              @default(now()) @map("created_at")
+  viaje_id     String                @map("viaje_id") @db.Uuid
+  usuario_id   String                @map("usuario_id") @db.Uuid
+  estado       EstadoViajeIntegrante
+  origen       OrigenViajeIntegrante
+  created_at   DateTime              @default(now()) @map("created_at")
+  fecha_salida DateTime?             @map("fecha_salida")
 
   viaje   Viaje   @relation(fields: [viaje_id], references: [id], onDelete: Cascade)
   usuario Usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
@@ -286,4 +291,22 @@ model ResumenViaje {
   viaje Viaje @relation(fields: [viaje_id], references: [id], onDelete: Cascade)
 
   @@map("resumen_viaje")
+}
+
+/// Métricas individuales por integrante, calculadas desde registro_gps al finalizar (RN-061).
+model MetricaViaje {
+  id                     String   @id @default(uuid()) @db.Uuid
+  viaje_id               String   @map("viaje_id") @db.Uuid
+  usuario_id             String   @map("usuario_id") @db.Uuid
+  distancia_m            Float    @map("distancia_m")
+  tiempo_movimiento_seg  Int      @map("tiempo_movimiento_seg")
+  velocidad_promedio_kmh Float?   @map("velocidad_promedio_kmh")
+  generado_en            DateTime @default(now()) @map("generado_en")
+
+  viaje   Viaje   @relation(fields: [viaje_id], references: [id], onDelete: Cascade)
+  usuario Usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+
+  @@unique([viaje_id, usuario_id])
+  @@index([usuario_id])
+  @@map("metrica_viaje")
 }

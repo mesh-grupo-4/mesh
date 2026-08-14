@@ -6,6 +6,7 @@ import { meshAlert } from '@/lib/meshAlert'
 
 import {
   calcularRutaOsrm,
+  OsrmError,
   perfilOsrmDesdeActividad,
   type OsrmRouteResult,
 } from '@/lib/osrm'
@@ -38,6 +39,27 @@ function crearWaypoint(type: RouteWaypoint['type'], order: number): RouteWaypoin
 function formatDistance(m: number): string {
   if (m < 1000) return `${Math.round(m)} m`
   return `${(m / 1000).toFixed(1)} km`
+}
+
+/** Traduce la falla real de OSRM a algo accionable para el usuario. */
+function mensajeErrorRuta(e: unknown): string {
+  if (!(e instanceof OsrmError)) {
+    return 'No se pudo calcular la ruta. Reintentá en unos segundos.'
+  }
+  switch (e.kind) {
+    case 'network':
+      return 'Sin internet en el dispositivo. El cálculo de ruta usa OpenStreetMap online.'
+    case 'timeout':
+      return 'El servidor de rutas tardó demasiado en responder. Reintentá.'
+    case 'rate_limit':
+      return 'El servidor de rutas está saturado. Esperá unos segundos y reintentá.'
+    case 'server':
+      return `El servidor de rutas falló (HTTP ${e.status ?? '?'}). Reintentá en unos minutos.`
+    case 'no_route':
+      return 'No hay una ruta transitable entre esos puntos para esta actividad. Probá mover el origen o el destino cerca de una calle.'
+    case 'invalid_input':
+      return 'Faltan el origen o el destino.'
+  }
 }
 
 function formatDuration(sec: number): string {
@@ -181,48 +203,51 @@ export function useRoutePlanner({
     [waypointsOrdenados]
   )
 
+  // Solo las coordenadas disparan un recálculo. Antes el efecto dependía de los
+  // waypoints enteros, así que editar el *nombre* de un punto ya ubicado pegaba
+  // otra llamada a OSRM por cada tecla.
+  const rutaListaParaCalcular =
+    waypointTieneCoords(origen) && waypointTieneCoords(destino) && paradas.every(waypointTieneCoords)
+
+  const rutaKey = rutaListaParaCalcular
+    ? waypointsConCoords.map((w) => `${w.lon},${w.lat}`).join(';')
+    : ''
+
+  const puntosRef = useRef<[number, number][]>([])
+  puntosRef.current = waypointsConCoords.map((w) => [w.lon, w.lat])
+
   useEffect(() => {
     if (modoSeleccionMapa) return
 
+    if (!rutaKey) {
+      setRutaOk(null)
+      setRouteLineLatLng(null)
+      setErrorRuta(null)
+      setCalculando(false)
+      return
+    }
+
     let cancel = false
     async function run() {
-      const origenOk = waypointTieneCoords(origen)
-      const destinoOk = waypointTieneCoords(destino)
-      if (!origenOk || !destinoOk) {
-        setRutaOk(null)
-        setRouteLineLatLng(null)
-        setErrorRuta(null)
-        setCalculando(false)
-        return
-      }
-
-      const paradasOk = paradas.every(waypointTieneCoords)
-      if (!paradasOk) {
-        setRutaOk(null)
-        setRouteLineLatLng(null)
-        setErrorRuta(null)
-        setCalculando(false)
-        return
-      }
-
       setCalculando(true)
       setErrorRuta(null)
 
-      const pts: [number, number][] = waypointsConCoords.map((w) => [w.lon, w.lat])
-
       try {
-        const res = await calcularRutaOsrm(movilidad, pts)
+        const res = await calcularRutaOsrm(movilidad, puntosRef.current)
         if (cancel) return
         setRutaOk(res)
         setRouteLineLatLng(res.polylineLatLng)
         setFitRouteCoords(
           res.polylineLatLng.map(([lat, lng]) => ({ latitude: lat, longitude: lng }))
         )
-      } catch {
+      } catch (e) {
         if (cancel) return
         setRutaOk(null)
         setRouteLineLatLng(null)
-        setErrorRuta('Sin conexión. No se pudo calcular la ruta.')
+        setErrorRuta(mensajeErrorRuta(e))
+        if (__DEV__) {
+          console.warn('[useRoutePlanner] Falló el cálculo de ruta:', e)
+        }
       } finally {
         if (!cancel) setCalculando(false)
       }
@@ -231,7 +256,7 @@ export function useRoutePlanner({
     return () => {
       cancel = true
     }
-  }, [origen, destino, paradas, movilidad, waypointsConCoords, modoSeleccionMapa])
+  }, [rutaKey, movilidad, modoSeleccionMapa])
 
   const actualizarWaypoint = useCallback(
     (

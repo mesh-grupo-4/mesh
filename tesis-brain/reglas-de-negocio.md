@@ -122,11 +122,50 @@ A diferencia de soluciones existentes (Strava, Garmin, Google Maps, Life360) que
 | RN-063 | El ranking de viaje se ordena por velocidad promedio, distancia o tiempo en movimiento. |
 | RN-064 | El resumen visual (tipo "Wrapped") se genera mensual y anualmente; es compartible como imagen. |
 
+#### Definición operativa: "distancia real del viaje"
+
+`resumen_viaje.distancia_real_m` es la traza recorrida por el **creador** del viaje, **no** la
+suma de los recorridos de los integrantes: sumarlas daría N veces el recorrido en un viaje de N
+personas. Si el creador no tiene registros GPS (por ejemplo se quedó sin batería), se usa el
+**máximo** entre los integrantes.
+
+Se calcula en PostGIS agregando `registro_gps` segmento a segmento con `ST_Distance` + `LAG()`,
+descartando lecturas con más de 100 m de error declarado, saltos mayores a 500 m y huecos
+temporales de más de 120 s. Por esos filtros el valor difiere en torno a un 2-5 % del contador
+en vivo del dispositivo, que no filtra.
+
+Las métricas individuales (`metrica_viaje`) cubren hoy distancia, tiempo en movimiento y
+velocidad promedio. Tiempo detenido y tiempo total de RN-061 quedan pendientes: requieren la
+tabla de paradas reales, que todavía no existe.
+
 ### 2.8 Reglas de Gamificación y Competición
 
 | ID | Regla |
 |---|---|
 | RN-070 | **La modalidad moto queda EXCLUIDA de todos los rankings competitivos y tablas de posiciones** para evitar conductas de riesgo asociadas a la competencia. Esta es una regla de seguridad vial no negociable. |
+
+#### RN-070 aplicada al resumen post-viaje
+
+La pantalla de resumen (`/viaje/:id/resumen`) muestra al usuario **su propia** velocidad
+promedio, también en moto. Criterio adoptado y su fundamento:
+
+- No hay un segundo sujeto contra quien medir → no es ranking ni tabla de posiciones.
+- Es post-hoc, con el viaje ya cerrado → no puede inducir a acelerar mientras se conduce, que
+  es el riesgo vial que la regla protege.
+- No otorga posición, logro ni premio → no es gamificación de velocidad.
+
+Salvaguardas que el código debe mantener, verificadas en `viajes.resumen.test.ts`:
+
+1. `GET /resumen` **nunca** devuelve métricas de terceros. No agregar un campo `por_integrante`.
+2. El contrato lleva `ranking_habilitado: tipo_actividad !== 'moto'`, como compuerta única para
+   cualquier feature comparativa futura.
+3. **Nunca velocidad máxima en moto** — eso sí sería gamificación de velocidad. Solo promedio.
+4. En moto el rótulo es "Ritmo promedio" con el pie "Dato informativo, no comparativo". Sin
+   lenguaje de logro, récord ni comparación contra `velocidad_esperada` en tono de meta.
+5. La velocidad nunca se destaca en la pantalla de seguimiento en vivo.
+
+Si el PO prefiere un criterio más conservador, la alternativa es devolver
+`velocidad_promedio_kmh: null` cuando la actividad es moto: es un solo `if` en el service.
 | RN-071 | El modo competitivo activa un leaderboard en tiempo real basado en posición y tiempos relativos. |
 | RN-072 | El modo recreativo desactiva rankings y comparaciones pero mantiene navegación y alertas de seguridad. |
 | RN-073 | El ghost tracking superpone un marcador fantasma de un recorrido histórico que se mueve en tiempo real. El usuario ve si va adelante o atrás. |

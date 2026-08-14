@@ -126,5 +126,8 @@ export async function detenerTrackingViaje(): Promise<void> {
   if (Platform.OS === 'web') return
   await stopForegroundWatch()
   await stopBackgroundTask()
+  // Ojo: NO se borra el acumulado de distancia acá. La pantalla de resumen lo usa
+  // como fallback cuando el backend no responde, y la limpia ella cuando ya no
+  // hace falta. Ver `app/viaje/[viajeId]/resumen.tsx`.
   await clearTrackingContext()
 }

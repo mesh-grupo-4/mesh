@@ -48,6 +48,14 @@ export async function setTrackingContext(viajeId: string, userId: string): Promi
   ])
 }
 
+export async function getTrackingContext(): Promise<{ viajeId: string; userId: string } | null> {
+  const pairs = await AsyncStorage.multiGet([K_VIAJE, K_USER])
+  const viajeId = pairs.find(([k]) => k === K_VIAJE)?.[1]
+  const userId = pairs.find(([k]) => k === K_USER)?.[1]
+  if (!viajeId || !userId) return null
+  return { viajeId, userId }
+}
+
 export async function clearTrackingContext(): Promise<void> {
   await AsyncStorage.multiRemove([K_VIAJE, K_USER])
 }

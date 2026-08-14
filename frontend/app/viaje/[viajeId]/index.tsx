@@ -55,6 +55,23 @@ type RutaMapa = {
   routeLine: [number, number][]
 }
 
+/** Etiqueta del estado de un participante. 'salido' = abandonó el viaje en curso. */
+function badgeParticipante(estado: ViajeParticipanteApi['estado']): {
+  texto: string
+  tone: 'good' | 'mute' | 'live'
+} {
+  switch (estado) {
+    case 'confirmado':
+      return { texto: 'Confirmó', tone: 'good' }
+    case 'pendiente':
+      return { texto: 'Pendiente', tone: 'mute' }
+    case 'salido':
+      return { texto: 'Salió', tone: 'mute' }
+    case 'rechazado':
+      return { texto: 'Rechazó', tone: 'live' }
+  }
+}
+
 /** Mapa OSM real (solo lectura) con la ruta planificada del viaje. */
 function RutaMapaPreview({ ruta }: { ruta: RutaMapa }) {
   const primero = ruta.waypoints.find(waypointTieneCoords)
@@ -575,8 +592,8 @@ export default function ViajeDetalleScreen() {
                         {part.usuario.nombre}
                         {part.usuario.id === userId ? ' (vos)' : ''}
                       </Text>
-                      <Badge tone={part.estado === 'confirmado' ? 'good' : part.estado === 'pendiente' ? 'mute' : 'live'}>
-                        {part.estado === 'confirmado' ? 'Confirmó' : part.estado === 'pendiente' ? 'Pendiente' : 'Rechazó'}
+                      <Badge tone={badgeParticipante(part.estado).tone}>
+                        {badgeParticipante(part.estado).texto}
                       </Badge>
                     </View>
                   )
@@ -622,8 +639,15 @@ export default function ViajeDetalleScreen() {
             )}
 
             {viaje.estado === 'finalizado' && (
-              <Btn variant="secondary" block disabled icon="check">
-                Viaje finalizado
+              <Btn
+                variant="secondary"
+                block
+                icon="bar-chart-2"
+                onPress={() =>
+                  router.push({ pathname: '/viaje/[viajeId]/resumen', params: { viajeId } })
+                }
+              >
+                Ver resumen del recorrido
               </Btn>
             )}
           </View>

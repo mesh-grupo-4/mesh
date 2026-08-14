@@ -10,6 +10,14 @@ export type LiveMember = {
   id: string
   nombre: string
   enMapa: boolean
+  /** Está en el mapa pero su última posición quedó vieja (perdió señal). */
+  sinSenal?: boolean
+}
+
+function estadoDe(m: LiveMember): { texto: string; tono: 'good' | 'dim' | 'mute' } {
+  if (!m.enMapa) return { texto: 'Sin ubicación', tono: 'mute' }
+  if (m.sinSenal) return { texto: 'Sin señal', tono: 'dim' }
+  return { texto: 'En el mapa', tono: 'good' }
 }
 
 type Props = {
@@ -41,7 +49,7 @@ export function LiveMembersBar({ members, currentUserId }: Props) {
               style={[
                 styles.avatarWrap,
                 m.id === currentUserId && { borderColor: theme.good, borderWidth: 2 },
-                !m.enMapa && styles.avatarOffline,
+                (!m.enMapa || m.sinSenal) && styles.avatarOffline,
               ]}
             >
               <AvatarFallback nombre={m.nombre} size={32} />
@@ -73,23 +81,26 @@ export function LiveMembersBar({ members, currentUserId }: Props) {
               Cada color identifica a una persona en el mapa.
             </Text>
 
-            {members.map((m) => (
-              <View
-                key={m.id}
-                style={[styles.memberRow, { borderBottomColor: theme.border }]}
-              >
-                <AvatarFallback nombre={m.nombre} size={40} />
-                <View style={styles.memberInfo}>
-                  <Text style={[styles.memberName, { color: theme.text }]} numberOfLines={1}>
-                    {m.nombre}
-                    {m.id === currentUserId ? ' (vos)' : ''}
-                  </Text>
-                  <Text style={[styles.memberStatus, { color: m.enMapa ? theme.good : theme.textMute }]}>
-                    {m.enMapa ? 'En el mapa' : 'Sin ubicación'}
-                  </Text>
+            {members.map((m) => {
+              const estado = estadoDe(m)
+              const colorEstado =
+                estado.tono === 'good' ? theme.good : estado.tono === 'dim' ? theme.textDim : theme.textMute
+              return (
+                <View
+                  key={m.id}
+                  style={[styles.memberRow, { borderBottomColor: theme.border }]}
+                >
+                  <AvatarFallback nombre={m.nombre} size={40} />
+                  <View style={styles.memberInfo}>
+                    <Text style={[styles.memberName, { color: theme.text }]} numberOfLines={1}>
+                      {m.nombre}
+                      {m.id === currentUserId ? ' (vos)' : ''}
+                    </Text>
+                    <Text style={[styles.memberStatus, { color: colorEstado }]}>{estado.texto}</Text>
+                  </View>
                 </View>
-              </View>
-            ))}
+              )
+            })}
 
             <Pressable
               onPress={() => setModalOpen(false)}

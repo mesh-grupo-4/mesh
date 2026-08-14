@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as Location from 'expo-location'
-import { useLocalSearchParams, useRouter } from 'expo-router'
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
@@ -10,6 +10,7 @@ import {
   Text,
   View,
 } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { meshAlert } from '@/lib/meshAlert';
 
 import { CenterLocationButton } from '@/components/live/CenterLocationButton'
@@ -25,6 +26,7 @@ import { useLiveLocations } from '@/hooks/useLiveLocations'
 import { useNextStopEta } from '@/hooks/useNextStopEta'
 import { useTripMetrics } from '@/hooks/useTripMetrics'
 import type { RouteStop } from '@/lib/geo/nextStop'
+import { nombreCompleto } from '@/lib/nombres'
 import { linestringToLatLng, waypointsFromRutaDetalle } from '@/lib/routePayload'
 import { connectMeshSocket } from '@/lib/meshSocket'
 import { isSupabaseConfigured } from '@/lib/supabase'
@@ -45,6 +47,7 @@ import {
 
 export default function ViajeLiveScreen() {
   const router = useRouter()
+  const insets = useSafeAreaInsets()
   const { backendUserId } = useAuth()
   const params = useLocalSearchParams<{ viajeId: string | string[]; userId?: string | string[] }>()
   const mapRef = useRef<LiveMapViewHandle>(null)
@@ -68,6 +71,7 @@ export default function ViajeLiveScreen() {
   const [initialCenter, setInitialCenter] = useState<{ latitude: number; longitude: number } | null>(
     null
   )
+  const [gpsCenterFailed, setGpsCenterFailed] = useState(false)
   const [fg, setFg] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
   const [mapStyle, setMapStyle] = useState<MapStyleId>('standard')
@@ -76,17 +80,21 @@ export default function ViajeLiveScreen() {
   const nameByUserId = useMemo(() => {
     const map: Record<string, string> = {}
     if (viaje?.creador) {
-      map[viaje.creador.id] = viaje.creador.nombre
+      map[viaje.creador.id] = nombreCompleto(viaje.creador.nombre, viaje.creador.apellido)
     }
     for (const p of participantes) {
       if (p.estado === 'confirmado') {
-        map[p.usuario.id] = p.usuario.nombre
+        map[p.usuario.id] = nombreCompleto(p.usuario.nombre, p.usuario.apellido)
       }
     }
     return map
   }, [viaje, participantes])
 
-  const { memberList, realtimeOk } = useLiveLocations({ viajeId: viajeId ?? '', userId, nameByUserId })
+  const { memberList, staleByUserId, realtimeOk } = useLiveLocations({
+    viajeId: viajeId ?? '',
+    userId,
+    nameByUserId,
+  })
 
   const myPosition = useMemo(() => {
     const me = memberList.find((m) => m.usuarioId === userId)
@@ -109,19 +117,23 @@ export default function ViajeLiveScreen() {
     const add = (id: string, nombre: string) => {
       if (seen.has(id)) return
       seen.add(id)
-      list.push({ id, nombre, enMapa: onMap.has(id) })
+      list.push({ id, nombre, enMapa: onMap.has(id), sinSenal: staleByUserId[id] === true })
     }
 
-    if (viaje?.creador) add(viaje.creador.id, viaje.creador.nombre)
+    if (viaje?.creador) {
+      add(viaje.creador.id, nombreCompleto(viaje.creador.nombre, viaje.creador.apellido))
+    }
     for (const p of participantes) {
-      if (p.estado === 'confirmado') add(p.usuario.id, p.usuario.nombre)
+      if (p.estado === 'confirmado') {
+        add(p.usuario.id, nombreCompleto(p.usuario.nombre, p.usuario.apellido))
+      }
     }
     for (const m of memberList) {
       add(m.usuarioId, m.nombre)
     }
 
     return list
-  }, [viaje, participantes, memberList])
+  }, [viaje, participantes, memberList, staleByUserId])
 
   const tripDisplayName = useMemo(() => {
     if (viaje?.nombre?.trim()) return viaje.nombre.trim()
@@ -129,6 +141,7 @@ export default function ViajeLiveScreen() {
   }, [viaje])
 
   const { elapsedLabel, distanceLabel } = useTripMetrics({
+    viajeId: viajeId ?? '',
     userId,
     fechaInicioReal: viaje?.fecha_inicio_real ?? null,
   })
@@ -198,8 +211,8 @@ export default function ViajeLiveScreen() {
         void detenerTrackingViaje()
         // El líder que finalizó maneja su propia navegación en ejecutarFinalizar.
         if (finalizandoRef.current) return
-        // Para participantes: salir del mapa inmediatamente.
-        router.replace({ pathname: '/viaje/[viajeId]', params: { viajeId } })
+        // Para participantes: salir del mapa y mostrarles el resumen.
+        router.replace({ pathname: '/viaje/[viajeId]/resumen', params: { viajeId } })
       }
 
       sock.on('viaje:finalizado', onFin)
@@ -209,6 +222,8 @@ export default function ViajeLiveScreen() {
     return () => cleanup?.()
   }, [viajeId, userId, router])
 
+  // Permisos, arranque del tracking y centrado inicial en la posición del usuario (AC1).
+  // No depende de `routeLine`: hacerlo reiniciaba el GPS cada vez que cargaba la ruta.
   useEffect(() => {
     let cancelled = false
     void (async () => {
@@ -225,16 +240,20 @@ export default function ViajeLiveScreen() {
           setInitialCenter({ latitude: pos.coords.latitude, longitude: pos.coords.longitude })
         }
       } catch {
-        if (routeLine?.[0] && !cancelled) {
-          const [lat, lng] = routeLine[0]
-          setInitialCenter({ latitude: lat, longitude: lng })
-        }
+        if (!cancelled) setGpsCenterFailed(true)
       }
     })()
     return () => {
       cancelled = true
     }
-  }, [viajeId, userId, routeLine])
+  }, [viajeId, userId])
+
+  // Fallback: si el GPS no resolvió una posición, centramos en el origen de la ruta.
+  useEffect(() => {
+    if (!gpsCenterFailed || initialCenter || !routeLine?.[0]) return
+    const [lat, lng] = routeLine[0]
+    setInitialCenter({ latitude: lat, longitude: lng })
+  }, [gpsCenterFailed, initialCenter, routeLine])
 
   useEffect(() => {
     void Location.getForegroundPermissionsAsync().then((r) => setFg(r.status === 'granted'))
@@ -264,7 +283,7 @@ export default function ViajeLiveScreen() {
     try {
       await finalizarViaje(viajeId, userId)
       void detenerTrackingViaje()
-      router.replace({ pathname: '/viaje/[viajeId]', params: { viajeId } })
+      router.replace({ pathname: '/viaje/[viajeId]/resumen', params: { viajeId } })
     } catch (e) {
       finalizandoRef.current = false
       meshAlert('Error', e instanceof Error ? e.message : 'No se pudo finalizar el viaje')
@@ -289,6 +308,9 @@ export default function ViajeLiveScreen() {
     try {
       await salirViaje(viajeId, userId)
       await detenerTrackingViaje()
+      // A diferencia de finalizar, acá no vamos al resumen: el viaje sigue en curso
+      // para el resto y el backend devolvería 409. Lo verá desde "Finalizados"
+      // cuando el líder lo cierre.
       router.replace('/(tabs)')
     } catch (e) {
       meshAlert('Error', e instanceof Error ? e.message : 'No se pudo salir del viaje')
@@ -311,6 +333,7 @@ export default function ViajeLiveScreen() {
   if (!viajeId) {
     return (
       <View style={styles.center}>
+        <Stack.Screen options={{ headerShown: false }} />
         <Text style={styles.muted}>Viaje no especificado.</Text>
       </View>
     )
@@ -319,6 +342,7 @@ export default function ViajeLiveScreen() {
   if (loading) {
     return (
       <View style={styles.center}>
+        <Stack.Screen options={{ headerShown: false }} />
         <ActivityIndicator size="large" color="#6366f1" />
       </View>
     )
@@ -326,6 +350,7 @@ export default function ViajeLiveScreen() {
 
   return (
     <View style={styles.root}>
+      <Stack.Screen options={{ headerShown: false }} />
       <LiveMapView
         ref={mapRef}
         routeLineLatLng={routeLine}
@@ -346,7 +371,7 @@ export default function ViajeLiveScreen() {
 
       <MapStylePicker value={mapStyle} onChange={setMapStyle} topOffset={128} />
 
-      <CenterLocationButton onPress={handleCenterOnMe} bottomOffset={140} />
+      <CenterLocationButton onPress={handleCenterOnMe} bottomOffset={140 + insets.bottom} />
 
       {fg === false ? (
         <View style={styles.warnBanner}>
@@ -377,6 +402,9 @@ export default function ViajeLiveScreen() {
       <Pressable
         style={({ pressed }) => [
           styles.endBar,
+          // `edgeToEdgeEnabled` dibuja bajo la barra de navegación de Android:
+          // sin este inset los botones del sistema tapan el botón de finalizar.
+          { paddingBottom: Math.max(insets.bottom, 12) + 14 },
           esLider ? styles.endBarDanger : styles.endBarGhost,
           pressed && styles.endBarPressed,
           accion && styles.endBarDisabled,

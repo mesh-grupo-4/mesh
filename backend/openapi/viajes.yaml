@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Mesh API — Viajes
-  version: 3.0.0
+  version: 3.1.0
   description: |
     Ciclo de vida completo de viajes: creación, invitaciones, configuración de ruta,
     tracking GPS y transiciones de estado (RN-015 a RN-038).
@@ -425,6 +425,11 @@ paths:
       description: |
         RN-030. Transiciona en_curso → finalizado, fija `fecha_fin_real` y genera el
         resumen del viaje. Emite `viaje:finalizado` por WebSocket. Solo el creador puede finalizarlo.
+
+        El resumen se calcula después de cerrar el viaje: se agregan los registros de
+        `registro_gps` con PostGIS para obtener `distancia_real_m` y las métricas por
+        integrante (`metrica_viaje`). Si ese cálculo falla, el viaje queda finalizado
+        igual y `GET /resumen` lo recalcula al consultarlo.
       operationId: finalizarViaje
       tags: [Viajes]
       security: [{ UserIdHeader: [] }]
@@ -444,6 +449,85 @@ paths:
           description: Viaje no encontrado (VIAJE_NOT_FOUND)
         '409':
           description: El viaje no está en curso (INVALID_STATE)
+
+  /api/viajes/{viajeId}/salir:
+    post:
+      summary: Salir de un viaje grupal
+      description: |
+        Salida blanda: el integrante pasa a `estado = salido` con `fecha_salida`, pero
+        conserva su fila para seguir figurando en el resumen con lo que recorrió.
+        **El viaje NO se cierra para el resto**; eso solo lo hace `/finalizar`.
+
+        Deja de recibir ubicaciones en vivo (el backend exige `confirmado` para la room
+        de sockets y para `/ubicaciones-vivas`), pero mantiene acceso de lectura al
+        viaje y a su resumen.
+      operationId: salirViaje
+      tags: [Viajes]
+      security: [{ UserIdHeader: [] }]
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/ViajeId'
+      responses:
+        '200':
+          description: Salida registrada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  viaje_id:
+                    type: string
+                    format: uuid
+                  accion:
+                    type: string
+                    enum: [salido]
+        '403':
+          description: >-
+            El líder no puede salir, debe finalizar (LEADER_CANNOT_LEAVE) o
+            no sos participante confirmado (NOT_PARTICIPANT)
+        '404':
+          description: Viaje no encontrado (VIAJE_NOT_FOUND)
+        '409':
+          description: Un viaje individual no se abandona, se finaliza (INDIVIDUAL_TRIP)
+
+  /api/viajes/{viajeId}/resumen:
+    get:
+      summary: Resumen de un viaje finalizado
+      description: |
+        Totales del viaje más las métricas del usuario que consulta.
+
+        **RN-070**: la respuesta nunca incluye métricas de terceros, por lo que no
+        habilita comparación de velocidades entre integrantes. `ranking_habilitado`
+        es `false` cuando la actividad es `moto`.
+
+        `distancia_real_m` es la traza del **creador** del viaje, no la suma de los
+        integrantes (sumarlas daría N veces el recorrido). Si el creador no tiene
+        registros GPS, se usa el máximo entre los integrantes.
+
+        Si el resumen o las métricas no existen todavía, se calculan al vuelo y se
+        persisten (backfill). Los campos sin dato se devuelven como `null`, nunca `0`.
+
+        Accesible para el creador y para cualquier integrante no rechazado, incluidos
+        los que salieron antes del final.
+      operationId: obtenerResumenViaje
+      tags: [Viajes]
+      security: [{ UserIdHeader: [] }]
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/ViajeId'
+      responses:
+        '200':
+          description: Resumen del viaje
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResumenViajeResponse'
+        '403':
+          description: Sin acceso a este viaje (FORBIDDEN)
+        '404':
+          description: Viaje no encontrado (VIAJE_NOT_FOUND)
+        '409':
+          description: El viaje todavía no finalizó (TRIP_NOT_FINISHED)
 
 components:
   securitySchemes:
@@ -622,6 +706,59 @@ components:
           type: string
           format: date-time
 
+    ResumenViajeResponse:
+      type: object
+      properties:
+        viaje:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            nombre: { type: string, nullable: true }
+            es_grupal: { type: boolean }
+            tipo_actividad:
+              type: string
+              enum: [moto, bici, running, trekking]
+            fecha_inicio_real: { type: string, format: date-time, nullable: true }
+            fecha_fin_real: { type: string, format: date-time, nullable: true }
+        totales:
+          type: object
+          properties:
+            duracion_segundos:
+              type: integer
+              nullable: true
+              description: fecha_fin_real - fecha_inicio_real.
+            distancia_planeada_m:
+              type: number
+              nullable: true
+              description: Null si el viaje nunca tuvo ruta configurada.
+            distancia_real_m:
+              type: number
+              nullable: true
+              description: Traza del creador (no la suma de integrantes). Null si no hubo GPS.
+            cantidad_integrantes:
+              type: integer
+              description: Confirmados y salidos, más el creador.
+            cantidad_paradas:
+              type: integer
+              description: Siempre 0 por ahora; no existe tabla de paradas reales (E05/E06).
+        mis_metricas:
+          type: object
+          description: Solo del usuario que consulta. Nunca de terceros (RN-070).
+          properties:
+            distancia_m: { type: number, nullable: true }
+            tiempo_movimiento_seg: { type: integer, nullable: true }
+            velocidad_promedio_kmh: { type: number, nullable: true }
+            sali_antes:
+              type: boolean
+              description: true si abandonó el viaje antes de que el líder lo cerrara.
+            fecha_salida: { type: string, format: date-time, nullable: true }
+        ranking_habilitado:
+          type: boolean
+          description: >-
+            RN-070. false cuando tipo_actividad es `moto`: esa modalidad está excluida
+            de rankings y de cualquier comparación de velocidad.
+        generado_en: { type: string, format: date-time, nullable: true }
+
     ParticipanteViaje:
       type: object
       properties:
@@ -633,12 +770,19 @@ components:
               format: uuid
             nombre:
               type: string
+            apellido:
+              type: string
+              nullable: true
+              description: Necesario para armar las iniciales del integrante en el mapa de monitoreo (E04).
             email:
               type: string
               format: email
         estado:
           type: string
-          enum: [pendiente, confirmado, rechazado]
+          enum: [pendiente, confirmado, rechazado, salido]
+          description: >-
+            `salido` = abandonó el viaje en curso (salida blanda). Conserva su
+            histórico y figura en el resumen.
         origen:
           type: string
           enum: [creador, qr, link, grupo, amigo]
@@ -709,6 +853,10 @@ components:
                   format: uuid
                 nombre:
                   type: string
+                apellido:
+                  type: string
+                  nullable: true
+                  description: Necesario para armar las iniciales del creador en el mapa de monitoreo (E04).
                 email:
                   type: string
                   format: email

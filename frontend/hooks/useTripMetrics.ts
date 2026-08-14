@@ -1,16 +1,26 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { DeviceEventEmitter } from 'react-native'
 
 import { formatDistanceKm, formatElapsedHms, haversineDistanceM } from '@/lib/geo/haversine'
+import { loadTripMetrics, saveTripMetrics } from '@/lib/tripMetricsStore'
 
 type Options = {
+  viajeId: string
   userId: string
   fechaInicioReal: string | null
 }
 
-export function useTripMetrics({ userId, fechaInicioReal }: Options) {
+/** Cada cuánto bajamos el acumulado a disco. Un tick GPS llega cada 5 s. */
+const PERSIST_INTERVAL_MS = 10000
+
+export function useTripMetrics({ viajeId, userId, fechaInicioReal }: Options) {
   const [elapsedLabel, setElapsedLabel] = useState('00:00:00')
   const [distanceM, setDistanceM] = useState(0)
+
+  // Espejos para poder persistir sin re-suscribir el listener en cada tick.
+  const distanceRef = useRef(0)
+  const prevRef = useRef<{ lat: number; lng: number } | null>(null)
+  const hydratedRef = useRef(false)
 
   useEffect(() => {
     if (!fechaInicioReal) {
@@ -27,25 +37,79 @@ export function useTripMetrics({ userId, fechaInicioReal }: Options) {
     return () => clearInterval(id)
   }, [fechaInicioReal])
 
+  // Hidrata el acumulado guardado antes de empezar a sumar (AC3: distancia
+  // desde el punto de partida, no desde que se montó la pantalla).
   useEffect(() => {
-    if (!userId.trim()) return
-    let prev: { lat: number; lng: number } | null = null
+    let cancelled = false
+    hydratedRef.current = false
+    distanceRef.current = 0
+    prevRef.current = null
+    setDistanceM(0)
+
+    void (async () => {
+      const snap = await loadTripMetrics(viajeId, userId.trim())
+      if (cancelled) return
+      distanceRef.current = snap.distanceM
+      prevRef.current =
+        snap.lastLat != null && snap.lastLng != null
+          ? { lat: snap.lastLat, lng: snap.lastLng }
+          : null
+      setDistanceM(snap.distanceM)
+      hydratedRef.current = true
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [viajeId, userId])
+
+  useEffect(() => {
+    const uid = userId.trim()
+    if (!uid || !viajeId) return
 
     const sub = DeviceEventEmitter.addListener(
       'mesh:location_tick',
       (p: { userId: string; lat: number; lng: number }) => {
-        if (p.userId !== userId) return
+        if (p.userId !== uid) return
+        // Evita sumar contra un `prev` vacío mientras se hidrata desde disco.
+        if (!hydratedRef.current) return
+
+        const prev = prevRef.current
         if (prev) {
           const delta = haversineDistanceM(prev.lat, prev.lng, p.lat, p.lng)
           if (delta > 0 && delta < 500) {
-            setDistanceM((d) => d + delta)
+            distanceRef.current += delta
+            setDistanceM(distanceRef.current)
           }
         }
-        prev = { lat: p.lat, lng: p.lng }
+        prevRef.current = { lat: p.lat, lng: p.lng }
       }
     )
     return () => sub.remove()
-  }, [userId])
+  }, [viajeId, userId])
+
+  // Persiste con throttle y también al desmontar, para no castigar AsyncStorage
+  // con una escritura cada 5 segundos.
+  useEffect(() => {
+    const uid = userId.trim()
+    if (!uid || !viajeId) return
+
+    const persist = () => {
+      if (!hydratedRef.current) return
+      const prev = prevRef.current
+      void saveTripMetrics(viajeId, uid, {
+        distanceM: distanceRef.current,
+        lastLat: prev?.lat ?? null,
+        lastLng: prev?.lng ?? null,
+      })
+    }
+
+    const id = setInterval(persist, PERSIST_INTERVAL_MS)
+    return () => {
+      clearInterval(id)
+      persist()
+    }
+  }, [viajeId, userId])
 
   return {
     elapsedLabel,

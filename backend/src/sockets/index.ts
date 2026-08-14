@@ -26,10 +26,24 @@ export function registerSocketHandlers(io: Server): void {
   io.on('connection', (socket) => {
     console.log(`Client connected: ${socket.id} user=${socket.data.userId}`)
 
-    socket.on('join_viaje', (payload: unknown) => {
+    // RN-030: el backend autoriza. Sin este chequeo cualquier usuario autenticado
+    // podía unirse a la room de un viaje ajeno y recibir las posiciones GPS del grupo.
+    socket.on('join_viaje', (payload: unknown, ack?: (r: unknown) => void) => {
       const p = joinPayload.safeParse(payload)
-      if (!p.success) return
-      void socket.join(`viaje:${p.data.viajeId}`)
+      if (!p.success) {
+        ack?.({ ok: false, error: 'INVALID_PAYLOAD' })
+        return
+      }
+      void viajesService
+        .assertPuedeVerEnVivo(p.data.viajeId, socket.data.userId)
+        .then(async () => {
+          await socket.join(`viaje:${p.data.viajeId}`)
+          ack?.({ ok: true })
+        })
+        .catch((err: unknown) => {
+          const msg = err instanceof HttpError ? err.code ?? err.message : 'ERROR'
+          ack?.({ ok: false, error: msg })
+        })
     })
 
     socket.on('leave_viaje', (payload: unknown) => {

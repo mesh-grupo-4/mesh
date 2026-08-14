@@ -12,7 +12,7 @@ import {
 import { meshAlert } from '@/lib/meshAlert';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { Feather } from '@expo/vector-icons'
-import { router, useFocusEffect } from 'expo-router'
+import { router, Stack, useFocusEffect } from 'expo-router'
 import { useAuth } from '@/context/AuthContext'
 import { resolveBackendUserId } from '@/lib/apiClient'
 import { listarGrupos, type GrupoListItemApi } from '@/lib/gruposApi'
@@ -189,6 +189,9 @@ export default function CrearViajeScreen() {
       style={[styles.container, { backgroundColor: theme.background }]}
       contentContainerStyle={styles.content}
     >
+      {/* Sin este título el header del Stack muestra el nombre de la ruta ("crear").
+          No lo ocultamos como en `live.tsx` porque esta pantalla no tiene botón de volver propio. */}
+      <Stack.Screen options={{ title: 'Nuevo viaje' }} />
       <Text style={[styles.titulo, { color: theme.text }]}>Nuevo viaje</Text>
       <Text style={[styles.hint, { color: theme.textDim }]}>
         Elegí la actividad, la fecha y, si querés, grupos o amigos para invitar (RN-028).

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { connectMeshSocket } from '@/lib/meshSocket'
 import { getSupabase, isSupabaseConfigured } from '@/lib/supabase'
@@ -11,7 +11,21 @@ export type MemberLocation = {
   precision: number | null
   updatedAt: string
   nombre: string
+  /** La última posición conocida quedó vieja: el integrante perdió señal. */
+  isStale: boolean
 }
+
+/** Lo que guardamos en estado; `isStale` se deriva del reloj en cada render. */
+type MemberSnapshot = Omit<MemberLocation, 'isStale'>
+
+/** Refresco de respaldo con Realtime sano. */
+const POLL_OK_MS = 15000
+/** Refresco de respaldo con Realtime caído: debe quedar bajo los 10 s de RN-032. */
+const POLL_DEGRADED_MS = 8000
+/** Cada cuánto reevaluamos la frescura de las posiciones. */
+const STALE_CHECK_MS = 10000
+/** Seis ciclos GPS perdidos (RN-031: un ping cada 5 s). */
+const STALE_AFTER_MS = 30000
 
 type Options = {
   viajeId: string
@@ -19,7 +33,7 @@ type Options = {
   nameByUserId?: Record<string, string>
 }
 
-function rowToMember(row: UbicacionVivaSnapshotApi, names: Record<string, string>): MemberLocation {
+function rowToMember(row: UbicacionVivaSnapshotApi, names: Record<string, string>): MemberSnapshot {
   return {
     usuarioId: row.usuarioId,
     lat: row.lat,
@@ -33,7 +47,7 @@ function rowToMember(row: UbicacionVivaSnapshotApi, names: Record<string, string
 function dbRowToMember(
   row: Record<string, unknown>,
   names: Record<string, string>
-): MemberLocation | null {
+): MemberSnapshot | null {
   const usuarioId = String(row.usuario_id ?? '')
   const viajeId = String(row.viaje_id ?? '')
   if (!usuarioId || !viajeId) return null
@@ -56,7 +70,7 @@ function socketPayloadToMember(
     recordedAt: string
   },
   names: Record<string, string>
-): MemberLocation {
+): MemberSnapshot {
   return {
     usuarioId: payload.usuarioId,
     lat: payload.lat,
@@ -68,12 +82,13 @@ function socketPayloadToMember(
 }
 
 export function useLiveLocations({ viajeId, userId, nameByUserId = {} }: Options) {
-  const [members, setMembers] = useState<Record<string, MemberLocation>>({})
+  const [members, setMembers] = useState<Record<string, MemberSnapshot>>({})
   const [realtimeOk, setRealtimeOk] = useState(true)
+  const [staleTick, setStaleTick] = useState(0)
   const namesRef = useRef(nameByUserId)
   namesRef.current = nameByUserId
 
-  const mergeMember = useCallback((member: MemberLocation) => {
+  const mergeMember = useCallback((member: MemberSnapshot) => {
     setMembers((prev) => ({ ...prev, [member.usuarioId]: member }))
   }, [])
 
@@ -81,7 +96,7 @@ export function useLiveLocations({ viajeId, userId, nameByUserId = {} }: Options
     if (!viajeId || !userId.trim()) return
     try {
       const rows = await listarUbicacionesVivas(viajeId, userId)
-      const next: Record<string, MemberLocation> = {}
+      const next: Record<string, MemberSnapshot> = {}
       for (const row of rows) {
         next[row.usuarioId] = rowToMember(row, namesRef.current)
       }
@@ -95,10 +110,23 @@ export function useLiveLocations({ viajeId, userId, nameByUserId = {} }: Options
     void loadSnapshot()
   }, [loadSnapshot])
 
+  // Refresco de respaldo. Vive en su propio efecto para que cambiar el período
+  // no re-suscriba el socket ni el canal de Supabase.
   useEffect(() => {
     if (!viajeId || !userId.trim()) return
+    const periodo = realtimeOk ? POLL_OK_MS : POLL_DEGRADED_MS
+    const poll = setInterval(() => void loadSnapshot(), periodo)
+    return () => clearInterval(poll)
+  }, [viajeId, userId, realtimeOk, loadSnapshot])
 
-    const poll = setInterval(() => void loadSnapshot(), 15000)
+  // Reevalúa la frescura aunque no lleguen posiciones nuevas.
+  useEffect(() => {
+    const id = setInterval(() => setStaleTick((t) => t + 1), STALE_CHECK_MS)
+    return () => clearInterval(id)
+  }, [])
+
+  useEffect(() => {
+    if (!viajeId || !userId.trim()) return
 
     let socketCleanup: (() => void) | undefined
     let supabaseCleanup: (() => void) | undefined
@@ -106,7 +134,11 @@ export function useLiveLocations({ viajeId, userId, nameByUserId = {} }: Options
     void (async () => {
       try {
         const sock = await connectMeshSocket()
-        sock.emit('join_viaje', { viajeId })
+        sock.emit('join_viaje', { viajeId }, (res?: { ok: boolean; error?: string }) => {
+          if (__DEV__ && res && !res.ok) {
+            console.warn(`[useLiveLocations] join_viaje rechazado: ${res.error}`)
+          }
+        })
 
         const onUbi = (payload: {
           viajeId: string
@@ -170,11 +202,10 @@ export function useLiveLocations({ viajeId, userId, nameByUserId = {} }: Options
     }
 
     return () => {
-      clearInterval(poll)
       socketCleanup?.()
       supabaseCleanup?.()
     }
-  }, [viajeId, userId, loadSnapshot, mergeMember])
+  }, [viajeId, userId, mergeMember])
 
   useEffect(() => {
     setMembers((prev) => {
@@ -191,5 +222,24 @@ export function useLiveLocations({ viajeId, userId, nameByUserId = {} }: Options
     })
   }, [nameByUserId])
 
-  return { members, memberList: Object.values(members), realtimeOk }
+  const memberList = useMemo<MemberLocation[]>(() => {
+    const ahora = Date.now()
+    return Object.values(members).map((m) => {
+      const ts = new Date(m.updatedAt).getTime()
+      return {
+        ...m,
+        isStale: Number.isFinite(ts) ? ahora - ts > STALE_AFTER_MS : false,
+      }
+    })
+    // `staleTick` fuerza el recálculo periódico aunque no cambien las posiciones.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [members, staleTick])
+
+  const staleByUserId = useMemo(() => {
+    const map: Record<string, boolean> = {}
+    for (const m of memberList) map[m.usuarioId] = m.isStale
+    return map
+  }, [memberList])
+
+  return { members, memberList, staleByUserId, realtimeOk }
 }

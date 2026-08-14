@@ -18,6 +18,7 @@ viajesRouter.get('/invitaciones/pendientes', requireUser, c.listarInvitacionesPe
 viajesRouter.post('/:viajeId/unirse-qr', requireUser, c.unirseQr)
 viajesRouter.post('/:viajeId/invitacion/responder', requireUser, c.responderInvitacion)
 viajesRouter.get('/:viajeId/participantes', requireUser, c.listarParticipantes)
+viajesRouter.get('/:viajeId/resumen', requireUser, c.resumen)
 viajesRouter.get('/:viajeId', requireUser, c.detalle)
 viajesRouter.patch('/:viajeId', requireUser, c.actualizar)
 viajesRouter.delete('/:viajeId', requireUser, c.eliminar)
