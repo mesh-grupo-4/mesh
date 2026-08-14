@@ -4,14 +4,16 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  ActivityIndicator, 
   Pressable,
 } from 'react-native';
 import { meshAlert } from '@/lib/meshAlert';
 import { useAuth, ActividadPreferida } from '@/context/AuthContext';
 import { router, useFocusEffect } from 'expo-router';
 import { resolveBackendUserId } from '@/lib/apiClient';
-import { listarSolicitudesAmistadPendientes } from '@/lib/amistadesApi';
+import { listarAmigos, listarSolicitudesAmistadPendientes } from '@/lib/amistadesApi';
+import { listarGrupos } from '@/lib/gruposApi';
+import { obtenerEstadisticasUsuario } from '@/lib/viajesApi';
+import { formatKmCompact } from '@/lib/format';
 import { Btn, Field, Chip, ChipRow, Avatar, TopBar, useTheme } from '@/components/MeshUI';
 import { Feather } from '@expo/vector-icons';
 
@@ -21,6 +23,13 @@ const ACTIVIDADES: { valor: ActividadPreferida; etiqueta: string; icono: keyof t
   { valor: 'running', etiqueta: 'Running', icono: 'zap' },
   { valor: 'trekking', etiqueta: 'Trekking', icono: 'map' },
 ];
+
+type StatsPerfil = {
+  viajes: number;
+  grupos: number;
+  amigos: number;
+  distancia_m: number;
+};
 
 export default function PerfilScreen() {
   const { user, profile, updateUserProfile, logout, backendUserId } = useAuth();
@@ -35,21 +44,42 @@ export default function PerfilScreen() {
   const [loggingOut, setLoggingOut] = useState(false);
   const [solicitudesPendientes, setSolicitudesPendientes] = useState(0);
   const [modoEdicion, setModoEdicion] = useState(false);
+  const [stats, setStats] = useState<StatsPerfil | null>(null);
+  const [cargandoStats, setCargandoStats] = useState(true);
 
-  const cargarSolicitudes = useCallback(async () => {
+  const cargarStats = useCallback(async () => {
+    let userId: string;
     try {
-      const userId = resolveBackendUserId(backendUserId);
-      const solicitudes = await listarSolicitudesAmistadPendientes(userId);
-      setSolicitudesPendientes(solicitudes.length);
+      userId = resolveBackendUserId(backendUserId);
     } catch {
       setSolicitudesPendientes(0);
+      setStats({ viajes: 0, grupos: 0, amigos: 0, distancia_m: 0 });
+      setCargandoStats(false);
+      return;
     }
+
+    setCargandoStats(true);
+    const [estadisticas, grupos, amigos, solicitudes] = await Promise.all([
+      obtenerEstadisticasUsuario(userId).catch(() => null),
+      listarGrupos(userId).catch(() => null),
+      listarAmigos(userId).catch(() => null),
+      listarSolicitudesAmistadPendientes(userId).catch(() => null),
+    ]);
+
+    setStats({
+      viajes: estadisticas?.viajes_finalizados ?? 0,
+      grupos: grupos?.length ?? 0,
+      amigos: amigos?.length ?? 0,
+      distancia_m: estadisticas?.distancia_total_m ?? 0,
+    });
+    setSolicitudesPendientes(solicitudes?.length ?? 0);
+    setCargandoStats(false);
   }, [backendUserId]);
 
   useFocusEffect(
     useCallback(() => {
-      void cargarSolicitudes();
-    }, [cargarSolicitudes])
+      void cargarStats();
+    }, [cargarStats])
   );
 
   useEffect(() => {
@@ -145,20 +175,54 @@ export default function PerfilScreen() {
           </View>
         </View>
 
-        {/* Bloque de estadísticas del mockup */}
+        {/* Bloque de estadísticas */}
         <View style={[styles.statsCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <View style={styles.statBox}>
-            <Text style={[styles.statValue, { color: theme.text }]}>--</Text>
-            <Text style={[styles.statLabel, { color: theme.textMute }]}>Viajes</Text>
-          </View>
-          <View style={[styles.statBox, styles.borderLeft, { borderLeftColor: theme.border }]}>
-            <Text style={[styles.statValue, { color: theme.text }]}>--</Text>
-            <Text style={[styles.statLabel, { color: theme.textMute }]}>Grupos</Text>
-          </View>
-          <View style={[styles.statBox, styles.borderLeft, { borderLeftColor: theme.border }]}>
-            <Text style={[styles.statValue, { color: theme.text }]}>1.2k</Text>
-            <Text style={[styles.statLabel, { color: theme.textMute }]}>Km</Text>
-          </View>
+          {(
+            [
+              {
+                key: 'viajes',
+                label: 'Viajes',
+                value: cargandoStats && !stats ? '·' : String(stats?.viajes ?? 0),
+                onPress: () => router.push('/(tabs)/two'),
+              },
+              {
+                key: 'grupos',
+                label: 'Grupos',
+                value: cargandoStats && !stats ? '·' : String(stats?.grupos ?? 0),
+                onPress: () => router.push('/(tabs)/grupos'),
+              },
+              {
+                key: 'amigos',
+                label: 'Amigos',
+                value: cargandoStats && !stats ? '·' : String(stats?.amigos ?? 0),
+                onPress: () => router.push('/amigos'),
+              },
+              {
+                key: 'km',
+                label: 'Km',
+                value: cargandoStats && !stats ? '·' : formatKmCompact(stats?.distancia_m ?? 0),
+                onPress: () => router.push('/(tabs)/two'),
+              },
+            ] as const
+          ).map((celdas, index) => (
+            <Pressable
+              key={celdas.key}
+              style={({ pressed }) => [
+                styles.statBox,
+                index > 0 && styles.borderLeft,
+                index > 0 && { borderLeftColor: theme.border },
+                pressed && { opacity: 0.7 },
+              ]}
+              onPress={celdas.onPress}
+              accessibilityRole="button"
+              accessibilityLabel={`${celdas.label}: ${celdas.value}`}
+            >
+              <Text style={[styles.statValue, { color: theme.text }]} numberOfLines={1}>
+                {celdas.value}
+              </Text>
+              <Text style={[styles.statLabel, { color: theme.textMute }]}>{celdas.label}</Text>
+            </Pressable>
+          ))}
         </View>
 
         {/* Datos Personales */}
@@ -235,6 +299,24 @@ export default function PerfilScreen() {
                 <Text style={styles.badgeText}>{solicitudesPendientes}</Text>
               </View>
             )}
+          </View>
+          <Feather name="chevron-right" size={20} color={theme.textMute} />
+        </Pressable>
+
+        <Pressable
+          style={({ pressed }) => [
+            styles.linkAmigos,
+            {
+              backgroundColor: pressed ? theme.surface2 : theme.surface,
+              borderColor: theme.border,
+              marginTop: 10,
+            },
+          ]}
+          onPress={() => router.push('/mis-rutas')}
+        >
+          <View style={styles.linkAmigosContent}>
+            <Feather name="map" size={18} color={theme.accent} style={styles.amigosIcon} />
+            <Text style={[styles.linkAmigosText, { color: theme.text }]}>Mis rutas</Text>
           </View>
           <Feather name="chevron-right" size={20} color={theme.textMute} />
         </Pressable>
@@ -337,15 +419,15 @@ const styles = StyleSheet.create({
     borderLeftWidth: 1,
   },
   statValue: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '700',
     fontFamily: 'SpaceMono',
   },
   statLabel: {
-    fontSize: 11,
+    fontSize: 10,
     fontFamily: 'SpaceMono',
     fontWeight: '700',
-    letterSpacing: 0.8,
+    letterSpacing: 0.6,
     textTransform: 'uppercase',
     marginTop: 4,
   },

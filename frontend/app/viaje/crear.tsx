@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import {
   View,
   Text,
@@ -12,12 +12,14 @@ import {
 import { meshAlert } from '@/lib/meshAlert';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { Feather } from '@expo/vector-icons'
-import { router, Stack, useFocusEffect } from 'expo-router'
+import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router'
 import { useAuth } from '@/context/AuthContext'
 import { resolveBackendUserId } from '@/lib/apiClient'
 import { listarGrupos, type GrupoListItemApi } from '@/lib/gruposApi'
 import { listarAmigos, type AmigoApi } from '@/lib/amistadesApi'
 import { crearViaje, type TipoActividadApi } from '@/lib/viajesApi'
+import { ajustarSiQuedoEnPasado, esFechaFutura } from '@/lib/fechaProgramada'
+import { aCamposArg, ahoraEnCamposArg, desdeCamposArg, formatearEnArg } from '@/lib/tiempoArg'
 import {
   ACTIVIDADES,
   actividadInicialDesdePerfil,
@@ -26,15 +28,18 @@ import {
 import { Btn, ActivityTile, useTheme } from '@/components/MeshUI'
 import { Collapsible } from '@/components/Collapsible'
 
+const MSG_FECHA_PASADA = 'La fecha y hora programadas deben ser futuras.'
+
+/** Dentro de una semana, a las 9:00 de la mañana hora argentina. */
 function fechaPorDefecto(): Date {
-  const d = new Date()
-  d.setDate(d.getDate() + 7)
-  d.setHours(9, 0, 0, 0)
-  return d
+  const campos = ahoraEnCamposArg()
+  campos.setDate(campos.getDate() + 7)
+  campos.setHours(9, 0, 0, 0)
+  return desdeCamposArg(campos)
 }
 
 function formatearFechaHora(d: Date): string {
-  return d.toLocaleString('es-AR', {
+  return formatearEnArg(d, {
     weekday: 'short',
     day: 'numeric',
     month: 'long',
@@ -46,13 +51,28 @@ function formatearFechaHora(d: Date): string {
 export default function CrearViajeScreen() {
   const theme = useTheme()
   const { backendUserId, profile } = useAuth()
+  const params = useLocalSearchParams<{
+    plantillaId?: string | string[]
+    tipoActividad?: string | string[]
+  }>()
+  const plantillaId = useMemo(() => {
+    const p = params.plantillaId
+    return (Array.isArray(p) ? p[0] : p)?.trim() || null
+  }, [params.plantillaId])
+  const tipoDesdePlantilla = useMemo(() => {
+    const t = params.tipoActividad
+    const raw = (Array.isArray(t) ? t[0] : t)?.trim()
+    if (raw === 'moto' || raw === 'bici' || raw === 'running' || raw === 'trekking') return raw
+    return null
+  }, [params.tipoActividad])
+
   const [grupos, setGrupos] = useState<GrupoListItemApi[]>([])
   const [amigos, setAmigos] = useState<AmigoApi[]>([])
   const [cargandoInvitables, setCargandoInvitables] = useState(true)
   const [nombre, setNombre] = useState('')
   const [nombreFocus, setNombreFocus] = useState(false)
   const [tipoActividad, setTipoActividad] = useState<TipoActividadApi>(() =>
-    actividadInicialDesdePerfil(profile?.actividadPreferida)
+    tipoDesdePlantilla ?? actividadInicialDesdePerfil(profile?.actividadPreferida)
   )
   const [esGrupal, setEsGrupal] = useState(true)
   const [gruposSeleccionados, setGruposSeleccionados] = useState<Set<string>>(new Set())
@@ -114,24 +134,40 @@ export default function CrearViajeScreen() {
       return
     }
 
-    if (Platform.OS === 'android') {
+    // El picker nativo lee y escribe en la zona del dispositivo, así que lo que
+    // devuelve se interpreta como campos de hora argentina (RN-105).
+    const campos = aCamposArg(fecha)
+
+    // Android y web: fecha y hora en dos pasos. El time picker no respeta minimumDate.
+    if (Platform.OS !== 'ios') {
       if (pickerMode === 'date') {
-        const merged = new Date(fecha)
-        merged.setFullYear(selected.getFullYear(), selected.getMonth(), selected.getDate())
-        setFecha(merged)
+        campos.setFullYear(selected.getFullYear(), selected.getMonth(), selected.getDate())
+        setFecha(ajustarSiQuedoEnPasado(desdeCamposArg(campos)))
         setPickerMode('time')
         // el picker sigue abierto para elegir la hora
       } else {
-        const merged = new Date(fecha)
-        merged.setHours(selected.getHours(), selected.getMinutes(), 0, 0)
-        setFecha(merged)
+        campos.setHours(selected.getHours(), selected.getMinutes(), 0, 0)
+        const instante = desdeCamposArg(campos)
         setShowPicker(false)
+        if (!esFechaFutura(instante)) {
+          meshAlert('Fecha inválida', MSG_FECHA_PASADA)
+          return
+        }
+        setFecha(instante)
       }
-    } else {
-      // iOS: modo datetime en una sola pasada
-      setFecha(selected)
+      return
     }
+
+    // iOS: modo datetime en una sola pasada (minimumDate a veces no bloquea el spinner)
+    const instante = desdeCamposArg(selected)
+    if (!esFechaFutura(instante)) {
+      meshAlert('Fecha inválida', MSG_FECHA_PASADA)
+      return
+    }
+    setFecha(instante)
   }
+
+  const fechaInvalida = !esFechaFutura(fecha)
 
   const handleCrear = async () => {
     if (!nombre.trim()) {
@@ -139,8 +175,8 @@ export default function CrearViajeScreen() {
       return
     }
 
-    if (fecha.getTime() <= Date.now()) {
-      meshAlert('Fecha inválida', 'La fecha programada debe ser futura.')
+    if (!esFechaFutura(fecha)) {
+      meshAlert('Fecha inválida', MSG_FECHA_PASADA)
       return
     }
 
@@ -163,6 +199,7 @@ export default function CrearViajeScreen() {
           amigoIds: esGrupal ? [...amigosSeleccionados] : [],
           tipoActividad,
           fechaProgramada: fecha,
+          rutaPlantillaId: plantillaId,
         },
         userId
       )
@@ -170,7 +207,9 @@ export default function CrearViajeScreen() {
       const msg =
         viaje.invitaciones_enviadas && viaje.invitaciones_enviadas > 0
           ? `Viaje creado. Se enviaron ${viaje.invitaciones_enviadas} invitaciones pendientes.`
-          : 'Viaje creado correctamente.'
+          : viaje.ruta_precargada
+            ? 'Viaje creado con la ruta de tu plantilla. Podés ajustarla antes de iniciar.'
+            : 'Viaje creado correctamente.'
 
       meshAlert('Listo', msg)
       router.replace({
@@ -197,6 +236,27 @@ export default function CrearViajeScreen() {
         Elegí la actividad, la fecha y, si querés, grupos o amigos para invitar (RN-028).
       </Text>
 
+      {plantillaId ? (
+        <View
+          style={{
+            backgroundColor: theme.surface,
+            borderColor: theme.border,
+            borderWidth: 1,
+            borderRadius: 10,
+            padding: 12,
+            marginBottom: 16,
+            flexDirection: 'row',
+            gap: 10,
+            alignItems: 'center',
+          }}
+        >
+          <Feather name="map" size={18} color={theme.accent} />
+          <Text style={{ color: theme.textDim, flex: 1, fontWeight: '600', fontSize: 13 }}>
+            Vas a crear el viaje con una ruta de Mis rutas. Podés ajustarla después.
+          </Text>
+        </View>
+      ) : null}
+
       <Text style={[styles.seccion, { color: theme.text }]}>Nombre del viaje</Text>
       <TextInput
         style={[
@@ -220,20 +280,30 @@ export default function CrearViajeScreen() {
 
       <Text style={[styles.seccion, { color: theme.text }]}>Fecha programada</Text>
       <Pressable
-        style={[styles.fechaBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
+        style={[
+          styles.fechaBtn,
+          {
+            backgroundColor: theme.surface,
+            borderColor: fechaInvalida ? theme.danger : theme.border,
+          },
+        ]}
         onPress={abrirPicker}
         disabled={guardando}
       >
-        <Feather name="calendar" size={18} color={theme.accent} />
+        <Feather name="calendar" size={18} color={fechaInvalida ? theme.danger : theme.accent} />
         <Text style={[styles.fechaTexto, { color: theme.text }]}>{formatearFechaHora(fecha)}</Text>
         <Feather name="edit-2" size={15} color={theme.textMute} />
       </Pressable>
+      {fechaInvalida && (
+        <Text style={[styles.fechaError, { color: theme.danger }]}>{MSG_FECHA_PASADA}</Text>
+      )}
       {showPicker && (
         <DateTimePicker
-          value={fecha}
+          key={pickerMode}
+          value={aCamposArg(esFechaFutura(fecha) ? fecha : ajustarSiQuedoEnPasado(fecha))}
           mode={Platform.OS === 'ios' ? 'datetime' : pickerMode}
           display={Platform.OS === 'ios' ? 'inline' : 'default'}
-          minimumDate={new Date()}
+          minimumDate={ahoraEnCamposArg()}
           onChange={onChangeFecha}
         />
       )}
@@ -400,7 +470,7 @@ export default function CrearViajeScreen() {
         block
         size="lg"
         onPress={() => void handleCrear()}
-        disabled={guardando}
+        disabled={guardando || fechaInvalida}
         loading={guardando}
         icon="map"
         style={{ marginTop: 24 }}
@@ -454,6 +524,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   fechaTexto: { flex: 1, fontSize: 15, fontWeight: '600', textTransform: 'capitalize' },
+  fechaError: { fontSize: 13, marginTop: 4 },
   listoBtn: { alignSelf: 'flex-end', marginTop: 8 },
   collapsibles: { gap: 10, marginTop: 8 },
   fila: {

@@ -133,6 +133,14 @@ El documento completo está en `tesis-brain/reglas-de-negocio.md`. A continuaci�
 - Latencia máxima de actualización en mapa: **10 segundos** (RN-032).
 - Soportar hasta **150–200 usuarios concurrentes** por viaje (RN-033).
 
+### Fecha y hora — UTC-3 (RN-105)
+Toda fecha y hora que ve el usuario se expresa en **hora de Argentina (UTC-3)**, sin importar la zona del dispositivo ni la del servidor. Offset fijo: Argentina no aplica horario de verano desde 2009.
+
+- Se **almacena y transporta en UTC** (ISO 8601 / `timestamptz`). La conversión ocurre solo en los bordes (RN-106).
+- Frontend: usar siempre `frontend/lib/tiempoArg.ts` (`formatearEnArg`, `aCamposArg`, `desdeCamposArg`). **No** llamar a `toLocaleString` / `toLocaleDateString` directamente en componentes.
+- Los date pickers nativos trabajan en la zona del dispositivo: convertir con `aCamposArg` al pasarles un valor y con `desdeCamposArg` al leer lo que devuelven.
+- La fecha programada de un viaje debe ser **futura**, validada en frontend y backend (`FECHA_PASADA`, RN-107).
+
 ### Estados del integrante durante el viaje
 ```
 [en_movimiento] ↔ [detenido_voluntario]
@@ -326,6 +334,7 @@ Antes de generar o modificar código, verificar:
 - [ ] ¿La autorización se valida en backend, no solo en frontend?
 - [ ] ¿Uso PostGIS para cálculos espaciales en lugar de JS?
 - [ ] ¿Los tipos espaciales son POINT/LINESTRING de PostGIS?
+- [ ] ¿Toda fecha/hora mostrada pasa por `lib/tiempoArg.ts` (UTC-3, RN-105)?
 - [ ] ¿Validé la entrada con Zod?
 - [ ] ¿Respeté la arquitectura de capas? (Controller → Service → Repository)
 - [ ] ¿Mapas usan OpenStreetMap, no Google Maps ni Mapbox?

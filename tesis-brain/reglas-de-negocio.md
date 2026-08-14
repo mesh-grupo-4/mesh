@@ -182,6 +182,12 @@ Si el PO prefiere un criterio más conservador, la alternativa es devolver
 | RN-082 | La valoración es binaria: "Recomiendo" / "No recomiendo". Un usuario solo puede valorar una vez por recorrido. |
 | RN-083 | **No se permiten comentarios de texto** para mantener la simplicidad y evitar moderación. |
 | RN-084 | Los recorridos publicados son importables como base para nuevos viajes. |
+| RN-085 | El **link de ruta** comparte solo el **snapshot planificado** congelado al generar el token (geometría + postas + tipo de actividad). No comparte integrantes, ubicación en vivo, alertas ni métricas. Distinto del QR de unirse al viaje (RN-015/016). |
+| RN-086 | Importar crea una **plantilla copia** en el perfil del receptor. Editar o eliminar el viaje/ruta fuente **no** altera plantillas ya importadas. El link sigue resolviendo su snapshot aunque se borre la fuente. |
+| RN-087 | Pueden obtener el link los integrantes con estado `confirmado` (incluye al creador). Solo el **creador** del viaje puede **revocar** el token. El link **no expira** al pasar a `en_curso`/`finalizado`. |
+| RN-088 | El token es **opaco** y único por ruta compartida; no se usa el `viajeId` como secreto. Reimportar el mismo link es **idempotente** por `(usuario, ruta_compartida)`. |
+
+**Contrato API:** OpenAPI en `backend/openapi/rutas-compartidas.yaml`. Deep link: `mesh://ruta?token=...`. US: [`us-compartir-ruta.md`](us-compartir-ruta.md).
 
 ### 2.10 Reglas de Asistencia IA
 
@@ -199,6 +205,24 @@ Si el PO prefiere un criterio más conservador, la alternativa es devolver
 | RN-100 | Si la API externa no está disponible, el mapa base funciona sin interrupciones. |
 | RN-101 | Los reportes comunitarios de incidentes tienen vigencia limitada y desaparecen automáticamente al vencerse. |
 | RN-102 | Los usuarios pueden marcar reportes como resueltos. |
+
+### 2.12 Reglas Transversales de Fecha y Hora
+
+| ID | Regla |
+|---|---|
+| RN-105 | **Toda fecha y hora del sistema se expresa en la zona horaria de Argentina (UTC-3)**, sin importar la zona configurada en el dispositivo o en el servidor. Aplica a la fecha programada de un viaje, horas de inicio y fin, marcas de tiempo de GPS, alertas e historial. Argentina no aplica horario de verano desde 2009, por lo que el offset es fijo. |
+| RN-106 | El **almacenamiento y el transporte** siguen usando instantes absolutos en **UTC** (ISO 8601, `timestamptz` en PostgreSQL). La conversión a UTC-3 ocurre únicamente en los bordes: al presentar una fecha al usuario y al interpretar lo que el usuario elige en un selector de fecha/hora. Nunca se guardan horas "locales" sin zona. |
+| RN-107 | La **fecha programada de un viaje debe ser futura** respecto del instante actual. Se valida en frontend (bloqueo del selector y del botón de crear) y en backend (schema Zod + servicio, error `FECHA_PASADA`). Ver RN-028. |
+
+#### Implementación de RN-105
+
+- **Frontend:** `frontend/lib/tiempoArg.ts` centraliza la conversión. `formatearEnArg()` para mostrar;
+  `aCamposArg()` / `desdeCamposArg()` para traducir entre el instante real y lo que muestra un
+  date picker nativo (que siempre trabaja en la zona del dispositivo). Ningún componente debe
+  llamar a `toLocaleString` directamente.
+- **Backend:** `backend/src/config/timezone.ts` fija `TZ` del proceso para alinear los logs. La lógica
+  de negocio compara instantes absolutos (`Date.now()`), por lo que es correcta en cualquier región
+  de despliegue.
 
 ---
 
@@ -671,7 +695,7 @@ Las funcionalidades sin las cuales la app **no cumple su propósito mínimo viab
 
 1. **E01** — Gestión de usuarios y autenticación (registro, login, perfil, privacidad)
 2. **E02** — Gestión de grupos (crear, invitar, confirmar asistencia)
-3. **E03** — Planificación de viajes y rutas (crear viaje, definir ruta, paradas, checklist)
+3. **E03** — Planificación de viajes y rutas (crear viaje, definir ruta, paradas, checklist). **No** incluye compartir ruta a terceros fuera del grupo (eso es E10 / puente; ver abajo).
 4. **E04** — Ejecución y seguimiento en tiempo real (tracking GPS, detección de desvíos/atrasos/incidentes, offline)
 5. **E05** — Alertas y comunicación operativa (alertas manuales/automáticas, interfaz adaptativa)
 
@@ -688,7 +712,7 @@ Funcionalidades para **fases futuras**:
 
 8. **E08** — Gamificación con hitos, POIs, gastos colaborativos, wearables, itinerario IA
 9. **E09** — Gamificación extendida (insignias, rachas, tabla global)
-10. **E10** — Red social de recorridos (publicar, explorar, valorar)
+10. **E10** — Red social de recorridos (publicar, explorar, valorar). **Primer recorte (puente E03→E10):** compartir ruta planificada por link + plantilla en perfil + reutilizar al crear viaje — US lista para Jira en [`us-compartir-ruta.md`](us-compartir-ruta.md). No mezclar con QR RN-015.
 11. **E11** — Asistencia inteligente IA (recomendación climática, itinerarios)
 12. **E12** — Información de ruta en tiempo real (cortes, radares, reportes comunitarios)
 
@@ -746,6 +770,7 @@ Implementación: el backend aplica estos defaults en `POST /api/viajes` según `
 | **Wrapped** | Resumen visual y atractivo de estadísticas de un período (inspirado en Spotify Wrapped). |
 | **Wearable** | Dispositivo electrónico portátil (reloj inteligente, pulsera de actividad) con sensores de movimiento y conectividad. |
 | **QR de invitación** | Código QR único generado por viaje que permite unirse **al viaje** escaneándolo (RN-015/016). Expira al iniciar el viaje. No agrega al usuario a ningún grupo. |
+| **Link de ruta / plantilla** | Link con token opaco que comparte el **snapshot planificado** de una ruta (geometría + postas) para que otro usuario lo guarde en su perfil y lo use como base de un viaje propio. **No** une al viaje fuente ni expira al iniciar (contraste con QR). Backlog: [`us-compartir-ruta.md`](us-compartir-ruta.md) (E10). |
 | **Modo competitivo** | Perfil de viaje que activa leaderboard dinámico y métricas comparativas entre integrantes. |
 | **Modo recreativo** | Perfil de viaje que desactiva rankings y comparaciones, manteniendo solo navegación y alertas de seguridad. |
 | **Freemium** | Modelo de negocio donde funcionalidades básicas son gratuitas y las avanzadas requieren suscripción. |

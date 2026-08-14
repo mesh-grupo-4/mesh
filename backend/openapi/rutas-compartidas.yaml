@@ -1,0 +1,320 @@
+openapi: 3.0.3
+info:
+  title: Mesh API — Rutas compartidas y plantillas
+  version: 1.0.0
+  description: |
+    Link privado de rutas planificadas (RN-085–088). Distinto del QR de unirse al viaje (RN-015/016).
+
+    - El token es opaco y único; al generarlo se congela un snapshot.
+    - El link no expira al iniciar/finalizar el viaje; solo deja de resolver si se revoca.
+    - Si se elimina el viaje/ruta fuente, el link sigue resolviendo el snapshot.
+    - Importar crea una plantilla copia (idempotente por usuario + ruta compartida).
+
+    Autenticación: `Authorization: Bearer <Firebase ID token>`.
+
+servers:
+  - url: http://localhost:3000
+    description: Desarrollo local
+
+tags:
+  - name: RutasCompartidas
+  - name: RutasPlantilla
+
+paths:
+  /api/viajes/{viajeId}/ruta/compartir:
+    post:
+      summary: Obtener o crear link de compartir ruta
+      operationId: compartirRutaViaje
+      tags: [RutasCompartidas]
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ViajeId'
+      responses:
+        '200':
+          description: Link vigente (creado o reutilizado)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompartirRutaResponse'
+        '403':
+          description: No confirmado (NOT_CONFIRMED_MEMBER)
+        '404':
+          description: Viaje no encontrado (VIAJE_NOT_FOUND)
+        '422':
+          description: Ruta incompleta (RUTA_INCOMPLETA)
+    delete:
+      summary: Revocar link de compartir ruta
+      operationId: revocarCompartirRutaViaje
+      tags: [RutasCompartidas]
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ViajeId'
+      responses:
+        '200':
+          description: Link revocado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  revocado:
+                    type: boolean
+                    example: true
+        '403':
+          description: No sos el creador (NOT_CREATOR)
+        '404':
+          description: Viaje o link no encontrado (VIAJE_NOT_FOUND / SHARE_NOT_FOUND)
+
+  /api/rutas-compartidas/{token}:
+    get:
+      summary: Preview autenticado del snapshot compartido
+      operationId: previewRutaCompartida
+      tags: [RutasCompartidas]
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ShareToken'
+      responses:
+        '200':
+          description: Snapshot (sin participantes, GPS ni alertas)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RutaSnapshotPreview'
+        '404':
+          description: Token desconocido (SHARE_NOT_FOUND)
+        '410':
+          description: Token revocado (SHARE_REVOKED)
+
+  /api/rutas-compartidas/{token}/importaciones:
+    post:
+      summary: Guardar plantilla en el perfil (idempotente)
+      operationId: importarRutaCompartida
+      tags: [RutasCompartidas]
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ShareToken'
+      responses:
+        '200':
+          description: Ya existía la plantilla para este usuario
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportarPlantillaResponse'
+        '201':
+          description: Plantilla creada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportarPlantillaResponse'
+        '404':
+          description: Token desconocido (SHARE_NOT_FOUND)
+        '410':
+          description: Token revocado (SHARE_REVOKED)
+
+  /api/rutas-plantilla:
+    get:
+      summary: Listar plantillas del usuario autenticado
+      operationId: listarRutasPlantilla
+      tags: [RutasPlantilla]
+      security: [{ BearerAuth: [] }]
+      responses:
+        '200':
+          description: Lista resumida
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RutaPlantillaResumen'
+
+  /api/rutas-plantilla/{plantillaId}:
+    get:
+      summary: Detalle de plantilla propia
+      operationId: obtenerRutaPlantilla
+      tags: [RutasPlantilla]
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PlantillaId'
+      responses:
+        '200':
+          description: Snapshot completo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RutaPlantillaDetalle'
+        '404':
+          description: No encontrada o ajena (PLANTILLA_NOT_FOUND)
+    delete:
+      summary: Eliminar plantilla propia
+      operationId: eliminarRutaPlantilla
+      tags: [RutasPlantilla]
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/PlantillaId'
+      responses:
+        '200':
+          description: Eliminada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  eliminada:
+                    type: boolean
+        '404':
+          description: No encontrada o ajena (PLANTILLA_NOT_FOUND)
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Firebase ID token
+
+  parameters:
+    ViajeId:
+      name: viajeId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ShareToken:
+      name: token
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 16
+        maxLength: 64
+    PlantillaId:
+      name: plantillaId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    CompartirRutaResponse:
+      type: object
+      required: [token, link, revocado]
+      properties:
+        token:
+          type: string
+        link:
+          type: string
+          example: mesh://ruta?token=abc
+        revocado:
+          type: boolean
+          example: false
+
+    RutaSnapshotPreview:
+      type: object
+      required:
+        - tipo_actividad
+        - origen
+        - destino
+        - linestring_geojson
+        - paradas
+      properties:
+        tipo_actividad:
+          type: string
+          enum: [moto, bici, running, trekking]
+        origen:
+          $ref: '#/components/schemas/PuntoNombrado'
+        destino:
+          $ref: '#/components/schemas/PuntoNombrado'
+        linestring_geojson:
+          type: object
+        distancia_planeada_m:
+          type: number
+          nullable: true
+        tiempo_estimado_seg:
+          type: integer
+          nullable: true
+        paradas:
+          type: array
+          items:
+            $ref: '#/components/schemas/ParadaSnapshot'
+
+    PuntoNombrado:
+      type: object
+      required: [lat, lng]
+      properties:
+        lat:
+          type: number
+        lng:
+          type: number
+        nombre:
+          type: string
+          nullable: true
+
+    ParadaSnapshot:
+      type: object
+      required: [orden, lat, lng, categoria]
+      properties:
+        orden:
+          type: integer
+        lat:
+          type: number
+        lng:
+          type: number
+        nombre:
+          type: string
+          nullable: true
+        categoria:
+          type: string
+          enum: [kiosco, combustible, descanso, gastronomia, punto_control, sanitario, otro]
+
+    ImportarPlantillaResponse:
+      type: object
+      required: [plantilla, ya_existia]
+      properties:
+        plantilla:
+          $ref: '#/components/schemas/RutaPlantillaDetalle'
+        ya_existia:
+          type: boolean
+
+    RutaPlantillaResumen:
+      type: object
+      required: [id, nombre, tipo_actividad, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+        tipo_actividad:
+          type: string
+          enum: [moto, bici, running, trekking]
+        distancia_planeada_m:
+          type: number
+          nullable: true
+        tiempo_estimado_seg:
+          type: integer
+          nullable: true
+        origen_nombre:
+          type: string
+          nullable: true
+        destino_nombre:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    RutaPlantillaDetalle:
+      allOf:
+        - $ref: '#/components/schemas/RutaSnapshotPreview'
+        - type: object
+          required: [id, nombre, created_at]
+          properties:
+            id:
+              type: string
+              format: uuid
+            nombre:
+              type: string
+            created_at:
+              type: string
+              format: date-time

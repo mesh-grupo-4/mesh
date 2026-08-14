@@ -16,6 +16,7 @@ import { useTripRealtime } from '@/context/TripRealtimeContext'
 import { resolveBackendUserId } from '@/lib/apiClient'
 import { Avatar, Badge, Btn, useTheme } from '@/components/MeshUI'
 import { etiquetaActividad } from '@/lib/activityDefaults'
+import { formatearEnArg } from '@/lib/tiempoArg'
 import {
   obtenerEstadisticasUsuario,
   obtenerViajeEnCurso,
@@ -42,10 +43,7 @@ function formatearDuracion(segundos: number): string {
 
 function horaInicio(iso: string | null): string {
   if (!iso) return 'En curso'
-  return `Desde las ${new Date(iso).toLocaleTimeString('es-AR', {
-    hour: '2-digit',
-    minute: '2-digit',
-  })}`
+  return `Desde las ${formatearEnArg(iso, { hour: '2-digit', minute: '2-digit' })}`
 }
 
 export default function InicioScreen() {

@@ -15,6 +15,7 @@ export type ViajeCreadoApi = {
   estado: 'planificado' | 'en_curso' | 'finalizado'
   fecha_programada: string
   invitaciones_enviadas?: number
+  ruta_precargada?: boolean
 }
 
 export type ViajePlanificadoApi = {
@@ -74,6 +75,7 @@ export async function crearViaje(
     amigoIds?: string[]
     tipoActividad: TipoActividadApi
     fechaProgramada: Date
+    rutaPlantillaId?: string | null
   },
   userId: string,
   baseUrl: string = API_BASE_URL
@@ -90,6 +92,7 @@ export async function crearViaje(
       amigoIds: input.amigoIds ?? [],
       tipoActividad: input.tipoActividad,
       fechaProgramada: input.fechaProgramada.toISOString(),
+      rutaPlantillaId: input.rutaPlantillaId ?? undefined,
     }),
   })
   return parseJson<ViajeCreadoApi>(res)

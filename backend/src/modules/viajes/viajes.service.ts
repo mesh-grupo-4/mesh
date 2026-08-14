@@ -18,9 +18,14 @@ import type {
   UpsertUbicacionVivaInput,
 } from './viajes.schemas'
 import { parametrosPorActividad } from './activityDefaults'
+import { RutasCompartidasService } from '../rutas-compartidas/rutas-compartidas.service'
 
 export class ViajesService {
-  constructor(private readonly prisma: PrismaClient) {}
+  private readonly rutasCompartidas: RutasCompartidasService
+
+  constructor(private readonly prisma: PrismaClient) {
+    this.rutasCompartidas = new RutasCompartidasService(prisma)
+  }
 
   async crearViaje(creadorId: string, input: CreateViajeInput) {
     const existe = await this.prisma.usuario.findUnique({ where: { id: creadorId } })
@@ -29,7 +34,7 @@ export class ViajesService {
     }
 
     if (input.fechaProgramada.getTime() <= Date.now()) {
-      throw new HttpError(400, 'La fecha programada debe ser futura (UTC)', 'FECHA_PASADA')
+      throw new HttpError(400, 'La fecha programada debe ser futura', 'FECHA_PASADA')
     }
 
     const grupoIds = [...new Set(input.grupoIds ?? [])]
@@ -92,7 +97,19 @@ export class ViajesService {
     const invitadosPorAmigo = new Set(amigoIds.filter((id) => !invitadosPorGrupo.has(id)))
     const totalInvitados = invitadosPorGrupo.size + invitadosPorAmigo.size
 
-    const params = parametrosPorActividad(input.tipoActividad)
+    let tipoActividad = input.tipoActividad
+    if (input.rutaPlantillaId) {
+      const plantilla = await this.prisma.rutaPlantilla.findUnique({
+        where: { id: input.rutaPlantillaId },
+        select: { usuario_id: true, tipo_actividad: true },
+      })
+      if (!plantilla || plantilla.usuario_id !== creadorId) {
+        throw new HttpError(404, 'Plantilla no encontrada', 'PLANTILLA_NOT_FOUND')
+      }
+      tipoActividad = plantilla.tipo_actividad
+    }
+
+    const params = parametrosPorActividad(tipoActividad)
 
     return this.prisma.$transaction(async (tx) => {
       const viaje = await tx.viaje.create({
@@ -100,7 +117,7 @@ export class ViajesService {
           creador_id: creadorId,
           nombre: input.nombre,
           es_grupal: input.esGrupal,
-          tipo_actividad: input.tipoActividad,
+          tipo_actividad: tipoActividad,
           velocidad_esperada: params.velocidadEsperada,
           distancia_max_separacion: params.distanciaMaxSeparacion,
           fecha_programada: input.fechaProgramada,
@@ -148,9 +165,21 @@ export class ViajesService {
         })
       }
 
+      let ruta_precargada = false
+      if (input.rutaPlantillaId) {
+        await this.rutasCompartidas.copiarPlantillaAViaje(
+          tx,
+          creadorId,
+          viaje.id,
+          input.rutaPlantillaId
+        )
+        ruta_precargada = true
+      }
+
       return {
         ...viaje,
         invitaciones_enviadas: totalInvitados,
+        ruta_precargada,
       }
     })
   }
@@ -469,7 +498,7 @@ export class ViajesService {
       ],
     }
 
-    const [viajesFinalizados, porActividad] = await Promise.all([
+    const [viajesFinalizados, porActividad, metricasAgg] = await Promise.all([
       this.prisma.viaje.count({ where: participanteWhere }),
       this.prisma.viaje.groupBy({
         by: ['tipo_actividad'],
@@ -478,12 +507,16 @@ export class ViajesService {
         orderBy: { _count: { tipo_actividad: 'desc' } },
         take: 1,
       }),
+      this.prisma.metricaViaje.aggregate({
+        where: { usuario_id: usuarioId },
+        _sum: { distancia_m: true, tiempo_movimiento_seg: true },
+      }),
     ])
 
     return {
       viajes_finalizados: viajesFinalizados,
-      distancia_total_m: 0,
-      tiempo_total_seg: 0,
+      distancia_total_m: metricasAgg._sum.distancia_m ?? 0,
+      tiempo_total_seg: metricasAgg._sum.tiempo_movimiento_seg ?? 0,
       actividad_favorita: porActividad[0]?.tipo_actividad ?? null,
     }
   }
@@ -552,7 +585,7 @@ export class ViajesService {
       throw new HttpError(409, 'Solo se puede editar un viaje planificado', 'INVALID_STATE')
     }
     if (input.fechaProgramada.getTime() <= Date.now()) {
-      throw new HttpError(400, 'La fecha programada debe ser futura (UTC)', 'FECHA_PASADA')
+      throw new HttpError(400, 'La fecha programada debe ser futura', 'FECHA_PASADA')
     }
 
     const actualizado = await this.prisma.viaje.update({
