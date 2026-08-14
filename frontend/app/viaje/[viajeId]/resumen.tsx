@@ -1,15 +1,33 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native'
+import {
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
+import { AvatarFallback } from '@/components/AvatarFallback'
 import { ActivityTile, Badge, Btn, TopBar, useTheme } from '@/components/MeshUI'
 import { StatCard, StatCardRow } from '@/components/StatCard'
 import { DEV_USER_ID } from '@/constants/Config'
 import { useAuth } from '@/context/AuthContext'
-import { formatDurationHm, formatHoraCorta, formatKm, formatSpeedKmh } from '@/lib/format'
+import {
+  formatDurationHm,
+  formatHoraCorta,
+  formatKm,
+  formatPace,
+  formatSpeedKmh,
+} from '@/lib/format'
 import { clearTripMetrics, loadTripMetrics } from '@/lib/tripMetricsStore'
-import { obtenerResumenViaje, type ResumenViajeApi } from '@/lib/viajesApi'
+import {
+  obtenerMetricasGrupales,
+  obtenerResumenViaje,
+  type MetricasGrupalesApi,
+  type ResumenViajeApi,
+} from '@/lib/viajesApi'
 
 export default function ViajeResumenScreen() {
   const router = useRouter()
@@ -30,6 +48,7 @@ export default function ViajeResumenScreen() {
   }, [params.userId, backendUserId])
 
   const [resumen, setResumen] = useState<ResumenViajeApi | null>(null)
+  const [grupales, setGrupales] = useState<MetricasGrupalesApi | null>(null)
   const [distanciaLocalM, setDistanciaLocalM] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -41,12 +60,18 @@ export default function ViajeResumenScreen() {
     try {
       const r = await obtenerResumenViaje(viajeId, userId)
       setResumen(r)
-      // La copia local ya no hace falta: el backend tiene el dato definitivo.
       if (r.mis_metricas.distancia_m != null) {
         void clearTripMetrics(viajeId, userId)
       }
+      if (r.viaje.es_grupal) {
+        try {
+          const g = await obtenerMetricasGrupales(viajeId, userId)
+          setGrupales(g)
+        } catch {
+          // Las métricas grupales son adicionales; si fallan, seguimos mostrando el resumen.
+        }
+      }
     } catch (e) {
-      // Sin conexión mostramos lo que quedó guardado en el dispositivo.
       const local = await loadTripMetrics(viajeId, userId)
       setDistanciaLocalM(local.distanceM > 0 ? local.distanceM : null)
       setError(e instanceof Error ? e.message : 'No se pudo cargar el resumen')
@@ -81,7 +106,8 @@ export default function ViajeResumenScreen() {
   const comparativa = (() => {
     if (!totales?.distancia_planeada_m || totales.distancia_real_m == null) return null
     const delta =
-      ((totales.distancia_real_m - totales.distancia_planeada_m) / totales.distancia_planeada_m) * 100
+      ((totales.distancia_real_m - totales.distancia_planeada_m) / totales.distancia_planeada_m) *
+      100
     const signo = delta >= 0 ? '+' : ''
     return `Planeado ${formatKm(totales.distancia_planeada_m)} · Real ${formatKm(
       totales.distancia_real_m
@@ -132,9 +158,7 @@ export default function ViajeResumenScreen() {
             >
               <Text style={[styles.warnText, { color: theme.text }]}>
                 {distanciaLocalM != null
-                  ? `No pudimos traer el resumen del servidor. Estos son datos provisionales de tu dispositivo: ${formatKm(
-                      distanciaLocalM
-                    )} recorridos.`
+                  ? `No pudimos traer el resumen del servidor. Estos son datos provisionales de tu dispositivo: ${formatKm(distanciaLocalM)} recorridos.`
                   : `No pudimos cargar el resumen. ${error}`}
               </Text>
               <Btn variant="outline" size="sm" icon="refresh-cw" onPress={() => void cargar()}>
@@ -143,6 +167,7 @@ export default function ViajeResumenScreen() {
             </View>
           ) : null}
 
+          {/* ── El viaje (totales grupales) ── */}
           {totales ? (
             <>
               <Text style={[styles.seccion, { color: theme.text }]}>El viaje</Text>
@@ -172,12 +197,23 @@ export default function ViajeResumenScreen() {
                 )}
               </StatCardRow>
 
+              {totales.cantidad_paradas > 0 ? (
+                <StatCardRow>
+                  <StatCard
+                    icon="map-pin"
+                    value={String(totales.cantidad_paradas)}
+                    label="Paradas"
+                  />
+                </StatCardRow>
+              ) : null}
+
               {comparativa ? (
                 <Text style={[styles.comparativa, { color: theme.textDim }]}>{comparativa}</Text>
               ) : null}
             </>
           ) : null}
 
+          {/* ── Tu recorrido (métricas individuales) ── */}
           {mias ? (
             <>
               <Text style={[styles.seccion, { color: theme.text }]}>Tu recorrido</Text>
@@ -186,11 +222,36 @@ export default function ViajeResumenScreen() {
                 <StatCard
                   icon="trending-up"
                   value={formatSpeedKmh(mias.velocidad_promedio_kmh)}
-                  label={esMoto ? 'Ritmo promedio' : 'Velocidad promedio'}
-                  // RN-070: en moto el dato es informativo, nunca comparativo.
+                  label={esMoto ? 'Ritmo promedio' : 'Vel. promedio'}
                   hint={esMoto ? 'Dato informativo, no comparativo' : undefined}
                 />
+                {!esMoto ? (
+                  <StatCard
+                    icon="zap"
+                    value={formatSpeedKmh(mias.velocidad_maxima_kmh)}
+                    label="Vel. máxima"
+                  />
+                ) : null}
               </StatCardRow>
+
+              {!esMoto ? (
+                <StatCardRow>
+                  <StatCard
+                    icon="watch"
+                    value={formatPace(mias.tiempo_movimiento_seg, mias.distancia_m)}
+                    label="Ritmo"
+                  />
+                  <StatCard
+                    icon="pause-circle"
+                    value={formatDurationHm(
+                      totales?.duracion_segundos != null && mias.tiempo_movimiento_seg != null
+                        ? Math.max(0, totales.duracion_segundos - mias.tiempo_movimiento_seg)
+                        : null
+                    )}
+                    label="Tiempo detenido"
+                  />
+                </StatCardRow>
+              ) : null}
 
               {mias.sali_antes ? (
                 <Text style={[styles.nota, { color: theme.textDim }]}>
@@ -201,11 +262,92 @@ export default function ViajeResumenScreen() {
             </>
           ) : null}
 
-          <Btn variant="primary" block icon="home" onPress={volverAlInicio} style={styles.cta}>
+          {/* ── El grupo (métricas por integrante) ── */}
+          {esGrupal && grupales && grupales.por_integrante.length > 0 ? (
+            <>
+              <Text style={[styles.seccion, { color: theme.text }]}>El grupo</Text>
+              <View
+                style={[
+                  styles.grupoCard,
+                  { backgroundColor: theme.surface, borderColor: theme.border },
+                ]}
+              >
+                {grupales.por_integrante.map((integrante, idx) => (
+                  <View key={integrante.usuario_id}>
+                    {idx > 0 ? (
+                      <View style={[styles.separador, { backgroundColor: theme.border }]} />
+                    ) : null}
+                    <IntegranteRow
+                      integrante={integrante}
+                      rankingHabilitado={grupales.ranking_habilitado}
+                      tipoActividad={grupales.tipo_actividad}
+                    />
+                  </View>
+                ))}
+              </View>
+            </>
+          ) : null}
+
+          <Btn
+            variant="outline"
+            block
+            icon="trending-up"
+            onPress={() =>
+              router.push({ pathname: '/viaje/[viajeId]/metricas', params: { viajeId } })
+            }
+            style={styles.cta}
+          >
+            Ver métricas detalladas
+          </Btn>
+
+          <Btn variant="primary" block icon="home" onPress={volverAlInicio}>
             Volver al inicio
           </Btn>
         </ScrollView>
       )}
+    </View>
+  )
+}
+
+type IntegranteRowProps = {
+  integrante: MetricasGrupalesApi['por_integrante'][number]
+  rankingHabilitado: boolean
+  tipoActividad: string
+}
+
+function IntegranteRow({ integrante, rankingHabilitado, tipoActividad }: IntegranteRowProps) {
+  const theme = useTheme()
+  const esPaceActivity = tipoActividad === 'running' || tipoActividad === 'trekking'
+
+  return (
+    <View style={styles.integranteRow}>
+      <AvatarFallback nombre={integrante.nombre} size={36} />
+      <View style={styles.integranteInfo}>
+        <Text style={[styles.integranteNombre, { color: theme.text }]} numberOfLines={1}>
+          {integrante.nombre}
+        </Text>
+        <View style={styles.integranteStats}>
+          <Text style={[styles.integranteStat, { color: theme.textDim }]}>
+            {formatKm(integrante.distancia_m)}
+          </Text>
+          {rankingHabilitado && integrante.distancia_m != null ? (
+            <>
+              {esPaceActivity ? (
+                <Text style={[styles.integranteStat, { color: theme.textDim }]}>
+                  {formatPace(integrante.tiempo_movimiento_seg, integrante.distancia_m)}
+                </Text>
+              ) : (
+                <Text style={[styles.integranteStat, { color: theme.textDim }]}>
+                  {formatSpeedKmh(integrante.velocidad_promedio_kmh)}
+                </Text>
+              )}
+              <Text style={[styles.integranteStat, { color: theme.textDim }]}>
+                {formatDurationHm(integrante.tiempo_movimiento_seg)} en mov.
+              </Text>
+            </>
+          ) : null}
+        </View>
+      </View>
     </View>
   )
 }
@@ -265,5 +407,37 @@ const styles = StyleSheet.create({
   },
   cta: {
     marginTop: 10,
+  },
+  grupoCard: {
+    borderWidth: 1.2,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  separador: {
+    height: 1,
+    marginHorizontal: 12,
+  },
+  integranteRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  integranteInfo: {
+    flex: 1,
+    gap: 3,
+  },
+  integranteNombre: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  integranteStats: {
+    flexDirection: 'row',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
+  integranteStat: {
+    fontSize: 12,
   },
 })

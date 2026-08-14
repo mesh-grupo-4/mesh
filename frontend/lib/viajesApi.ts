@@ -312,7 +312,7 @@ export async function salirViaje(
 
 /**
  * Resumen de un viaje finalizado. `mis_metricas` son solo del usuario que consulta:
- * el backend nunca devuelve métricas de terceros (RN-070).
+ * el backend nunca devuelve métricas de terceros en este endpoint (RN-070).
  */
 export type ResumenViajeApi = {
   viaje: {
@@ -334,11 +334,89 @@ export type ResumenViajeApi = {
     distancia_m: number | null
     tiempo_movimiento_seg: number | null
     velocidad_promedio_kmh: number | null
+    velocidad_maxima_kmh: number | null
     sali_antes: boolean
     fecha_salida: string | null
   }
   ranking_habilitado: boolean
   generado_en: string | null
+}
+
+export type MetricaIntegranteApi = {
+  usuario_id: string
+  nombre: string
+  distancia_m: number | null
+  tiempo_movimiento_seg: number | null
+  tiempo_detenido_seg: number | null
+  pace_min_km: number | null
+  velocidad_promedio_kmh: number | null
+  velocidad_maxima_kmh: number | null
+}
+
+export type MetricasGrupalesApi = {
+  tipo_actividad: TipoActividadApi
+  es_grupal: boolean
+  ranking_habilitado: boolean
+  grupo: {
+    duracion_segundos: number | null
+    distancia_real_m: number | null
+    distancia_planeada_m: number | null
+    cantidad_paradas: number
+    cantidad_integrantes: number
+  }
+  por_integrante: MetricaIntegranteApi[]
+}
+
+export async function obtenerMetricasGrupales(
+  viajeId: string,
+  userId: string,
+  baseUrl: string = API_BASE_URL
+): Promise<MetricasGrupalesApi> {
+  const res = await meshFetchAuthed(
+    apiUrl(`/api/viajes/${viajeId}/metricas-grupales`, baseUrl),
+    {}
+  )
+  return parseJson<MetricasGrupalesApi>(res)
+}
+
+export type PerfilVelocidadPuntoApi = {
+  t_seg: number
+  velocidad_kmh: number
+}
+
+export type MetricasIndividualesApi = {
+  viaje: {
+    id: string
+    nombre: string | null
+    tipo_actividad: TipoActividadApi
+    es_grupal: boolean
+    fecha_inicio_real: string | null
+    fecha_fin_real: string | null
+  }
+  metricas: {
+    distancia_m: number | null
+    duracion_segundos: number | null
+    tiempo_movimiento_seg: number | null
+    tiempo_detenido_seg: number | null
+    velocidad_promedio_kmh: number | null
+    velocidad_maxima_kmh: number | null
+    pace_min_km: number | null
+    distancia_planeada_m: number | null
+    cantidad_paradas: number
+  }
+  perfil_velocidad: PerfilVelocidadPuntoApi[]
+}
+
+export async function obtenerMetricasIndividuales(
+  viajeId: string,
+  userId: string,
+  baseUrl: string = API_BASE_URL
+): Promise<MetricasIndividualesApi> {
+  const res = await meshFetchAuthed(
+    apiUrl(`/api/viajes/${viajeId}/mis-metricas`, baseUrl),
+    {}
+  )
+  return parseJson<MetricasIndividualesApi>(res)
 }
 
 export async function obtenerResumenViaje(

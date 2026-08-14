@@ -639,16 +639,28 @@ export default function ViajeDetalleScreen() {
             )}
 
             {viaje.estado === 'finalizado' && (
-              <Btn
-                variant="secondary"
-                block
-                icon="bar-chart-2"
-                onPress={() =>
-                  router.push({ pathname: '/viaje/[viajeId]/resumen', params: { viajeId } })
-                }
-              >
-                Ver resumen del recorrido
-              </Btn>
+              <View style={{ gap: 10 }}>
+                <Btn
+                  variant="secondary"
+                  block
+                  icon="bar-chart-2"
+                  onPress={() =>
+                    router.push({ pathname: '/viaje/[viajeId]/resumen', params: { viajeId } })
+                  }
+                >
+                  Ver resumen del recorrido
+                </Btn>
+                <Btn
+                  variant="ghost"
+                  block
+                  icon="trending-up"
+                  onPress={() =>
+                    router.push({ pathname: '/viaje/[viajeId]/metricas', params: { viajeId } })
+                  }
+                >
+                  Mis métricas detalladas
+                </Btn>
+              </View>
             )}
           </View>
         </>

@@ -3,7 +3,11 @@ import type { PrismaClient } from '@prisma/client'
 import { getIo } from '../../realtime/ioRegistry'
 import { HttpError } from '../../lib/httpError'
 import { QR_EXPIRED_MESSAGE } from '../../lib/qrInvite'
-import { computeLineStringLengthMeters, computeMetricasGpsPorUsuario } from '../../lib/postgis'
+import {
+  computeLineStringLengthMeters,
+  computeMetricasGpsPorUsuario,
+  computePerfilVelocidad,
+} from '../../lib/postgis'
 import { unirUsuarioAlViaje } from './viajes.membership'
 import type {
   ActualizarViajeInput,
@@ -726,6 +730,7 @@ export class ViajesService {
               m.segundos_movimiento > 0
                 ? m.distancia_m / 1000 / (m.segundos_movimiento / 3600)
                 : null,
+            velocidad_maxima_kmh: m.velocidad_maxima_kmh ?? null,
           })),
         })
       }
@@ -841,12 +846,207 @@ export class ViajesService {
         distancia_m: mia?.distancia_m ?? null,
         tiempo_movimiento_seg: mia?.tiempo_movimiento_seg ?? null,
         velocidad_promedio_kmh: mia?.velocidad_promedio_kmh ?? null,
+        velocidad_maxima_kmh: mia?.velocidad_maxima_kmh ?? null,
         sali_antes: miIntegrante?.estado === 'salido',
         fecha_salida: miIntegrante?.fecha_salida ?? null,
       },
       // RN-070: compuerta única para cualquier feature comparativa futura.
       ranking_habilitado: viaje.tipo_actividad !== 'moto',
       generado_en: resumen?.generado_en ?? null,
+    }
+  }
+
+  /**
+   * Métricas agregadas del viaje + desglose por integrante.
+   * Velocidades omitidas para moto (RN-070).
+   */
+  async obtenerMetricasGrupales(usuarioId: string, viajeId: string) {
+    await this.assertPuedeVerViaje(viajeId, usuarioId)
+
+    const viaje = await this.prisma.viaje.findUnique({
+      where: { id: viajeId },
+      select: {
+        id: true,
+        tipo_actividad: true,
+        estado: true,
+        es_grupal: true,
+        creador_id: true,
+      },
+    })
+    if (!viaje) throw new HttpError(404, 'Viaje no encontrado', 'VIAJE_NOT_FOUND')
+    if (viaje.estado !== 'finalizado') {
+      throw new HttpError(409, 'El viaje todavía no finalizó', 'TRIP_NOT_FINISHED')
+    }
+
+    const esMoto = viaje.tipo_actividad === 'moto'
+
+    const [resumen, metricas, integrantes] = await Promise.all([
+      this.prisma.resumenViaje.findUnique({ where: { viaje_id: viajeId } }),
+      this.prisma.metricaViaje.findMany({
+        where: { viaje_id: viajeId },
+        include: {
+          usuario: { select: { id: true, nombre: true, apellido: true } },
+        },
+      }),
+      this.prisma.viajeIntegrante.findMany({
+        where: { viaje_id: viajeId, estado: { in: ['confirmado', 'salido'] } },
+        include: { usuario: { select: { id: true, nombre: true, apellido: true } } },
+      }),
+    ])
+
+    const duracionSeg = resumen?.duracion_segundos ?? null
+
+    // Mapa usuario_id → nombre completo, construido desde métricas e integrantes.
+    const nombrePorId = new Map<string, string>()
+    for (const i of integrantes) {
+      nombrePorId.set(
+        i.usuario_id,
+        [i.usuario.nombre, i.usuario.apellido].filter(Boolean).join(' ')
+      )
+    }
+    for (const m of metricas) {
+      if (!nombrePorId.has(m.usuario_id)) {
+        nombrePorId.set(
+          m.usuario_id,
+          [m.usuario.nombre, m.usuario.apellido].filter(Boolean).join(' ')
+        )
+      }
+    }
+    if (!nombrePorId.has(viaje.creador_id)) {
+      const creador = await this.prisma.usuario.findUnique({
+        where: { id: viaje.creador_id },
+        select: { nombre: true, apellido: true },
+      })
+      if (creador) {
+        nombrePorId.set(
+          viaje.creador_id,
+          [creador.nombre, creador.apellido].filter(Boolean).join(' ')
+        )
+      }
+    }
+
+    const conMetrica = new Set(metricas.map((m) => m.usuario_id))
+
+    const porIntegrante = metricas.map((m) => {
+      const tiempoDetenidoSeg =
+        duracionSeg != null ? Math.max(0, duracionSeg - m.tiempo_movimiento_seg) : null
+      const paceMinKm =
+        m.tiempo_movimiento_seg > 0 && m.distancia_m > 0
+          ? (m.tiempo_movimiento_seg / 60) / (m.distancia_m / 1000)
+          : null
+
+      return {
+        usuario_id: m.usuario_id,
+        nombre: nombrePorId.get(m.usuario_id) ?? 'Participante',
+        distancia_m: m.distancia_m,
+        tiempo_movimiento_seg: m.tiempo_movimiento_seg,
+        tiempo_detenido_seg: tiempoDetenidoSeg,
+        pace_min_km: paceMinKm,
+        velocidad_promedio_kmh: esMoto ? null : (m.velocidad_promedio_kmh ?? null),
+        velocidad_maxima_kmh: esMoto ? null : (m.velocidad_maxima_kmh ?? null),
+      }
+    })
+
+    // Integrantes registrados pero sin registros GPS.
+    const todosLosIds = new Set([
+      viaje.creador_id,
+      ...integrantes.map((i) => i.usuario_id),
+    ])
+    const sinGps = [...todosLosIds]
+      .filter((id) => !conMetrica.has(id))
+      .map((id) => ({
+        usuario_id: id,
+        nombre: nombrePorId.get(id) ?? 'Participante',
+        distancia_m: null as number | null,
+        tiempo_movimiento_seg: null as number | null,
+        tiempo_detenido_seg: null as number | null,
+        pace_min_km: null as number | null,
+        velocidad_promedio_kmh: null as number | null,
+        velocidad_maxima_kmh: null as number | null,
+      }))
+
+    return {
+      tipo_actividad: viaje.tipo_actividad,
+      es_grupal: viaje.es_grupal,
+      ranking_habilitado: !esMoto,
+      grupo: {
+        duracion_segundos: resumen?.duracion_segundos ?? null,
+        distancia_real_m: resumen?.distancia_real_m ?? null,
+        distancia_planeada_m: resumen?.distancia_planeada_m ?? null,
+        cantidad_paradas: resumen?.cantidad_paradas ?? 0,
+        cantidad_integrantes: integrantes.length + 1,
+      },
+      por_integrante: [...porIntegrante, ...sinGps],
+    }
+  }
+
+  /**
+   * Métricas individuales detalladas + perfil de velocidad por minuto.
+   * Velocidades omitidas para moto (RN-070).
+   */
+  async obtenerMisMetricas(usuarioId: string, viajeId: string) {
+    await this.assertPuedeVerViaje(viajeId, usuarioId)
+
+    const viaje = await this.prisma.viaje.findUnique({
+      where: { id: viajeId },
+      select: {
+        id: true,
+        nombre: true,
+        tipo_actividad: true,
+        es_grupal: true,
+        estado: true,
+        fecha_inicio_real: true,
+        fecha_fin_real: true,
+      },
+    })
+    if (!viaje) throw new HttpError(404, 'Viaje no encontrado', 'VIAJE_NOT_FOUND')
+    if (viaje.estado !== 'finalizado') {
+      throw new HttpError(409, 'El viaje todavía no finalizó', 'TRIP_NOT_FINISHED')
+    }
+
+    const esMoto = viaje.tipo_actividad === 'moto'
+
+    const [resumen, miMetrica, perfil] = await Promise.all([
+      this.prisma.resumenViaje.findUnique({ where: { viaje_id: viajeId } }),
+      this.prisma.metricaViaje.findUnique({
+        where: { viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId } },
+      }),
+      computePerfilVelocidad(this.prisma, viajeId, usuarioId),
+    ])
+
+    const paceMinKm =
+      miMetrica && miMetrica.tiempo_movimiento_seg > 0 && miMetrica.distancia_m > 0
+        ? (miMetrica.tiempo_movimiento_seg / 60) / (miMetrica.distancia_m / 1000)
+        : null
+
+    const tiempoDetenidoSeg =
+      resumen?.duracion_segundos != null && miMetrica?.tiempo_movimiento_seg != null
+        ? Math.max(0, resumen.duracion_segundos - miMetrica.tiempo_movimiento_seg)
+        : null
+
+    return {
+      viaje: {
+        id: viaje.id,
+        nombre: viaje.nombre,
+        tipo_actividad: viaje.tipo_actividad,
+        es_grupal: viaje.es_grupal,
+        fecha_inicio_real: viaje.fecha_inicio_real,
+        fecha_fin_real: viaje.fecha_fin_real,
+      },
+      metricas: {
+        distancia_m: miMetrica?.distancia_m ?? null,
+        duracion_segundos: resumen?.duracion_segundos ?? null,
+        tiempo_movimiento_seg: miMetrica?.tiempo_movimiento_seg ?? null,
+        tiempo_detenido_seg: tiempoDetenidoSeg,
+        velocidad_promedio_kmh: esMoto ? null : (miMetrica?.velocidad_promedio_kmh ?? null),
+        velocidad_maxima_kmh: esMoto ? null : (miMetrica?.velocidad_maxima_kmh ?? null),
+        pace_min_km: paceMinKm,
+        distancia_planeada_m: resumen?.distancia_planeada_m ?? null,
+        cantidad_paradas: resumen?.cantidad_paradas ?? 0,
+      },
+      perfil_velocidad: esMoto
+        ? []
+        : perfil.map((p) => ({ t_seg: Number(p.t_seg), velocidad_kmh: Number(p.velocidad_kmh) })),
     }
   }
 

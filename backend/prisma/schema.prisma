@@ -301,6 +301,7 @@ model MetricaViaje {
   distancia_m            Float    @map("distancia_m")
   tiempo_movimiento_seg  Int      @map("tiempo_movimiento_seg")
   velocidad_promedio_kmh Float?   @map("velocidad_promedio_kmh")
+  velocidad_maxima_kmh   Float?   @map("velocidad_maxima_kmh")
   generado_en            DateTime @default(now()) @map("generado_en")
 
   viaje   Viaje   @relation(fields: [viaje_id], references: [id], onDelete: Cascade)

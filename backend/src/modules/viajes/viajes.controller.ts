@@ -137,6 +137,18 @@ export function crearViajesController(service: ViajesService) {
       res.json(resumen)
     }),
 
+    metricasGrupales: asyncHandler(async (req, res) => {
+      const viajeId = req.params.viajeId as string
+      const metricas = await service.obtenerMetricasGrupales(req.userId!, viajeId)
+      res.json(metricas)
+    }),
+
+    misMetricas: asyncHandler(async (req, res) => {
+      const viajeId = req.params.viajeId as string
+      const metricas = await service.obtenerMisMetricas(req.userId!, viajeId)
+      res.json(metricas)
+    }),
+
     unirseQr: asyncHandler(async (req, res) => {
       const viajeId = req.params.viajeId as string
       const result = await service.unirsePorQr(req.userId!, viajeId)

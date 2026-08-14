@@ -30,3 +30,15 @@ export function formatHoraCorta(iso: string | null | undefined): string {
   if (!iso) return '--'
   return new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
 }
+
+/** Ritmo en min:ss /km. Devuelve '--' si no hay dato o valores inválidos. */
+export function formatPace(
+  tiempoMovSeg: number | null | undefined,
+  distanciaM: number | null | undefined
+): string {
+  if (tiempoMovSeg == null || distanciaM == null || tiempoMovSeg <= 0 || distanciaM <= 0) return '--'
+  const minPorKm = tiempoMovSeg / 60 / (distanciaM / 1000)
+  const mins = Math.floor(minPorKm)
+  const secs = Math.round((minPorKm - mins) * 60)
+  return `${mins}:${secs.toString().padStart(2, '0')} /km`
+}
