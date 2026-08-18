@@ -2,7 +2,7 @@ import { API_BASE_URL } from '@/constants/Config'
 import type { PutRutaBody, RutaDetalleApi } from './viajesTypes'
 import { apiUrl, meshFetchAuthed, parseJson } from './apiClient'
 
-export type TipoActividadApi = 'moto' | 'bici' | 'running' | 'trekking'
+export type TipoActividadApi = 'moto' | 'bici' | 'running' | 'trekking' | 'otro'
 
 export type ViajeCreadoApi = {
   id: string

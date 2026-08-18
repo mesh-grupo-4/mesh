@@ -220,7 +220,7 @@ components:
       properties:
         tipo_actividad:
           type: string
-          enum: [moto, bici, running, trekking]
+          enum: [moto, bici, running, trekking, otro]
         origen:
           $ref: '#/components/schemas/PuntoNombrado'
         destino:
@@ -287,7 +287,7 @@ components:
           type: string
         tipo_actividad:
           type: string
-          enum: [moto, bici, running, trekking]
+          enum: [moto, bici, running, trekking, otro]
         distancia_planeada_m:
           type: number
           nullable: true

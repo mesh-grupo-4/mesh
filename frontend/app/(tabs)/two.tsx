@@ -632,6 +632,7 @@ export default function ViajesScreen() {
             { key: 'bici', label: 'Bici' },
             { key: 'running', label: 'Running' },
             { key: 'trekking', label: 'Trekking' },
+            { key: 'otro', label: 'Otro' },
           ] as { key: FiltroActividad; label: string }[]).map(({ key, label }) => (
             <Chip
               key={key}

@@ -62,7 +62,7 @@ export default function CrearViajeScreen() {
   const tipoDesdePlantilla = useMemo(() => {
     const t = params.tipoActividad
     const raw = (Array.isArray(t) ? t[0] : t)?.trim()
-    if (raw === 'moto' || raw === 'bici' || raw === 'running' || raw === 'trekking') return raw
+    if (raw === 'moto' || raw === 'bici' || raw === 'running' || raw === 'trekking' || raw === 'otro') return raw
     return null
   }, [params.tipoActividad])
 

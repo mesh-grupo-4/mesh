@@ -16,6 +16,7 @@ enum TipoActividad {
   bici
   running
   trekking
+  otro
 }
 
 enum EstadoViaje {

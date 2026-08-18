@@ -10,6 +10,7 @@ export const ACTIVIDADES: { id: TipoActividadApi; label: string }[] = [
   { id: 'bici', label: 'Bicicleta' },
   { id: 'running', label: 'Running' },
   { id: 'trekking', label: 'Trekking' },
+  { id: 'otro', label: 'Otro' },
 ]
 
 const DEFAULTS: Record<TipoActividadApi, ParametrosActividad> = {
@@ -17,6 +18,7 @@ const DEFAULTS: Record<TipoActividadApi, ParametrosActividad> = {
   bici: { velocidadEsperada: 35, distanciaMaxSeparacion: 300 },
   running: { velocidadEsperada: 15, distanciaMaxSeparacion: 100 },
   trekking: { velocidadEsperada: 5, distanciaMaxSeparacion: 50 },
+  otro: { velocidadEsperada: 20, distanciaMaxSeparacion: 200 },
 }
 
 export function parametrosPorActividad(tipo: TipoActividadApi): ParametrosActividad {
@@ -45,13 +47,14 @@ export function textoPerfilRuta(tipo: TipoActividadApi): string {
     case 'running':
     case 'trekking':
       return 'La ruta se calcula a pie según la actividad elegida.'
+    case 'otro':
     default:
       return 'La ruta se calcula según la actividad elegida.'
   }
 }
 
 export function actividadValida(val: string | undefined | null): val is TipoActividadApi {
-  return val === 'moto' || val === 'bici' || val === 'running' || val === 'trekking'
+  return val === 'moto' || val === 'bici' || val === 'running' || val === 'trekking' || val === 'otro'
 }
 
 export function actividadInicialDesdePerfil(

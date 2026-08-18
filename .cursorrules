@@ -177,7 +177,7 @@ Solo el líder puede transicionar estos estados (RN-030).
 - Los recorridos publicados son importables como base de nuevos viajes (RN-084).
 
 ### Tipos de actividad
-Los modos disponibles son: `moto`, `bici`, `running`, `trekking`. Cada uno tiene parámetros por defecto distintos de velocidad, separación máxima e interfaz (RN-021).
+Los modos disponibles son: `moto`, `bici`, `running`, `trekking`, `otro`. Cada uno tiene parámetros por defecto distintos de velocidad, separación máxima e interfaz (RN-021).
 
 ### Categorías de parada
 `combustible`, `descanso`, `gastronomía`, `sanitario`, `otro` (RN-022).

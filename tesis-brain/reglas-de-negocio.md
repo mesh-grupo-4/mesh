@@ -72,7 +72,7 @@ A diferencia de soluciones existentes (Strava, Garmin, Google Maps, Life360) que
 | RN-020 | Un viaje puede ser **individual** (sin invitados iniciales) o **grupal** (con uno o más participantes). |
 | RN-028 | Al crear un viaje grupal, el creador puede invitar por dos vías (UI: dos `Collapsible`, Grupos y Amigos): **(a) grupos** de los que es **miembro**, invitando en bloque a sus integrantes (`origen: grupo`); y **(b) amigos** individuales con amistad **aceptada** (`origen: amigo`, validado en backend con 403 `NOT_FRIEND` si no son amigos). Ambos `grupoIds` y `amigoIds` solo se aceptan en viajes grupales. Si un usuario llega por varios caminos (varios grupos, o grupo + amigo) recibe **una sola invitación** (se prioriza `origen: grupo`). El campo `invitaciones_enviadas` cuenta el total sin duplicar. El viaje se crea con `nombre` obligatorio (1–100) y `fecha_programada` futura definida por el creador. Los `grupoIds` invitados se **persisten** en `viaje_grupo` (RN-027) para trazabilidad y conteo de viajes por grupo. |
 | RN-029 | Las invitaciones al viaje (originadas por grupos o por amigos) requieren **confirmación** del invitado (aceptar/rechazar asistencia). El creador del viaje ve la lista de confirmados y rechazados. Distinto de RN-016 (QR al viaje) y de RN-018 (membresía de grupo). |
-| RN-021 | Los tipos de actividad disponibles son: **moto**, **bici**, **running**, **trekking**. Cada uno tiene parámetros por defecto diferentes. |
+| RN-021 | Los tipos de actividad disponibles son: **moto**, **bici**, **running**, **trekking**, **otro**. Cada uno tiene parámetros por defecto diferentes. |
 | RN-022 | Las categorías de parada intermedia son: **kiosco**, **combustible**, **descanso**, **gastronomía**, **punto de control**, **sanitario**, **otro**. |
 | RN-023 | La estimación de tiempos depende del tipo de actividad seleccionado y la distancia, más el tiempo configurable de cada parada. |
 | RN-024 | Las rutas se trazan sobre OpenStreetMap; las paradas son reordenables. |
@@ -288,7 +288,7 @@ Si el PO prefiere un criterio más conservador, la alternativa es devolver
     │
     ├── Crear viaje
     │     ├── ¿Individual o grupal? (RN-020)
-    │     ├── Tipo de actividad (moto / bici / running / trekking)
+    │     ├── Tipo de actividad (moto / bici / running / trekking / otro)
     │     ├── Fecha y hora de salida
     │     ├── Modo de viaje (competitivo / recreativo / entrenamiento)
     │     └── [Si grupal] Seleccionar 1+ grupos (solo donde soy miembro) ──► RN-028/029
@@ -448,7 +448,7 @@ Usuario
 ├── teléfono
 ├── password_hash
 ├── foto_perfil
-├── actividad_preferida (enum: moto, bici, running, trekking)
+├── actividad_preferida (enum: moto, bici, running, trekking, otro)
 ├── config_privacidad
 └── created_at
 
@@ -485,7 +485,7 @@ Viaje
 ├── creador_id (FK → Usuario) — líder del viaje (RN-030)
 ├── nombre (string, 1–100) — identificador principal mostrado en listas e invitaciones; nullable en viajes antiguos
 ├── es_grupal (boolean)
-├── tipo_actividad (enum: moto, bici, running, trekking)
+├── tipo_actividad (enum: moto, bici, running, trekking, otro)
 ├── modo (enum: recreativo, competitivo, entrenamiento)
 ├── fecha_salida
 ├── estado (enum: planificado, en_curso, finalizado)
@@ -726,15 +726,15 @@ Funcionalidades para **fases futuras**:
 
 Valores por defecto asignados al crear el viaje (RN-021, SCRUM-25). Unidades: velocidad en **km/h**, separación en **metros**.
 
-| Parámetro | Moto | Bici | Running | Trekking |
-|---|---|---|---|---|
-| Velocidad máxima esperada (`velocidad_esperada`) | 120 km/h | 35 km/h | 15 km/h | 5 km/h |
-| Distancia máx. separación grupo (`distancia_max_separacion`) | 1000 m (1 km) | 300 m | 100 m | 50 m |
-| Tolerancia de atraso | Mayor | Media | Menor | Menor |
-| Interfaz | Pantalla completa, alto contraste, botones grandes | Estándar outdoor | Háptica + visual | Háptica + visual |
-| Ranking competitivo | **PROHIBIDO** | Sí | Sí | Sí |
-| Tabla de posiciones global | **EXCLUIDA** | Sí | Sí | Sí |
-| Perfil OSRM (cálculo de ruta) | `driving` | `cycling` | `walking` | `walking` |
+| Parámetro | Moto | Bici | Running | Trekking | Otro |
+|---|---|---|---|---|---|
+| Velocidad máxima esperada (`velocidad_esperada`) | 120 km/h | 35 km/h | 15 km/h | 5 km/h | 20 km/h |
+| Distancia máx. separación grupo (`distancia_max_separacion`) | 1000 m (1 km) | 300 m | 100 m | 50 m | 200 m |
+| Tolerancia de atraso | Mayor | Media | Menor | Menor | Media |
+| Interfaz | Pantalla completa, alto contraste, botones grandes | Estándar outdoor | Háptica + visual | Háptica + visual | Estándar outdoor |
+| Ranking competitivo | **PROHIBIDO** | Sí | Sí | Sí | Sí |
+| Tabla de posiciones global | **EXCLUIDA** | Sí | Sí | Sí | Sí |
+| Perfil OSRM (cálculo de ruta) | `driving` | `cycling` | `walking` | `walking` | `walking` |
 
 Implementación: el backend aplica estos defaults en `POST /api/viajes` según `tipo_actividad`. El frontend muestra preview al crear y resumen read-only al configurar la ruta.
 

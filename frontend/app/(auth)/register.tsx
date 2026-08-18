@@ -27,6 +27,7 @@ const ACTIVIDADES: { id: ActividadPreferida; label: string }[] = [
   { id: 'bici', label: 'Ciclismo' },
   { id: 'running', label: 'Running' },
   { id: 'trekking', label: 'Trekking' },
+  { id: 'otro', label: 'Otro' },
 ];
 
 export default function RegisterScreen() {

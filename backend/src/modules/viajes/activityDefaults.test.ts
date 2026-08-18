@@ -29,4 +29,11 @@ describe('parametrosPorActividad', () => {
       distanciaMaxSeparacion: 50,
     })
   })
+
+  it('asigna defaults de otro', () => {
+    expect(parametrosPorActividad('otro')).toEqual({
+      velocidadEsperada: 20,
+      distanciaMaxSeparacion: 200,
+    })
+  })
 })

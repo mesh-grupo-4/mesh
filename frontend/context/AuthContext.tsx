@@ -13,7 +13,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth } from '@/lib/firebase';
 import { syncUsuario, obtenerMiPerfil, type UsuarioPerfilResponse } from '@/lib/usuariosApi';
 import { API_BASE_URL } from '@/constants/Config';
-export type ActividadPreferida = 'moto' | 'bici' | 'running' | 'trekking' | '';
+export type ActividadPreferida = 'moto' | 'bici' | 'running' | 'trekking' | 'otro' | '';
 
 export interface ProfileData {
   nombre: string;

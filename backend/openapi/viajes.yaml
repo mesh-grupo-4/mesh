@@ -634,7 +634,7 @@ components:
             format: uuid
         tipoActividad:
           type: string
-          enum: [moto, bici, running, trekking]
+          enum: [moto, bici, running, trekking, otro]
         fechaProgramada:
           type: string
           format: date-time
@@ -666,7 +666,7 @@ components:
           type: boolean
         tipo_actividad:
           type: string
-          enum: [moto, bici, running, trekking]
+          enum: [moto, bici, running, trekking, otro]
         velocidad_esperada:
           type: number
           description: Velocidad máxima esperada en km/h (RN-021, asignada por backend según actividad).
@@ -703,7 +703,7 @@ components:
           type: boolean
         tipo_actividad:
           type: string
-          enum: [moto, bici, running, trekking]
+          enum: [moto, bici, running, trekking, otro]
         velocidad_esperada:
           type: number
           description: Velocidad máxima esperada en km/h.
@@ -733,7 +733,7 @@ components:
           description: Nombre del viaje mostrado en la invitación. Null en viajes antiguos sin nombre.
         tipo_actividad:
           type: string
-          enum: [moto, bici, running, trekking]
+          enum: [moto, bici, running, trekking, otro]
         fecha_programada:
           type: string
           format: date-time
@@ -768,7 +768,7 @@ components:
           enum: [aceptar, rechazar]
         tipo_actividad:
           type: string
-          enum: [moto, bici, running, trekking]
+          enum: [moto, bici, running, trekking, otro]
         fecha_programada:
           type: string
           format: date-time
@@ -784,7 +784,7 @@ components:
             es_grupal: { type: boolean }
             tipo_actividad:
               type: string
-              enum: [moto, bici, running, trekking]
+              enum: [moto, bici, running, trekking, otro]
             fecha_inicio_real: { type: string, format: date-time, nullable: true }
             fecha_fin_real: { type: string, format: date-time, nullable: true }
         totales:
@@ -832,7 +832,7 @@ components:
       properties:
         tipo_actividad:
           type: string
-          enum: [moto, bici, running, trekking]
+          enum: [moto, bici, running, trekking, otro]
         es_grupal: { type: boolean }
         ranking_habilitado:
           type: boolean
@@ -932,7 +932,7 @@ components:
           type: boolean
         tipo_actividad:
           type: string
-          enum: [moto, bici, running, trekking]
+          enum: [moto, bici, running, trekking, otro]
         velocidad_esperada:
           type: number
         distancia_max_separacion:
