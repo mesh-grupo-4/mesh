@@ -24,6 +24,9 @@ jobs:
       # ninguna base y los tests usan mocks. Valores de descarte a proposito.
       DIRECT_URL: postgresql://ci:ci@localhost:5432/ci
       DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+      # @mermaid-js/mermaid-cli arrastra Puppeteer, que baja ~150MB de Chromium
+      # al instalarse. El generador de ERD no corre en CI, asi que sobra.
+      PUPPETEER_SKIP_DOWNLOAD: "true"
     steps:
       - uses: actions/checkout@v5
 
