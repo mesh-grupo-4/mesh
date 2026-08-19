@@ -1,0 +1,85 @@
+name: Deploy backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy-backend.yml'
+  workflow_dispatch:
+
+# Nunca dos deploys a la vez: las migraciones no son reentrantes.
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      # prisma.config.ts exige DIRECT_URL, pero `generate` no se conecta a
+      # ninguna base y los tests usan mocks. Valores de descarte a proposito.
+      DIRECT_URL: postgresql://ci:ci@localhost:5432/ci
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Tests
+        run: npm test
+
+      - name: Compilar
+        run: npm run build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release
+          retention-days: 5
+          include-hidden-files: false
+          path: |
+            backend/dist
+            backend/prisma
+            backend/prisma.config.ts
+            backend/package.json
+            backend/package-lock.json
+
+  deploy:
+    needs: ci
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release
+          path: release
+
+      - name: Configurar SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "${{ secrets.SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+
+      - name: Subir el release
+        run: |
+          rsync -az --delete \
+            -e "ssh -p ${{ secrets.SSH_PORT }} -i ~/.ssh/id_ed25519" \
+            release/ \
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/srv/mesh/releases/${{ github.sha }}/"
+
+      - name: Activar
+        run: |
+          ssh -p ${{ secrets.SSH_PORT }} -i ~/.ssh/id_ed25519 \
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
+            "/srv/mesh/bin/activar.sh ${{ github.sha }}"
