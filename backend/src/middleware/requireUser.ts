@@ -6,7 +6,10 @@ import { findOrCreateByFirebaseUid } from '../modules/usuarios/usuarios.service'
 export const requireUser: RequestHandler = async (req, res, next) => {
   const authHeader = req.header('Authorization')
   if (!authHeader?.startsWith('Bearer ')) {
-    res.status(401).json({ error: 'Se requiere header Authorization: Bearer <token>' })
+    res.status(401).json({
+      error: 'Se requiere header Authorization: Bearer <token>',
+      code: 'UNAUTHENTICATED',
+    })
     return
   }
 
@@ -18,7 +21,7 @@ export const requireUser: RequestHandler = async (req, res, next) => {
     if (process.env.NODE_ENV !== 'production') {
       console.warn('[requireUser] Token rechazado:', err instanceof Error ? err.message : err)
     }
-    res.status(401).json({ error: 'Token inválido o expirado' })
+    res.status(401).json({ error: 'Token inválido o expirado', code: 'INVALID_TOKEN' })
     return
   }
 
@@ -28,6 +31,9 @@ export const requireUser: RequestHandler = async (req, res, next) => {
     next()
   } catch (err) {
     console.error('[requireUser] Error al resolver usuario:', err)
-    res.status(500).json({ error: 'Error interno al resolver usuario' })
+    res.status(500).json({
+      error: 'Error interno al resolver usuario',
+      code: 'AUTH_RESOLUTION_FAILED',
+    })
   }
 }

@@ -1,0 +1,1091 @@
+# Módulo Viajes — src/modules/viajes/
+# Router: viajes.router.ts · Controller: viajes.controller.ts
+#
+# Ciclo de vida: planificado → en_curso → finalizado. Solo el creador transiciona (RN-030).
+#
+# Niveles de acceso, implementados en el service:
+#   · assertPuedeVerViaje   → creador o integrante no rechazado (histórico, resumen, ruta)
+#   · assertPuedeVerEnVivo  → creador o integrante CONFIRMADO (ubicaciones vivas, sockets)
+#   · assertPuedeEnviarGps  → los anteriores, y además el viaje debe estar en curso
+#
+# RN-070 (irrevocable): la modalidad `moto` queda excluida de rankings y de la
+# gamificación de velocidad. Se refleja en `ranking_habilitado` y en las velocidades
+# nulas de las respuestas de métricas.
+
+ViajesColeccion:
+  post:
+    operationId: crearViaje
+    summary: Crear un viaje
+    description: |
+      Crea el viaje en estado `planificado` y da de alta al creador como integrante
+      `confirmado` con origen `creador`.
+
+      - **RN-021:** la actividad determina `velocidad_esperada` y
+        `distancia_max_separacion`; las asigna el backend, no el cliente.
+      - **RN-107:** `fechaProgramada` debe ser estrictamente futura.
+      - **RN-028/029:** los integrantes de `grupoIds` y las personas de `amigoIds`
+        quedan invitados en estado `pendiente`. Quien llega por ambas vías se registra
+        una sola vez, con origen `grupo`.
+      - Si se envía `rutaPlantillaId`, la ruta se precarga desde esa plantilla propia
+        y la actividad pasa a ser la de la plantilla.
+    tags:
+      - Viajes
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/CrearViajeRequest'
+          example:
+            nombre: Ruta de las Altas Cumbres
+            esGrupal: true
+            tipoActividad: bici
+            fechaProgramada: '2026-09-01T13:00:00.000Z'
+            grupoIds:
+              - 7a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d
+            amigoIds: []
+    responses:
+      '201':
+        description: Viaje creado.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ViajeCreado'
+      '400':
+        description: |
+          Validación fallida, o fecha programada en el pasado (`FECHA_PASADA`, RN-107).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: La fecha programada debe ser futura
+              code: FECHA_PASADA
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: |
+          Se indicó un grupo del que el creador no es integrante (`NOT_GROUP_MEMBER`)
+          o una persona que no es su amiga (`NOT_FRIEND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            examples:
+              noEsMiembro:
+                value:
+                  error: Solo podés invitar grupos de los que sos miembro
+                  code: NOT_GROUP_MEMBER
+              noEsAmigo:
+                value:
+                  error: Solo podés invitar a tus amigos
+                  code: NOT_FRIEND
+      '404':
+        description: El usuario no existe (`USER_NOT_FOUND`) o la plantilla no es suya (`PLANTILLA_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Plantilla no encontrada
+              code: PLANTILLA_NOT_FOUND
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+ViajesPlanificados:
+  get:
+    operationId: listarPlanificados
+    summary: Listar los viajes planificados y en curso
+    description: |
+      Viajes en estado `planificado` o `en_curso` donde el usuario es creador o figura
+      como integrante `pendiente` o `confirmado`, ordenados por fecha de salida ascendente.
+
+      `mi_estado` resume la situación propia: `creador` para quien lo creó, o el estado
+      de su invitación.
+    tags:
+      - Viajes
+    responses:
+      '200':
+        description: Viajes próximos del usuario.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/ViajeResumenPlanificado'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+ViajesFinalizados:
+  get:
+    operationId: listarFinalizados
+    summary: Listar el historial de viajes finalizados
+    description: |
+      Viajes ya cerrados, del más reciente al más antiguo.
+
+      Incluye deliberadamente a quienes salieron antes del final (`estado: salido`):
+      recorrieron parte del trayecto, así que el viaje les cuenta en el historial.
+    tags:
+      - Viajes
+    responses:
+      '200':
+        description: Historial del usuario.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/ViajeResumenFinalizado'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+ViajeActual:
+  get:
+    operationId: viajeEnCurso
+    summary: Obtener el viaje que el usuario está transitando
+    description: |
+      Devuelve el viaje `en_curso` del usuario, o `null` si no hay ninguno.
+
+      La ausencia de viaje **no es un error**: responde 200 con cuerpo `null`. Es la
+      consulta que la app usa al abrir para decidir si mostrar el modo de seguimiento.
+    tags:
+      - Viajes
+    responses:
+      '200':
+        description: Viaje en curso, o `null`.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ViajeEnCurso'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+EstadisticasUsuario:
+  get:
+    operationId: estadisticasUsuario
+    summary: Obtener las estadísticas acumuladas del usuario
+    description: |
+      Totales históricos sobre todos los viajes finalizados en los que participó,
+      incluidos aquellos que abandonó antes del cierre.
+    tags:
+      - Viajes
+    responses:
+      '200':
+        description: Acumulado histórico.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/EstadisticasUsuario'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+InvitacionesViajePendientes:
+  get:
+    operationId: listarInvitacionesViajePendientes
+    summary: Listar invitaciones a viajes recibidas
+    description: |
+      Invitaciones sin responder, de la más reciente a la más antigua.
+
+      Solo se listan las de viajes todavía `planificado`: una vez iniciado el viaje,
+      la invitación deja de ofrecerse aunque siga pendiente en la base.
+    tags:
+      - Viajes
+    responses:
+      '200':
+        description: Invitaciones pendientes.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/InvitacionViajePendiente'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+UnirseQr:
+  post:
+    operationId: unirseQr
+    summary: Unirse a un viaje escaneando su QR
+    description: |
+      **RN-015/016:** el QR es único por viaje y une directamente, sin necesidad de que
+      el líder apruebe. **Expira al iniciarse el viaje**: escanearlo después devuelve
+      410 `QR_EXPIRED`.
+
+      Es idempotente: si la persona ya figuraba en el viaje, responde 200 con
+      `yaEraParticipante: true` sin duplicar nada.
+    tags:
+      - Viajes
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '200':
+        description: El usuario quedó incorporado al viaje.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/UnionPorQr'
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '404':
+        description: El viaje no existe (`VIAJE_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Viaje no encontrado
+              code: VIAJE_NOT_FOUND
+      '410':
+        description: El viaje ya arrancó o terminó, así que el QR caducó (`QR_EXPIRED`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Este QR ya no es válido porque el viaje comenzó
+              code: QR_EXPIRED
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+ResponderInvitacionViaje:
+  post:
+    operationId: responderInvitacionViaje
+    summary: Aceptar o rechazar una invitación a un viaje
+    description: |
+      Aceptar pasa la participación a `confirmado`; rechazar, a `rechazado`.
+
+      Solo se puede responder mientras el viaje siga `planificado`: una vez iniciado,
+      la API devuelve 410 `TRIP_NOT_PLANNED`.
+    tags:
+      - Viajes
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/AccionInvitacion'
+    responses:
+      '200':
+        description: Invitación respondida.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/RespuestaInvitacionViaje'
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '404':
+        description: No hay invitación para este usuario en este viaje (`INVITATION_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Invitación no encontrada
+              code: INVITATION_NOT_FOUND
+      '409':
+        description: La invitación ya fue respondida (`INVITATION_ALREADY_ANSWERED`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: La invitación ya fue respondida
+              code: INVITATION_ALREADY_ANSWERED
+      '410':
+        description: El viaje ya no está planificado (`TRIP_NOT_PLANNED`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: El viaje ya no acepta respuestas
+              code: TRIP_NOT_PLANNED
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+ParticipantesViaje:
+  get:
+    operationId: listarParticipantes
+    summary: Listar los integrantes del viaje
+    description: |
+      Todos los integrantes con el estado de su invitación y la vía por la que llegaron,
+      ordenados por estado y luego por antigüedad.
+
+      Accesible para el creador y para cualquier integrante que no haya rechazado.
+    tags:
+      - Viajes
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '200':
+        description: Integrantes del viaje.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/ParticipanteViaje'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: El usuario no tiene acceso al viaje (`FORBIDDEN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Sin acceso a este viaje
+              code: FORBIDDEN
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+ResumenViajeRecurso:
+  get:
+    operationId: obtenerResumen
+    summary: Obtener el resumen de cierre del viaje
+    description: |
+      Totales del grupo y métricas propias. **Requiere el viaje finalizado**: en
+      cualquier otro estado devuelve 409 `TRIP_NOT_FINISHED`.
+
+      El resumen se calcula al finalizar. Si ese cálculo falló —agregar cientos de miles
+      de filas GPS puede tardar— o el viaje es anterior a esta funcionalidad, la consulta
+      lo recalcula al vuelo de forma transparente.
+
+      **RN-070:** `ranking_habilitado` es `false` en modalidad `moto`.
+    tags:
+      - Viajes
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '200':
+        description: Resumen del viaje.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ResumenViaje'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: El usuario no tiene acceso al viaje (`FORBIDDEN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Sin acceso a este viaje
+              code: FORBIDDEN
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '409':
+        description: El viaje todavía no finalizó (`TRIP_NOT_FINISHED`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: El viaje todavía no finalizó
+              code: TRIP_NOT_FINISHED
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+MetricasGrupalesViaje:
+  get:
+    operationId: metricasGrupales
+    summary: Obtener las métricas del grupo y el desglose por integrante
+    description: |
+      Agregados del viaje más una fila por integrante, incluidos quienes no registraron
+      GPS (con los campos en `null`).
+
+      **RN-070 (irrevocable):** `ranking_habilitado` es `true` únicamente si el viaje es
+      grupal **y** la actividad no es `moto`. En moto no se calculan puestos ni se
+      exponen velocidades: los campos correspondientes llegan en `null`. Es una regla
+      de seguridad vial, no una preferencia de producto.
+
+      Requiere el viaje finalizado.
+    tags:
+      - Viajes
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '200':
+        description: Métricas grupales.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/MetricasGrupales'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: El usuario no tiene acceso al viaje (`FORBIDDEN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Sin acceso a este viaje
+              code: FORBIDDEN
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '409':
+        description: El viaje todavía no finalizó (`TRIP_NOT_FINISHED`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: El viaje todavía no finalizó
+              code: TRIP_NOT_FINISHED
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+MisMetricasViaje:
+  get:
+    operationId: misMetricas
+    summary: Obtener las métricas propias del viaje
+    description: |
+      Métricas individuales detalladas más el perfil de velocidad minuto a minuto,
+      pensado para graficarlo.
+
+      **RN-070:** en modalidad `moto` las velocidades llegan en `null` y
+      `perfil_velocidad` es un array vacío.
+
+      Requiere el viaje finalizado.
+    tags:
+      - Viajes
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '200':
+        description: Métricas del usuario en ese viaje.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/MisMetricas'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: El usuario no tiene acceso al viaje (`FORBIDDEN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Sin acceso a este viaje
+              code: FORBIDDEN
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '409':
+        description: El viaje todavía no finalizó (`TRIP_NOT_FINISHED`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: El viaje todavía no finalizó
+              code: TRIP_NOT_FINISHED
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+ViajePorId:
+  get:
+    operationId: detalleViaje
+    summary: Obtener el detalle de un viaje
+    description: |
+      Viaje completo con su creador, la referencia a la ruta y la participación propia.
+
+      `mi_participacion` viene resuelta también para el creador, que no tiene fila
+      propia en `viaje_integrante`: se le informa `{ estado: confirmado, origen: creador }`.
+    tags:
+      - Viajes
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '200':
+        description: Detalle del viaje.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ViajeDetalle'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: El usuario no tiene acceso al viaje (`FORBIDDEN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Sin acceso a este viaje
+              code: FORBIDDEN
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+  patch:
+    operationId: actualizarViaje
+    summary: Reprogramar un viaje
+    description: |
+      Cambia la fecha de salida. Es lo único editable después del alta.
+
+      **Solo el creador** puede hacerlo (RN-030), y únicamente mientras el viaje siga
+      `planificado`. La nueva fecha debe ser futura (RN-107).
+    tags:
+      - Viajes
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/ActualizarViajeRequest'
+    responses:
+      '200':
+        description: Viaje reprogramado.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ViajeReprogramado'
+      '400':
+        description: Validación fallida o fecha en el pasado (`FECHA_PASADA`, RN-107).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: La fecha programada debe ser futura
+              code: FECHA_PASADA
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: Solo el creador puede modificar el viaje (`NOT_CREATOR`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Solo el creador puede modificar el viaje
+              code: NOT_CREATOR
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '409':
+        description: El viaje ya no está planificado (`INVALID_STATE`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Solo se puede editar un viaje planificado
+              code: INVALID_STATE
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+  delete:
+    operationId: eliminarViaje
+    summary: Eliminar un viaje
+    description: |
+      **Solo el creador** puede eliminarlo (RN-030). Un viaje `en_curso` no se elimina:
+      primero hay que finalizarlo.
+
+      El borrado arrastra integrantes, ruta, registros GPS y métricas asociadas.
+    tags:
+      - Viajes
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '200':
+        description: Viaje eliminado.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ViajeEliminado'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: Solo el creador puede eliminar el viaje (`NOT_CREATOR`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Solo el creador puede eliminar el viaje
+              code: NOT_CREATOR
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '409':
+        description: El viaje está en curso (`INVALID_STATE`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: No se puede eliminar un viaje en curso. Finalizalo primero.
+              code: INVALID_STATE
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+PosicionesViaje:
+  post:
+    operationId: ingresarPosiciones
+    summary: Ingresar posiciones GPS
+    description: |
+      Persiste registros GPS del usuario en el viaje. Es el endpoint que sostiene el
+      **offline-first (RN-038)**.
+
+      - `source: live` → envío en tiempo real (RN-031: una lectura cada 5 s).
+      - `source: offline_sync` → lote acumulado en el dispositivo sin señal. El backend
+        lo procesa en bloque **sin perder registros ni alterar la secuencia temporal**:
+        el orden lo fija el `timestamp` de cada lectura, no el momento de llegada.
+
+      Hasta 2000 posiciones por llamada. La última del lote actualiza además la
+      ubicación viva del usuario y se emite a la sala del viaje por Socket.io.
+
+      Requiere el viaje **en curso** y ser creador o integrante confirmado.
+    tags:
+      - Viajes
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/PosicionesRequest'
+          example:
+            source: offline_sync
+            posiciones:
+              - lat: -31.4201
+                lng: -64.1888
+                precision: 8.4
+                timestamp: '2026-09-01T13:05:00.000Z'
+              - lat: -31.4215
+                lng: -64.1902
+                precision: 6.1
+                timestamp: '2026-09-01T13:05:05.000Z'
+    responses:
+      '201':
+        description: Posiciones persistidas.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/PosicionesIngresadas'
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: El usuario no participa del viaje (`FORBIDDEN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Sin acceso a este viaje
+              code: FORBIDDEN
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '409':
+        description: El viaje no está en curso (`INVALID_STATE`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: El viaje no admite envío de GPS en este estado
+              code: INVALID_STATE
+      '413':
+        $ref: '../components/responses.yaml#/PayloadTooLarge'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+UbicacionVivaViaje:
+  put:
+    operationId: upsertUbicacionViva
+    summary: Publicar la posición actual
+    description: |
+      Actualiza la ubicación viva del usuario y persiste un `registro_gps` con
+      `source: live`, de modo que la traza del viaje queda completa.
+
+      La nueva posición se emite por Socket.io a la sala `viaje:<id>`, que es como el
+      resto del grupo la ve aparecer en el mapa (RN-032: hasta 10 s de latencia).
+
+      Alternativa a `POST /posiciones` para el envío de a una lectura. Requiere el viaje
+      en curso.
+    tags:
+      - Viajes
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/UbicacionVivaRequest'
+    responses:
+      '200':
+        description: Ubicación viva actualizada.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/UbicacionVivaFila'
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: El usuario no participa del viaje (`FORBIDDEN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Sin acceso a este viaje
+              code: FORBIDDEN
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '409':
+        description: El viaje no está en curso (`INVALID_STATE`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: El viaje no admite envío de GPS en este estado
+              code: INVALID_STATE
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+UbicacionesVivasViaje:
+  get:
+    operationId: listarUbicacionesVivas
+    summary: Listar las últimas posiciones de los integrantes
+    description: |
+      Última posición conocida de cada integrante, ordenada por frescura. Es lo que
+      alimenta el mapa grupal.
+
+      Acceso **estricto**: solo el creador y los integrantes `confirmado`. Quien salió
+      del viaje deja de recibir el GPS del grupo, y por eso este endpoint devuelve 403
+      donde otros del mismo viaje devolverían 200.
+    tags:
+      - Viajes
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '200':
+        description: Posiciones vivas de los integrantes.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/UbicacionViva'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: El usuario no es integrante confirmado (`FORBIDDEN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Sin acceso a este viaje
+              code: FORBIDDEN
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+RutaViajeRecurso:
+  get:
+    operationId: obtenerRuta
+    summary: Obtener la ruta planificada del viaje
+    description: |
+      Ruta con origen, destino, trazado y paradas ordenadas. Accesible para el creador
+      y cualquier integrante que no haya rechazado la invitación.
+    tags:
+      - Viajes
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '200':
+        description: Ruta del viaje.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/RutaViaje'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: El usuario no tiene acceso al viaje (`FORBIDDEN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Sin acceso a este viaje
+              code: FORBIDDEN
+      '404':
+        description: El viaje no existe (`VIAJE_NOT_FOUND`) o todavía no tiene ruta (`ROUTE_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Ruta no configurada
+              code: ROUTE_NOT_FOUND
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+  put:
+    operationId: guardarRuta
+    summary: Guardar o reemplazar la ruta del viaje
+    description: |
+      **Solo el creador** puede configurar la ruta (RN-030).
+
+      Las paradas se reemplazan por completo en cada llamada. La distancia planeada
+      **no se envía**: la calcula PostGIS sobre el `linestring` (`ST_Length` sobre
+      geografía), siguiendo la decisión de delegar los cálculos espaciales a la base.
+
+      Los trazados de OSRM pueden rondar los 170 kB; el límite de body es 2 MB y
+      superarlo devuelve 413 `PAYLOAD_TOO_LARGE`.
+    tags:
+      - Viajes
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/GuardarRutaRequest'
+          example:
+            origen:
+              type: Point
+              coordinates: [-64.1888, -31.4201]
+            destino:
+              type: Point
+              coordinates: [-65.0056, -31.7256]
+            origenNombre: Córdoba Capital
+            destinoNombre: Mina Clavero
+            linestring:
+              type: LineString
+              coordinates:
+                - [-64.1888, -31.4201]
+                - [-64.5, -31.55]
+                - [-65.0056, -31.7256]
+            tiempoEstimadoSeg: 9000
+            paradas:
+              - orden: 0
+                lat: -31.55
+                lng: -64.5
+                nombre: YPF Ruta 20
+                categoria: combustible
+    responses:
+      '200':
+        description: Ruta guardada.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/RutaGuardada'
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: Solo el creador puede configurar la ruta (`NOT_CREATOR`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Solo el creador puede configurar la ruta
+              code: NOT_CREATOR
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '413':
+        $ref: '../components/responses.yaml#/PayloadTooLarge'
+      '422':
+        description: PostGIS no pudo calcular la longitud del trazado (`ROUTE_COMPUTE_FAILED`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: No se pudo calcular la ruta. Verifica la ubicación de los puntos.
+              code: ROUTE_COMPUTE_FAILED
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+IniciarViaje:
+  post:
+    operationId: iniciarViaje
+    summary: Iniciar el viaje
+    description: |
+      Transición `planificado` → `en_curso`. **Solo el creador** puede hacerla (RN-030).
+
+      Efectos: registra `fecha_inicio_real`, **caduca el QR de invitación** (RN-015),
+      habilita el ingreso de GPS y emite `viaje:iniciado` a la sala `viaje:<id>`.
+    tags:
+      - Viajes
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '200':
+        description: Viaje iniciado.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Viaje'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: Solo el creador puede iniciar el viaje (`NOT_CREATOR`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Solo el creador puede iniciar el viaje
+              code: NOT_CREATOR
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '409':
+        description: El viaje no está en estado planificado (`INVALID_STATE`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: El viaje no está en estado planificado
+              code: INVALID_STATE
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+FinalizarViaje:
+  post:
+    operationId: finalizarViaje
+    summary: Finalizar el viaje
+    description: |
+      Transición `en_curso` → `finalizado`. **Solo el creador** puede hacerla (RN-030).
+
+      Efectos: registra `fecha_fin_real`, deja de aceptar GPS, emite `viaje:finalizado`
+      a la sala y notifica por push a los integrantes confirmados.
+
+      El resumen y las métricas se calculan a continuación. Si ese cálculo falla, el
+      viaje **queda cerrado igual** y `GET /resumen` lo recalcula al consultarlo: el
+      cierre nunca se bloquea por el agregado de métricas.
+    tags:
+      - Viajes
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '200':
+        description: Viaje finalizado.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Viaje'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: Solo el creador puede finalizar el viaje (`NOT_CREATOR`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Solo el creador puede finalizar el viaje
+              code: NOT_CREATOR
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '409':
+        description: El viaje no está en curso (`INVALID_STATE`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: El viaje no está en curso
+              code: INVALID_STATE
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+SalirViaje:
+  post:
+    operationId: salirViaje
+    summary: Salir de un viaje grupal
+    description: |
+      Salida blanda: la persona pasa a `salido` y deja de compartir ubicación, pero
+      **conserva su fila**, de modo que sigue figurando en el resumen con lo que recorrió.
+
+      El viaje **no** se cierra para los demás; eso solo lo hace finalizar.
+
+      Restricciones:
+
+      - El líder no puede salir, debe finalizar el viaje (`LEADER_CANNOT_LEAVE`).
+      - Un viaje individual no se abandona, se finaliza (`INDIVIDUAL_TRIP`).
+      - Hay que ser integrante `confirmado` (`NOT_PARTICIPANT`).
+
+      Si el viaje está en curso, se emite `viaje:participante_salio` a la sala.
+    tags:
+      - Viajes
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '200':
+        description: El usuario salió del viaje.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/SalidaDeViaje'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: |
+          El líder intentó salir (`LEADER_CANNOT_LEAVE`) o el usuario no es integrante
+          confirmado (`NOT_PARTICIPANT`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            examples:
+              lider:
+                value:
+                  error: El líder no puede salir del viaje, debe finalizarlo
+                  code: LEADER_CANNOT_LEAVE
+              noConfirmado:
+                value:
+                  error: No sos participante confirmado de este viaje
+                  code: NOT_PARTICIPANT
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '409':
+        description: El viaje es individual (`INDIVIDUAL_TRIP`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Un viaje individual no se abandona, se finaliza
+              code: INDIVIDUAL_TRIP
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'

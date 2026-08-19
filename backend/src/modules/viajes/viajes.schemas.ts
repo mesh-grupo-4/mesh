@@ -12,6 +12,10 @@ const lineStringSchema: z.ZodType<GeoJsonLineString> = z.object({
   coordinates: z.array(z.tuple([z.number(), z.number()])).min(2),
 })
 
+export const viajeIdParamSchema = z.object({
+  viajeId: z.string().uuid('viajeId debe ser un UUID válido'),
+})
+
 /** Fecha/hora de salida: debe ser estrictamente posterior a ahora (RN-028). */
 const fechaProgramadaFuturaSchema = z.coerce.date().superRefine((d, ctx) => {
   if (Number.isNaN(d.getTime())) {

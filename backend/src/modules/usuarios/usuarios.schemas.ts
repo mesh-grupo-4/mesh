@@ -8,4 +8,10 @@ export const syncUsuarioSchema = z.object({
   actividad_preferida: z.enum(['moto', 'bici', 'running', 'trekking']).nullish(),
 })
 
+/** Token de Expo Push para notificaciones (`ExponentPushToken[...]`). */
+export const pushTokenSchema = z.object({
+  token: z.string().trim().min(1, 'token requerido'),
+})
+
 export type SyncUsuarioInput = z.infer<typeof syncUsuarioSchema>
+export type PushTokenInput = z.infer<typeof pushTokenSchema>

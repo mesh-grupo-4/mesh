@@ -1,0 +1,33 @@
+# Configuración de Redocly para el spec OpenAPI de Mesh.
+# Se usa en `npm run docs:lint` y `npm run docs:bundle`.
+extends:
+  - recommended
+
+rules:
+  # Trazabilidad spec <-> código: cada operación debe declarar su handler y su módulo.
+  operation-operationId: error
+  operation-operationId-unique: error
+  operation-summary: error
+  operation-tag-defined: error
+
+  # Consistencia de errores y seguridad.
+  # `operation-4xx-response` queda en warn porque GET /api/health es público y no
+  # tiene ningún 4xx legítimo. El invariante real —toda operación autenticada
+  # documenta 401— lo verifica src/docs/contrato.test.ts.
+  operation-4xx-response: warn
+  security-defined: error
+
+  # Higiene del spec modular.
+  no-unused-components: error
+  path-parameters-defined: error
+  operation-parameters-unique: error
+  no-invalid-media-type-examples: error
+
+  # Ruido innecesario para un spec interno de tesis.
+  info-license: off
+  info-license-strict: off
+  operation-4xx-problem-details-rfc7807: off
+  tag-description: warn
+  operation-description: off
+  # `localhost` es el server de desarrollo real del equipo, no un placeholder.
+  no-server-example.com: off

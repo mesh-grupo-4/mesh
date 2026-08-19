@@ -1,0 +1,82 @@
+# Respuestas de error reutilizables.
+# Cada operación referencia las que realmente puede devolver, con el `code` concreto
+# de su caso en el ejemplo.
+
+BadRequest:
+  description: |
+    Entrada inválida. Puede ser un error de validación Zod (`VALIDATION_ERROR`, con
+    `details`) o una regla de negocio de nivel 400.
+  content:
+    application/json:
+      schema:
+        oneOf:
+          - $ref: './schemas.yaml#/ValidationError'
+          - $ref: './schemas.yaml#/Error'
+      examples:
+        validacion:
+          summary: Validación Zod fallida
+          value:
+            error: Validación fallida
+            code: VALIDATION_ERROR
+            details:
+              formErrors: []
+              fieldErrors:
+                nombre:
+                  - El nombre del viaje es obligatorio
+        reglaDeNegocio:
+          summary: Regla de negocio
+          value:
+            error: No podés cambiar tu propio rol
+            code: CANNOT_CHANGE_OWN_ROLE
+
+Unauthorized:
+  description: |
+    Falta el header `Authorization: Bearer <token>` o el Firebase ID token es
+    inválido o está vencido. Producido por `src/middleware/requireUser.ts`.
+  content:
+    application/json:
+      schema:
+        $ref: './schemas.yaml#/Error'
+      examples:
+        sinHeader:
+          summary: Header ausente o mal formado
+          value:
+            error: 'Se requiere header Authorization: Bearer <token>'
+            code: UNAUTHENTICATED
+        tokenInvalido:
+          summary: Token rechazado por Firebase
+          value:
+            error: Token inválido o expirado
+            code: INVALID_TOKEN
+
+NotFound:
+  description: El recurso no existe o el usuario no tiene visibilidad sobre él.
+  content:
+    application/json:
+      schema:
+        $ref: './schemas.yaml#/Error'
+      example:
+        error: Viaje no encontrado
+        code: VIAJE_NOT_FOUND
+
+PayloadTooLarge:
+  description: |
+    El body supera el límite de 2 MB configurado en `src/app.ts`. En la práctica
+    ocurre con trazados GeoJSON muy largos devueltos por OSRM.
+  content:
+    application/json:
+      schema:
+        $ref: './schemas.yaml#/Error'
+      example:
+        error: El trazado de la ruta es demasiado grande. Simplificá el recorrido o acortalo.
+        code: PAYLOAD_TOO_LARGE
+
+InternalServerError:
+  description: Error no contemplado. El detalle queda solo en los logs del servidor.
+  content:
+    application/json:
+      schema:
+        $ref: './schemas.yaml#/Error'
+      example:
+        error: Error interno del servidor
+        code: INTERNAL_ERROR

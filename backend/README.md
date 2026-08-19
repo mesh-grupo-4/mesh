@@ -14,6 +14,10 @@ Backend del proyecto de tesis **Mesh**. API REST con soporte en tiempo real via 
 | **Socket.io** | Comunicación bidireccional en tiempo real |
 | **Prisma** | ORM para interactuar con la base de datos |
 | **PostgreSQL** | Base de datos relacional |
+| **Zod** | Validación de toda la entrada (body, query, path params) |
+| **swagger-ui-express** | Sirve la documentación interactiva en `/api/docs` |
+| **@redocly/cli** | Valida y bundlea el spec OpenAPI modular |
+| **Vitest** | Tests unitarios y de contrato |
 | **helmet** | Headers de seguridad HTTP |
 | **cors** | Control de acceso cross-origin |
 | **dotenv** | Variables de entorno desde `.env` |
@@ -26,7 +30,11 @@ Backend del proyecto de tesis **Mesh**. API REST con soporte en tiempo real via 
 
 **Prisma** genera un cliente tipado a partir del `schema.prisma`, lo que permite autocompletado y verificación de tipos en todas las queries a la base de datos, sin escribir SQL a mano.
 
-**helmet** y **cors** se configuran en el entry point como middlewares globales para cubrir los vectores de seguridad más comunes desde el arranque.
+**helmet** y **cors** se configuran en `app.ts` como middlewares globales para cubrir los vectores de seguridad más comunes desde el arranque.
+
+**Zod** valida toda la entrada antes de que llegue a la lógica de negocio, y su `ZodError` se traduce a una respuesta 400 uniforme en el manejador global de errores.
+
+**@redocly/cli** valida el spec OpenAPI contra un ruleset propio (`redocly.yaml`) y resuelve sus `$ref` en un único documento, que **swagger-ui-express** sirve en `/api/docs`.
 
 ---
 
@@ -34,50 +42,94 @@ Backend del proyecto de tesis **Mesh**. API REST con soporte en tiempo real via 
 
 ```
 backend/
+├── openapi/                # Spec OpenAPI 3.0.3 modular (fuente de verdad de la API REST)
+│   ├── openapi.yaml        # Documento raíz: info, servers, security, tags, paths por $ref
+│   ├── components/         # securitySchemes, parameters, responses y schemas compartidos
+│   └── paths/              # Un archivo por módulo de dominio
+├── docs/
+│   └── websockets.md       # Especificación del canal Socket.io (OpenAPI no cubre WebSockets)
 ├── src/
-│   ├── controllers/        # Funciones que procesan cada request HTTP
+│   ├── app.ts              # createApp(): Express sin listen ni Socket.io (usable en tests)
+│   ├── index.ts            # Entry point: HTTP + Socket.io + listen
+│   ├── config/             # prisma, firebase, timezone
+│   ├── docs/               # Router de Swagger UI + test de contrato spec ↔ router
+│   ├── lib/                # Utilidades: httpError, geo, postgis, qrInvite, expoPush
+│   ├── middleware/         # requireUser (Firebase) y errorHandler
+│   ├── realtime/           # Registro del servidor Socket.io
 │   ├── routes/
-│   │   └── index.ts        # Router principal, monta sub-routers por dominio
-│   ├── middleware/         # Middlewares personalizados (auth, validación, errores)
-│   ├── services/           # Lógica de negocio, acceso a Prisma
-│   ├── sockets/
-│   │   └── index.ts        # Registro de handlers de eventos Socket.io
-│   ├── types/              # Tipos e interfaces TypeScript compartidos
-│   └── index.ts            # Entry point: configura Express, Socket.io y arranca el servidor
+│   │   └── index.ts        # Router principal, monta los sub-routers por dominio
+│   ├── sockets/            # Handlers de eventos Socket.io
+│   ├── types/              # Ampliaciones de tipos (Express.Request, SocketData)
+│   └── modules/            # Un directorio por dominio
+│       ├── usuarios/
+│       ├── amistades/
+│       ├── grupos/
+│       ├── viajes/
+│       └── rutas-compartidas/
 ├── prisma/
-│   └── schema.prisma       # Definición de modelos y relaciones de la DB
+│   ├── schema.prisma       # Definición de modelos y relaciones de la DB
+│   └── migrations/         # Migraciones SQL versionadas
 ├── dist/                   # Output de compilación TypeScript (generado, no versionar)
 ├── .env                    # Variables de entorno locales (no versionar)
-├── .env.example            # Plantilla de variables de entorno
-├── .gitignore
+├── redocly.yaml            # Reglas de lint del spec OpenAPI
 ├── nodemon.json            # Configuración de hot reload para desarrollo
 ├── package.json
 └── tsconfig.json
 ```
 
+Cada módulo de `modules/` agrupa los archivos de su dominio con el mismo patrón:
+
+```
+modules/viajes/
+├── viajes.router.ts        # Rutas Express del dominio
+├── viajes.controller.ts    # Valida la entrada con Zod y delega en el service
+├── viajes.service.ts       # Lógica de negocio y acceso a Prisma
+├── viajes.schemas.ts       # Schemas Zod de request y path params
+└── *.test.ts               # Tests unitarios, junto al código que prueban
+```
+
 ### Convenciones
 
-- **`controllers/`** — un archivo por recurso (ej: `user.controller.ts`). Solo reciben el `Request` y devuelven la `Response`. No contienen lógica de negocio.
-- **`services/`** — un archivo por dominio (ej: `user.service.ts`). Contienen toda la lógica de negocio y llaman a Prisma directamente.
-- **`routes/`** — conectan las URLs con los controladores. Sub-routers por dominio montados en `index.ts`.
-- **`sockets/`** — handlers de eventos Socket.io organizados por dominio, registrados desde `index.ts`.
-- **`middleware/`** — funciones reutilizables que se inyectan en las rutas (autenticación JWT, validación de body, manejo de errores global).
-- **`types/`** — interfaces y tipos compartidos entre capas para evitar duplicación.
+Las capas son **Controller/Socket → Service → Repository**, y viven juntas dentro del
+módulo de su dominio en vez de repartidas por carpetas técnicas.
+
+- **`*.router.ts`** — conecta las URLs con los handlers. Se montan en `routes/index.ts`.
+- **`*.controller.ts`** — recibe el `Request`, valida con Zod y devuelve la `Response`. Sin lógica de negocio.
+- **`*.service.ts`** — toda la lógica de negocio y las autorizaciones (RN-030). Llama a Prisma.
+- **`*.schemas.ts`** — schemas Zod de body, query y path params.
+- **`sockets/`** — handlers de eventos Socket.io. Reutilizan los mismos services.
+- **`middleware/`** — piezas reutilizables: autenticación Firebase y manejo global de errores.
+- **`types/`** — ampliaciones de tipos compartidas entre capas.
+
+Toda entrada se valida con Zod, sin excepciones.
 
 ---
 
 ## Variables de entorno
 
-Copiar `.env.example` a `.env` y completar los valores.
+Crear un `.env` en `backend/` con los valores del entorno.
+
+### Todas las variables
+
+| Variable | Obligatoria | Uso |
+|---|---|---|
+| `DATABASE_URL` | sí | Conexión de runtime (`src/config/prisma.ts`) |
+| `DIRECT_URL` | sí | Conexión para migraciones Prisma (`prisma.config.ts`) |
+| `FIREBASE_PROJECT_ID` | sí | Verificación de ID tokens (`src/config/firebase.ts`) |
+| `FIREBASE_CLIENT_EMAIL` | sí | Ídem |
+| `FIREBASE_PRIVATE_KEY` | sí | Ídem. Los `\n` literales se convierten en saltos de línea |
+| `NODE_ENV` | no | `development` por defecto |
+| `PORT` | no | `3000` por defecto |
+| `HOST` | no | `0.0.0.0` por defecto |
+| `CORS_ORIGIN` | no | Origen permitido en producción. Solo aplica a Socket.io |
+| `DOCS_ENABLED` | no | `false` apaga Swagger UI en `/api/docs` |
 
 ### Supabase (entorno del equipo)
 
-| Variable | Uso | Origen en Supabase Dashboard |
-|---|---|---|
-| `DATABASE_URL` | Runtime del backend (`npm run dev`) | **Connection pooling** → Transaction mode → puerto **6543** |
-| `DIRECT_URL` | Migraciones Prisma | **Connection pooling** → Session mode → puerto **5432** |
-
-Las URLs se leen desde `prisma.config.ts` (`DIRECT_URL` para migrate) y `src/config/prisma.ts` (`DATABASE_URL` en runtime).
+| Variable | Origen en Supabase Dashboard |
+|---|---|
+| `DATABASE_URL` | **Connection pooling** → Transaction mode → puerto **6543** |
+| `DIRECT_URL` | **Connection pooling** → Session mode → puerto **5432** |
 
 ```env
 NODE_ENV=development
@@ -86,8 +138,15 @@ PORT=3000
 DATABASE_URL="postgresql://...@aws-....pooler.supabase.com:6543/postgres?pgbouncer=true"
 DIRECT_URL="postgresql://...@aws-....pooler.supabase.com:5432/postgres"
 
+FIREBASE_PROJECT_ID="mesh-xxxxx"
+FIREBASE_CLIENT_EMAIL="firebase-adminsdk-xxxxx@mesh-xxxxx.iam.gserviceaccount.com"
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+
 CORS_ORIGIN=http://localhost:5173
 ```
+
+> Las credenciales de Firebase y las URLs de base son secretos: no se versionan ni se
+> comparten fuera del canal del equipo.
 
 ---
 
@@ -152,6 +211,14 @@ npm run db:generate
 
 # Explorar la DB visualmente
 npm run db:studio
+
+# Tests (incluye el test de contrato del spec OpenAPI)
+npm test
+
+# Documentación de la API
+npm run docs:lint      # Valida el spec OpenAPI
+npm run docs:bundle    # Bundlea el spec a src/docs/openapi.bundled.json
+npm run docs:preview   # Previsualiza la documentación
 ```
 
 ---
@@ -160,60 +227,104 @@ npm run db:studio
 
 ```
 Request HTTP
-    └── Express (middleware globales: helmet, cors, json)
-            └── routes/index.ts
-                    └── controllers/*.ts
-                            └── services/*.ts
-                                    └── Prisma Client
-                                            └── PostgreSQL
+    └── Express (middlewares globales: helmet, cors, json 2mb)
+            └── routes/index.ts  → monta los sub-routers por dominio
+                    └── modules/<dominio>/*.router.ts
+                            └── middleware/requireUser   (Firebase ID token → req.userId)
+                                    └── *.controller.ts  (valida con Zod)
+                                            └── *.service.ts  (lógica de negocio + autorización)
+                                                    └── Prisma Client → PostgreSQL + PostGIS
+                                                            └── middleware/errorHandler
 ```
 
-## API Grupos (SCRUM-11)
+---
 
-Ver especificación OpenAPI: [`openapi/grupos.yaml`](openapi/grupos.yaml).
+## Documentación de la API
 
-| Método | Ruta | Auth | Descripción |
-|--------|------|------|-------------|
-| `POST` | `/api/usuarios/sync` | No | Upsert usuario por email (MVP; sin Firebase en backend). |
-| `POST` | `/api/grupos` | `x-user-id` | Crea grupo; creador queda como `líder`. |
-| `GET` | `/api/grupos/:grupoId` | `x-user-id` | Detalle básico (solo miembros). |
+La API REST está especificada en **OpenAPI 3.0.3**, siguiendo el principio API-First:
+todo endpoint nuevo se documenta junto con su implementación.
 
-## API Viajes (MVP — iniciar salida)
+### Dónde vive
 
-Autenticación temporal: header `x-user-id: <uuid>` (debe existir en tabla `usuario`). WebSockets: mismo header en el handshake.
+| Qué | Dónde |
+|---|---|
+| Spec modular (fuente de verdad) | [`openapi/`](openapi/) |
+| Documentación interactiva | `http://localhost:3000/api/docs` |
+| Spec crudo, ya bundleado | `http://localhost:3000/api/docs.json` |
+| Eventos Socket.io | [`docs/websockets.md`](docs/websockets.md) |
 
-### REST
+El spec está partido en un documento raíz (`openapi/openapi.yaml`) que referencia por
+`$ref` un archivo de paths por módulo y los componentes compartidos. Se bundlea a
+`src/docs/openapi.bundled.json`, que es lo que sirve Swagger UI.
 
-| Método | Ruta | Descripción |
-|--------|------|-------------|
-| `POST` | `/api/viajes` | Crea viaje (`planificado`). Body: `esGrupal`, `grupoId?`, `tipoActividad`, `fechaProgramada` (ISO). |
-| `PUT` | `/api/viajes/:viajeId/ruta` | Guarda ruta: `origen`/`destino` GeoJSON Point, `linestring` GeoJSON LineString, `paradas` (≤10), `tiempoEstimadoSeg?`. Distancia planeada vía PostGIS. |
-| `POST` | `/api/viajes/:viajeId/iniciar` | Creador → `en_curso`, emite `viaje:iniciado`. |
-| `POST` | `/api/viajes/:viajeId/finalizar` | Creador → `finalizado`, resumen + `viaje:finalizado`. |
+Ese JSON es un **artefacto generado y no versionado**: `predev`, `pretest` y `build` lo
+regeneran siempre, de modo que nunca puede quedar viejo.
 
-### Socket.io
+### Comandos
 
-Tras conectar, unirse a la sala del viaje:
+```bash
+npm run docs:lint      # Valida el spec contra el ruleset de redocly.yaml
+npm run docs:bundle    # Resuelve los $ref → src/docs/openapi.bundled.json
+npm run docs:preview   # Previsualiza la documentación con recarga en vivo
+```
 
-- Evento cliente → servidor: `join_viaje` con `{ viajeId: "<uuid>" }`
-- Salir: `leave_viaje`
+Para apagar la documentación en un despliegue, `DOCS_ENABLED=false`.
 
-Eventos servidor → cliente (broadcast a la sala `viaje:<id>`):
+### Cómo se mantiene sincronizada
 
-- `viaje:iniciado` `{ viajeId, estado, fechaInicioReal }`
-- `viaje:finalizado` `{ viajeId, estado, fechaFinReal }`
+[`src/docs/contrato.test.ts`](src/docs/contrato.test.ts) recorre la tabla de montajes de
+`routes/index.ts` y compara la superficie REST real contra el spec. Falla si:
+
+- hay un endpoint sin documentar, o una operación documentada que ya no existe;
+- falta `operationId`, `summary` o `tags`, o un `operationId` está repetido;
+- una operación autenticada no documenta su 401, o hay públicas además de `/api/health`;
+- falta declarar un parámetro de path, o una respuesta 2xx.
+
+Es lo que impide que el spec y el código vuelvan a divergir. Corre con `npm test`.
+
+### Contrato de errores
+
+Toda respuesta de error tiene la misma forma, producida por `middleware/errorHandler.ts`:
+
+```jsonc
+{ "error": "Solo el creador puede iniciar el viaje", "code": "NOT_CREATOR" }
+```
+
+`error` es texto en español apto para mostrar al usuario; `code` es un identificador estable
+para que el cliente ramifique lógica. Los errores de validación Zod agregan `details` con el
+resultado de `flatten()`. El catálogo completo de códigos está en el schema `ErrorCode` del spec.
+
+### Autenticación
+
+Todos los endpoints salvo `GET /api/health` exigen el header:
+
+```
+Authorization: Bearer <Firebase ID token>
+```
+
+El backend verifica el token contra Firebase, resuelve el `Usuario` local a partir del
+`firebase_uid` y expone su UUID como `req.userId`. Los WebSockets usan el mismo token en el
+handshake (ver [`docs/websockets.md`](docs/websockets.md)).
 
 ### GeoJSON (contrato)
 
 - `Point`: `{ "type": "Point", "coordinates": [lng, lat] }`
 - `LineString`: `{ "type": "LineString", "coordinates": [[lng, lat], ...] }` (mínimo 2 puntos)
 
+**Atención al orden**: GeoJSON usa longitud primero, al revés de la convención habitual
+`lat, lng`. Los cálculos espaciales se delegan a PostGIS.
+
+---
+
 ## Flujo de un evento WebSocket
 
 ```
 Cliente emite evento
     └── Socket.io Server
-            └── sockets/index.ts (handler registrado)
-                    └── services/*.ts (misma lógica de negocio)
-                            └── io.emit() / socket.emit() → Cliente(s)
+            └── sockets/auth.ts (verifica el Firebase ID token del handshake)
+                    └── sockets/index.ts (handler registrado, payload validado con Zod)
+                            └── modules/viajes/viajes.service.ts (misma lógica que REST)
+                                    └── io.to('viaje:<id>').emit(...) → integrantes de la sala
 ```
+
+Especificación completa de los 7 eventos: [`docs/websockets.md`](docs/websockets.md).

@@ -3,6 +3,8 @@ import {
   plantillaIdParamSchema,
   shareTokenParamSchema,
 } from './rutas-compartidas.schemas'
+// Estos dos handlers se montan bajo /api/viajes/:viajeId/ruta/compartir.
+import { viajeIdParamSchema } from '../viajes/viajes.schemas'
 import type { RutasCompartidasService } from './rutas-compartidas.service'
 
 function asyncHandler(fn: (req: Request, res: Response) => Promise<void>): RequestHandler {
@@ -14,13 +16,13 @@ function asyncHandler(fn: (req: Request, res: Response) => Promise<void>): Reque
 export function crearRutasCompartidasController(service: RutasCompartidasService) {
   return {
     compartir: asyncHandler(async (req, res) => {
-      const viajeId = req.params.viajeId as string
+      const { viajeId } = viajeIdParamSchema.parse(req.params)
       const out = await service.compartirRuta(req.userId!, viajeId)
       res.json(out)
     }),
 
     revocar: asyncHandler(async (req, res) => {
-      const viajeId = req.params.viajeId as string
+      const { viajeId } = viajeIdParamSchema.parse(req.params)
       const out = await service.revocarCompartir(req.userId!, viajeId)
       res.json(out)
     }),

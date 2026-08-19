@@ -1,0 +1,202 @@
+openapi: 3.0.3
+
+info:
+  title: Mesh API
+  version: 1.0.0
+  description: |
+    **Mesh** coordina grupos en movimiento —motociclismo, ciclismo, running y trekking—
+    combinando una API REST para el ciclo de vida de viajes, grupos y rutas, con un canal
+    Socket.io para el seguimiento en vivo.
+
+    Proyecto de tesis · UTN FRC · Grupo 4 · Curso 5K1 · 2026.
+
+    ## Autenticación
+
+    Todos los endpoints requieren `Authorization: Bearer <Firebase ID token>`, salvo
+    `GET /api/health`. El backend verifica el token contra Firebase y resuelve el
+    `Usuario` local; ese UUID es el que identifica a la persona en todo el dominio.
+
+    ## Autorización
+
+    RN-030: **el backend valida cada acción**. El frontend solo orienta visualmente y
+    nunca es la fuente de verdad sobre permisos. Las mutaciones sensibles —iniciar y
+    finalizar viaje, configurar la ruta, gestionar integrantes— comprueban el rol de
+    líder o la condición de creador antes de ejecutarse.
+
+    RN-011: dentro de un grupo existen exactamente dos roles, `lider` y `participante`.
+
+    ## Errores
+
+    Toda respuesta de error tiene la misma forma: `{ error, code }`, donde `error` es
+    texto en español apto para mostrar al usuario y `code` es un identificador estable
+    para que el cliente ramifique lógica. Los errores de validación Zod agregan
+    `details` con el resultado de `flatten()`.
+
+    ## Fecha y hora
+
+    RN-105/106: las fechas se transportan **siempre en UTC**, en ISO 8601. La conversión
+    a hora de Argentina (UTC-3, sin horario de verano) ocurre únicamente en el frontend,
+    vía `frontend/lib/tiempoArg.ts`.
+
+    ## Coordenadas
+
+    Las geometrías siguen GeoJSON (RFC 7946): el orden de cada par es `[lng, lat]`,
+    al revés de la convención habitual. Los cálculos espaciales se delegan a PostGIS.
+
+    ## Tiempo real
+
+    Los eventos de Socket.io no forman parte de este documento —OpenAPI no cubre
+    WebSockets—. Están especificados en `backend/docs/websockets.md`.
+
+  contact:
+    name: Mesh — Grupo 4, UTN FRC
+    url: https://github.com/mesh-grupo-4/mesh
+
+servers:
+  - url: http://localhost:3000
+    description: Desarrollo local
+  - url: '{protocolo}://{host}'
+    description: Despliegue configurable (VPS de test o producción)
+    variables:
+      protocolo:
+        default: https
+        enum: [http, https]
+      host:
+        default: api.mesh.local
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Sistema
+    description: Estado del servicio.
+  - name: Usuarios
+    description: Perfil propio, sincronización con Firebase y token de notificaciones push.
+  - name: Amistades
+    description: Búsqueda de personas, solicitudes de amistad y listado de amigos.
+  - name: Grupos
+    description: |
+      Grupos persistentes, sus integrantes e invitaciones.
+      Solo el líder gestiona miembros y elimina el grupo (RN-030).
+  - name: Viajes
+    description: |
+      Ciclo de vida del viaje: creación, invitaciones, configuración de ruta,
+      ingreso de posiciones GPS, transiciones de estado y métricas de cierre.
+  - name: RutasCompartidas
+    description: |
+      Links privados de rutas planificadas y plantillas importadas (RN-085–088).
+      Distinto del QR para unirse a un viaje (RN-015/016).
+
+paths:
+  # ── Sistema ────────────────────────────────────────────────────────────────
+  /api/health:
+    $ref: './paths/health.yaml#/Health'
+
+  # ── Usuarios ───────────────────────────────────────────────────────────────
+  /api/usuarios/me:
+    $ref: './paths/usuarios.yaml#/UsuarioActual'
+  /api/usuarios/sync:
+    $ref: './paths/usuarios.yaml#/SincronizarUsuario'
+  /api/usuarios/push-token:
+    $ref: './paths/usuarios.yaml#/PushToken'
+
+  # ── Amistades ──────────────────────────────────────────────────────────────
+  /api/amistades:
+    $ref: './paths/amistades.yaml#/ListaAmigos'
+  /api/amistades/buscar:
+    $ref: './paths/amistades.yaml#/BuscarUsuarios'
+  /api/amistades/solicitudes/pendientes:
+    $ref: './paths/amistades.yaml#/SolicitudesPendientes'
+  /api/amistades/solicitar:
+    $ref: './paths/amistades.yaml#/SolicitarAmistad'
+  /api/amistades/solicitudes/{solicitudId}/responder:
+    $ref: './paths/amistades.yaml#/ResponderSolicitud'
+  /api/amistades/{usuarioId}:
+    $ref: './paths/amistades.yaml#/Amigo'
+
+  # ── Grupos ─────────────────────────────────────────────────────────────────
+  /api/grupos:
+    $ref: './paths/grupos.yaml#/GruposColeccion'
+  /api/grupos/invitaciones/pendientes:
+    $ref: './paths/grupos.yaml#/InvitacionesGrupoPendientes'
+  /api/grupos/invitaciones/{invitacionId}/responder:
+    $ref: './paths/grupos.yaml#/ResponderInvitacionGrupo'
+  /api/grupos/{grupoId}:
+    $ref: './paths/grupos.yaml#/GrupoPorId'
+  /api/grupos/{grupoId}/miembros:
+    $ref: './paths/grupos.yaml#/MiembrosGrupo'
+  /api/grupos/{grupoId}/miembros/{usuarioId}/rol:
+    $ref: './paths/grupos.yaml#/RolMiembroGrupo'
+  /api/grupos/{grupoId}/grupos-para-invitar:
+    $ref: './paths/grupos.yaml#/GruposParaInvitar'
+  /api/grupos/{grupoId}/amigos-para-invitar:
+    $ref: './paths/grupos.yaml#/AmigosParaInvitar'
+  /api/grupos/{grupoId}/buscar-usuarios:
+    $ref: './paths/grupos.yaml#/BuscarUsuariosParaInvitar'
+  /api/grupos/{grupoId}/usuarios-para-invitar:
+    $ref: './paths/grupos.yaml#/UsuariosParaInvitar'
+  /api/grupos/{grupoId}/invitar-usuarios:
+    $ref: './paths/grupos.yaml#/InvitarUsuarios'
+  /api/grupos/{grupoId}/invitar-desde-grupos:
+    $ref: './paths/grupos.yaml#/InvitarDesdeGrupos'
+  /api/grupos/{grupoId}/abandonar:
+    $ref: './paths/grupos.yaml#/AbandonarGrupo'
+
+  # ── Viajes ─────────────────────────────────────────────────────────────────
+  /api/viajes:
+    $ref: './paths/viajes.yaml#/ViajesColeccion'
+  /api/viajes/planificados:
+    $ref: './paths/viajes.yaml#/ViajesPlanificados'
+  /api/viajes/finalizados:
+    $ref: './paths/viajes.yaml#/ViajesFinalizados'
+  /api/viajes/en-curso:
+    $ref: './paths/viajes.yaml#/ViajeActual'
+  /api/viajes/estadisticas:
+    $ref: './paths/viajes.yaml#/EstadisticasUsuario'
+  /api/viajes/invitaciones/pendientes:
+    $ref: './paths/viajes.yaml#/InvitacionesViajePendientes'
+  /api/viajes/{viajeId}:
+    $ref: './paths/viajes.yaml#/ViajePorId'
+  /api/viajes/{viajeId}/unirse-qr:
+    $ref: './paths/viajes.yaml#/UnirseQr'
+  /api/viajes/{viajeId}/invitacion/responder:
+    $ref: './paths/viajes.yaml#/ResponderInvitacionViaje'
+  /api/viajes/{viajeId}/participantes:
+    $ref: './paths/viajes.yaml#/ParticipantesViaje'
+  /api/viajes/{viajeId}/resumen:
+    $ref: './paths/viajes.yaml#/ResumenViajeRecurso'
+  /api/viajes/{viajeId}/metricas-grupales:
+    $ref: './paths/viajes.yaml#/MetricasGrupalesViaje'
+  /api/viajes/{viajeId}/mis-metricas:
+    $ref: './paths/viajes.yaml#/MisMetricasViaje'
+  /api/viajes/{viajeId}/posiciones:
+    $ref: './paths/viajes.yaml#/PosicionesViaje'
+  /api/viajes/{viajeId}/ubicacion-viva:
+    $ref: './paths/viajes.yaml#/UbicacionVivaViaje'
+  /api/viajes/{viajeId}/ubicaciones-vivas:
+    $ref: './paths/viajes.yaml#/UbicacionesVivasViaje'
+  /api/viajes/{viajeId}/ruta:
+    $ref: './paths/viajes.yaml#/RutaViajeRecurso'
+  /api/viajes/{viajeId}/iniciar:
+    $ref: './paths/viajes.yaml#/IniciarViaje'
+  /api/viajes/{viajeId}/finalizar:
+    $ref: './paths/viajes.yaml#/FinalizarViaje'
+  /api/viajes/{viajeId}/salir:
+    $ref: './paths/viajes.yaml#/SalirViaje'
+
+  # ── Rutas compartidas y plantillas ─────────────────────────────────────────
+  /api/viajes/{viajeId}/ruta/compartir:
+    $ref: './paths/rutas-compartidas.yaml#/CompartirRutaDeViaje'
+  /api/rutas-compartidas/{token}:
+    $ref: './paths/rutas-compartidas.yaml#/RutaCompartidaPorToken'
+  /api/rutas-compartidas/{token}/importaciones:
+    $ref: './paths/rutas-compartidas.yaml#/ImportarRutaCompartida'
+  /api/rutas-plantilla:
+    $ref: './paths/rutas-compartidas.yaml#/ListaPlantillas'
+  /api/rutas-plantilla/{plantillaId}:
+    $ref: './paths/rutas-compartidas.yaml#/PlantillaPorId'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      $ref: './components/securitySchemes.yaml#/BearerAuth'

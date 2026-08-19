@@ -1,0 +1,255 @@
+# Módulo Amistades — src/modules/amistades/
+# Router: amistades.router.ts · Controller: amistades.controller.ts
+#
+# La amistad es simétrica: una vez aceptada, ambas personas se ven mutuamente
+# como amigas sin importar quién envió la solicitud.
+
+ListaAmigos:
+  get:
+    operationId: listarAmigos
+    summary: Listar amigos aceptados
+    description: |
+      Devuelve las personas con las que el usuario tiene una amistad en estado
+      `aceptada`, ordenadas alfabéticamente por nombre. Es la lista que alimenta
+      la invitación de amigos a un viaje o a un grupo.
+    tags:
+      - Amistades
+    responses:
+      '200':
+        description: Amigos del usuario autenticado.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/UsuarioBasico'
+            example:
+              - id: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d
+                nombre: Martina
+                email: martina@example.com
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+BuscarUsuarios:
+  get:
+    operationId: buscarUsuarios
+    summary: Buscar personas para agregar como amigas
+    description: |
+      Busca por coincidencia parcial en nombre o email, sin distinguir mayúsculas.
+      Excluye al propio usuario y devuelve como máximo 20 resultados.
+
+      Cada resultado trae `relacion` ya resuelta, para que el cliente sepa si mostrar
+      "Agregar", "Solicitud enviada" o "Ya son amigos" sin hacer consultas extra.
+    tags:
+      - Amistades
+    parameters:
+      - $ref: '../components/parameters.yaml#/BusquedaQuery'
+    responses:
+      '200':
+        description: Hasta 20 personas que coinciden con la búsqueda.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/UsuarioBuscado'
+            example:
+              - id: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d
+                nombre: Martina
+                email: martina@example.com
+                relacion: null
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+SolicitudesPendientes:
+  get:
+    operationId: solicitudesPendientes
+    summary: Listar solicitudes de amistad recibidas
+    description: |
+      Solicitudes dirigidas al usuario autenticado que siguen en estado `pendiente`,
+      de la más reciente a la más antigua. No incluye las que él mismo envió.
+    tags:
+      - Amistades
+    responses:
+      '200':
+        description: Solicitudes pendientes de respuesta.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/SolicitudAmistadPendiente'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+SolicitarAmistad:
+  post:
+    operationId: solicitarAmistad
+    summary: Enviar una solicitud de amistad
+    description: |
+      Crea una solicitud en estado `pendiente` hacia otra persona.
+
+      Rechaza el envío si ya existe una relación entre ambas: si ya son amigos
+      (`ALREADY_FRIENDS`), si el usuario ya envió una solicitud (`REQUEST_ALREADY_SENT`)
+      o si la otra persona ya le envió una a él (`REQUEST_ALREADY_RECEIVED`) — en ese
+      último caso corresponde responderla, no crear una nueva.
+    tags:
+      - Amistades
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/SolicitarAmistadRequest'
+    responses:
+      '201':
+        description: Solicitud creada.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/SolicitudAmistadCreada'
+      '400':
+        description: |
+          Entrada inválida, o intento de enviarse una solicitud a uno mismo
+          (`SELF_FRIEND_REQUEST`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: No podés enviarte una solicitud a vos mismo
+              code: SELF_FRIEND_REQUEST
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '404':
+        description: La persona destinataria no existe (`USER_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Usuario no encontrado
+              code: USER_NOT_FOUND
+      '409':
+        description: Ya existe una relación entre ambas personas.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            examples:
+              yaSonAmigos:
+                value:
+                  error: Ya son amigos
+                  code: ALREADY_FRIENDS
+              yaEnviada:
+                value:
+                  error: Ya enviaste una solicitud a esta persona
+                  code: REQUEST_ALREADY_SENT
+              yaRecibida:
+                value:
+                  error: Esta persona ya te envió una solicitud
+                  code: REQUEST_ALREADY_RECEIVED
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+ResponderSolicitud:
+  post:
+    operationId: responderSolicitudAmistad
+    summary: Aceptar o rechazar una solicitud de amistad
+    description: |
+      Solo la persona destinataria puede responder. Aceptar pasa la amistad a
+      `aceptada`; rechazar **elimina** el registro, de modo que quien la envió
+      puede volver a intentarlo más adelante.
+
+      Una solicitud que no le pertenece al usuario devuelve 404, no 403: así no se
+      filtra la existencia de solicitudes ajenas.
+    tags:
+      - Amistades
+    parameters:
+      - $ref: '../components/parameters.yaml#/SolicitudId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/AccionInvitacion'
+    responses:
+      '200':
+        description: Solicitud respondida.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/RespuestaSolicitudAmistad'
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '404':
+        description: La solicitud no existe o no está dirigida al usuario (`FRIEND_REQUEST_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Solicitud no encontrada
+              code: FRIEND_REQUEST_NOT_FOUND
+      '409':
+        description: La solicitud ya había sido respondida (`REQUEST_ALREADY_RESPONDED`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Esta solicitud ya fue respondida
+              code: REQUEST_ALREADY_RESPONDED
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+Amigo:
+  delete:
+    operationId: eliminarAmigo
+    summary: Eliminar una amistad
+    description: |
+      Rompe la amistad en ambos sentidos. Al borrarse el registro, cualquiera de
+      las dos personas puede volver a enviar una solicitud más adelante.
+    tags:
+      - Amistades
+    parameters:
+      - $ref: '../components/parameters.yaml#/UsuarioId'
+    responses:
+      '200':
+        description: Amistad eliminada.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/AmigoEliminado'
+      '400':
+        description: Intento de eliminarse a uno mismo (`SELF_UNFRIEND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: No podés eliminarte a vos mismo
+              code: SELF_UNFRIEND
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '404':
+        description: No hay amistad aceptada con esa persona (`FRIENDSHIP_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: No tenés una amistad con esta persona
+              code: FRIENDSHIP_NOT_FOUND
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'

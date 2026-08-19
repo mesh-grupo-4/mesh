@@ -1,5 +1,5 @@
 import type { Request, RequestHandler, Response } from 'express'
-import { syncUsuarioSchema } from './usuarios.schemas'
+import { pushTokenSchema, syncUsuarioSchema } from './usuarios.schemas'
 import type { UsuariosService } from './usuarios.service'
 
 function asyncHandler(fn: (req: Request, res: Response) => Promise<void>): RequestHandler {
@@ -13,7 +13,7 @@ export function crearUsuariosController(service: UsuariosService) {
     getMe: asyncHandler(async (req, res) => {
       const usuario = await service.getMe(req.userId!)
       if (!usuario) {
-        res.status(404).json({ error: 'Usuario no encontrado' })
+        res.status(404).json({ error: 'Usuario no encontrado', code: 'USER_NOT_FOUND' })
         return
       }
       res.json(usuario)
@@ -26,11 +26,7 @@ export function crearUsuariosController(service: UsuariosService) {
     }),
 
     upsertPushToken: asyncHandler(async (req, res) => {
-      const { token } = req.body as { token?: unknown }
-      if (!token || typeof token !== 'string') {
-        res.status(400).json({ error: 'token requerido' })
-        return
-      }
+      const { token } = pushTokenSchema.parse(req.body)
       await service.upsertPushToken(req.userId!, token)
       res.json({ ok: true })
     }),

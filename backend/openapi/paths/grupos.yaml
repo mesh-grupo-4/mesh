@@ -1,0 +1,691 @@
+# Módulo Grupos — src/modules/grupos/
+# Router: grupos.router.ts · Controller: grupos.controller.ts
+#
+# RN-011: dentro de un grupo existen exactamente dos roles, `lider` y `participante`.
+# RN-030: toda gestión de integrantes exige ser líder, y el backend lo verifica.
+# RN-013: si el líder abandona, transfiere el liderazgo; si es el último, el grupo se elimina.
+#
+# Nota: los cuatro endpoints de "para invitar" también exigen rol de líder, porque
+# exponen candidatos y grupos que solo el líder puede usar.
+
+GruposColeccion:
+  get:
+    operationId: listarGrupos
+    summary: Listar los grupos del usuario
+    description: |
+      Grupos donde el usuario es líder o integrante, del más reciente al más antiguo.
+      Cada elemento trae `mi_rol` y `cantidad_miembros` resueltos, para no tener que
+      pedir el detalle de cada uno.
+    tags:
+      - Grupos
+    responses:
+      '200':
+        description: Grupos del usuario autenticado.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/GrupoResumen'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+  post:
+    operationId: crearGrupo
+    summary: Crear un grupo
+    description: |
+      Crea el grupo y da de alta a quien lo crea como su **líder** en la misma
+      transacción (RN-011).
+    tags:
+      - Grupos
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/CrearGrupoRequest'
+    responses:
+      '201':
+        description: Grupo creado.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/GrupoBase'
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '404':
+        description: El usuario autenticado ya no existe en la base (`USER_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Usuario no encontrado
+              code: USER_NOT_FOUND
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+InvitacionesGrupoPendientes:
+  get:
+    operationId: invitacionesPendientes
+    summary: Listar invitaciones a grupos recibidas
+    description: |
+      Invitaciones dirigidas al usuario que siguen en estado `pendiente`, de la más
+      reciente a la más antigua. `grupo_origen` indica desde qué grupo se lo invitó
+      cuando la invitación fue en bloque.
+    tags:
+      - Grupos
+    responses:
+      '200':
+        description: Invitaciones pendientes.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/InvitacionGrupoPendiente'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+ResponderInvitacionGrupo:
+  post:
+    operationId: responderInvitacionGrupo
+    summary: Aceptar o rechazar una invitación a un grupo
+    description: |
+      Solo la persona invitada puede responder. Aceptar la incorpora al grupo como
+      `participante`; rechazar marca la invitación como `rechazada`.
+
+      Aceptar es tolerante a la doble ejecución: si la persona ya era integrante,
+      responde 200 con `ya_era_miembro: true` en vez de fallar.
+    tags:
+      - Grupos
+    parameters:
+      - $ref: '../components/parameters.yaml#/InvitacionId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/AccionInvitacion'
+    responses:
+      '200':
+        description: Invitación respondida.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/RespuestaInvitacionGrupo'
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '404':
+        description: La invitación no existe o no está dirigida al usuario (`INVITATION_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Invitación no encontrada
+              code: INVITATION_NOT_FOUND
+      '409':
+        description: La invitación ya había sido respondida (`INVITATION_ALREADY_RESPONDED`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Esta invitación ya fue respondida
+              code: INVITATION_ALREADY_RESPONDED
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+GrupoPorId:
+  get:
+    operationId: detalleGrupo
+    summary: Obtener el detalle de un grupo
+    description: |
+      Detalle con el rol propio y los contadores de integrantes y viajes.
+      Reservado a los integrantes del grupo: un tercero recibe 403 `NOT_GROUP_MEMBER`.
+    tags:
+      - Grupos
+    parameters:
+      - $ref: '../components/parameters.yaml#/GrupoId'
+    responses:
+      '200':
+        description: Detalle del grupo.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/GrupoDetalle'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: El usuario no pertenece al grupo (`NOT_GROUP_MEMBER`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: No tenés acceso a este grupo
+              code: NOT_GROUP_MEMBER
+      '404':
+        description: El grupo no existe (`GRUPO_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Grupo no encontrado
+              code: GRUPO_NOT_FOUND
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+  delete:
+    operationId: eliminarGrupo
+    summary: Eliminar un grupo
+    description: |
+      **Solo el líder** puede eliminarlo (RN-030). Borra el grupo junto con sus
+      membresías e invitaciones.
+    tags:
+      - Grupos
+    parameters:
+      - $ref: '../components/parameters.yaml#/GrupoId'
+    responses:
+      '200':
+        description: Grupo eliminado.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ResultadoMutacionGrupo'
+            example:
+              accion: grupo_eliminado
+              grupo_id: 7a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: Solo el líder puede eliminar el grupo (`NOT_GROUP_LEADER`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Solo el líder puede eliminar el grupo
+              code: NOT_GROUP_LEADER
+      '404':
+        description: El grupo no existe (`GRUPO_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Grupo no encontrado
+              code: GRUPO_NOT_FOUND
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+MiembrosGrupo:
+  get:
+    operationId: listarMiembros
+    summary: Listar los integrantes de un grupo
+    description: |
+      Integrantes ordenados por antigüedad, del más viejo al más nuevo. Ese orden
+      importa: si el líder abandona sin designar sucesor, el rol se transfiere al
+      integrante más antiguo (RN-013).
+
+      Reservado a integrantes del grupo.
+    tags:
+      - Grupos
+    parameters:
+      - $ref: '../components/parameters.yaml#/GrupoId'
+    responses:
+      '200':
+        description: Integrantes del grupo.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/MiembroGrupo'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: El usuario no pertenece al grupo (`NOT_GROUP_MEMBER`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: No tenés acceso a este grupo
+              code: NOT_GROUP_MEMBER
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+RolMiembroGrupo:
+  patch:
+    operationId: cambiarRolMiembro
+    summary: Cambiar el rol de un integrante
+    description: |
+      **Solo el líder** puede cambiar roles (RN-030). Como existen únicamente dos roles
+      (RN-011), promover a alguien a `lider` **transfiere** el liderazgo: quien lo
+      ejercía pasa a `participante` en la misma transacción.
+
+      Restricciones:
+
+      - Nadie puede cambiar su propio rol (`CANNOT_CHANGE_OWN_ROLE`).
+      - No se puede degradar al líder actual directamente (`CANNOT_DEMOTE_LEADER`):
+        hay que transferir el liderazgo a otra persona.
+      - Asignar el rol que la persona ya tiene es una operación sin efecto y responde 200.
+    tags:
+      - Grupos
+    parameters:
+      - $ref: '../components/parameters.yaml#/GrupoId'
+      - $ref: '../components/parameters.yaml#/UsuarioId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/CambiarRolRequest'
+    responses:
+      '200':
+        description: Rol actualizado.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/RolCambiado'
+      '400':
+        description: Validación fallida, cambio del rol propio o degradación del líder.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            examples:
+              rolPropio:
+                value:
+                  error: No podés cambiar tu propio rol
+                  code: CANNOT_CHANGE_OWN_ROLE
+              degradarLider:
+                value:
+                  error: No podés degradar al líder actual. Transferí el liderazgo a otro integrante.
+                  code: CANNOT_DEMOTE_LEADER
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: Solo el líder puede cambiar roles (`NOT_GROUP_LEADER`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Solo el líder puede cambiar roles
+              code: NOT_GROUP_LEADER
+      '404':
+        description: El grupo no existe (`GRUPO_NOT_FOUND`) o la persona no es integrante (`MEMBER_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Integrante no encontrado en el grupo
+              code: MEMBER_NOT_FOUND
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+GruposParaInvitar:
+  get:
+    operationId: gruposParaInvitar
+    summary: Listar otros grupos usables como origen de invitación
+    description: |
+      Grupos del usuario distintos del actual, para invitar a sus integrantes en bloque
+      con `invitar-desde-grupos`. **Solo el líder** del grupo destino puede consultarlo.
+    tags:
+      - Grupos
+    parameters:
+      - $ref: '../components/parameters.yaml#/GrupoId'
+    responses:
+      '200':
+        description: Otros grupos del usuario.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/GrupoParaInvitar'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: Solo el líder puede invitar integrantes (`NOT_GROUP_LEADER`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Solo el líder puede invitar integrantes
+              code: NOT_GROUP_LEADER
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+AmigosParaInvitar:
+  get:
+    operationId: amigosParaInvitar
+    summary: Listar amigos como candidatos a invitar
+    description: |
+      Amigos del líder, ordenados alfabéticamente, con las banderas `ya_es_miembro`
+      e `invitacion_pendiente` ya resueltas. **Solo el líder** puede consultarlo.
+    tags:
+      - Grupos
+    parameters:
+      - $ref: '../components/parameters.yaml#/GrupoId'
+    responses:
+      '200':
+        description: Amigos con su situación respecto del grupo.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/CandidatoInvitacion'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: Solo el líder puede invitar integrantes (`NOT_GROUP_LEADER`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Solo el líder puede invitar integrantes
+              code: NOT_GROUP_LEADER
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+BuscarUsuariosParaInvitar:
+  get:
+    operationId: buscarUsuariosParaInvitar
+    summary: Buscar personas para invitar al grupo
+    description: |
+      Busca en todo el padrón por nombre o email y devuelve hasta 20 resultados con su
+      situación respecto del grupo. **Solo el líder** puede consultarlo.
+    tags:
+      - Grupos
+    parameters:
+      - $ref: '../components/parameters.yaml#/GrupoId'
+      - $ref: '../components/parameters.yaml#/BusquedaQuery'
+    responses:
+      '200':
+        description: Personas que coinciden con la búsqueda.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/CandidatoInvitacion'
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: Solo el líder puede invitar integrantes (`NOT_GROUP_LEADER`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Solo el líder puede invitar integrantes
+              code: NOT_GROUP_LEADER
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+UsuariosParaInvitar:
+  get:
+    operationId: usuariosParaInvitar
+    summary: Listar candidatos provenientes de otros grupos
+    description: |
+      Integrantes de los demás grupos del líder que todavía no pertenecen a este ni
+      tienen invitación pendiente. Cada candidato indica en `grupos_origen` de qué
+      grupos proviene. **Solo el líder** puede consultarlo.
+    tags:
+      - Grupos
+    parameters:
+      - $ref: '../components/parameters.yaml#/GrupoId'
+    responses:
+      '200':
+        description: Candidatos, ordenados alfabéticamente.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/CandidatoDesdeGrupos'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: Solo el líder puede invitar integrantes (`NOT_GROUP_LEADER`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Solo el líder puede invitar integrantes
+              code: NOT_GROUP_LEADER
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+InvitarUsuarios:
+  post:
+    operationId: invitarUsuarios
+    summary: Invitar personas al grupo
+    description: |
+      Crea invitaciones `pendiente` para hasta 100 personas por llamada.
+      **Solo el líder** puede invitar (RN-030).
+
+      Quien ya es integrante o ya tiene una invitación sin responder se omite en
+      silencio, sin abortar el lote.
+    tags:
+      - Grupos
+    parameters:
+      - $ref: '../components/parameters.yaml#/GrupoId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/InvitarUsuariosRequest'
+    responses:
+      '201':
+        description: Invitaciones creadas.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/InvitacionesCreadas'
+      '400':
+        description: |
+          Validación fallida, intento de autoinvitarse (`SELF_INVITE`) o de invitar a
+          alguien que ya es integrante o tiene invitación pendiente
+          (`ALREADY_MEMBER_OR_PENDING`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: No podés invitarte a vos mismo
+              code: SELF_INVITE
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: |
+          Solo el líder puede invitar (`NOT_GROUP_LEADER`), o se intentó invitar a
+          alguien que no es amigo (`NOT_FRIEND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Solo el líder puede invitar integrantes
+              code: NOT_GROUP_LEADER
+      '404':
+        description: El grupo no existe (`GRUPO_NOT_FOUND`) o alguna persona no existe (`USER_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Grupo no encontrado
+              code: GRUPO_NOT_FOUND
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+InvitarDesdeGrupos:
+  post:
+    operationId: invitarDesdeGrupos
+    summary: Invitar en bloque a los integrantes de otros grupos
+    description: |
+      Invita de una vez a todos los integrantes de hasta 20 grupos de origen.
+      **Solo el líder** del grupo destino puede hacerlo (RN-030), y debe pertenecer a
+      cada grupo de origen que use.
+
+      La respuesta desglosa cuántas invitaciones se crearon por grupo y cuántas personas
+      se omitieron por ser ya integrantes.
+    tags:
+      - Grupos
+    parameters:
+      - $ref: '../components/parameters.yaml#/GrupoId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/InvitarDesdeGruposRequest'
+    responses:
+      '201':
+        description: Invitaciones creadas, con el desglose por grupo de origen.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/InvitacionesDesdeGrupos'
+      '400':
+        description: |
+          Validación fallida, o se pasó el propio grupo destino como origen
+          (`SAME_GROUP_ORIGIN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: No podés invitar desde el mismo grupo
+              code: SAME_GROUP_ORIGIN
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: |
+          Solo el líder puede invitar (`NOT_GROUP_LEADER`), o el líder no pertenece a
+          alguno de los grupos de origen (`NOT_SOURCE_GROUP_MEMBER`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: No pertenecés a uno de los grupos de origen
+              code: NOT_SOURCE_GROUP_MEMBER
+      '404':
+        description: El grupo destino no existe (`GRUPO_NOT_FOUND`) o algún origen no existe (`GRUPO_ORIGEN_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Uno o más grupos origen no existen
+              code: GRUPO_ORIGEN_NOT_FOUND
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+AbandonarGrupo:
+  post:
+    operationId: abandonarGrupo
+    summary: Abandonar un grupo
+    description: |
+      Comportamiento según el rol y la composición del grupo (RN-013):
+
+      | Situación | Resultado |
+      |---|---|
+      | Participante | Sale del grupo → `abandonado` |
+      | Líder, es el último integrante | El grupo se elimina → `grupo_eliminado` |
+      | Líder, quedan otros integrantes | Debe enviar `nuevo_lider_id`; se transfiere el liderazgo y sale → `abandonado` |
+
+      Si el líder no designa sucesor teniendo con quién, la API responde 400
+      `LEADER_MUST_TRANSFER`. El body es opcional para los participantes.
+    tags:
+      - Grupos
+    parameters:
+      - $ref: '../components/parameters.yaml#/GrupoId'
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/AbandonarGrupoRequest'
+    responses:
+      '200':
+        description: El usuario salió del grupo, o el grupo se eliminó.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ResultadoMutacionGrupo'
+            examples:
+              abandonado:
+                value:
+                  accion: abandonado
+              grupoEliminado:
+                summary: El líder era el último integrante
+                value:
+                  accion: grupo_eliminado
+                  grupo_id: 7a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d
+      '400':
+        description: |
+          El líder no designó sucesor (`LEADER_MUST_TRANSFER`) o se designó a sí mismo
+          (`INVALID_LEADER`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Debés seleccionar un nuevo líder para abandonar el grupo
+              code: LEADER_MUST_TRANSFER
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: El usuario no pertenece al grupo (`NOT_GROUP_MEMBER`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: No tenés acceso a este grupo
+              code: NOT_GROUP_MEMBER
+      '404':
+        description: El grupo no existe (`GRUPO_NOT_FOUND`) o el sucesor no es integrante (`MEMBER_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Integrante no encontrado en el grupo
+              code: MEMBER_NOT_FOUND
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'

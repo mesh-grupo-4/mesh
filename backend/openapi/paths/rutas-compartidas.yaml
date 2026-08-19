@@ -1,0 +1,307 @@
+# Módulo Rutas compartidas — src/modules/rutas-compartidas/
+# Router: rutas-compartidas.router.ts · Controller: rutas-compartidas.controller.ts
+#
+# Dos recursos distintos, con ciclos de vida propios:
+#   · RutaCompartida → el link privado que publica el creador (RN-085–088)
+#   · RutaPlantilla  → la copia que se guarda quien importa el link (RN-084)
+#
+# Los handlers `compartir` y `revocar` viven en este módulo pero se montan bajo
+# /api/viajes/{viajeId}/ruta/compartir, porque operan sobre la ruta de un viaje.
+#
+# No confundir con el QR para unirse a un viaje (RN-015/016): ese caduca al iniciarse
+# el viaje, mientras que este link solo deja de funcionar si se lo revoca.
+
+CompartirRutaDeViaje:
+  post:
+    operationId: compartirRuta
+    summary: Generar el link privado de la ruta del viaje
+    description: |
+      Congela un snapshot de la ruta planificada y devuelve un token opaco con su
+      deep link. Puede hacerlo el creador o cualquier integrante confirmado.
+
+      Es idempotente mientras el link esté activo: llamarlo de nuevo devuelve el mismo
+      token, sin generar uno nuevo. Si el link había sido revocado, se emite uno nuevo
+      y el anterior queda muerto para siempre.
+
+      El snapshot es autónomo: aunque después se modifique o se elimine el viaje,
+      el link sigue resolviendo la copia congelada.
+    tags:
+      - RutasCompartidas
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '200':
+        description: Link generado, o el que ya estaba activo.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/LinkRutaCompartida'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: |
+          El usuario no es el creador ni un integrante confirmado del viaje
+          (`NOT_CONFIRMED_MEMBER`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Solo integrantes confirmados pueden compartir la ruta
+              code: NOT_CONFIRMED_MEMBER
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '422':
+        description: El viaje todavía no tiene una ruta con trazado (`RUTA_INCOMPLETA`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: La ruta aún no está configurada completamente
+              code: RUTA_INCOMPLETA
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+  delete:
+    operationId: revocarRuta
+    summary: Revocar el link privado de la ruta
+    description: |
+      Invalida el link: a partir de acá deja de resolver, tanto para la vista previa
+      como para importar. **Solo el creador del viaje puede revocarlo** (RN-030).
+
+      Es idempotente: revocar un link ya revocado devuelve 200 igual.
+
+      Las plantillas que otras personas ya hayan importado **no se borran**: son copias
+      independientes y siguen siendo suyas.
+    tags:
+      - RutasCompartidas
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '200':
+        description: Link revocado.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/LinkRutaRevocado'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: Solo el creador puede revocar el link (`NOT_CREATOR`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Solo el creador puede revocar el link
+              code: NOT_CREATOR
+      '404':
+        description: El viaje no existe (`VIAJE_NOT_FOUND`) o nunca se generó un link (`SHARE_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: No hay link de ruta para este viaje
+              code: SHARE_NOT_FOUND
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+RutaCompartidaPorToken:
+  get:
+    operationId: previewRutaCompartida
+    summary: Ver la ruta detrás de un link compartido
+    description: |
+      Devuelve el snapshot congelado, para poder mostrar la ruta antes de decidir
+      si importarla. No crea nada ni deja rastro en la cuenta de quien mira.
+
+      Requiere estar autenticado, pero **no** pertenecer al viaje de origen: el token
+      es la credencial de acceso.
+    tags:
+      - RutasCompartidas
+    parameters:
+      - $ref: '../components/parameters.yaml#/ShareToken'
+    responses:
+      '200':
+        description: Snapshot de la ruta compartida.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/RutaCompartidaPreview'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '404':
+        description: El token no corresponde a ningún link (`SHARE_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Link de ruta no encontrado
+              code: SHARE_NOT_FOUND
+      '410':
+        description: El link fue revocado por el creador (`SHARE_REVOKED`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Este link de ruta fue revocado
+              code: SHARE_REVOKED
+      '500':
+        description: El snapshot almacenado no pasa la validación (`SHARE_SNAPSHOT_INVALID`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Snapshot de ruta inválido
+              code: SHARE_SNAPSHOT_INVALID
+
+ImportarRutaCompartida:
+  post:
+    operationId: importarRutaCompartida
+    summary: Importar la ruta compartida como plantilla propia
+    description: |
+      Copia el snapshot a una plantilla del usuario, que después puede usarse como
+      base de nuevos viajes (RN-084).
+
+      **Idempotente** por `(usuario, ruta compartida)`. El código de estado distingue
+      los dos casos:
+
+      | Situación | Estado | `ya_existia` |
+      |---|---|---|
+      | Primera importación | `201` | `false` |
+      | Ya la había importado | `200` | `true` |
+
+      La plantilla es una copia autónoma: sobrevive a que después se revoque el link
+      o se elimine el viaje de origen.
+    tags:
+      - RutasCompartidas
+    parameters:
+      - $ref: '../components/parameters.yaml#/ShareToken'
+    responses:
+      '200':
+        description: El usuario ya había importado este link; se devuelve la plantilla existente.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ImportacionRuta'
+      '201':
+        description: Plantilla creada.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ImportacionRuta'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '404':
+        description: El token no corresponde a ningún link (`SHARE_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Link de ruta no encontrado
+              code: SHARE_NOT_FOUND
+      '410':
+        description: El link fue revocado (`SHARE_REVOKED`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Este link de ruta fue revocado
+              code: SHARE_REVOKED
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+ListaPlantillas:
+  get:
+    operationId: listarPlantillas
+    summary: Listar las plantillas de ruta propias
+    description: |
+      Rutas que el usuario importó desde links compartidos, de la más reciente a la
+      más antigua. Vista reducida: sin trazado ni paradas, para no cargar de más
+      la pantalla de listado. Para el detalle completo, pedir la plantilla por id.
+    tags:
+      - RutasCompartidas
+    responses:
+      '200':
+        description: Plantillas del usuario autenticado.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/RutaPlantillaResumen'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+PlantillaPorId:
+  get:
+    operationId: obtenerPlantilla
+    summary: Obtener una plantilla de ruta completa
+    description: |
+      Detalle con trazado y paradas, listo para precargar un viaje nuevo
+      (`rutaPlantillaId` al crear el viaje).
+
+      Una plantilla de otra persona devuelve 404, no 403: no se filtra su existencia.
+    tags:
+      - RutasCompartidas
+    parameters:
+      - $ref: '../components/parameters.yaml#/PlantillaId'
+    responses:
+      '200':
+        description: Plantilla completa.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/RutaPlantilla'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '404':
+        description: La plantilla no existe o no es del usuario (`PLANTILLA_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Plantilla no encontrada
+              code: PLANTILLA_NOT_FOUND
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+  delete:
+    operationId: eliminarPlantilla
+    summary: Eliminar una plantilla de ruta propia
+    description: |
+      Borra la copia del usuario. No afecta al link compartido original ni a las
+      plantillas que otras personas hayan importado del mismo link.
+    tags:
+      - RutasCompartidas
+    parameters:
+      - $ref: '../components/parameters.yaml#/PlantillaId'
+    responses:
+      '200':
+        description: Plantilla eliminada.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/PlantillaEliminada'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '404':
+        description: La plantilla no existe o no es del usuario (`PLANTILLA_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Plantilla no encontrada
+              code: PLANTILLA_NOT_FOUND
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'

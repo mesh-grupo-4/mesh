@@ -1,0 +1,2395 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Schemas compartidos de la API de Mesh.
+# Fuente de verdad: los schemas Zod de cada módulo (src/modules/*/*.schemas.ts)
+# y los enums de prisma/schema.prisma.
+#
+# Nota de convención: la base de datos usa snake_case, pero la API expone lo que
+# valida Zod. Los módulos usuarios/amistades/grupos usan snake_case en el body
+# (`usuario_id`, `nuevo_lider_id`), mientras que viajes usa camelCase
+# (`esGrupal`, `tipoActividad`). Está documentado tal cual funciona hoy.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Errores ──────────────────────────────────────────────────────────────────
+
+ErrorCode:
+  type: string
+  description: |
+    Código de error de dominio, estable y apto para que el cliente ramifique lógica.
+    A diferencia de `error` (texto para mostrar al usuario), este valor no cambia
+    aunque se reescriba el mensaje.
+  enum:
+    # Autenticación (src/middleware/requireUser.ts)
+    - UNAUTHENTICATED
+    - INVALID_TOKEN
+    - AUTH_RESOLUTION_FAILED
+    - INTERNAL_ERROR
+    # Validación de entrada (src/middleware/errorHandler.ts)
+    - VALIDATION_ERROR
+    - FECHA_PASADA
+    - PAYLOAD_TOO_LARGE
+    # Autorización (RN-030 / RN-011)
+    - NOT_CREATOR
+    - NOT_GROUP_LEADER
+    - NOT_GROUP_MEMBER
+    - NOT_SOURCE_GROUP_MEMBER
+    - NOT_PARTICIPANT
+    - NOT_CONFIRMED_MEMBER
+    - NOT_FRIEND
+    - FORBIDDEN
+    - LEADER_CANNOT_LEAVE
+    # Recursos inexistentes
+    - USER_NOT_FOUND
+    - GRUPO_NOT_FOUND
+    - GRUPO_ORIGEN_NOT_FOUND
+    - VIAJE_NOT_FOUND
+    - MEMBER_NOT_FOUND
+    - INVITATION_NOT_FOUND
+    - FRIEND_REQUEST_NOT_FOUND
+    - FRIENDSHIP_NOT_FOUND
+    - PLANTILLA_NOT_FOUND
+    - ROUTE_NOT_FOUND
+    - SHARE_NOT_FOUND
+    # Conflictos de estado
+    - INVALID_STATE
+    - TRIP_NOT_FINISHED
+    - TRIP_NOT_PLANNED
+    - INDIVIDUAL_TRIP
+    - ALREADY_FRIENDS
+    - ALREADY_MEMBER_OR_PENDING
+    - REQUEST_ALREADY_SENT
+    - REQUEST_ALREADY_RECEIVED
+    - REQUEST_ALREADY_RESPONDED
+    - INVITATION_ALREADY_ANSWERED
+    - INVITATION_ALREADY_RESPONDED
+    # Reglas de negocio puntuales
+    - SELF_FRIEND_REQUEST
+    - SELF_UNFRIEND
+    - SELF_INVITE
+    - INVALID_LEADER
+    - LEADER_MUST_TRANSFER
+    - CANNOT_CHANGE_OWN_ROLE
+    - CANNOT_DEMOTE_LEADER
+    - SAME_GROUP_ORIGIN
+    # Links de ruta compartida (RN-085–088)
+    - QR_EXPIRED
+    - SHARE_REVOKED
+    - SHARE_SNAPSHOT_INVALID
+    - RUTA_INCOMPLETA
+    - ROUTE_COMPUTE_FAILED
+  example: NOT_CREATOR
+
+Error:
+  type: object
+  description: |
+    Forma estándar de error de la API, producida por `src/middleware/errorHandler.ts`.
+    Todas las respuestas de error traen `error` (texto en español, apto para mostrar)
+    y `code` (identificador estable para lógica del cliente).
+  required:
+    - error
+    - code
+  properties:
+    error:
+      type: string
+      description: Mensaje en español, redactado para mostrarse al usuario final.
+      example: Solo el creador puede iniciar el viaje
+    code:
+      $ref: '#/ErrorCode'
+  additionalProperties: false
+
+ValidationError:
+  type: object
+  description: |
+    Error de validación Zod. Suma al shape estándar un `details` con el resultado
+    de `ZodError.flatten()`, útil para marcar campos en un formulario.
+  required:
+    - error
+    - code
+    - details
+  properties:
+    error:
+      type: string
+      example: Validación fallida
+    code:
+      type: string
+      enum: [VALIDATION_ERROR]
+      example: VALIDATION_ERROR
+    details:
+      type: object
+      description: Salida de `ZodError.flatten()`.
+      properties:
+        formErrors:
+          type: array
+          items:
+            type: string
+          example: []
+        fieldErrors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          example:
+            nombre:
+              - El nombre del viaje es obligatorio
+      additionalProperties: false
+
+# ── GeoJSON (RFC 7946) ───────────────────────────────────────────────────────
+
+Coordenada:
+  type: array
+  description: |
+    Par `[lng, lat]` en grados decimales, WGS84.
+    **Atención al orden**: GeoJSON usa longitud primero, al revés que la
+    convención habitual `lat, lng` de las APIs de mapas.
+  minItems: 2
+  maxItems: 2
+  items:
+    type: number
+  example: [-64.1888, -31.4201]
+
+GeoJsonPoint:
+  type: object
+  description: Punto GeoJSON. Se persiste como `POINT` de PostGIS.
+  required:
+    - type
+    - coordinates
+  properties:
+    type:
+      type: string
+      enum: [Point]
+    coordinates:
+      $ref: '#/Coordenada'
+  additionalProperties: false
+  example:
+    type: Point
+    coordinates: [-64.1888, -31.4201]
+
+GeoJsonLineString:
+  type: object
+  description: |
+    Trazado GeoJSON con un mínimo de 2 puntos. Se persiste como `LINESTRING`
+    de PostGIS. Los trazados de OSRM rondan los 170 kB, por lo que el límite de
+    body de la API está elevado a 2 MB; superarlo devuelve `413 PAYLOAD_TOO_LARGE`.
+  required:
+    - type
+    - coordinates
+  properties:
+    type:
+      type: string
+      enum: [LineString]
+    coordinates:
+      type: array
+      minItems: 2
+      items:
+        $ref: '#/Coordenada'
+  additionalProperties: false
+
+# ── Enums de dominio (espejo de prisma/schema.prisma) ────────────────────────
+
+TipoActividad:
+  type: string
+  description: |
+    Modalidad del viaje (RN-021). Cada una define por defecto velocidad esperada,
+    separación máxima e interfaz.
+
+    **RN-070 (irrevocable):** `moto` está excluida de todo ranking competitivo,
+    tabla de posiciones y gamificación de velocidad. Es una regla de seguridad vial.
+  enum: [moto, bici, running, trekking]
+  example: bici
+
+TipoActividadNullable:
+  type: string
+  nullable: true
+  description: |
+    Igual que `TipoActividad`, pero admite `null` cuando el usuario todavía no
+    eligió una modalidad preferida. Variante necesaria porque OpenAPI 3.0 no
+    permite combinar `nullable` con `$ref`.
+  enum: [moto, bici, running, trekking, null]
+  example: bici
+
+EstadoViaje:
+  type: string
+  description: |
+    Ciclo de vida del viaje: `planificado` → `en_curso` → `finalizado`.
+    Solo el creador (líder) puede transicionar entre estados (RN-030).
+  enum: [planificado, en_curso, finalizado]
+  example: planificado
+
+CategoriaParada:
+  type: string
+  description: Categoría de una parada intermedia de la ruta (RN-022).
+  enum:
+    - kiosco
+    - combustible
+    - descanso
+    - gastronomia
+    - punto_control
+    - sanitario
+    - otro
+  example: combustible
+
+GpsSource:
+  type: string
+  description: |
+    Origen de un registro GPS (RN-038, offline-first).
+
+    - `live`: enviado en tiempo real mientras hay conexión.
+    - `offline_sync`: encolado en el dispositivo sin señal y sincronizado al reconectar.
+      El backend los procesa de forma masiva sin romper la secuencia temporal.
+  enum: [live, offline_sync]
+  example: live
+
+RolMiembro:
+  type: string
+  description: |
+    RN-011: existen exactamente dos roles dentro de un grupo, sin intermedios.
+  enum: [lider, participante]
+  example: participante
+
+EstadoViajeIntegrante:
+  type: string
+  description: Estado de una persona respecto de un viaje al que fue invitada.
+  enum: [pendiente, confirmado, rechazado, salido]
+  example: confirmado
+
+OrigenViajeIntegrante:
+  type: string
+  description: Vía por la que la persona llegó al viaje.
+  enum: [creador, qr, link, grupo, amigo]
+  example: qr
+
+# ── Acciones compartidas ─────────────────────────────────────────────────────
+
+AccionInvitacion:
+  type: object
+  description: Respuesta a una invitación o solicitud pendiente.
+  required:
+    - accion
+  properties:
+    accion:
+      type: string
+      enum: [aceptar, rechazar]
+      example: aceptar
+  additionalProperties: false
+
+# ── Usuarios ─────────────────────────────────────────────────────────────────
+
+Usuario:
+  type: object
+  description: |
+    Perfil propio del usuario autenticado. El `id` es el UUID interno de Mesh
+    —no el `firebase_uid`— y es el identificador con el que aparece en grupos,
+    viajes y amistades.
+  required:
+    - id
+    - email
+    - nombre
+    - apellido
+    - telefono
+    - actividad_preferida
+  properties:
+    id:
+      type: string
+      format: uuid
+      example: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d
+    email:
+      type: string
+      format: email
+      description: Proviene de Firebase. Es único por usuario (RN-001) y no se edita desde la API.
+      example: martina@example.com
+    nombre:
+      type: string
+      example: Martina
+    apellido:
+      type: string
+      nullable: true
+      example: Gómez
+    telefono:
+      type: string
+      nullable: true
+      example: '+54 351 555 1234'
+    actividad_preferida:
+      allOf:
+        - $ref: '#/TipoActividadNullable'
+      description: Modalidad que la app propone por defecto al crear un viaje.
+  additionalProperties: false
+
+SyncUsuarioRequest:
+  type: object
+  description: |
+    Datos de perfil a persistir tras el login con Firebase.
+
+    Un campo ausente deja el valor como está; enviarlo en `null` lo limpia.
+    `email` se valida por compatibilidad con el cliente pero **se ignora**: el email
+    es el de Firebase y no se puede cambiar desde acá.
+  required:
+    - email
+    - nombre
+  properties:
+    email:
+      type: string
+      format: email
+      description: Ignorado por el backend. Se mantiene por compatibilidad con el cliente.
+      example: martina@example.com
+    nombre:
+      type: string
+      minLength: 1
+      example: Martina
+    apellido:
+      type: string
+      maxLength: 100
+      nullable: true
+      example: Gómez
+    telefono:
+      type: string
+      maxLength: 30
+      nullable: true
+      example: '+54 351 555 1234'
+    actividad_preferida:
+      $ref: '#/TipoActividadNullable'
+  additionalProperties: false
+
+PushTokenRequest:
+  type: object
+  description: Token de Expo Push del dispositivo, para las notificaciones de la app.
+  required:
+    - token
+  properties:
+    token:
+      type: string
+      minLength: 1
+      example: ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]
+  additionalProperties: false
+
+OperacionOk:
+  type: object
+  description: Confirmación simple de una operación sin cuerpo de respuesta.
+  required:
+    - ok
+  properties:
+    ok:
+      type: boolean
+      enum: [true]
+  additionalProperties: false
+
+# ── Amistades ────────────────────────────────────────────────────────────────
+
+UsuarioBasico:
+  type: object
+  description: Identificación mínima de una persona, tal como se la lista en amistades y grupos.
+  required:
+    - id
+    - nombre
+    - email
+  properties:
+    id:
+      type: string
+      format: uuid
+      example: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d
+    nombre:
+      type: string
+      example: Martina
+    email:
+      type: string
+      format: email
+      example: martina@example.com
+  additionalProperties: false
+
+RelacionAmistad:
+  type: string
+  nullable: true
+  description: |
+    Situación entre quien busca y la persona encontrada. `null` significa que no
+    hay ninguna relación previa, así que se le puede enviar una solicitud.
+  enum: [amigo, solicitud_enviada, solicitud_recibida, null]
+  example: solicitud_enviada
+
+UsuarioBuscado:
+  type: object
+  description: Resultado de búsqueda, con la relación de amistad ya resuelta.
+  required:
+    - id
+    - nombre
+    - email
+    - relacion
+  properties:
+    id:
+      type: string
+      format: uuid
+    nombre:
+      type: string
+      example: Martina
+    email:
+      type: string
+      format: email
+      example: martina@example.com
+    relacion:
+      $ref: '#/RelacionAmistad'
+  additionalProperties: false
+
+SolicitudAmistadPendiente:
+  type: object
+  description: Solicitud de amistad recibida y todavía sin responder.
+  required:
+    - id
+    - created_at
+    - solicitante
+  properties:
+    id:
+      type: string
+      format: uuid
+    created_at:
+      type: string
+      format: date-time
+      description: Instante de creación, en UTC (RN-106).
+      example: '2026-08-18T13:05:00.000Z'
+    solicitante:
+      $ref: '#/UsuarioBasico'
+  additionalProperties: false
+
+SolicitarAmistadRequest:
+  type: object
+  required:
+    - usuario_id
+  properties:
+    usuario_id:
+      type: string
+      format: uuid
+      description: UUID de la persona a la que se le envía la solicitud.
+      example: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d
+  additionalProperties: false
+
+SolicitudAmistadCreada:
+  type: object
+  required:
+    - id
+    - created_at
+    - destinatario
+  properties:
+    id:
+      type: string
+      format: uuid
+    created_at:
+      type: string
+      format: date-time
+      example: '2026-08-18T13:05:00.000Z'
+    destinatario:
+      type: object
+      required:
+        - id
+        - nombre
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+          example: Martina
+      additionalProperties: false
+  additionalProperties: false
+
+RespuestaSolicitudAmistad:
+  type: object
+  description: |
+    Resultado de responder una solicitud. Aceptar marca la amistad como `aceptada`;
+    rechazar elimina el registro, de modo que la persona puede volver a solicitar
+    más adelante.
+  required:
+    - solicitud_id
+    - accion
+    - amigo_id
+    - amigo_nombre
+  properties:
+    solicitud_id:
+      type: string
+      format: uuid
+    accion:
+      type: string
+      enum: [aceptada, rechazada]
+      example: aceptada
+    amigo_id:
+      type: string
+      format: uuid
+      description: UUID de quien había enviado la solicitud.
+    amigo_nombre:
+      type: string
+      example: Martina
+  additionalProperties: false
+
+AmigoEliminado:
+  type: object
+  required:
+    - amigo_id
+  properties:
+    amigo_id:
+      type: string
+      format: uuid
+  additionalProperties: false
+
+# ── Rutas compartidas y plantillas (RN-085–088) ──────────────────────────────
+
+PuntoRuta:
+  type: object
+  description: Extremo de una ruta, con su nombre legible si el geocoder lo resolvió.
+  required:
+    - lat
+    - lng
+    - nombre
+  properties:
+    lat:
+      type: number
+      minimum: -90
+      maximum: 90
+      example: -31.4201
+    lng:
+      type: number
+      minimum: -180
+      maximum: 180
+      example: -64.1888
+    nombre:
+      type: string
+      nullable: true
+      example: Córdoba Capital
+  additionalProperties: false
+
+ParadaRuta:
+  type: object
+  description: Parada intermedia de una ruta planificada (RN-022). Máximo 10 por ruta.
+  required:
+    - orden
+    - lat
+    - lng
+    - nombre
+    - categoria
+  properties:
+    orden:
+      type: integer
+      minimum: 0
+      description: Posición dentro del recorrido, empezando en 0.
+      example: 0
+    lat:
+      type: number
+      minimum: -90
+      maximum: 90
+      example: -31.3
+    lng:
+      type: number
+      minimum: -180
+      maximum: 180
+      example: -64.2
+    nombre:
+      type: string
+      nullable: true
+      example: YPF Ruta 20
+    categoria:
+      $ref: '#/CategoriaParada'
+  additionalProperties: false
+
+RutaCompartidaPreview:
+  type: object
+  description: |
+    Snapshot congelado de la ruta al momento de generar el link.
+
+    El snapshot es independiente del viaje de origen: si el viaje o la ruta se
+    eliminan, el link sigue resolviendo esta misma copia. Solo deja de funcionar
+    si se lo revoca explícitamente.
+  required:
+    - tipo_actividad
+    - origen
+    - destino
+    - linestring_geojson
+    - distancia_planeada_m
+    - tiempo_estimado_seg
+    - paradas
+  properties:
+    tipo_actividad:
+      $ref: '#/TipoActividad'
+    origen:
+      $ref: '#/PuntoRuta'
+    destino:
+      $ref: '#/PuntoRuta'
+    linestring_geojson:
+      $ref: '#/GeoJsonLineString'
+    distancia_planeada_m:
+      type: number
+      nullable: true
+      description: Distancia del trazado en metros, calculada con PostGIS.
+      example: 84210.5
+    tiempo_estimado_seg:
+      type: integer
+      nullable: true
+      example: 5400
+    paradas:
+      type: array
+      items:
+        $ref: '#/ParadaRuta'
+  additionalProperties: false
+
+LinkRutaCompartida:
+  type: object
+  description: Link privado de la ruta. Reutiliza el token vigente si ya había uno activo.
+  required:
+    - token
+    - link
+    - revocado
+  properties:
+    token:
+      type: string
+      description: 'Token opaco URL-safe. Es el secreto: quien lo tiene puede ver la ruta.'
+      example: rQ7xK2mZp9Lw4Ns8Td1Vb6Yg3Hc5Jf0A
+    link:
+      type: string
+      description: Deep link de la app, con el token ya embebido.
+      example: mesh://ruta?token=rQ7xK2mZp9Lw4Ns8Td1Vb6Yg3Hc5Jf0A
+    revocado:
+      type: boolean
+      enum: [false]
+  additionalProperties: false
+
+LinkRutaRevocado:
+  type: object
+  required:
+    - revocado
+  properties:
+    revocado:
+      type: boolean
+      enum: [true]
+  additionalProperties: false
+
+RutaPlantilla:
+  type: object
+  description: |
+    Copia propia de una ruta importada desde un link compartido. Sirve de base para
+    crear viajes nuevos (RN-084) sin depender de que el link siga vigente.
+  required:
+    - id
+    - nombre
+    - tipo_actividad
+    - origen
+    - destino
+    - linestring_geojson
+    - distancia_planeada_m
+    - tiempo_estimado_seg
+    - created_at
+    - paradas
+  properties:
+    id:
+      type: string
+      format: uuid
+    nombre:
+      type: string
+      description: Derivado del snapshot, con el formato `Origen → Destino`.
+      example: Córdoba Capital → Villa General Belgrano
+    tipo_actividad:
+      $ref: '#/TipoActividad'
+    origen:
+      $ref: '#/PuntoRuta'
+    destino:
+      $ref: '#/PuntoRuta'
+    linestring_geojson:
+      $ref: '#/GeoJsonLineString'
+    distancia_planeada_m:
+      type: number
+      nullable: true
+      example: 84210.5
+    tiempo_estimado_seg:
+      type: integer
+      nullable: true
+      example: 5400
+    created_at:
+      type: string
+      format: date-time
+      example: '2026-08-18T13:05:00.000Z'
+    paradas:
+      type: array
+      items:
+        $ref: '#/ParadaRuta'
+  additionalProperties: false
+
+RutaPlantillaResumen:
+  type: object
+  description: Vista reducida para el listado. No incluye el trazado ni las paradas.
+  required:
+    - id
+    - nombre
+    - tipo_actividad
+    - distancia_planeada_m
+    - tiempo_estimado_seg
+    - origen_nombre
+    - destino_nombre
+    - created_at
+  properties:
+    id:
+      type: string
+      format: uuid
+    nombre:
+      type: string
+      example: Córdoba Capital → Villa General Belgrano
+    tipo_actividad:
+      $ref: '#/TipoActividad'
+    distancia_planeada_m:
+      type: number
+      nullable: true
+      example: 84210.5
+    tiempo_estimado_seg:
+      type: integer
+      nullable: true
+      example: 5400
+    origen_nombre:
+      type: string
+      nullable: true
+      example: Córdoba Capital
+    destino_nombre:
+      type: string
+      nullable: true
+      example: Villa General Belgrano
+    created_at:
+      type: string
+      format: date-time
+      example: '2026-08-18T13:05:00.000Z'
+  additionalProperties: false
+
+ImportacionRuta:
+  type: object
+  description: |
+    Resultado de importar un link. La operación es idempotente por
+    `(usuario, ruta compartida)`: importar dos veces el mismo link devuelve
+    siempre la misma plantilla.
+  required:
+    - plantilla
+    - ya_existia
+  properties:
+    plantilla:
+      $ref: '#/RutaPlantilla'
+    ya_existia:
+      type: boolean
+      description: |
+        `true` si el usuario ya había importado este link. En ese caso la respuesta
+        es 200 en vez de 201 y no se creó nada nuevo.
+      example: false
+  additionalProperties: false
+
+PlantillaEliminada:
+  type: object
+  required:
+    - eliminada
+  properties:
+    eliminada:
+      type: boolean
+      enum: [true]
+  additionalProperties: false
+
+# ── Grupos ───────────────────────────────────────────────────────────────────
+
+GrupoBase:
+  type: object
+  description: Datos básicos de un grupo, tal como los devuelve la creación.
+  required:
+    - id
+    - nombre
+    - fecha_creacion
+    - lider_id
+  properties:
+    id:
+      type: string
+      format: uuid
+    nombre:
+      type: string
+      maxLength: 80
+      example: Los Ruteros
+    fecha_creacion:
+      type: string
+      format: date-time
+      example: '2026-08-18T13:05:00.000Z'
+    lider_id:
+      type: string
+      format: uuid
+      description: UUID del líder actual. Cambia si se transfiere el liderazgo (RN-013).
+  additionalProperties: false
+
+GrupoResumen:
+  type: object
+  description: Grupo en el listado del usuario, con su rol y el total de integrantes.
+  required:
+    - id
+    - nombre
+    - fecha_creacion
+    - lider_id
+    - cantidad_miembros
+    - mi_rol
+  properties:
+    id:
+      type: string
+      format: uuid
+    nombre:
+      type: string
+      example: Los Ruteros
+    fecha_creacion:
+      type: string
+      format: date-time
+    lider_id:
+      type: string
+      format: uuid
+    cantidad_miembros:
+      type: integer
+      example: 8
+    mi_rol:
+      $ref: '#/RolMiembro'
+  additionalProperties: false
+
+GrupoDetalle:
+  type: object
+  description: Detalle del grupo. Solo accesible para sus integrantes.
+  required:
+    - id
+    - nombre
+    - fecha_creacion
+    - lider_id
+    - mi_rol
+    - cantidad_miembros
+    - cantidad_viajes
+  properties:
+    id:
+      type: string
+      format: uuid
+    nombre:
+      type: string
+      example: Los Ruteros
+    fecha_creacion:
+      type: string
+      format: date-time
+    lider_id:
+      type: string
+      format: uuid
+    mi_rol:
+      $ref: '#/RolMiembro'
+    cantidad_miembros:
+      type: integer
+      example: 8
+    cantidad_viajes:
+      type: integer
+      description: Viajes en los que participó el grupo.
+      example: 3
+  additionalProperties: false
+
+MiembroGrupo:
+  type: object
+  description: Integrante del grupo, ordenado por antigüedad de incorporación.
+  required:
+    - id
+    - nombre
+    - email
+    - rol
+    - fecha_union
+  properties:
+    id:
+      type: string
+      format: uuid
+    nombre:
+      type: string
+      example: Martina
+    email:
+      type: string
+      format: email
+    rol:
+      $ref: '#/RolMiembro'
+    fecha_union:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+CrearGrupoRequest:
+  type: object
+  required:
+    - nombre
+  properties:
+    nombre:
+      type: string
+      minLength: 1
+      maxLength: 80
+      example: Los Ruteros
+  additionalProperties: false
+
+CambiarRolRequest:
+  type: object
+  required:
+    - rol
+  properties:
+    rol:
+      $ref: '#/RolMiembro'
+  additionalProperties: false
+
+RolCambiado:
+  type: object
+  required:
+    - usuario_id
+    - rol
+  properties:
+    usuario_id:
+      type: string
+      format: uuid
+    rol:
+      $ref: '#/RolMiembro'
+  additionalProperties: false
+
+CandidatoInvitacion:
+  type: object
+  description: |
+    Persona que se puede invitar al grupo. Las banderas evitan que el cliente
+    tenga que cruzar listas para saber a quién ofrecer el botón de invitar.
+  required:
+    - id
+    - nombre
+    - email
+    - ya_es_miembro
+    - invitacion_pendiente
+  properties:
+    id:
+      type: string
+      format: uuid
+    nombre:
+      type: string
+      example: Martina
+    email:
+      type: string
+      format: email
+    ya_es_miembro:
+      type: boolean
+      example: false
+    invitacion_pendiente:
+      type: boolean
+      description: Ya tiene una invitación sin responder a este grupo.
+      example: false
+  additionalProperties: false
+
+CandidatoDesdeGrupos:
+  type: object
+  description: |
+    Integrante de otros grupos del usuario que todavía no pertenece a este ni
+    tiene invitación pendiente. `grupos_origen` indica de dónde proviene, para poder
+    mostrar el contexto al invitar.
+  required:
+    - id
+    - nombre
+    - email
+    - grupos_origen
+  properties:
+    id:
+      type: string
+      format: uuid
+    nombre:
+      type: string
+      example: Martina
+    email:
+      type: string
+      format: email
+    grupos_origen:
+      type: array
+      items:
+        type: object
+        required:
+          - id
+          - nombre
+        properties:
+          id:
+            type: string
+            format: uuid
+          nombre:
+            type: string
+            example: Bicis del Sur
+        additionalProperties: false
+  additionalProperties: false
+
+GrupoParaInvitar:
+  type: object
+  description: Otro grupo del usuario, usable como origen para invitar en bloque.
+  required:
+    - id
+    - nombre
+    - cantidad_integrantes
+  properties:
+    id:
+      type: string
+      format: uuid
+    nombre:
+      type: string
+      example: Bicis del Sur
+    cantidad_integrantes:
+      type: integer
+      example: 12
+  additionalProperties: false
+
+InvitarUsuariosRequest:
+  type: object
+  required:
+    - usuario_ids
+  properties:
+    usuario_ids:
+      type: array
+      minItems: 1
+      maxItems: 100
+      items:
+        type: string
+        format: uuid
+  additionalProperties: false
+
+InvitacionesCreadas:
+  type: object
+  required:
+    - invitaciones_creadas
+    - invitados
+  properties:
+    invitaciones_creadas:
+      type: integer
+      example: 2
+    invitados:
+      type: array
+      items:
+        type: object
+        required:
+          - id
+          - nombre
+        properties:
+          id:
+            type: string
+            format: uuid
+          nombre:
+            type: string
+            example: Martina
+        additionalProperties: false
+  additionalProperties: false
+
+InvitarDesdeGruposRequest:
+  type: object
+  required:
+    - grupo_origen_ids
+  properties:
+    grupo_origen_ids:
+      type: array
+      minItems: 1
+      maxItems: 20
+      items:
+        type: string
+        format: uuid
+  additionalProperties: false
+
+InvitacionesDesdeGrupos:
+  type: object
+  description: |
+    Resumen de la invitación en bloque. Quienes ya eran integrantes del grupo
+    destino se cuentan en `omitidos_ya_miembros` en vez de generar un error.
+  required:
+    - invitaciones_creadas
+    - omitidos_ya_miembros
+    - grupos_origen
+  properties:
+    invitaciones_creadas:
+      type: integer
+      example: 7
+    omitidos_ya_miembros:
+      type: integer
+      example: 2
+    grupos_origen:
+      type: array
+      items:
+        type: object
+        required:
+          - id
+          - nombre
+          - invitaciones_creadas
+        properties:
+          id:
+            type: string
+            format: uuid
+          nombre:
+            type: string
+            example: Bicis del Sur
+          invitaciones_creadas:
+            type: integer
+            example: 4
+        additionalProperties: false
+  additionalProperties: false
+
+InvitacionGrupoPendiente:
+  type: object
+  description: Invitación a un grupo que el usuario todavía no respondió.
+  required:
+    - id
+    - created_at
+    - grupo
+    - grupo_origen
+    - invitado_por
+  properties:
+    id:
+      type: string
+      format: uuid
+    created_at:
+      type: string
+      format: date-time
+    grupo:
+      $ref: '#/ReferenciaNombrada'
+    grupo_origen:
+      $ref: '#/ReferenciaNombradaNullable'
+    invitado_por:
+      $ref: '#/ReferenciaNombrada'
+  additionalProperties: false
+
+ReferenciaNombradaNullable:
+  type: object
+  nullable: true
+  description: |
+    Igual que `ReferenciaNombrada`, pero admite `null`. Necesario porque OpenAPI 3.0
+    no permite combinar `nullable` con `$ref`.
+  required:
+    - id
+    - nombre
+  properties:
+    id:
+      type: string
+      format: uuid
+    nombre:
+      type: string
+      example: Bicis del Sur
+  additionalProperties: false
+
+ReferenciaNombrada:
+  type: object
+  description: Referencia mínima a una entidad, con su id y su nombre.
+  required:
+    - id
+    - nombre
+  properties:
+    id:
+      type: string
+      format: uuid
+    nombre:
+      type: string
+      example: Los Ruteros
+  additionalProperties: false
+
+RespuestaInvitacionGrupo:
+  type: object
+  required:
+    - invitacion_id
+    - grupo_id
+    - grupo_nombre
+    - accion
+  properties:
+    invitacion_id:
+      type: string
+      format: uuid
+    grupo_id:
+      type: string
+      format: uuid
+    grupo_nombre:
+      type: string
+      example: Los Ruteros
+    accion:
+      type: string
+      enum: [aceptada, rechazada]
+    ya_era_miembro:
+      type: boolean
+      description: Solo presente al aceptar. `true` si la persona ya pertenecía al grupo.
+      example: false
+  additionalProperties: false
+
+ResultadoMutacionGrupo:
+  type: object
+  description: |
+    Resultado de abandonar o eliminar un grupo (RN-013).
+
+    - `abandonado`: la persona salió y el grupo sigue existiendo.
+    - `grupo_eliminado`: el grupo dejó de existir, porque lo eliminó el líder o
+      porque el último integrante lo abandonó.
+  required:
+    - accion
+  properties:
+    accion:
+      type: string
+      enum: [abandonado, grupo_eliminado]
+      example: abandonado
+    grupo_id:
+      type: string
+      format: uuid
+      description: Presente solo cuando `accion` es `grupo_eliminado`.
+  additionalProperties: false
+
+AbandonarGrupoRequest:
+  type: object
+  description: |
+    Body opcional. Solo el líder necesita enviarlo, y únicamente cuando quedan otros
+    integrantes en el grupo: en ese caso debe designar a su sucesor.
+  properties:
+    nuevo_lider_id:
+      type: string
+      format: uuid
+      description: |
+        Integrante al que se le transfiere el liderazgo. Obligatorio si el líder
+        abandona un grupo con más personas; si no se envía, la API responde
+        `LEADER_MUST_TRANSFER`.
+  additionalProperties: false
+
+# ── Viajes ───────────────────────────────────────────────────────────────────
+
+EstadoParticipacion:
+  type: string
+  nullable: true
+  description: |
+    Situación del usuario autenticado respecto del viaje. `creador` no es un estado
+    persistido: lo calcula el backend cuando el usuario es quien creó el viaje.
+    `null` significa que no fue invitado.
+  enum: [creador, pendiente, confirmado, rechazado, salido, null]
+  example: confirmado
+
+Viaje:
+  type: object
+  description: |
+    Viaje tal como lo persiste la base. `velocidad_esperada` y
+    `distancia_max_separacion` **las asigna el backend** según la actividad (RN-021);
+    el cliente no las envía.
+  required:
+    - id
+    - creador_id
+    - nombre
+    - es_grupal
+    - tipo_actividad
+    - velocidad_esperada
+    - distancia_max_separacion
+    - estado
+    - fecha_programada
+    - fecha_inicio_real
+    - fecha_fin_real
+    - created_at
+  properties:
+    id:
+      type: string
+      format: uuid
+    creador_id:
+      type: string
+      format: uuid
+      description: Líder del viaje. Es quien puede iniciarlo, finalizarlo y configurar la ruta (RN-030).
+    nombre:
+      type: string
+      nullable: true
+      maxLength: 100
+      example: Ruta de las Altas Cumbres
+    es_grupal:
+      type: boolean
+      description: Un viaje individual no admite invitaciones ni la operación de salir.
+      example: true
+    tipo_actividad:
+      $ref: '#/TipoActividad'
+    velocidad_esperada:
+      type: number
+      description: |
+        Velocidad de referencia en km/h, derivada de la actividad (RN-021):
+        moto 120 · bici 35 · running 15 · trekking 5.
+      example: 35
+    distancia_max_separacion:
+      type: integer
+      description: |
+        Separación máxima tolerada en metros antes de generar una alerta (RN-021):
+        moto 1000 · bici 300 · running 100 · trekking 50.
+      example: 300
+    estado:
+      $ref: '#/EstadoViaje'
+    fecha_programada:
+      type: string
+      format: date-time
+      description: Salida prevista, en UTC. Debe ser futura al crear o reprogramar (RN-107).
+      example: '2026-09-01T13:00:00.000Z'
+    fecha_inicio_real:
+      type: string
+      format: date-time
+      nullable: true
+      description: Se completa al iniciar el viaje.
+    fecha_fin_real:
+      type: string
+      format: date-time
+      nullable: true
+      description: Se completa al finalizar el viaje.
+    created_at:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+ViajeCreado:
+  allOf:
+    - $ref: '#/Viaje'
+    - type: object
+      required:
+        - invitaciones_enviadas
+        - ruta_precargada
+      properties:
+        invitaciones_enviadas:
+          type: integer
+          description: |
+            Personas invitadas en el alta, sumando integrantes de los grupos y amigos
+            indicados. Quien llega por ambas vías se cuenta una sola vez, con origen `grupo`.
+          example: 7
+        ruta_precargada:
+          type: boolean
+          description: '`true` si se copió una plantilla de ruta al crear el viaje.'
+          example: false
+
+ViajeResumenPlanificado:
+  type: object
+  description: Viaje planificado o en curso, en el listado del usuario.
+  required:
+    - id
+    - creador_id
+    - nombre
+    - es_grupal
+    - tipo_actividad
+    - velocidad_esperada
+    - distancia_max_separacion
+    - fecha_programada
+    - estado
+    - mi_estado
+  properties:
+    id:
+      type: string
+      format: uuid
+    creador_id:
+      type: string
+      format: uuid
+    nombre:
+      type: string
+      nullable: true
+      example: Ruta de las Altas Cumbres
+    es_grupal:
+      type: boolean
+    tipo_actividad:
+      $ref: '#/TipoActividad'
+    velocidad_esperada:
+      type: number
+      example: 35
+    distancia_max_separacion:
+      type: integer
+      example: 300
+    fecha_programada:
+      type: string
+      format: date-time
+    estado:
+      $ref: '#/EstadoViaje'
+    mi_estado:
+      $ref: '#/EstadoParticipacion'
+  additionalProperties: false
+
+ViajeResumenFinalizado:
+  type: object
+  description: Viaje ya cerrado, en el historial del usuario.
+  required:
+    - id
+    - creador_id
+    - nombre
+    - es_grupal
+    - tipo_actividad
+    - velocidad_esperada
+    - distancia_max_separacion
+    - fecha_programada
+    - fecha_fin_real
+    - estado
+    - mi_estado
+  properties:
+    id:
+      type: string
+      format: uuid
+    creador_id:
+      type: string
+      format: uuid
+    nombre:
+      type: string
+      nullable: true
+    es_grupal:
+      type: boolean
+    tipo_actividad:
+      $ref: '#/TipoActividad'
+    velocidad_esperada:
+      type: number
+    distancia_max_separacion:
+      type: integer
+    fecha_programada:
+      type: string
+      format: date-time
+    fecha_fin_real:
+      type: string
+      format: date-time
+      nullable: true
+    estado:
+      type: string
+      enum: [finalizado]
+    mi_estado:
+      $ref: '#/EstadoParticipacion'
+  additionalProperties: false
+
+ViajeEnCurso:
+  type: object
+  nullable: true
+  description: |
+    Viaje que el usuario está transitando ahora mismo. La API devuelve `null`
+    —con estado 200— cuando no hay ninguno.
+  required:
+    - id
+    - nombre
+    - tipo_actividad
+    - fecha_inicio_real
+    - soy_creador
+  properties:
+    id:
+      type: string
+      format: uuid
+    nombre:
+      type: string
+      nullable: true
+    tipo_actividad:
+      $ref: '#/TipoActividad'
+    fecha_inicio_real:
+      type: string
+      format: date-time
+      nullable: true
+    soy_creador:
+      type: boolean
+      description: Determina si el cliente muestra los controles de líder.
+      example: true
+  additionalProperties: false
+
+ViajeDetalle:
+  allOf:
+    - $ref: '#/Viaje'
+    - type: object
+      required:
+        - creador
+        - ruta
+        - mi_participacion
+      properties:
+        creador:
+          type: object
+          required:
+            - id
+            - nombre
+            - apellido
+            - email
+          properties:
+            id:
+              type: string
+              format: uuid
+            nombre:
+              type: string
+            apellido:
+              type: string
+              nullable: true
+            email:
+              type: string
+              format: email
+          additionalProperties: false
+        ruta:
+          type: object
+          nullable: true
+          description: Referencia mínima a la ruta. `null` si todavía no se configuró.
+          required:
+            - id
+            - distancia_planeada_m
+          properties:
+            id:
+              type: string
+              format: uuid
+            distancia_planeada_m:
+              type: number
+              nullable: true
+              example: 84210.5
+          additionalProperties: false
+        mi_participacion:
+          type: object
+          nullable: true
+          description: |
+            Participación del usuario autenticado. Para el creador siempre es
+            `{ estado: confirmado, origen: creador }`, aunque no tenga fila propia.
+          required:
+            - estado
+            - origen
+          properties:
+            estado:
+              $ref: '#/EstadoViajeIntegrante'
+            origen:
+              $ref: '#/OrigenViajeIntegrante'
+          additionalProperties: false
+
+CrearViajeRequest:
+  type: object
+  description: |
+    Alta de un viaje. La actividad determina `velocidad_esperada` y
+    `distancia_max_separacion`, que asigna el backend (RN-021).
+
+    Si se envía `rutaPlantillaId`, la ruta se precarga desde esa plantilla y
+    **`tipoActividad` se sobrescribe** con el de la plantilla.
+  required:
+    - nombre
+    - esGrupal
+    - tipoActividad
+    - fechaProgramada
+  properties:
+    nombre:
+      type: string
+      minLength: 1
+      maxLength: 100
+      example: Ruta de las Altas Cumbres
+    esGrupal:
+      type: boolean
+      description: |
+        En `false`, `grupoIds` y `amigoIds` deben venir vacíos: un viaje individual
+        no admite invitaciones.
+      example: true
+    grupoIds:
+      type: array
+      description: Grupos cuyos integrantes quedan invitados. El creador debe pertenecer a cada uno.
+      default: []
+      items:
+        type: string
+        format: uuid
+    amigoIds:
+      type: array
+      description: Amigos a invitar individualmente. Debe existir amistad aceptada con cada uno.
+      default: []
+      items:
+        type: string
+        format: uuid
+    tipoActividad:
+      $ref: '#/TipoActividad'
+    fechaProgramada:
+      type: string
+      format: date-time
+      description: |
+        Fecha y hora de salida, en UTC (RN-106). Debe ser **estrictamente futura**:
+        una fecha pasada devuelve 400 con `code: FECHA_PASADA` (RN-107).
+      example: '2026-09-01T13:00:00.000Z'
+    rutaPlantillaId:
+      type: string
+      format: uuid
+      nullable: true
+      description: Plantilla propia desde la que precargar la ruta (RN-084).
+  additionalProperties: false
+
+ActualizarViajeRequest:
+  type: object
+  description: Reprogramación del viaje. Es el único campo editable después del alta.
+  required:
+    - fechaProgramada
+  properties:
+    fechaProgramada:
+      type: string
+      format: date-time
+      description: Nueva fecha de salida, en UTC. Debe ser futura (RN-107).
+      example: '2026-09-02T13:00:00.000Z'
+  additionalProperties: false
+
+ViajeReprogramado:
+  type: object
+  required:
+    - id
+    - fecha_programada
+    - estado
+  properties:
+    id:
+      type: string
+      format: uuid
+    fecha_programada:
+      type: string
+      format: date-time
+    estado:
+      $ref: '#/EstadoViaje'
+  additionalProperties: false
+
+ViajeEliminado:
+  type: object
+  required:
+    - viaje_id
+    - accion
+  properties:
+    viaje_id:
+      type: string
+      format: uuid
+    accion:
+      type: string
+      enum: [eliminado]
+  additionalProperties: false
+
+SalidaDeViaje:
+  type: object
+  required:
+    - viaje_id
+    - accion
+  properties:
+    viaje_id:
+      type: string
+      format: uuid
+    accion:
+      type: string
+      enum: [salido]
+  additionalProperties: false
+
+UnionPorQr:
+  type: object
+  required:
+    - viajeId
+    - yaEraParticipante
+  properties:
+    viajeId:
+      type: string
+      format: uuid
+    yaEraParticipante:
+      type: boolean
+      description: '`true` si la persona ya figuraba en el viaje; escanear de nuevo no duplica nada.'
+      example: false
+  additionalProperties: false
+
+InvitacionViajePendiente:
+  type: object
+  description: |
+    Invitación a un viaje sin responder. Solo se listan las de viajes todavía
+    `planificado`: una vez iniciado, la invitación deja de ofrecerse.
+  required:
+    - viaje_id
+    - nombre
+    - tipo_actividad
+    - fecha_programada
+    - creador
+    - created_at
+  properties:
+    viaje_id:
+      type: string
+      format: uuid
+    nombre:
+      type: string
+      nullable: true
+    tipo_actividad:
+      $ref: '#/TipoActividad'
+    fecha_programada:
+      type: string
+      format: date-time
+    creador:
+      $ref: '#/ReferenciaNombrada'
+    created_at:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+RespuestaInvitacionViaje:
+  type: object
+  required:
+    - viaje_id
+    - accion
+    - tipo_actividad
+    - fecha_programada
+  properties:
+    viaje_id:
+      type: string
+      format: uuid
+    accion:
+      type: string
+      enum: [aceptar, rechazar]
+    tipo_actividad:
+      $ref: '#/TipoActividad'
+    fecha_programada:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+ParticipanteViaje:
+  type: object
+  description: Integrante del viaje, con el estado de su invitación y cómo llegó.
+  required:
+    - usuario
+    - estado
+    - origen
+    - created_at
+  properties:
+    usuario:
+      type: object
+      required:
+        - id
+        - nombre
+        - apellido
+        - email
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+        apellido:
+          type: string
+          nullable: true
+        email:
+          type: string
+          format: email
+      additionalProperties: false
+    estado:
+      $ref: '#/EstadoViajeIntegrante'
+    origen:
+      $ref: '#/OrigenViajeIntegrante'
+    created_at:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+EstadisticasUsuario:
+  type: object
+  description: Acumulado histórico del usuario sobre todos sus viajes finalizados.
+  required:
+    - viajes_finalizados
+    - distancia_total_m
+    - tiempo_total_seg
+    - actividad_favorita
+  properties:
+    viajes_finalizados:
+      type: integer
+      example: 12
+    distancia_total_m:
+      type: number
+      example: 745300.2
+    tiempo_total_seg:
+      type: integer
+      example: 86400
+    actividad_favorita:
+      allOf:
+        - $ref: '#/TipoActividadNullable'
+      description: Actividad con más viajes finalizados. `null` si todavía no hay ninguno.
+  additionalProperties: false
+
+RutaViaje:
+  type: object
+  description: Ruta planificada del viaje, con sus paradas ordenadas.
+  required:
+    - origen
+    - destino
+    - linestring
+    - tiempo_estimado_seg
+    - distancia_planeada_m
+    - paradas
+  properties:
+    origen:
+      $ref: '#/PuntoRuta'
+    destino:
+      $ref: '#/PuntoRuta'
+    linestring:
+      $ref: '#/GeoJsonLineString'
+    tiempo_estimado_seg:
+      type: integer
+      nullable: true
+      example: 5400
+    distancia_planeada_m:
+      type: number
+      nullable: true
+      description: Longitud del trazado en metros, calculada por PostGIS al guardar.
+      example: 84210.5
+    paradas:
+      type: array
+      maxItems: 10
+      items:
+        $ref: '#/ParadaRuta'
+  additionalProperties: false
+
+GuardarRutaRequest:
+  type: object
+  description: |
+    Guarda o reemplaza la ruta del viaje. **Solo el creador** puede hacerlo (RN-030).
+
+    Las paradas se reemplazan por completo en cada llamada, no se acumulan.
+    La distancia no se envía: la calcula el backend con PostGIS sobre el `linestring`.
+  required:
+    - origen
+    - destino
+    - linestring
+    - paradas
+  properties:
+    origen:
+      $ref: '#/GeoJsonPoint'
+    destino:
+      $ref: '#/GeoJsonPoint'
+    origenNombre:
+      type: string
+      maxLength: 200
+      nullable: true
+      example: Córdoba Capital
+    destinoNombre:
+      type: string
+      maxLength: 200
+      nullable: true
+      example: Mina Clavero
+    linestring:
+      $ref: '#/GeoJsonLineString'
+    tiempoEstimadoSeg:
+      type: integer
+      minimum: 1
+      nullable: true
+      example: 5400
+    paradas:
+      type: array
+      maxItems: 10
+      description: Paradas intermedias (RN-022). Máximo 10.
+      items:
+        type: object
+        required:
+          - orden
+          - lat
+          - lng
+        properties:
+          orden:
+            type: integer
+            minimum: 0
+          lat:
+            type: number
+            minimum: -90
+            maximum: 90
+          lng:
+            type: number
+            minimum: -180
+            maximum: 180
+          nombre:
+            type: string
+            maxLength: 200
+            nullable: true
+          categoria:
+            allOf:
+              - $ref: '#/CategoriaParada'
+            default: otro
+        additionalProperties: false
+  additionalProperties: false
+
+RutaGuardada:
+  type: object
+  description: Fila de la ruta persistida, con los nombres de columna de la base.
+  required:
+    - id
+    - viaje_id
+    - origen_lat
+    - origen_lng
+    - destino_lat
+    - destino_lng
+    - linestring_geojson
+  properties:
+    id:
+      type: string
+      format: uuid
+    viaje_id:
+      type: string
+      format: uuid
+    origen_lat:
+      type: number
+    origen_lng:
+      type: number
+    origen_nombre:
+      type: string
+      nullable: true
+    destino_lat:
+      type: number
+    destino_lng:
+      type: number
+    destino_nombre:
+      type: string
+      nullable: true
+    linestring_geojson:
+      $ref: '#/GeoJsonLineString'
+    distancia_planeada_m:
+      type: number
+      nullable: true
+    tiempo_estimado_seg:
+      type: integer
+      nullable: true
+  additionalProperties: false
+
+PosicionesRequest:
+  type: object
+  description: |
+    Ingreso de posiciones GPS (RN-031/038).
+
+    - `live`: envío en tiempo real, normalmente de a una posición.
+    - `offline_sync`: lote acumulado sin conexión. El backend lo procesa en bloque
+      **sin perder registros ni romper la secuencia temporal** (RN-038).
+
+    Hasta 2000 posiciones por llamada. La última del lote actualiza también la
+    ubicación viva del usuario.
+  required:
+    - source
+    - posiciones
+  properties:
+    source:
+      $ref: '#/GpsSource'
+    posiciones:
+      type: array
+      minItems: 1
+      maxItems: 2000
+      items:
+        type: object
+        required:
+          - lat
+          - lng
+          - timestamp
+        properties:
+          lat:
+            type: number
+            minimum: -90
+            maximum: 90
+            example: -31.4201
+          lng:
+            type: number
+            minimum: -180
+            maximum: 180
+            example: -64.1888
+          precision:
+            type: number
+            nullable: true
+            description: Precisión de la lectura en metros, si el dispositivo la informa.
+            example: 8.4
+          timestamp:
+            type: string
+            format: date-time
+            description: |
+              Momento real de la lectura en el dispositivo, en UTC. Es el que preserva
+              la secuencia temporal en las sincronizaciones offline, no el de llegada
+              al servidor.
+            example: '2026-09-01T13:05:00.000Z'
+        additionalProperties: false
+  additionalProperties: false
+
+PosicionesIngresadas:
+  type: object
+  required:
+    - insertados
+  properties:
+    insertados:
+      type: integer
+      description: Cantidad de registros GPS efectivamente persistidos.
+      example: 240
+  additionalProperties: false
+
+UbicacionVivaRequest:
+  type: object
+  description: |
+    Publica la posición actual del usuario. Además de refrescar la ubicación viva,
+    persiste un `registro_gps` con `source: live`, de modo que la traza queda completa.
+  required:
+    - lat
+    - lng
+    - recordedAt
+  properties:
+    lat:
+      type: number
+      minimum: -90
+      maximum: 90
+      example: -31.4201
+    lng:
+      type: number
+      minimum: -180
+      maximum: 180
+      example: -64.1888
+    precision:
+      type: number
+      nullable: true
+      example: 8.4
+    recordedAt:
+      type: string
+      format: date-time
+      description: Momento de la lectura en el dispositivo, en UTC.
+      example: '2026-09-01T13:05:00.000Z'
+  additionalProperties: false
+
+UbicacionVivaFila:
+  type: object
+  description: Fila de `ubicacion_viva` tal como la devuelve la base tras el upsert.
+  required:
+    - usuario_id
+    - viaje_id
+    - lat
+    - lng
+    - updated_at
+  properties:
+    usuario_id:
+      type: string
+      format: uuid
+    viaje_id:
+      type: string
+      format: uuid
+    lat:
+      type: number
+    lng:
+      type: number
+    precision_m:
+      type: number
+      nullable: true
+    updated_at:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+UbicacionViva:
+  type: object
+  description: |
+    Última posición conocida de un integrante. Es lo que dibuja el mapa grupal.
+    Solo la ven los integrantes **confirmados**: quien salió del viaje deja de recibirla.
+  required:
+    - usuarioId
+    - viajeId
+    - lat
+    - lng
+    - precision
+    - updatedAt
+    - nombre
+  properties:
+    usuarioId:
+      type: string
+      format: uuid
+    viajeId:
+      type: string
+      format: uuid
+    lat:
+      type: number
+      example: -31.4201
+    lng:
+      type: number
+      example: -64.1888
+    precision:
+      type: number
+      nullable: true
+      example: 8.4
+    updatedAt:
+      type: string
+      format: date-time
+      description: |
+        Antigüedad de la posición, en UTC. RN-032 fija en 10 s la latencia máxima
+        tolerable de actualización en el mapa.
+    nombre:
+      type: string
+      description: Nombre y apellido concatenados, listo para mostrar.
+      example: Martina Gómez
+  additionalProperties: false
+
+ResumenViaje:
+  type: object
+  description: |
+    Cierre del viaje: totales del grupo y métricas propias. Solo disponible con el
+    viaje ya `finalizado`.
+
+    El resumen se genera al finalizar, pero si ese cálculo falló o el viaje es
+    anterior a la funcionalidad, esta consulta lo recalcula al vuelo.
+  required:
+    - viaje
+    - totales
+    - mis_metricas
+    - ranking_habilitado
+    - generado_en
+  properties:
+    viaje:
+      type: object
+      required:
+        - id
+        - nombre
+        - es_grupal
+        - tipo_actividad
+        - fecha_inicio_real
+        - fecha_fin_real
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+          nullable: true
+        es_grupal:
+          type: boolean
+        tipo_actividad:
+          $ref: '#/TipoActividad'
+        fecha_inicio_real:
+          type: string
+          format: date-time
+          nullable: true
+        fecha_fin_real:
+          type: string
+          format: date-time
+          nullable: true
+      additionalProperties: false
+    totales:
+      type: object
+      required:
+        - duracion_segundos
+        - distancia_planeada_m
+        - distancia_real_m
+        - cantidad_integrantes
+        - cantidad_paradas
+      properties:
+        duracion_segundos:
+          type: integer
+          nullable: true
+          example: 7200
+        distancia_planeada_m:
+          type: number
+          nullable: true
+          example: 84210.5
+        distancia_real_m:
+          type: number
+          nullable: true
+          description: Recorrido efectivo, calculado con PostGIS sobre los registros GPS.
+          example: 85990.1
+        cantidad_integrantes:
+          type: integer
+          example: 6
+        cantidad_paradas:
+          type: integer
+          example: 2
+      additionalProperties: false
+    mis_metricas:
+      type: object
+      required:
+        - distancia_m
+        - tiempo_movimiento_seg
+        - velocidad_promedio_kmh
+        - velocidad_maxima_kmh
+        - sali_antes
+        - fecha_salida
+      properties:
+        distancia_m:
+          type: number
+          nullable: true
+        tiempo_movimiento_seg:
+          type: integer
+          nullable: true
+        velocidad_promedio_kmh:
+          type: number
+          nullable: true
+        velocidad_maxima_kmh:
+          type: number
+          nullable: true
+        sali_antes:
+          type: boolean
+          description: '`true` si el usuario abandonó el viaje antes de que finalizara.'
+        fecha_salida:
+          type: string
+          format: date-time
+          nullable: true
+      additionalProperties: false
+    ranking_habilitado:
+      type: boolean
+      description: |
+        **RN-070 (irrevocable):** siempre `false` en modalidad `moto`. La moto está
+        excluida de todo ranking competitivo y de la gamificación de velocidad, por
+        seguridad vial. Este campo es la única compuerta para cualquier funcionalidad
+        comparativa.
+      example: true
+    generado_en:
+      type: string
+      format: date-time
+      nullable: true
+  additionalProperties: false
+
+MetricaIntegrante:
+  type: object
+  description: |
+    Métricas de un integrante. Los campos vienen en `null` cuando la persona no
+    registró GPS durante el viaje.
+
+    **RN-070:** en modalidad `moto`, `velocidad_promedio_kmh` y `velocidad_maxima_kmh`
+    llegan siempre en `null`, y los tres campos de puesto también.
+  required:
+    - usuario_id
+    - nombre
+    - distancia_m
+    - tiempo_movimiento_seg
+    - tiempo_detenido_seg
+    - pace_min_km
+    - velocidad_promedio_kmh
+    - velocidad_maxima_kmh
+    - puesto_distancia
+    - puesto_tiempo
+    - puesto_velocidad
+  properties:
+    usuario_id:
+      type: string
+      format: uuid
+    nombre:
+      type: string
+      example: Martina
+    distancia_m:
+      type: number
+      nullable: true
+    tiempo_movimiento_seg:
+      type: integer
+      nullable: true
+    tiempo_detenido_seg:
+      type: integer
+      nullable: true
+      description: Duración total del viaje menos el tiempo en movimiento.
+    pace_min_km:
+      type: number
+      nullable: true
+      description: Ritmo en minutos por kilómetro. Relevante en running y trekking.
+      example: 5.4
+    velocidad_promedio_kmh:
+      type: number
+      nullable: true
+    velocidad_maxima_kmh:
+      type: number
+      nullable: true
+    puesto_distancia:
+      type: integer
+      nullable: true
+      description: Puesto con empates al estilo competición. `null` si el ranking está deshabilitado.
+    puesto_tiempo:
+      type: integer
+      nullable: true
+    puesto_velocidad:
+      type: integer
+      nullable: true
+  additionalProperties: false
+
+MetricasGrupales:
+  type: object
+  description: |
+    Métricas agregadas del viaje más el desglose por integrante.
+
+    **RN-070:** `ranking_habilitado` es `true` únicamente si el viaje es grupal **y**
+    la actividad no es `moto`. Con moto no se calculan puestos ni se exponen velocidades.
+  required:
+    - tipo_actividad
+    - es_grupal
+    - ranking_habilitado
+    - grupo
+    - por_integrante
+  properties:
+    tipo_actividad:
+      $ref: '#/TipoActividad'
+    es_grupal:
+      type: boolean
+    ranking_habilitado:
+      type: boolean
+      example: true
+    grupo:
+      type: object
+      required:
+        - duracion_segundos
+        - distancia_real_m
+        - distancia_planeada_m
+        - cantidad_paradas
+        - cantidad_integrantes
+      properties:
+        duracion_segundos:
+          type: integer
+          nullable: true
+        distancia_real_m:
+          type: number
+          nullable: true
+        distancia_planeada_m:
+          type: number
+          nullable: true
+        cantidad_paradas:
+          type: integer
+        cantidad_integrantes:
+          type: integer
+      additionalProperties: false
+    por_integrante:
+      type: array
+      items:
+        $ref: '#/MetricaIntegrante'
+  additionalProperties: false
+
+MisMetricas:
+  type: object
+  description: |
+    Métricas individuales detalladas más el perfil de velocidad minuto a minuto.
+
+    **RN-070:** con actividad `moto`, las velocidades llegan en `null` y
+    `perfil_velocidad` es un array vacío.
+  required:
+    - viaje
+    - metricas
+    - perfil_velocidad
+  properties:
+    viaje:
+      type: object
+      required:
+        - id
+        - nombre
+        - tipo_actividad
+        - es_grupal
+        - fecha_inicio_real
+        - fecha_fin_real
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+          nullable: true
+        tipo_actividad:
+          $ref: '#/TipoActividad'
+        es_grupal:
+          type: boolean
+        fecha_inicio_real:
+          type: string
+          format: date-time
+          nullable: true
+        fecha_fin_real:
+          type: string
+          format: date-time
+          nullable: true
+      additionalProperties: false
+    metricas:
+      type: object
+      required:
+        - distancia_m
+        - duracion_segundos
+        - tiempo_movimiento_seg
+        - tiempo_detenido_seg
+        - velocidad_promedio_kmh
+        - velocidad_maxima_kmh
+        - pace_min_km
+        - distancia_planeada_m
+        - cantidad_paradas
+      properties:
+        distancia_m:
+          type: number
+          nullable: true
+        duracion_segundos:
+          type: integer
+          nullable: true
+        tiempo_movimiento_seg:
+          type: integer
+          nullable: true
+        tiempo_detenido_seg:
+          type: integer
+          nullable: true
+        velocidad_promedio_kmh:
+          type: number
+          nullable: true
+        velocidad_maxima_kmh:
+          type: number
+          nullable: true
+        pace_min_km:
+          type: number
+          nullable: true
+        distancia_planeada_m:
+          type: number
+          nullable: true
+        cantidad_paradas:
+          type: integer
+      additionalProperties: false
+    perfil_velocidad:
+      type: array
+      description: |
+        Serie de velocidad a lo largo del viaje, para graficarla. Vacía en modalidad
+        `moto` por RN-070.
+      items:
+        type: object
+        required:
+          - t_seg
+          - velocidad_kmh
+        properties:
+          t_seg:
+            type: integer
+            description: Segundos transcurridos desde el inicio del viaje.
+            example: 60
+          velocidad_kmh:
+            type: number
+            example: 28.4
+        additionalProperties: false
+  additionalProperties: false

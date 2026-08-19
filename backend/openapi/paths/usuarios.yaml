@@ -1,0 +1,102 @@
+# Módulo Usuarios — src/modules/usuarios/
+# Router: usuarios.router.ts · Controller: usuarios.controller.ts
+
+UsuarioActual:
+  get:
+    operationId: getMe
+    summary: Obtener el perfil propio
+    description: |
+      Devuelve el perfil del usuario autenticado, resuelto a partir del Firebase ID token.
+
+      Si el token es válido pero todavía no existe un `Usuario` local, `requireUser` lo
+      crea automáticamente (`findOrCreateByFirebaseUid`), así que en la práctica el 404
+      solo aparece si el registro se eliminó entre la verificación del token y la consulta.
+    tags:
+      - Usuarios
+    responses:
+      '200':
+        description: Perfil del usuario autenticado.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Usuario'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+SincronizarUsuario:
+  post:
+    operationId: syncUsuario
+    summary: Sincronizar el perfil con los datos de la app
+    description: |
+      Persiste los datos de perfil tras el login con Firebase.
+
+      **Requiere autenticación.** El usuario a actualizar no se toma del body sino del
+      token: siempre es el propio. El `email` del body se ignora, porque el email es el
+      de Firebase y es único por usuario (RN-001).
+
+      Semántica de campos opcionales: si el campo no viene, el valor actual queda intacto;
+      si viene en `null`, se limpia.
+    tags:
+      - Usuarios
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/SyncUsuarioRequest'
+          example:
+            email: martina@example.com
+            nombre: Martina
+            apellido: Gómez
+            telefono: '+54 351 555 1234'
+            actividad_preferida: bici
+    responses:
+      '200':
+        description: Perfil actualizado.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Usuario'
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+PushToken:
+  put:
+    operationId: upsertPushToken
+    summary: Registrar el token de notificaciones push
+    description: |
+      Guarda el token de Expo Push del dispositivo actual para poder enviarle
+      notificaciones (invitaciones a viajes y grupos, alertas del viaje).
+
+      Cada usuario guarda un único token: registrar uno nuevo reemplaza al anterior.
+    tags:
+      - Usuarios
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/PushTokenRequest'
+    responses:
+      '200':
+        description: Token registrado.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/OperacionOk'
+            example:
+              ok: true
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'

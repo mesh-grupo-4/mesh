@@ -35,10 +35,11 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
     }
     res.status(400).json({
       error: 'Validación fallida',
+      code: 'VALIDATION_ERROR',
       details: err.flatten(),
     })
     return
   }
   console.error(err)
-  res.status(500).json({ error: 'Error interno del servidor' })
+  res.status(500).json({ error: 'Error interno del servidor', code: 'INTERNAL_ERROR' })
 }
