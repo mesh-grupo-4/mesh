@@ -67,6 +67,28 @@ paths:
                 items:
                   $ref: '#/components/schemas/ViajePlanificadoItem'
 
+  /api/viajes/finalizados:
+    get:
+      summary: Historial de viajes finalizados del usuario (US2)
+      description: |
+        Viajes terminados donde el usuario fue creador, participante o salió,
+        ordenados por fecha de fin descendente. Cada entrada trae las métricas
+        **propias** del consultante; van en `null` si no hubo traza GPS.
+      operationId: listarViajesFinalizados
+      tags: [Viajes]
+      security: [{ UserIdHeader: [] }]
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+      responses:
+        '200':
+          description: Historial del usuario, del más reciente al más viejo
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ViajeFinalizadoItem'
+
   /api/viajes/invitaciones/pendientes:
     get:
       summary: Invitaciones pendientes a viajes
@@ -565,6 +587,51 @@ paths:
         '409':
           description: El viaje todavía no finalizó (TRIP_NOT_FINISHED)
 
+  /api/viajes/{viajeId}/recorrido:
+    get:
+      summary: Traza GPS recorrida por el consultante (US2)
+      description: |
+        Puntos `[lat, lng]` ordenados en el tiempo, del recorrido realmente hecho
+        en el viaje. Se simplifica con PostGIS (`ST_SimplifyPreserveTopology`)
+        antes de responder: un viaje largo tendría miles de posiciones.
+        Un viaje sin traza devuelve `puntos: []`, no un error.
+      operationId: obtenerRecorrido
+      tags: [Viajes]
+      security: [{ UserIdHeader: [] }]
+      parameters:
+        - $ref: '#/components/parameters/XUserId'
+        - $ref: '#/components/parameters/ViajeId'
+      responses:
+        '200':
+          description: Traza del usuario en el viaje
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [viaje_id, usuario_id, puntos, cantidad_puntos]
+                properties:
+                  viaje_id:
+                    type: string
+                    format: uuid
+                  usuario_id:
+                    type: string
+                    format: uuid
+                  puntos:
+                    type: array
+                    description: Pares [lat, lng] en orden temporal.
+                    items:
+                      type: array
+                      minItems: 2
+                      maxItems: 2
+                      items:
+                        type: number
+                  cantidad_puntos:
+                    type: integer
+        '403':
+          description: Sin acceso al viaje (FORBIDDEN)
+        '404':
+          description: Viaje inexistente (VIAJE_NOT_FOUND)
+
   /api/viajes/{viajeId}/mis-metricas:
     get:
       summary: Métricas individuales detalladas del consultante
@@ -685,6 +752,51 @@ components:
         ruta_precargada:
           type: boolean
           description: true si se copió geometría desde rutaPlantillaId.
+
+    ViajeFinalizadoItem:
+      type: object
+      required: [id, creador_id, es_grupal, tipo_actividad, estado]
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+          nullable: true
+        creador_id:
+          type: string
+          format: uuid
+        es_grupal:
+          type: boolean
+        tipo_actividad:
+          type: string
+          enum: [moto, bici, running, trekking, otro]
+        velocidad_esperada:
+          type: number
+        distancia_max_separacion:
+          type: integer
+        fecha_programada:
+          type: string
+          format: date-time
+        fecha_fin_real:
+          type: string
+          format: date-time
+          nullable: true
+        estado:
+          type: string
+          enum: [finalizado]
+        mi_estado:
+          type: string
+          nullable: true
+          enum: [creador, confirmado, salido]
+        mi_distancia_m:
+          type: number
+          nullable: true
+          description: Distancia propia en ese viaje (US2). Null sin traza GPS.
+        mi_tiempo_movimiento_seg:
+          type: integer
+          nullable: true
+          description: Tiempo propio en movimiento (US2). Null sin traza GPS.
 
     ViajePlanificadoItem:
       type: object

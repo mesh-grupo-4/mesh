@@ -44,6 +44,17 @@ export type ViajeFinalizadoApi = {
   fecha_fin_real: string | null
   estado: 'finalizado'
   mi_estado: 'creador' | 'confirmado' | 'salido' | null
+  /** US2: métricas propias del viaje. Null si no hubo traza GPS. */
+  mi_distancia_m: number | null
+  mi_tiempo_movimiento_seg: number | null
+}
+
+/** US2: traza GPS realmente recorrida, ya simplificada por el backend. */
+export type RecorridoApi = {
+  viaje_id: string
+  usuario_id: string
+  puntos: [number, number][]
+  cantidad_puntos: number
 }
 
 export type InvitacionViajePendienteApi = {
@@ -492,6 +503,14 @@ export type UbicacionVivaSnapshotApi = {
   estado?: EstadoIntegranteApi
   paradaDesde?: string | null
   paradaCategoria?: CategoriaParadaApi | null
+}
+
+export async function obtenerRecorrido(
+  viajeId: string,
+  baseUrl?: string
+): Promise<RecorridoApi> {
+  const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}/recorrido`, baseUrl))
+  return parseJson<RecorridoApi>(res)
 }
 
 export async function upsertUbicacionViva(

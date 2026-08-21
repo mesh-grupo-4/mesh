@@ -59,6 +59,29 @@ enum EstadoSolicitudParada {
   cancelada
 }
 
+/// Tema de la alerta que crea el líder (RN-041). Distinto de `OrigenAlerta`,
+/// que dice quién la generó.
+enum TipoAlerta {
+  parada
+  combustible
+  desvio
+  peligro
+  informacion
+}
+
+enum OrigenAlerta {
+  lider
+  sistema
+}
+
+/// RN-042: la gestión de estados es de otra US; acá todas nacen `activa`.
+enum EstadoAlerta {
+  activa
+  pausada
+  cancelada
+  resuelta
+}
+
 enum GpsSource {
   live
   offline_sync
@@ -117,6 +140,7 @@ model Usuario {
   paradas                Parada[]
   solicitudes_parada     SolicitudParada[]  @relation("SolicitudParadaSolicitante")
   solicitudes_resueltas  SolicitudParada[]  @relation("SolicitudParadaResolutor")
+  alertas_creadas        Alerta[]           @relation("AlertaAutor")
 
   @@map("usuario")
 }
@@ -208,6 +232,7 @@ model Viaje {
   metricas MetricaViaje[]
   paradas Parada[]
   solicitudes_parada SolicitudParada[]
+  alertas Alerta[]
 
   @@index([creador_id])
   @@map("viaje")
@@ -427,6 +452,29 @@ model SolicitudParada {
   @@index([viaje_id, estado])
   @@index([solicitante_id, created_at])
   @@map("solicitud_parada")
+}
+
+/// Alerta del viaje (US1, RN-040/041/043). Hoy solo las crea el líder; el enum
+/// `OrigenAlerta` deja lugar al motor de eventos (desvíos, atrasos, incidentes).
+model Alerta {
+  id            String       @id @default(uuid()) @db.Uuid
+  viaje_id      String       @map("viaje_id") @db.Uuid
+  creada_por_id String?      @map("creada_por_id") @db.Uuid
+  tipo          TipoAlerta
+  origen        OrigenAlerta @default(lider)
+  mensaje       String
+  /// RN-043: dónde estaba quien la creó, para ubicarla en el mapa.
+  lat           Float?
+  lng           Float?
+  estado        EstadoAlerta @default(activa)
+  created_at    DateTime     @default(now()) @map("created_at")
+  resolved_at   DateTime?    @map("resolved_at")
+
+  viaje      Viaje    @relation(fields: [viaje_id], references: [id], onDelete: Cascade)
+  creada_por Usuario? @relation("AlertaAutor", fields: [creada_por_id], references: [id], onDelete: SetNull)
+
+  @@index([viaje_id, created_at])
+  @@map("alerta")
 }
 
 model MetricaViaje {

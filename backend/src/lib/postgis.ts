@@ -98,6 +98,54 @@ export async function computePerfilVelocidad(
   )
 }
 
+/** Tolerancia de simplificación de la traza, en grados (~11 m en el ecuador). */
+const TRAZA_TOLERANCIA_GRADOS = 0.0001
+
+/**
+ * Traza GPS recorrida por un usuario en un viaje, como par [lat, lng] ordenado
+ * en el tiempo (US2). Se simplifica con ST_SimplifyPreserveTopology en la base
+ * para no mandar miles de puntos al mapa: un viaje de 3 h a un ping cada 5 s son
+ * ~2160 posiciones, de las que la mayoría no cambia el dibujo de la polilínea.
+ */
+export async function computeTrazaRecorrido(
+  prisma: PrismaClient,
+  viajeId: string,
+  usuarioId: string
+): Promise<[number, number][]> {
+  const filas = await prisma.$queryRaw<{ lat: number; lng: number; orden: number }[]>(
+    Prisma.sql`
+      WITH puntos AS (
+        SELECT
+          lat,
+          lng,
+          "timestamp"
+        FROM registro_gps
+        WHERE viaje_id = ${viajeId}::uuid
+          AND usuario_id = ${usuarioId}::uuid
+          AND (precision_m IS NULL OR precision_m <= ${PRECISION_MAX_M})
+        ORDER BY "timestamp"
+      ),
+      linea AS (
+        SELECT ST_SimplifyPreserveTopology(
+                 ST_MakeLine(ST_SetSRID(ST_MakePoint(lng, lat), 4326) ORDER BY "timestamp"),
+                 ${TRAZA_TOLERANCIA_GRADOS}
+               ) AS geom
+        FROM puntos
+        -- ST_MakeLine necesita dos puntos: con uno solo devuelve NULL y no hay traza.
+        HAVING COUNT(*) > 1
+      )
+      SELECT
+        ST_Y(punto.geom)::float8 AS lat,
+        ST_X(punto.geom)::float8 AS lng,
+        punto.path[1]            AS orden
+      FROM linea, LATERAL ST_DumpPoints(linea.geom) AS punto
+      WHERE linea.geom IS NOT NULL
+      ORDER BY punto.path[1]
+    `
+  )
+  return filas.map((f) => [f.lat, f.lng])
+}
+
 export async function computeMetricasGpsPorUsuario(
   prisma: PrismaClient,
   viajeId: string

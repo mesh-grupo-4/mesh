@@ -7,6 +7,7 @@ import {
   computeLineStringLengthMeters,
   computeMetricasGpsPorUsuario,
   computePerfilVelocidad,
+  computeTrazaRecorrido,
 } from '../../lib/postgis'
 import { unirUsuarioAlViaje } from './viajes.membership'
 import type {
@@ -558,19 +559,33 @@ export class ViajesService {
       orderBy: { fecha_fin_real: 'desc' },
     })
 
-    return viajes.map((v) => ({
-      id: v.id,
-      creador_id: v.creador_id,
-      nombre: v.nombre,
-      es_grupal: v.es_grupal,
-      tipo_actividad: v.tipo_actividad,
-      velocidad_esperada: v.velocidad_esperada,
-      distancia_max_separacion: v.distancia_max_separacion,
-      fecha_programada: v.fecha_programada,
-      fecha_fin_real: v.fecha_fin_real,
-      estado: v.estado as 'finalizado',
-      mi_estado: v.creador_id === usuarioId ? ('creador' as const) : (v.integrantes[0]?.estado ?? null),
-    }))
+    // US2: distancia y tiempo propios de cada viaje. Una sola consulta para todos
+    // los viajes de la lista en vez de una por tarjeta.
+    const metricas = await this.prisma.metricaViaje.findMany({
+      where: { usuario_id: usuarioId, viaje_id: { in: viajes.map((v) => v.id) } },
+      select: { viaje_id: true, distancia_m: true, tiempo_movimiento_seg: true },
+    })
+    const metricaPorViaje = new Map(metricas.map((m) => [m.viaje_id, m]))
+
+    return viajes.map((v) => {
+      const mia = metricaPorViaje.get(v.id)
+      return {
+        id: v.id,
+        creador_id: v.creador_id,
+        nombre: v.nombre,
+        es_grupal: v.es_grupal,
+        tipo_actividad: v.tipo_actividad,
+        velocidad_esperada: v.velocidad_esperada,
+        distancia_max_separacion: v.distancia_max_separacion,
+        fecha_programada: v.fecha_programada,
+        fecha_fin_real: v.fecha_fin_real,
+        estado: v.estado as 'finalizado',
+        mi_estado:
+          v.creador_id === usuarioId ? ('creador' as const) : (v.integrantes[0]?.estado ?? null),
+        mi_distancia_m: mia?.distancia_m ?? null,
+        mi_tiempo_movimiento_seg: mia?.tiempo_movimiento_seg ?? null,
+      }
+    })
   }
 
   /** RN-030: solo el líder puede reprogramar un viaje aún planificado. */
@@ -1028,6 +1043,22 @@ export class ViajesService {
    * Métricas individuales detalladas + perfil de velocidad por minuto.
    * Velocidades omitidas para moto (RN-070).
    */
+  /**
+   * US2: traza GPS que recorrió el usuario en el viaje, para dibujarla en el mapa.
+   * Lectura laxa (`assertPuedeVerViaje`) porque es historial: quien salió del
+   * viaje igual puede repasar su propio recorrido.
+   */
+  async obtenerRecorrido(usuarioId: string, viajeId: string) {
+    await this.assertPuedeVerViaje(viajeId, usuarioId)
+    const puntos = await computeTrazaRecorrido(this.prisma, viajeId, usuarioId)
+    return {
+      viaje_id: viajeId,
+      usuario_id: usuarioId,
+      puntos,
+      cantidad_puntos: puntos.length,
+    }
+  }
+
   async obtenerMisMetricas(usuarioId: string, viajeId: string) {
     await this.assertPuedeVerViaje(viajeId, usuarioId)
 

@@ -99,7 +99,7 @@ A diferencia de soluciones existentes (Strava, Garmin, Google Maps, Life360) que
 | ID | Regla |
 |---|---|
 | RN-040 | Las alertas se envían como notificación push a todos los integrantes del viaje. |
-| RN-041 | El líder puede crear alertas manuales con tipo y mensaje personalizado. |
+| RN-041 | El líder puede crear alertas manuales con tipo y mensaje personalizado. Los tipos son **parada**, **combustible**, **desvío**, **peligro** e **información**; se registran con la ubicación de quien las crea y solo con el viaje en curso. |
 | RN-042 | Las alertas activas pueden pausarse o cancelarse individualmente por el líder. |
 | RN-043 | Las alertas automáticas de incidente incluyen la ubicación exacta del evento. |
 | RN-044 | Un integrante puede solicitar una parada al grupo; el líder puede aprobarla o rechazarla. |
@@ -555,10 +555,10 @@ SolicitudParada
 Alerta
 ├── id (PK)
 ├── viaje_id (FK)
-├── tipo (enum: desvío, atraso, incidente, manual, parada_solicitada)
-├── generada_por (enum: sistema, líder, integrante)
-├── usuario_afectado_id (FK, nullable)
-├── ubicacion (point)
+├── creada_por_id (FK, nullable)
+├── tipo (enum: parada, combustible, desvio, peligro, informacion)   ← tema de la alerta
+├── origen (enum: lider, sistema)                                     ← quién la generó
+├── ubicacion (point, nullable)
 ├── mensaje
 ├── estado (enum: activa, pausada, cancelada, resuelta)
 ├── created_at

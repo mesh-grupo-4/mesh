@@ -13,7 +13,10 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { meshAlert } from '@/lib/meshAlert';
 
+import { AlertaBanner } from '@/components/live/AlertaBanner'
+import { AlertasButton } from '@/components/live/AlertasButton'
 import { CategoriaParadaSheet } from '@/components/live/CategoriaParadaSheet'
+import { CrearAlertaSheet } from '@/components/live/CrearAlertaSheet'
 import { CenterLocationButton } from '@/components/live/CenterLocationButton'
 import { ParadaActionsBar } from '@/components/live/ParadaActionsBar'
 import { SolicitudParadaBanner } from '@/components/live/SolicitudParadaBanner'
@@ -26,11 +29,13 @@ import type { MapStyleId } from '@/components/route-config/mapStyles'
 import { DEV_USER_ID, API_BASE_URL } from '@/constants/Config'
 import { useAuth } from '@/context/AuthContext'
 import { useLiveLocations } from '@/hooks/useLiveLocations'
+import { useAlertas } from '@/hooks/useAlertas'
 import { useParadas } from '@/hooks/useParadas'
 import { useNextStopEta } from '@/hooks/useNextStopEta'
 import { useTripMetrics } from '@/hooks/useTripMetrics'
 import type { RouteStop } from '@/lib/geo/nextStop'
 import { nombreCompleto } from '@/lib/nombres'
+import type { TipoAlertaApi } from '@/lib/alertasApi'
 import type { CategoriaParadaApi } from '@/lib/paradasApi'
 import { linestringToLatLng, waypointsFromRutaDetalle } from '@/lib/routePayload'
 import { connectMeshSocket } from '@/lib/meshSocket'
@@ -95,6 +100,7 @@ export default function ViajeLiveScreen() {
   const [mapStyle, setMapStyle] = useState<MapStyleId>('standard')
   const [accion, setAccion] = useState(false)
   const [eligiendoCategoria, setEligiendoCategoria] = useState(false)
+  const [componiendoAlerta, setComponiendoAlerta] = useState(false)
 
   const nameByUserId = useMemo(() => {
     const map: Record<string, string> = {}
@@ -180,6 +186,17 @@ export default function ViajeLiveScreen() {
     userId,
     esLider,
     habilitado: viaje?.estado === 'en_curso',
+  })
+
+  const {
+    alertas,
+    ultima: ultimaAlerta,
+    enviando: alertaEnviando,
+    publicar: publicarAlerta,
+    descartarUltima,
+  } = useAlertas({
+    viajeId: viajeId ?? '',
+    habilitado: Boolean(viajeId && userId.trim()),
   })
 
   const { elapsedLabel, distanceLabel } = useTripMetrics({
@@ -451,6 +468,22 @@ export default function ViajeLiveScreen() {
     )
   }, [miSolicitud, descartarResultado])
 
+  /** US1: la alerta viaja con la posición del líder para ubicarla en el mapa. */
+  const handlePublicarAlerta = (tipo: TipoAlertaApi, mensaje: string) => {
+    void (async () => {
+      const pos = await posicionActual()
+      try {
+        await publicarAlerta({ tipo, mensaje, lat: pos?.lat, lng: pos?.lng })
+        setComponiendoAlerta(false)
+      } catch (e) {
+        meshAlert('No se pudo enviar la alerta', mensajeDeError(e))
+      }
+    })()
+  }
+
+  const irAAlertas = () =>
+    router.push({ pathname: '/viaje/[viajeId]/alertas', params: { viajeId: viajeId ?? '' } })
+
   const handleCenterOnMe = () => {
     void (async () => {
       try {
@@ -502,13 +535,34 @@ export default function ViajeLiveScreen() {
         onBack={() => router.back()}
       />
 
+      <AlertasButton
+        cantidad={alertas.length}
+        topOffset={128}
+        onPress={irAAlertas}
+        onCrear={
+          esLider && viaje?.estado === 'en_curso' ? () => setComponiendoAlerta(true) : undefined
+        }
+      />
+
+      {ultimaAlerta ? (
+        <AlertaBanner
+          alerta={ultimaAlerta}
+          topOffset={182}
+          onCerrar={descartarUltima}
+          onVerHistorial={() => {
+            descartarUltima()
+            irAAlertas()
+          }}
+        />
+      ) : null}
+
       {esLider && pendientes.length > 0 && pendientes[0] ? (
         <SolicitudParadaBanner
           nombre={pendientes[0].nombre}
           motivo={pendientes[0].motivo}
           restantes={pendientes.length}
           ocupado={paradaEnCurso}
-          topOffset={128}
+          topOffset={ultimaAlerta ? 300 : 182}
           onAprobar={() => handleResponderSolicitud(pendientes[0]!.solicitudId, 'aprobada')}
           onRechazar={() => handleResponderSolicitud(pendientes[0]!.solicitudId, 'rechazada')}
         />
@@ -578,6 +632,13 @@ export default function ViajeLiveScreen() {
         visible={eligiendoCategoria}
         onSeleccionar={handleCategoriaElegida}
         onCancelar={() => setEligiendoCategoria(false)}
+      />
+
+      <CrearAlertaSheet
+        visible={componiendoAlerta}
+        enviando={alertaEnviando}
+        onPublicar={handlePublicarAlerta}
+        onCancelar={() => setComponiendoAlerta(false)}
       />
     </View>
   )

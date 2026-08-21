@@ -5,6 +5,7 @@ import { ViajesService } from './viajes.service'
 import { crearViajesController } from './viajes.controller'
 import { rutasCompartirHandlers } from '../rutas-compartidas/rutas-compartidas.router'
 import { paradasHandlers } from '../paradas/paradas.router'
+import { alertasHandlers } from '../alertas/alertas.router'
 
 const service = new ViajesService(prisma)
 const c = crearViajesController(service)
@@ -23,6 +24,8 @@ viajesRouter.get('/:viajeId/participantes', requireUser, c.listarParticipantes)
 viajesRouter.get('/:viajeId/resumen', requireUser, c.resumen)
 viajesRouter.get('/:viajeId/metricas-grupales', requireUser, c.metricasGrupales)
 viajesRouter.get('/:viajeId/mis-metricas', requireUser, c.misMetricas)
+// US2: traza GPS realmente recorrida por quien consulta.
+viajesRouter.get('/:viajeId/recorrido', requireUser, c.recorrido)
 viajesRouter.get('/:viajeId', requireUser, c.detalle)
 viajesRouter.patch('/:viajeId', requireUser, c.actualizar)
 viajesRouter.delete('/:viajeId', requireUser, c.eliminar)
@@ -51,3 +54,7 @@ viajesRouter.post(
   '/:viajeId/solicitudes-parada/:solicitudId/cancelar',
   ...paradasHandlers.cancelarSolicitud
 )
+
+// Alertas del viaje (US1, RN-040 / RN-041).
+viajesRouter.get('/:viajeId/alertas', ...alertasHandlers.listar)
+viajesRouter.post('/:viajeId/alertas', ...alertasHandlers.crear)
