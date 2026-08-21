@@ -13,7 +13,10 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { meshAlert } from '@/lib/meshAlert';
 
+import { CategoriaParadaSheet } from '@/components/live/CategoriaParadaSheet'
 import { CenterLocationButton } from '@/components/live/CenterLocationButton'
+import { ParadaActionsBar } from '@/components/live/ParadaActionsBar'
+import { SolicitudParadaBanner } from '@/components/live/SolicitudParadaBanner'
 import { LiveMapView, type LiveMapViewHandle } from '@/components/live/LiveMapView'
 import type { LiveMember } from '@/components/live/LiveMembersBar'
 import { LiveTripHeader } from '@/components/live/LiveTripHeader'
@@ -23,10 +26,12 @@ import type { MapStyleId } from '@/components/route-config/mapStyles'
 import { DEV_USER_ID, API_BASE_URL } from '@/constants/Config'
 import { useAuth } from '@/context/AuthContext'
 import { useLiveLocations } from '@/hooks/useLiveLocations'
+import { useParadas } from '@/hooks/useParadas'
 import { useNextStopEta } from '@/hooks/useNextStopEta'
 import { useTripMetrics } from '@/hooks/useTripMetrics'
 import type { RouteStop } from '@/lib/geo/nextStop'
 import { nombreCompleto } from '@/lib/nombres'
+import type { CategoriaParadaApi } from '@/lib/paradasApi'
 import { linestringToLatLng, waypointsFromRutaDetalle } from '@/lib/routePayload'
 import { connectMeshSocket } from '@/lib/meshSocket'
 import { isSupabaseConfigured } from '@/lib/supabase'
@@ -44,6 +49,19 @@ import {
   type ViajeDetalleApi,
   type ViajeParticipanteApi,
 } from '@/lib/viajesApi'
+
+function mensajeDeError(e: unknown): string {
+  return e instanceof Error ? e.message : 'Intentá de nuevo en unos segundos.'
+}
+
+function duracionLegible(segundos: number): string {
+  if (segundos < 60) return `${segundos} s`
+  const min = Math.floor(segundos / 60)
+  if (min < 60) return `${min} min`
+  const h = Math.floor(min / 60)
+  const resto = min % 60
+  return resto > 0 ? `${h} h ${resto} min` : `${h} h`
+}
 
 export default function ViajeLiveScreen() {
   const router = useRouter()
@@ -76,6 +94,7 @@ export default function ViajeLiveScreen() {
   const [loading, setLoading] = useState(true)
   const [mapStyle, setMapStyle] = useState<MapStyleId>('standard')
   const [accion, setAccion] = useState(false)
+  const [eligiendoCategoria, setEligiendoCategoria] = useState(false)
 
   const nameByUserId = useMemo(() => {
     const map: Record<string, string> = {}
@@ -139,6 +158,29 @@ export default function ViajeLiveScreen() {
     if (viaje?.nombre?.trim()) return viaje.nombre.trim()
     return viaje?.es_grupal ? 'Salida grupal' : 'Salida individual'
   }, [viaje])
+
+  const esLider = viaje != null && userId === viaje.creador_id
+
+  // Solo tiene sentido pedirle una parada al líder si hay líder distinto de uno
+  // mismo y el viaje es grupal: en una salida individual no hay a quién pedirle.
+  const puedeSolicitarParada = viaje != null && viaje.es_grupal && !esLider
+
+  const {
+    paradaActiva,
+    miSolicitud,
+    pendientes,
+    enviando: paradaEnCurso,
+    registrarParada,
+    retomarViaje,
+    pedirParada,
+    responderSolicitud,
+    descartarResultado,
+  } = useParadas({
+    viajeId: viajeId ?? '',
+    userId,
+    esLider,
+    habilitado: viaje?.estado === 'en_curso',
+  })
 
   const { elapsedLabel, distanceLabel } = useTripMetrics({
     viajeId: viajeId ?? '',
@@ -259,8 +301,6 @@ export default function ViajeLiveScreen() {
     void Location.getForegroundPermissionsAsync().then((r) => setFg(r.status === 'granted'))
   }, [])
 
-  const esLider = viaje != null && userId === viaje.creador_id
-
   // Evita que el socket `viaje:finalizado` muestre un segundo diálogo cuando
   // es el propio líder quien acaba de finalizar el viaje.
   const finalizandoRef = useRef(false)
@@ -318,6 +358,99 @@ export default function ViajeLiveScreen() {
     }
   }
 
+  /** US1: posición para la parada; si el GPS falla usamos la última conocida. */
+  const posicionActual = async (): Promise<{ lat: number; lng: number } | null> => {
+    try {
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
+      return { lat: pos.coords.latitude, lng: pos.coords.longitude }
+    } catch {
+      return myPosition
+    }
+  }
+
+  const handleDetenerse = () => setEligiendoCategoria(true)
+
+  const handleCategoriaElegida = (categoria: CategoriaParadaApi) => {
+    setEligiendoCategoria(false)
+    void (async () => {
+      const pos = await posicionActual()
+      if (!pos) {
+        meshAlert(
+          'Sin ubicación',
+          'No pudimos obtener tu posición para registrar la parada. Revisá los permisos de ubicación.'
+        )
+        return
+      }
+      try {
+        await registrarParada(categoria, pos)
+      } catch (e) {
+        meshAlert('No se pudo registrar la parada', mensajeDeError(e))
+      }
+    })()
+  }
+
+  /** US3 */
+  const handleRetomar = () => {
+    void (async () => {
+      try {
+        const parada = await retomarViaje()
+        const seg = parada.duracion_segundos ?? 0
+        meshAlert('Retomaste el viaje', `Parada de ${duracionLegible(seg)} registrada.`)
+      } catch (e) {
+        meshAlert('No se pudo retomar', mensajeDeError(e))
+      }
+    })()
+  }
+
+  /** US2 */
+  const handleSolicitar = () => {
+    if (miSolicitud?.estado === 'pendiente') {
+      meshAlert(
+        'Solicitud enviada',
+        'El líder todavía no respondió tu pedido de parada. Te avisamos apenas lo haga.'
+      )
+      return
+    }
+    void (async () => {
+      const pos = await posicionActual()
+      try {
+        await pedirParada({ lat: pos?.lat, lng: pos?.lng })
+        meshAlert('Solicitud enviada', 'El líder recibió tu pedido de parada.')
+      } catch (e) {
+        meshAlert('No se pudo enviar', mensajeDeError(e))
+      }
+    })()
+  }
+
+  const handleResponderSolicitud = (
+    solicitudId: string,
+    decision: 'aprobada' | 'rechazada'
+  ) => {
+    void (async () => {
+      try {
+        await responderSolicitud(solicitudId, decision)
+      } catch (e) {
+        meshAlert('No se pudo responder', mensajeDeError(e))
+      }
+    })()
+  }
+
+  // US2: el solicitante ve el resultado apenas el líder responde.
+  useEffect(() => {
+    if (!miSolicitud || miSolicitud.estado === 'pendiente') return
+    if (miSolicitud.estado === 'cancelada') {
+      descartarResultado()
+      return
+    }
+    meshAlert(
+      miSolicitud.estado === 'aprobada' ? 'Parada aprobada' : 'Parada rechazada',
+      miSolicitud.estado === 'aprobada'
+        ? 'El líder aprobó tu solicitud de parada.'
+        : 'El líder rechazó tu solicitud de parada.',
+      [{ text: 'Entendido', onPress: descartarResultado }]
+    )
+  }, [miSolicitud, descartarResultado])
+
   const handleCenterOnMe = () => {
     void (async () => {
       try {
@@ -369,6 +502,18 @@ export default function ViajeLiveScreen() {
         onBack={() => router.back()}
       />
 
+      {esLider && pendientes.length > 0 && pendientes[0] ? (
+        <SolicitudParadaBanner
+          nombre={pendientes[0].nombre}
+          motivo={pendientes[0].motivo}
+          restantes={pendientes.length}
+          ocupado={paradaEnCurso}
+          topOffset={128}
+          onAprobar={() => handleResponderSolicitud(pendientes[0]!.solicitudId, 'aprobada')}
+          onRechazar={() => handleResponderSolicitud(pendientes[0]!.solicitudId, 'rechazada')}
+        />
+      ) : null}
+
       <MapStylePicker value={mapStyle} onChange={setMapStyle} topOffset={128} />
 
       <CenterLocationButton onPress={handleCenterOnMe} bottomOffset={140 + insets.bottom} />
@@ -399,6 +544,18 @@ export default function ViajeLiveScreen() {
 
       <TripMetricsPanel elapsedLabel={elapsedLabel} distanceLabel={distanceLabel} />
 
+      {viaje?.estado === 'en_curso' ? (
+        <ParadaActionsBar
+          paradaDesde={paradaActiva?.inicio ?? null}
+          puedeSolicitar={puedeSolicitarParada}
+          solicitudPendiente={miSolicitud?.estado === 'pendiente'}
+          ocupado={paradaEnCurso || accion}
+          onDetenerse={handleDetenerse}
+          onRetomar={handleRetomar}
+          onSolicitar={handleSolicitar}
+        />
+      ) : null}
+
       <Pressable
         style={({ pressed }) => [
           styles.endBar,
@@ -416,6 +573,12 @@ export default function ViajeLiveScreen() {
           {accion ? 'Procesando...' : esLider ? 'Finalizar viaje' : 'Salir del viaje'}
         </Text>
       </Pressable>
+
+      <CategoriaParadaSheet
+        visible={eligiendoCategoria}
+        onSeleccionar={handleCategoriaElegida}
+        onCancelar={() => setEligiendoCategoria(false)}
+      />
     </View>
   )
 }

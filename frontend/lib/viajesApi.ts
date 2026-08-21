@@ -1,6 +1,7 @@
 import { API_BASE_URL } from '@/constants/Config'
 import type { PutRutaBody, RutaDetalleApi } from './viajesTypes'
 import { apiUrl, meshFetchAuthed, parseJson } from './apiClient'
+import type { CategoriaParadaApi, EstadoIntegranteApi } from './paradasApi'
 
 export type TipoActividadApi = 'moto' | 'bici' | 'running' | 'trekking' | 'otro'
 
@@ -487,6 +488,10 @@ export type UbicacionVivaSnapshotApi = {
   precision: number | null
   updatedAt: string
   nombre: string
+  /** RN-037: derivado en el backend de la parada abierta del integrante. */
+  estado?: EstadoIntegranteApi
+  paradaDesde?: string | null
+  paradaCategoria?: CategoriaParadaApi | null
 }
 
 export async function upsertUbicacionViva(

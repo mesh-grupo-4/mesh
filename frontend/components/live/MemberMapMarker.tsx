@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { StyleSheet, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
 import { Marker } from 'react-native-maps'
 
 import { AvatarFallback } from '@/components/AvatarFallback'
@@ -21,6 +21,7 @@ const MARKER_BOX = 48
 
 export function MemberMapMarker({ member, isMe = false }: Props) {
   const [tracks, setTracks] = useState(true)
+  const detenido = member.estado === 'detenido_voluntario'
 
   // Cualquier cosa que cambie el pixel del marcador tiene que reactivar la captura:
   // el color y las iniciales dependen del nombre, y la opacidad de isStale.
@@ -28,7 +29,7 @@ export function MemberMapMarker({ member, isMe = false }: Props) {
     setTracks(true)
     const id = setTimeout(() => setTracks(false), 500)
     return () => clearTimeout(id)
-  }, [member.isStale, member.nombre, isMe])
+  }, [member.isStale, member.nombre, member.estado, isMe])
 
   return (
     <Marker
@@ -37,9 +38,15 @@ export function MemberMapMarker({ member, isMe = false }: Props) {
       tracksViewChanges={tracks}
     >
       <View style={[styles.box, member.isStale && styles.stale]}>
-        <View style={[styles.ring, isMe && styles.meRing]}>
+        <View style={[styles.ring, isMe && styles.meRing, detenido && styles.detenidoRing]}>
           <AvatarFallback nombre={member.nombre} size={AVATAR_SIZE} />
         </View>
+        {/* RN-037: distintivo de "detenido" para leerlo de un vistazo en el mapa. */}
+        {detenido ? (
+          <View style={styles.badgeDetenido}>
+            <Text style={styles.badgeTxt}>II</Text>
+          </View>
+        ) : null}
       </View>
     </Marker>
   )
@@ -64,5 +71,27 @@ const styles = StyleSheet.create({
   },
   stale: {
     opacity: 0.45,
+  },
+  detenidoRing: {
+    borderColor: '#f59e0b',
+  },
+  badgeDetenido: {
+    position: 'absolute',
+    right: 2,
+    bottom: 2,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#f59e0b',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#fff',
+  },
+  badgeTxt: {
+    color: '#fff',
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: -0.5,
   },
 })
