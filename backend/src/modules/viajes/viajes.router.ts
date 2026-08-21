@@ -4,6 +4,7 @@ import { requireUser } from '../../middleware/requireUser'
 import { ViajesService } from './viajes.service'
 import { crearViajesController } from './viajes.controller'
 import { rutasCompartirHandlers } from '../rutas-compartidas/rutas-compartidas.router'
+import { paradasHandlers } from '../paradas/paradas.router'
 
 const service = new ViajesService(prisma)
 const c = crearViajesController(service)
@@ -35,3 +36,18 @@ viajesRouter.delete('/:viajeId/ruta/compartir', requireUser, rutasCompartirHandl
 viajesRouter.post('/:viajeId/iniciar', requireUser, c.iniciar)
 viajesRouter.post('/:viajeId/finalizar', requireUser, c.finalizar)
 viajesRouter.post('/:viajeId/salir', requireUser, c.salir)
+
+// Paradas voluntarias y solicitudes de parada (US1–US3, RN-037 / RN-044).
+viajesRouter.get('/:viajeId/paradas/activa', ...paradasHandlers.activa)
+viajesRouter.post('/:viajeId/paradas', ...paradasHandlers.iniciar)
+viajesRouter.post('/:viajeId/paradas/finalizar', ...paradasHandlers.finalizar)
+viajesRouter.get('/:viajeId/solicitudes-parada', ...paradasHandlers.listarSolicitudes)
+viajesRouter.post('/:viajeId/solicitudes-parada', ...paradasHandlers.solicitar)
+viajesRouter.post(
+  '/:viajeId/solicitudes-parada/:solicitudId/responder',
+  ...paradasHandlers.responderSolicitud
+)
+viajesRouter.post(
+  '/:viajeId/solicitudes-parada/:solicitudId/cancelar',
+  ...paradasHandlers.cancelarSolicitud
+)

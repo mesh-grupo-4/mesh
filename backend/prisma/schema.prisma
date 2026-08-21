@@ -39,6 +39,26 @@ enum CategoriaParada {
   otro
 }
 
+/// Estado visible de un integrante en el mapa grupal (RN-037).
+/// `posible_incidente` queda declarado para el motor de eventos (RN-036).
+enum EstadoIntegranteViaje {
+  en_movimiento
+  detenido_voluntario
+  posible_incidente
+}
+
+enum TipoParada {
+  voluntaria
+  incidente_detectado
+}
+
+enum EstadoSolicitudParada {
+  pendiente
+  aprobada
+  rechazada
+  cancelada
+}
+
 enum GpsSource {
   live
   offline_sync
@@ -94,6 +114,9 @@ model Usuario {
   amistades_solicitadas  Amistad[]          @relation("AmistadSolicitante")
   amistades_recibidas    Amistad[]          @relation("AmistadDestinatario")
   rutas_plantilla        RutaPlantilla[]
+  paradas                Parada[]
+  solicitudes_parada     SolicitudParada[]  @relation("SolicitudParadaSolicitante")
+  solicitudes_resueltas  SolicitudParada[]  @relation("SolicitudParadaResolutor")
 
   @@map("usuario")
 }
@@ -183,6 +206,8 @@ model Viaje {
   registros_gps RegistroGPS[]
   ubicaciones_vivas UbicacionViva[]
   metricas MetricaViaje[]
+  paradas Parada[]
+  solicitudes_parada SolicitudParada[]
 
   @@index([creador_id])
   @@map("viaje")
@@ -358,6 +383,52 @@ model ResumenViaje {
 }
 
 /// Métricas individuales por integrante, calculadas desde registro_gps al finalizar (RN-061).
+/// Parada registrada durante el viaje (US1/US3). Mientras `fin` es null el
+/// integrante figura como `detenido_voluntario` en el mapa grupal: el estado se
+/// deriva de acá, no se duplica en ubicacion_viva.
+model Parada {
+  id              String           @id @default(uuid()) @db.Uuid
+  viaje_id        String           @map("viaje_id") @db.Uuid
+  usuario_id      String           @map("usuario_id") @db.Uuid
+  lat             Float
+  lng             Float
+  tipo            TipoParada       @default(voluntaria)
+  categoria       CategoriaParada?
+  inicio          DateTime         @default(now())
+  fin             DateTime?
+  /// RN-036: el integrante confirmó que está bien tras un posible incidente.
+  confirmado_bien Boolean?         @map("confirmado_bien")
+
+  viaje   Viaje   @relation(fields: [viaje_id], references: [id], onDelete: Cascade)
+  usuario Usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+
+  @@index([viaje_id, inicio])
+  @@index([usuario_id, inicio])
+  @@map("parada")
+}
+
+/// Solicitud de parada de un integrante al líder (US2, RN-044).
+model SolicitudParada {
+  id              String                @id @default(uuid()) @db.Uuid
+  viaje_id        String                @map("viaje_id") @db.Uuid
+  solicitante_id  String                @map("solicitante_id") @db.Uuid
+  lat             Float?
+  lng             Float?
+  motivo          String?
+  estado          EstadoSolicitudParada @default(pendiente)
+  resuelta_por_id String?               @map("resuelta_por_id") @db.Uuid
+  created_at      DateTime              @default(now()) @map("created_at")
+  resolved_at     DateTime?             @map("resolved_at")
+
+  viaje        Viaje    @relation(fields: [viaje_id], references: [id], onDelete: Cascade)
+  solicitante  Usuario  @relation("SolicitudParadaSolicitante", fields: [solicitante_id], references: [id], onDelete: Cascade)
+  resuelta_por Usuario? @relation("SolicitudParadaResolutor", fields: [resuelta_por_id], references: [id], onDelete: SetNull)
+
+  @@index([viaje_id, estado])
+  @@index([solicitante_id, created_at])
+  @@map("solicitud_parada")
+}
+
 model MetricaViaje {
   id                     String   @id @default(uuid()) @db.Uuid
   viaje_id               String   @map("viaje_id") @db.Uuid

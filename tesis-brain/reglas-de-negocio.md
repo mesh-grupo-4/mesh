@@ -91,7 +91,7 @@ A diferencia de soluciones existentes (Strava, Garmin, Google Maps, Life360) que
 | RN-034 | **Detección de desvío**: se dispara alerta cuando un integrante supera X metros fuera de la ruta planificada (X es configurable). |
 | RN-035 | **Detección de atraso**: se calcula comparando la posición del integrante con el bloque principal del grupo. Se dispara según la tolerancia configurada. |
 | RN-036 | **Detección de incidente vs. parada voluntaria**: si un usuario se detiene por más de N minutos SIN registrar parada manual, se genera alerta de "posible incidente". El integrante puede confirmar que está bien para cancelarla. |
-| RN-037 | Los estados visibles de un integrante en el mapa son: **en movimiento**, **detenido-voluntario**, **posible incidente**. |
+| RN-037 | Los estados visibles de un integrante en el mapa son: **en movimiento**, **detenido-voluntario**, **posible incidente**. El estado se **deriva** de la parada abierta del integrante (`parada.fin IS NULL`), no se almacena duplicado en `ubicacion_viva`. |
 | RN-038 | En modo offline, los datos GPS se almacenan localmente y se sincronizan automáticamente al reconectar. No se pierden registros. |
 
 ### 2.5 Reglas de Alertas
@@ -341,7 +341,8 @@ Si el PO prefiere un criterio más conservador, la alternativa es devolver
     │
     ├── Iniciar parada voluntaria
     │     ├── Estado cambia a "detenido" en mapa
-    │     ├── Notificación al líder
+    │     ├── Notificación a todos los integrantes del viaje
+    │     ├── Elección de categoría de la parada (RN-022)
     │     └── Registro de hora y ubicación
     │
     ├── Finalizar parada
@@ -535,9 +536,21 @@ Parada
 ├── usuario_id (FK)
 ├── ubicacion (point)
 ├── tipo (enum: voluntaria, incidente_detectado)
+├── categoria (enum CategoriaParada, nullable)
 ├── inicio
 ├── fin (nullable)
 └── confirmado_bien (boolean, nullable)
+
+SolicitudParada
+├── id (PK)
+├── viaje_id (FK)
+├── solicitante_id (FK)
+├── ubicacion (point, nullable)
+├── motivo (nullable)
+├── estado (enum: pendiente, aprobada, rechazada, cancelada)
+├── resuelta_por_id (FK, nullable — el líder que respondió)
+├── created_at
+└── resolved_at (nullable)
 
 Alerta
 ├── id (PK)

@@ -782,8 +782,10 @@ export class ViajesService {
         delCreador?.distancia_m ??
         (metricas.length > 0 ? Math.max(...metricas.map((m) => m.distancia_m)) : null)
 
-      /** Paradas voluntarias (bitácora). MVP: sin tabla de eventos aún → 0. */
-      const cantidadParadasVoluntarias = 0
+      // US3: paradas voluntarias efectivamente registradas durante el viaje.
+      const cantidadParadasVoluntarias = await tx.parada.count({
+        where: { viaje_id: viajeId, tipo: 'voluntaria' },
+      })
 
       const datos = {
         duracion_segundos: duracionSegundos,
@@ -1280,22 +1282,39 @@ export class ViajesService {
 
   async listarUbicacionesVivas(usuarioId: string, viajeId: string) {
     await this.assertPuedeVerEnVivo(viajeId, usuarioId)
-    const rows = await this.prisma.ubicacionViva.findMany({
-      where: { viaje_id: viajeId },
-      include: {
-        usuario: { select: { id: true, nombre: true, apellido: true } },
-      },
-      orderBy: { updated_at: 'desc' },
+    const [rows, paradasAbiertas] = await Promise.all([
+      this.prisma.ubicacionViva.findMany({
+        where: { viaje_id: viajeId },
+        include: {
+          usuario: { select: { id: true, nombre: true, apellido: true } },
+        },
+        orderBy: { updated_at: 'desc' },
+      }),
+      // RN-037: el estado del mapa se deriva de la parada abierta, no se guarda
+      // duplicado en ubicacion_viva; así no hay dos fuentes que puedan discrepar.
+      this.prisma.parada.findMany({
+        where: { viaje_id: viajeId, fin: null },
+        select: { usuario_id: true, inicio: true, categoria: true },
+      }),
+    ])
+
+    const paradaPorUsuario = new Map(paradasAbiertas.map((p) => [p.usuario_id, p]))
+
+    return rows.map((r) => {
+      const parada = paradaPorUsuario.get(r.usuario_id)
+      return {
+        usuarioId: r.usuario_id,
+        viajeId: r.viaje_id,
+        lat: r.lat,
+        lng: r.lng,
+        precision: r.precision_m,
+        updatedAt: r.updated_at.toISOString(),
+        nombre: [r.usuario.nombre, r.usuario.apellido].filter(Boolean).join(' ').trim(),
+        estado: parada ? ('detenido_voluntario' as const) : ('en_movimiento' as const),
+        paradaDesde: parada ? parada.inicio.toISOString() : null,
+        paradaCategoria: parada?.categoria ?? null,
+      }
     })
-    return rows.map((r) => ({
-      usuarioId: r.usuario_id,
-      viajeId: r.viaje_id,
-      lat: r.lat,
-      lng: r.lng,
-      precision: r.precision_m,
-      updatedAt: r.updated_at.toISOString(),
-      nombre: [r.usuario.nombre, r.usuario.apellido].filter(Boolean).join(' ').trim(),
-    }))
   }
 
   async registrarPingUbicacion(
