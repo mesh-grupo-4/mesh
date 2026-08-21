@@ -32,6 +32,7 @@ export default function AlertasViajeScreen() {
 
   const { alertas, cargando, enviando, publicar, refrescar } = useAlertas({
     viajeId: viajeId ?? '',
+    userId,
     habilitado: Boolean(viajeId && userId.trim()),
   })
 
@@ -49,7 +50,7 @@ export default function AlertasViajeScreen() {
     (tipo: TipoAlertaApi, mensaje: string) => {
       void (async () => {
         try {
-          await publicar({ tipo, mensaje })
+          await publicar({ tipo, mensaje: mensaje.trim() || undefined })
           setComponiendo(false)
         } catch (e) {
           meshAlert(
@@ -151,9 +152,13 @@ function TarjetaAlerta({
         </Text>
       </View>
 
-      <Text style={[styles.mensaje, { color: theme.text }]}>{alerta.mensaje}</Text>
+      {alerta.mensaje ? (
+        <Text style={[styles.mensaje, { color: theme.text }]}>{alerta.mensaje}</Text>
+      ) : null}
 
-      <Text style={[styles.autor, { color: theme.textMute }]}>
+      <Text
+        style={[styles.autor, { color: theme.textMute }, !alerta.mensaje && styles.autorSinMensaje]}
+      >
         {alerta.creada_por_nombre ?? 'Sistema'}
         {alerta.lat != null && alerta.lng != null ? ' · con ubicación' : ''}
       </Text>
@@ -228,5 +233,8 @@ const styles = StyleSheet.create({
   autor: {
     marginTop: 8,
     fontSize: 13,
+  },
+  autorSinMensaje: {
+    marginTop: 6,
   },
 })

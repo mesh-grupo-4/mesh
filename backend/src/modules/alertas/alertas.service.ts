@@ -68,7 +68,7 @@ export class AlertasService {
         creada_por_id: usuarioId,
         tipo: input.tipo,
         origen: 'lider',
-        mensaje: input.mensaje.trim(),
+        mensaje: input.mensaje?.trim() || null,
         lat: input.lat ?? null,
         lng: input.lng ?? null,
       },
@@ -100,7 +100,7 @@ export class AlertasService {
     creada_por_id: string | null
     tipo: string
     origen: string
-    mensaje: string
+    mensaje: string | null
     lat: number | null
     lng: number | null
     estado: string
@@ -136,7 +136,7 @@ export class AlertasService {
     viajeId: string,
     autorId: string,
     tipo: TipoAlerta,
-    mensaje: string
+    mensaje: string | null
   ): Promise<void> {
     try {
       const integrantes = await this.prisma.viajeIntegrante.findMany({
@@ -157,7 +157,8 @@ export class AlertasService {
         [...destinos.values()].map((to) => ({
           to,
           title: TITULO_POR_TIPO[tipo],
-          body: mensaje,
+          // Sin mensaje el título ya dice de qué se trata; no inventamos texto.
+          body: mensaje ?? undefined,
           data: { viajeId, tipo: 'alerta' },
           sound: 'default' as const,
         }))

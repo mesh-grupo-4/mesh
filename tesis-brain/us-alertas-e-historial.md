@@ -35,6 +35,7 @@
 | **Dos ejes de clasificación** | `tipo` es el tema que elige el líder (parada, combustible, desvío, peligro, información) y `origen` dice quién la generó (lider / sistema) | El enum original mezclaba ambas cosas: 'manual' no permite distinguir una carga de nafta de un desvío, que es justo lo que pide la US |
 | **Solo crear + historial** | RN-042 (pausar / cancelar / resolver) queda fuera | Los criterios de aceptación piden crear, notificar y listar. El enum `EstadoAlerta` ya existe en la tabla para esa US |
 | **Solo con viaje en curso** | Crear alertas exige `estado = en_curso` | Son coordinación en movimiento; antes de salir el grupo se comunica por otros medios |
+| **Mensaje opcional** | El líder puede publicar solo con el tipo | "Combustible" o "Desvío" ya comunican lo esencial; obligar a escribir frena una acción que ocurre en movimiento |
 | **Con ubicación** | La alerta guarda lat/lng de quien la crea | Extiende a las manuales lo que RN-043 pide para las automáticas: "desvío" o "combustible" sin lugar sirven poco |
 | **Métricas propias** | El historial muestra **tu** distancia y **tu** tiempo en movimiento | Coherente con "revisar mis actividades" y con RN-070: no compara integrantes |
 | **Traza GPS real** | El mapa del resumen dibuja `registro_gps`, no la ruta planificada | "Recorrido realizado" es por dónde pasaste. Los datos ya se guardaban y nadie los leía |
@@ -51,7 +52,7 @@ Alerta
 ├── creada_por_id (FK, nullable — ON DELETE SET NULL: el historial sobrevive a la baja del autor)
 ├── tipo (enum: parada, combustible, desvio, peligro, informacion)
 ├── origen (enum: lider, sistema)
-├── mensaje (máx. 280)
+├── mensaje (opcional, máx. 280)
 ├── lat / lng (nullable)
 ├── estado (enum: activa, pausada, cancelada, resuelta — hoy siempre `activa`)
 ├── created_at
@@ -74,7 +75,7 @@ Migración `20260821170000_alertas`. La US2 no agrega tablas: usa `registro_gps`
 **Socket** (room `viaje:{id}`): `viaje:alerta` con `{ viajeId, alerta }`.
 
 **Push** (RN-040): a todos los integrantes confirmados salvo el autor. El título sale del tipo
-("Carga de combustible", "Desvío en la ruta", …) y el cuerpo es el mensaje del líder.
+("Carga de combustible", "Desvío en la ruta", …) y el cuerpo es el mensaje del líder, si escribió uno.
 
 ---
 

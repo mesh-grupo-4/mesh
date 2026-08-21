@@ -94,14 +94,17 @@ components:
 
     CrearAlertaBody:
       type: object
-      required: [tipo, mensaje]
+      required: [tipo]
       properties:
         tipo:
           $ref: '#/components/schemas/TipoAlerta'
         mensaje:
           type: string
-          minLength: 1
           maxLength: 280
+          nullable: true
+          description: |
+            Opcional. Sin mensaje, el push va solo con el título del tipo
+            ("Carga de combustible", "Desvío en la ruta", …).
         lat:
           type: number
           description: RN-043; posición de quien la crea, para ubicarla en el mapa.
@@ -112,7 +115,7 @@ components:
 
     Alerta:
       type: object
-      required: [id, viaje_id, tipo, origen, mensaje, estado, created_at]
+      required: [id, viaje_id, tipo, origen, estado, created_at]
       properties:
         id:
           type: string
@@ -134,6 +137,7 @@ components:
           enum: [lider, sistema]
         mensaje:
           type: string
+          nullable: true
         lat:
           type: number
           nullable: true

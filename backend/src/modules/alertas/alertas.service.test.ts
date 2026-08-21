@@ -109,6 +109,32 @@ describe('US1 — crear alertas del líder', () => {
     expect(mensajes[0]?.title).toBe('Carga de combustible')
   })
 
+  it('el mensaje es opcional: alcanza con el tipo', async () => {
+    const m = armarPrisma()
+    m.alertaCreate.mockResolvedValue({ ...alertaCreada, mensaje: null })
+
+    const alerta = await new AlertasService(m.prisma).crear(liderId, viajeId, {
+      tipo: 'combustible',
+    })
+
+    expect(m.alertaCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ mensaje: null }) })
+    )
+    expect(alerta.mensaje).toBeNull()
+  })
+
+  it('sin mensaje, el push va solo con el título del tipo', async () => {
+    const m = armarPrisma()
+    m.alertaCreate.mockResolvedValue({ ...alertaCreada, mensaje: null })
+
+    await new AlertasService(m.prisma).crear(liderId, viajeId, { tipo: 'desvio' })
+
+    await vi.waitFor(() => expect(sendExpoPush).toHaveBeenCalled())
+    const mensajes = sendExpoPush.mock.calls[0]?.[0] as { title: string; body?: string }[]
+    expect(mensajes[0]?.title).toBe('Desvío en la ruta')
+    expect(mensajes[0]?.body).toBeUndefined()
+  })
+
   it('RN-030: un participante no puede crear alertas', async () => {
     const m = armarPrisma()
 

@@ -101,6 +101,10 @@ export default function ViajeLiveScreen() {
   const [accion, setAccion] = useState(false)
   const [eligiendoCategoria, setEligiendoCategoria] = useState(false)
   const [componiendoAlerta, setComponiendoAlerta] = useState(false)
+  /** Alto real de la pila de banners: los botones flotantes se corren debajo. */
+  const [altoBanners, setAltoBanners] = useState(0)
+  /** Alto real de la botonera inferior, que creció con la fila de paradas. */
+  const [altoBotonera, setAltoBotonera] = useState(0)
 
   const nameByUserId = useMemo(() => {
     const map: Record<string, string> = {}
@@ -196,6 +200,7 @@ export default function ViajeLiveScreen() {
     descartarUltima,
   } = useAlertas({
     viajeId: viajeId ?? '',
+    userId,
     habilitado: Boolean(viajeId && userId.trim()),
   })
 
@@ -473,7 +478,13 @@ export default function ViajeLiveScreen() {
     void (async () => {
       const pos = await posicionActual()
       try {
-        await publicarAlerta({ tipo, mensaje, lat: pos?.lat, lng: pos?.lng })
+        await publicarAlerta({
+          tipo,
+          // Vacío = sin mensaje: el tipo ya dice de qué se trata.
+          mensaje: mensaje.trim() || undefined,
+          lat: pos?.lat,
+          lng: pos?.lng,
+        })
         setComponiendoAlerta(false)
       } catch (e) {
         meshAlert('No se pudo enviar la alerta', mensajeDeError(e))
@@ -483,6 +494,13 @@ export default function ViajeLiveScreen() {
 
   const irAAlertas = () =>
     router.push({ pathname: '/viaje/[viajeId]/alertas', params: { viajeId: viajeId ?? '' } })
+
+  /** Los flotantes arrancan bajo el header y se corren si hay banners visibles. */
+  const TOP_OVERLAYS = 128
+  const topFlotantes = TOP_OVERLAYS + (altoBanners > 0 ? altoBanners + 10 : 0)
+  // Sin medir, el botón de centrar quedaba debajo de la botonera al aparecer
+  // la fila de paradas.
+  const bottomCentrar = (altoBotonera || 130) + 12
 
   const handleCenterOnMe = () => {
     void (async () => {
@@ -535,98 +553,108 @@ export default function ViajeLiveScreen() {
         onBack={() => router.back()}
       />
 
+      {/* Pila de banners: se apilan solos y su alto real corre a los botones
+          flotantes, que antes quedaban tapados debajo de estos avisos. */}
+      <View
+        style={styles.bannerStack}
+        pointerEvents="box-none"
+        onLayout={(e) => setAltoBanners(e.nativeEvent.layout.height)}
+      >
+        {fg === false ? (
+          <View style={styles.warnBanner}>
+            <Text style={styles.warnTxt}>
+              Ubicación desconocida: tu posición no se compartirá hasta que otorgues permisos.
+            </Text>
+          </View>
+        ) : null}
+
+        {!realtimeOk && isSupabaseConfigured() ? (
+          <View style={styles.infoBanner}>
+            <Text style={styles.infoTxt}>
+              Realtime Supabase desconectado; usamos WebSocket y refresco cada 15 s.
+            </Text>
+          </View>
+        ) : null}
+
+        {__DEV__ && Platform.OS === 'ios' && API_BASE_URL.includes('localhost') ? (
+          <View style={styles.infoBanner}>
+            <Text style={styles.infoTxt}>
+              iOS no puede usar localhost. Agregá EXPO_PUBLIC_API_URL=http://IP_PC:3000 en .env
+            </Text>
+          </View>
+        ) : null}
+
+        {ultimaAlerta ? (
+          <AlertaBanner
+            alerta={ultimaAlerta}
+            onCerrar={descartarUltima}
+            onVerHistorial={() => {
+              descartarUltima()
+              irAAlertas()
+            }}
+          />
+        ) : null}
+
+        {esLider && pendientes.length > 0 && pendientes[0] ? (
+          <SolicitudParadaBanner
+            nombre={pendientes[0].nombre}
+            motivo={pendientes[0].motivo}
+            restantes={pendientes.length}
+            ocupado={paradaEnCurso}
+            onAprobar={() => handleResponderSolicitud(pendientes[0]!.solicitudId, 'aprobada')}
+            onRechazar={() => handleResponderSolicitud(pendientes[0]!.solicitudId, 'rechazada')}
+          />
+        ) : null}
+      </View>
+
       <AlertasButton
         cantidad={alertas.length}
-        topOffset={128}
+        topOffset={topFlotantes}
         onPress={irAAlertas}
         onCrear={
           esLider && viaje?.estado === 'en_curso' ? () => setComponiendoAlerta(true) : undefined
         }
       />
 
-      {ultimaAlerta ? (
-        <AlertaBanner
-          alerta={ultimaAlerta}
-          topOffset={182}
-          onCerrar={descartarUltima}
-          onVerHistorial={() => {
-            descartarUltima()
-            irAAlertas()
-          }}
-        />
-      ) : null}
+      <MapStylePicker value={mapStyle} onChange={setMapStyle} topOffset={topFlotantes} />
 
-      {esLider && pendientes.length > 0 && pendientes[0] ? (
-        <SolicitudParadaBanner
-          nombre={pendientes[0].nombre}
-          motivo={pendientes[0].motivo}
-          restantes={pendientes.length}
-          ocupado={paradaEnCurso}
-          topOffset={ultimaAlerta ? 300 : 182}
-          onAprobar={() => handleResponderSolicitud(pendientes[0]!.solicitudId, 'aprobada')}
-          onRechazar={() => handleResponderSolicitud(pendientes[0]!.solicitudId, 'rechazada')}
-        />
-      ) : null}
+      <CenterLocationButton onPress={handleCenterOnMe} bottomOffset={bottomCentrar} />
 
-      <MapStylePicker value={mapStyle} onChange={setMapStyle} topOffset={128} />
+      <View onLayout={(e) => setAltoBotonera(e.nativeEvent.layout.height)}>
+        <TripMetricsPanel elapsedLabel={elapsedLabel} distanceLabel={distanceLabel} />
 
-      <CenterLocationButton onPress={handleCenterOnMe} bottomOffset={140 + insets.bottom} />
+        {viaje?.estado === 'en_curso' ? (
+          <ParadaActionsBar
+            paradaDesde={paradaActiva?.inicio ?? null}
+            puedeSolicitar={puedeSolicitarParada}
+            solicitudPendiente={miSolicitud?.estado === 'pendiente'}
+            ocupado={paradaEnCurso || accion}
+            onDetenerse={handleDetenerse}
+            onRetomar={handleRetomar}
+            onSolicitar={handleSolicitar}
+          />
+        ) : null}
 
-      {fg === false ? (
-        <View style={styles.warnBanner}>
-          <Text style={styles.warnTxt}>
-            Ubicación desconocida: tu posición no se compartirá hasta que otorgues permisos.
+        <Pressable
+          style={({ pressed }) => [
+            styles.endBar,
+            // `edgeToEdgeEnabled` dibuja bajo la barra de navegación de Android:
+            // sin este inset los botones del sistema tapan el botón de finalizar.
+            { paddingBottom: Math.max(insets.bottom, 12) + 14 },
+            esLider ? styles.endBarDanger : styles.endBarGhost,
+            pressed && styles.endBarPressed,
+            accion && styles.endBarDisabled,
+          ]}
+          onPress={esLider ? confirmarFinalizar : confirmarSalir}
+          disabled={accion}
+        >
+          <Text
+            style={[styles.endBarText, esLider ? styles.endBarTextDanger : styles.endBarTextGhost]}
+          >
+            {accion ? 'Procesando...' : esLider ? 'Finalizar viaje' : 'Salir del viaje'}
           </Text>
-        </View>
-      ) : null}
-
-      {!realtimeOk && isSupabaseConfigured() ? (
-        <View style={[styles.infoBanner, fg === false && styles.infoBannerBelowWarn]}>
-          <Text style={styles.infoTxt}>
-            Realtime Supabase desconectado; usamos WebSocket y refresco cada 15 s.
-          </Text>
-        </View>
-      ) : null}
-
-      {__DEV__ && Platform.OS === 'ios' && API_BASE_URL.includes('localhost') ? (
-        <View style={[styles.infoBanner, { top: Platform.OS === 'ios' ? 96 : 56 }]}>
-          <Text style={styles.infoTxt}>
-            iOS no puede usar localhost. Agregá EXPO_PUBLIC_API_URL=http://IP_PC:3000 en .env
-          </Text>
-        </View>
-      ) : null}
-
-      <TripMetricsPanel elapsedLabel={elapsedLabel} distanceLabel={distanceLabel} />
-
-      {viaje?.estado === 'en_curso' ? (
-        <ParadaActionsBar
-          paradaDesde={paradaActiva?.inicio ?? null}
-          puedeSolicitar={puedeSolicitarParada}
-          solicitudPendiente={miSolicitud?.estado === 'pendiente'}
-          ocupado={paradaEnCurso || accion}
-          onDetenerse={handleDetenerse}
-          onRetomar={handleRetomar}
-          onSolicitar={handleSolicitar}
-        />
-      ) : null}
-
-      <Pressable
-        style={({ pressed }) => [
-          styles.endBar,
-          // `edgeToEdgeEnabled` dibuja bajo la barra de navegación de Android:
-          // sin este inset los botones del sistema tapan el botón de finalizar.
-          { paddingBottom: Math.max(insets.bottom, 12) + 14 },
-          esLider ? styles.endBarDanger : styles.endBarGhost,
-          pressed && styles.endBarPressed,
-          accion && styles.endBarDisabled,
-        ]}
-        onPress={esLider ? confirmarFinalizar : confirmarSalir}
-        disabled={accion}
-      >
-        <Text style={[styles.endBarText, esLider ? styles.endBarTextDanger : styles.endBarTextGhost]}>
-          {accion ? 'Procesando...' : esLider ? 'Finalizar viaje' : 'Salir del viaje'}
-        </Text>
-      </Pressable>
+        </Pressable>
+      </View>
 
       <CategoriaParadaSheet
         visible={eligiendoCategoria}
@@ -688,32 +716,27 @@ const styles = StyleSheet.create({
   endBarTextGhost: {
     color: '#6b7280',
   },
-  warnBanner: {
+  bannerStack: {
     position: 'absolute',
-    top: 130,
+    top: 128,
     left: 12,
     right: 12,
+    gap: 8,
+    zIndex: 30,
+  },
+  warnBanner: {
     backgroundColor: '#fef3c7',
     padding: 10,
     borderRadius: 10,
-    zIndex: 15,
   },
   warnTxt: {
     color: '#92400e',
     fontSize: 13,
   },
   infoBanner: {
-    position: 'absolute',
-    top: 130,
-    left: 12,
-    right: 12,
     backgroundColor: '#dbeafe',
     padding: 8,
     borderRadius: 8,
-    zIndex: 15,
-  },
-  infoBannerBelowWarn: {
-    top: 190,
   },
   infoTxt: {
     color: '#1e40af',
