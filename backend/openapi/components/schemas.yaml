@@ -49,6 +49,7 @@ ErrorCode:
     - PLANTILLA_NOT_FOUND
     - ROUTE_NOT_FOUND
     - SHARE_NOT_FOUND
+    - SOLICITUD_NOT_FOUND
     # Conflictos de estado
     - INVALID_STATE
     - TRIP_NOT_FINISHED
@@ -61,6 +62,11 @@ ErrorCode:
     - REQUEST_ALREADY_RESPONDED
     - INVITATION_ALREADY_ANSWERED
     - INVITATION_ALREADY_RESPONDED
+    - PARADA_ABIERTA
+    - SIN_PARADA_ABIERTA
+    - ES_LIDER
+    - SOLICITUD_PENDIENTE
+    - SOLICITUD_RESUELTA
     # Reglas de negocio puntuales
     - SELF_FRIEND_REQUEST
     - SELF_UNFRIEND
@@ -194,7 +200,7 @@ TipoActividad:
 
     **RN-070 (irrevocable):** `moto` está excluida de todo ranking competitivo,
     tabla de posiciones y gamificación de velocidad. Es una regla de seguridad vial.
-  enum: [moto, bici, running, trekking]
+  enum: [moto, bici, running, trekking, otro]
   example: bici
 
 TipoActividadNullable:
@@ -204,7 +210,7 @@ TipoActividadNullable:
     Igual que `TipoActividad`, pero admite `null` cuando el usuario todavía no
     eligió una modalidad preferida. Variante necesaria porque OpenAPI 3.0 no
     permite combinar `nullable` con `$ref`.
-  enum: [moto, bici, running, trekking, null]
+  enum: [moto, bici, running, trekking, otro, null]
   example: bici
 
 EstadoViaje:
@@ -1283,13 +1289,13 @@ Viaje:
       type: number
       description: |
         Velocidad de referencia en km/h, derivada de la actividad (RN-021):
-        moto 120 · bici 35 · running 15 · trekking 5.
+        moto 120 · bici 35 · running 15 · trekking 5 · otro 20.
       example: 35
     distancia_max_separacion:
       type: integer
       description: |
         Separación máxima tolerada en metros antes de generar una alerta (RN-021):
-        moto 1000 · bici 300 · running 100 · trekking 50.
+        moto 1000 · bici 300 · running 100 · trekking 50 · otro 200.
       example: 300
     estado:
       $ref: '#/EstadoViaje'
@@ -1391,6 +1397,8 @@ ViajeResumenFinalizado:
     - fecha_fin_real
     - estado
     - mi_estado
+    - mi_distancia_m
+    - mi_tiempo_movimiento_seg
   properties:
     id:
       type: string
@@ -1421,6 +1429,16 @@ ViajeResumenFinalizado:
       enum: [finalizado]
     mi_estado:
       $ref: '#/EstadoParticipacion'
+    mi_distancia_m:
+      type: number
+      nullable: true
+      description: Distancia propia recorrida en este viaje (US2). `null` sin traza GPS.
+      example: 15230.5
+    mi_tiempo_movimiento_seg:
+      type: integer
+      nullable: true
+      description: Tiempo propio en movimiento en este viaje (US2). `null` sin traza GPS.
+      example: 3600
   additionalProperties: false
 
 ViajeEnCurso:
@@ -2392,4 +2410,232 @@ MisMetricas:
             type: number
             example: 28.4
         additionalProperties: false
+  additionalProperties: false
+
+Recorrido:
+  type: object
+  description: |
+    Traza GPS realmente recorrida por el consultante en un viaje (US2), simplificada
+    con PostGIS (`ST_SimplifyPreserveTopology`) antes de responder.
+  required: [viaje_id, usuario_id, puntos, cantidad_puntos]
+  properties:
+    viaje_id:
+      type: string
+      format: uuid
+    usuario_id:
+      type: string
+      format: uuid
+    puntos:
+      type: array
+      description: Pares `[lat, lng]` en orden temporal. Vacío si no hubo traza GPS.
+      items:
+        type: array
+        minItems: 2
+        maxItems: 2
+        items:
+          type: number
+      example: [[-31.4201, -64.1888], [-31.4205, -64.1892]]
+    cantidad_puntos:
+      type: integer
+  additionalProperties: false
+
+# ── Paradas voluntarias y solicitudes de parada (src/modules/paradas/) ────────
+
+IniciarParadaRequest:
+  type: object
+  description: RN-022/RN-037. Categoría de la parada voluntaria.
+  required: [lat, lng, categoria]
+  properties:
+    lat:
+      type: number
+      minimum: -90
+      maximum: 90
+    lng:
+      type: number
+      minimum: -180
+      maximum: 180
+    categoria:
+      $ref: '#/CategoriaParada'
+  additionalProperties: false
+
+SolicitarParadaRequest:
+  type: object
+  description: |
+    Todos los campos son opcionales: alcanza con pedir la parada.
+  properties:
+    lat:
+      type: number
+      minimum: -90
+      maximum: 90
+      nullable: true
+    lng:
+      type: number
+      minimum: -180
+      maximum: 180
+      nullable: true
+    motivo:
+      type: string
+      maxLength: 280
+      nullable: true
+  additionalProperties: false
+
+ResponderSolicitudParadaRequest:
+  type: object
+  required: [decision]
+  properties:
+    decision:
+      type: string
+      enum: [aprobada, rechazada]
+  additionalProperties: false
+
+Parada:
+  type: object
+  description: |
+    Parada voluntaria de un integrante durante el viaje (RN-037). Mientras `fin`
+    es `null` la parada sigue abierta y el integrante figura como
+    `detenido_voluntario` en el mapa grupal.
+  required: [id, viaje_id, usuario_id, lat, lng, inicio]
+  properties:
+    id:
+      type: string
+      format: uuid
+    viaje_id:
+      type: string
+      format: uuid
+    usuario_id:
+      type: string
+      format: uuid
+    lat:
+      type: number
+    lng:
+      type: number
+    categoria:
+      allOf:
+        - $ref: '#/CategoriaParada'
+      type: string
+      nullable: true
+    inicio:
+      type: string
+      format: date-time
+    fin:
+      type: string
+      format: date-time
+      nullable: true
+    duracion_segundos:
+      type: integer
+      nullable: true
+      description: Segundos entre `inicio` y `fin`. `null` mientras la parada sigue abierta.
+  additionalProperties: false
+
+EstadoSolicitudParada:
+  type: string
+  enum: [pendiente, aprobada, rechazada, cancelada]
+
+SolicitudParada:
+  type: object
+  description: Pedido de un integrante para que el líder autorice una parada (RN-044).
+  required: [id, viaje_id, solicitante_id, estado, created_at]
+  properties:
+    id:
+      type: string
+      format: uuid
+    viaje_id:
+      type: string
+      format: uuid
+    solicitante_id:
+      type: string
+      format: uuid
+    solicitante_nombre:
+      type: string
+      nullable: true
+    lat:
+      type: number
+      nullable: true
+    lng:
+      type: number
+      nullable: true
+    motivo:
+      type: string
+      nullable: true
+    estado:
+      $ref: '#/EstadoSolicitudParada'
+    created_at:
+      type: string
+      format: date-time
+    resolved_at:
+      type: string
+      format: date-time
+      nullable: true
+  additionalProperties: false
+
+# ── Alertas del viaje (src/modules/alertas/) ───────────────────────────────────
+
+TipoAlerta:
+  type: string
+  description: Tema de la alerta, elegido por el líder (RN-041).
+  enum: [parada, combustible, desvio, peligro, informacion]
+
+CrearAlertaRequest:
+  type: object
+  required: [tipo, mensaje]
+  properties:
+    tipo:
+      $ref: '#/TipoAlerta'
+    mensaje:
+      type: string
+      minLength: 1
+      maxLength: 280
+    lat:
+      type: number
+      minimum: -90
+      maximum: 90
+      nullable: true
+      description: Posición de quien crea la alerta, para ubicarla en el mapa (RN-043).
+    lng:
+      type: number
+      minimum: -180
+      maximum: 180
+      nullable: true
+  additionalProperties: false
+
+Alerta:
+  type: object
+  description: |
+    Alerta enviada al grupo durante el viaje (RN-040/041). Todas nacen en estado
+    `activa`; la gestión de pausar/cancelar/resolver es de otra US.
+  required: [id, viaje_id, tipo, origen, mensaje, estado, created_at]
+  properties:
+    id:
+      type: string
+      format: uuid
+    viaje_id:
+      type: string
+      format: uuid
+    creada_por_id:
+      type: string
+      format: uuid
+      nullable: true
+    creada_por_nombre:
+      type: string
+      nullable: true
+    tipo:
+      $ref: '#/TipoAlerta'
+    origen:
+      type: string
+      description: Quién la generó. El motor de eventos todavía no crea alertas.
+      enum: [lider, sistema]
+    mensaje:
+      type: string
+    lat:
+      type: number
+      nullable: true
+    lng:
+      type: number
+      nullable: true
+    estado:
+      type: string
+      enum: [activa, pausada, cancelada, resuelta]
+    created_at:
+      type: string
+      format: date-time
   additionalProperties: false

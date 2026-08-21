@@ -62,7 +62,7 @@ servers:
         default: https
         enum: [http, https]
       host:
-        default: api.mesh.local
+        default: api.mesh-app.com.ar
 
 security:
   - BearerAuth: []
@@ -86,6 +86,14 @@ tags:
     description: |
       Links privados de rutas planificadas y plantillas importadas (RN-085–088).
       Distinto del QR para unirse a un viaje (RN-015/016).
+  - name: Paradas
+    description: |
+      Paradas voluntarias durante un viaje en curso (RN-037). El estado
+      `detenido_voluntario` de un integrante se deriva de su parada abierta.
+  - name: SolicitudesParada
+    description: Pedidos de un integrante para que el líder autorice una parada (RN-044).
+  - name: Alertas
+    description: Alertas que el líder envía al grupo durante el viaje (RN-040/041/043).
 
 paths:
   # ── Sistema ────────────────────────────────────────────────────────────────
@@ -169,6 +177,8 @@ paths:
     $ref: './paths/viajes.yaml#/MetricasGrupalesViaje'
   /api/viajes/{viajeId}/mis-metricas:
     $ref: './paths/viajes.yaml#/MisMetricasViaje'
+  /api/viajes/{viajeId}/recorrido:
+    $ref: './paths/viajes.yaml#/RecorridoViaje'
   /api/viajes/{viajeId}/posiciones:
     $ref: './paths/viajes.yaml#/PosicionesViaje'
   /api/viajes/{viajeId}/ubicacion-viva:
@@ -195,6 +205,24 @@ paths:
     $ref: './paths/rutas-compartidas.yaml#/ListaPlantillas'
   /api/rutas-plantilla/{plantillaId}:
     $ref: './paths/rutas-compartidas.yaml#/PlantillaPorId'
+
+  # ── Paradas y solicitudes de parada ─────────────────────────────────────────
+  /api/viajes/{viajeId}/paradas:
+    $ref: './paths/paradas.yaml#/ParadasColeccion'
+  /api/viajes/{viajeId}/paradas/finalizar:
+    $ref: './paths/paradas.yaml#/FinalizarParada'
+  /api/viajes/{viajeId}/paradas/activa:
+    $ref: './paths/paradas.yaml#/ParadaActiva'
+  /api/viajes/{viajeId}/solicitudes-parada:
+    $ref: './paths/paradas.yaml#/SolicitudesParadaColeccion'
+  /api/viajes/{viajeId}/solicitudes-parada/{solicitudId}/responder:
+    $ref: './paths/paradas.yaml#/ResponderSolicitudParada'
+  /api/viajes/{viajeId}/solicitudes-parada/{solicitudId}/cancelar:
+    $ref: './paths/paradas.yaml#/CancelarSolicitudParada'
+
+  # ── Alertas ──────────────────────────────────────────────────────────────────
+  /api/viajes/{viajeId}/alertas:
+    $ref: './paths/alertas.yaml#/AlertasColeccion'
 
 components:
   securitySchemes:

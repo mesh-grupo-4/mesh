@@ -127,6 +127,9 @@ ViajesFinalizados:
 
       Incluye deliberadamente a quienes salieron antes del final (`estado: salido`):
       recorrieron parte del trayecto, así que el viaje les cuenta en el historial.
+
+      Cada entrada trae las métricas **propias** del consultante (US2):
+      `mi_distancia_m` y `mi_tiempo_movimiento_seg`. Van en `null` si no hubo traza GPS.
     tags:
       - Viajes
     responses:
@@ -501,6 +504,45 @@ MisMetricasViaje:
             example:
               error: El viaje todavía no finalizó
               code: TRIP_NOT_FINISHED
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+RecorridoViaje:
+  get:
+    operationId: obtenerRecorrido
+    summary: Traza GPS recorrida por el consultante (US2)
+    description: |
+      Puntos `[lat, lng]` ordenados en el tiempo, del recorrido realmente hecho en
+      el viaje. Se simplifica con PostGIS (`ST_SimplifyPreserveTopology`) antes de
+      responder: un viaje largo tendría miles de posiciones.
+
+      Lectura laxa: quien salió del viaje igual puede repasar su propio recorrido,
+      y no exige que el viaje esté finalizado. Sin traza GPS responde `puntos: []`,
+      no un error.
+    tags:
+      - Viajes
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '200':
+        description: Traza del usuario en el viaje.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Recorrido'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: El usuario no tiene acceso al viaje (`FORBIDDEN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Sin acceso a este viaje
+              code: FORBIDDEN
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'
 

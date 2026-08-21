@@ -260,6 +260,15 @@ El spec está partido en un documento raíz (`openapi/openapi.yaml`) que referen
 Ese JSON es un **artefacto generado y no versionado**: `predev`, `pretest` y `build` lo
 regeneran siempre, de modo que nunca puede quedar viejo.
 
+### Swagger UI en cada ambiente
+
+Decisión del equipo: `/api/docs` queda **habilitado en dev, test y producción**. Sirve
+como referencia viva de la API para el equipo y el tribunal, y no expone datos —solo
+la spec y un formulario para probar con un token propio. Por eso ningún `.env` de
+ningún ambiente define `DOCS_ENABLED` (el default del router ya lo deja encendido). Si
+en algún momento se necesitara apagarlo en un ambiente puntual, `DOCS_ENABLED=false`
+en el `.env` de ese servidor alcanza, sin tocar código.
+
 ### Comandos
 
 ```bash

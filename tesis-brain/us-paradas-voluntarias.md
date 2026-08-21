@@ -2,7 +2,7 @@
 
 > **Estado:** implementada (backend + frontend).
 > **Epic:** **E04** — Ejecución y seguimiento en tiempo real.
-> **OpenAPI:** `backend/openapi/paradas.yaml`.
+> **OpenAPI:** `backend/openapi/paths/paradas.yaml` (spec modular, ver [[adr-documentacion-api]]).
 > **RN:** RN-022 (categorías), RN-030 (autorización en backend), RN-037 (estados en el mapa), RN-044 (solicitud de parada), RN-052 (uso a una mano).
 > **Dependencias:** viaje `en_curso`, `ubicacion_viva` y el canal Socket.io ya existentes.
 
