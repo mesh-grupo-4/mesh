@@ -12,15 +12,18 @@
     "docs:lint": "redocly lint openapi/openapi.yaml",
     "docs:bundle": "redocly bundle openapi/openapi.yaml -o src/docs/openapi.bundled.json",
     "docs:preview": "redocly preview-docs openapi/openapi.yaml",
-    "postinstall": "prisma generate",
-    "db:generate": "prisma generate",
+    "postinstall": "prisma generate --generator client",
+    "db:generate": "prisma generate --generator client",
+    "db:erd": "prisma generate",
     "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
+  "engines": { "node": ">=22 <25" },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
@@ -35,6 +38,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@mermaid-js/mermaid-cli": "^11.16.0",
     "@redocly/cli": "^2.46.1",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
@@ -45,6 +49,7 @@
     "@types/swagger-ui-express": "^4.1.8",
     "nodemon": "^3.1.14",
     "prisma": "^7.8.0",
+    "prisma-erd-generator": "^2.4.4",
     "supertest": "^7.2.2",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.3",

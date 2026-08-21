@@ -10,6 +10,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { AvatarFallback } from '@/components/AvatarFallback'
+import { RecorridoMapView } from '@/components/RecorridoMapView'
 import { ActivityTile, Badge, Btn, TopBar, useTheme } from '@/components/MeshUI'
 import { StatCard, StatCardRow } from '@/components/StatCard'
 import { DEV_USER_ID } from '@/constants/Config'
@@ -24,6 +25,7 @@ import {
 import { clearTripMetrics, loadTripMetrics } from '@/lib/tripMetricsStore'
 import {
   obtenerMetricasGrupales,
+  obtenerRecorrido,
   obtenerResumenViaje,
   type MetricasGrupalesApi,
   type ResumenViajeApi,
@@ -52,6 +54,10 @@ export default function ViajeResumenScreen() {
   const [distanciaLocalM, setDistanciaLocalM] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  // US2: traza GPS realmente recorrida. Se carga aparte del resumen para que un
+  // viaje sin GPS no demore ni rompa el resto de la pantalla.
+  const [recorrido, setRecorrido] = useState<[number, number][]>([])
+  const [cargandoRecorrido, setCargandoRecorrido] = useState(true)
 
   const cargar = useCallback(async () => {
     if (!viajeId || !userId.trim()) return
@@ -77,6 +83,25 @@ export default function ViajeResumenScreen() {
       setError(e instanceof Error ? e.message : 'No se pudo cargar el resumen')
     } finally {
       setLoading(false)
+    }
+  }, [viajeId, userId])
+
+  useEffect(() => {
+    if (!viajeId || !userId.trim()) return
+    let cancelado = false
+    setCargandoRecorrido(true)
+    void obtenerRecorrido(viajeId)
+      .then((r) => {
+        if (!cancelado) setRecorrido(r.puntos)
+      })
+      .catch(() => {
+        if (!cancelado) setRecorrido([])
+      })
+      .finally(() => {
+        if (!cancelado) setCargandoRecorrido(false)
+      })
+    return () => {
+      cancelado = true
     }
   }, [viajeId, userId])
 
@@ -166,6 +191,9 @@ export default function ViajeResumenScreen() {
               </Btn>
             </View>
           ) : null}
+
+          {/* ── Mapa del recorrido realizado (US2) ── */}
+          <RecorridoMapView puntos={recorrido} cargando={cargandoRecorrido} />
 
           {/* ── El viaje (totales grupales) ── */}
           {totales ? (

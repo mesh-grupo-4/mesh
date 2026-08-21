@@ -13,7 +13,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth } from '@/lib/firebase';
 import { syncUsuario, obtenerMiPerfil, type UsuarioPerfilResponse } from '@/lib/usuariosApi';
 import { API_BASE_URL } from '@/constants/Config';
-export type ActividadPreferida = 'moto' | 'bici' | 'running' | 'trekking' | '';
+export type ActividadPreferida = 'moto' | 'bici' | 'running' | 'trekking' | 'otro' | '';
 
 export interface ProfileData {
   nombre: string;
@@ -96,6 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [backendUserId, setBackendUserId] = useState<string | null>(null);
   const [backendSyncing, setBackendSyncing] = useState(false);
   const syncAlertShown = useRef(false);
+  const cargaEnCurso = useRef<{ uid: string; promesa: Promise<boolean> } | null>(null);
 
   const notifySyncFailure = useCallback((error: unknown) => {
     console.warn('Sync backend usuario falló:', error);
@@ -103,10 +104,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     syncAlertShown.current = true;
     const detail = error instanceof Error ? error.message : 'Error de red';
     meshAlert(
-      'No se pudo conectar con el servidor',
-      `No pudimos sincronizar tu usuario con la base de datos.\n\n` +
-        `Backend: ${API_BASE_URL}\n\n` +
-        `Verificá que el backend esté corriendo (npm run dev) y que el celular esté en la misma Wi‑Fi que la PC.\n\n` +
+      'No pudimos sincronizar tu perfil',
+      `Tu sesión está activa, pero no pudimos leer tu usuario en el servidor.\n\n` +
+        `Servidor: ${API_BASE_URL}\n\n` +
+        `Revisá tu conexión a internet y volvé a intentar en unos segundos.\n\n` +
         `Detalle: ${detail}`,
       [{ text: 'Entendido' }]
     );
@@ -144,10 +145,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   // Carga el perfil desde la BD (load / login): NO pisa la BD con datos locales.
+  // `login()` y el listener de `onAuthStateChanged` piden el perfil casi al mismo tiempo:
+  // compartimos la promesa en curso para no mandar dos GET /me simultáneos por el mismo uid.
   const cargarUsuarioBackend = useCallback(
     (firebaseUser: User, storedProfile: ProfileData | null) => {
       if (!firebaseUser.email) return Promise.resolve(false);
-      return resolverUsuarioBackend(firebaseUser, storedProfile, () => obtenerMiPerfil());
+
+      const enCurso = cargaEnCurso.current;
+      if (enCurso && enCurso.uid === firebaseUser.uid) return enCurso.promesa;
+
+      const promesa = resolverUsuarioBackend(firebaseUser, storedProfile, () =>
+        obtenerMiPerfil()
+      ).finally(() => {
+        if (cargaEnCurso.current?.promesa === promesa) cargaEnCurso.current = null;
+      });
+      cargaEnCurso.current = { uid: firebaseUser.uid, promesa };
+      return promesa;
     },
     [resolverUsuarioBackend]
   );
@@ -186,6 +199,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setProfile(null);
           setBackendUserId(null);
           syncAlertShown.current = false;
+          cargaEnCurso.current = null;
           await AsyncStorage.removeItem(backendUserIdKey);
         }
       })();
@@ -219,6 +233,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     await signOut(auth);
+    cargaEnCurso.current = null;
     await AsyncStorage.removeItem(backendUserIdKey);
     setUser(null);
     setProfile(null);

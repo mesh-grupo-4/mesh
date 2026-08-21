@@ -22,6 +22,7 @@ import { SelectionActionBar } from '@/components/SelectionActionBar'
 import { SelectionHeader } from '@/components/SelectionHeader'
 import { useSelectionMode } from '@/hooks/useSelectionMode'
 import { etiquetaActividad } from '@/lib/activityDefaults'
+import { formatDurationHm, formatKm } from '@/lib/format'
 import { formatearEnArg } from '@/lib/tiempoArg'
 import {
   bulkDeleteSummary,
@@ -251,6 +252,31 @@ function TarjetaFinalizado({
           <Feather name="flag" size={12} />{'  '}Finalizó {formatearFechaCorta(v.fecha_fin_real)}
         </Text>
       )}
+      {v.mi_distancia_m != null || v.mi_tiempo_movimiento_seg != null ? (
+        <View style={[styles.tarjetaMetricas, { borderTopColor: theme.border }]}>
+          <View style={styles.tarjetaMetrica}>
+            <Text style={[styles.tarjetaMetricaValor, { color: theme.text }]}>
+              {formatKm(v.mi_distancia_m)}
+            </Text>
+            <Text style={[styles.tarjetaMetricaLabel, { color: theme.textMute }]}>Distancia</Text>
+          </View>
+          <View style={styles.tarjetaMetrica}>
+            <Text style={[styles.tarjetaMetricaValor, { color: theme.text }]}>
+              {formatDurationHm(v.mi_tiempo_movimiento_seg)}
+            </Text>
+            <Text style={[styles.tarjetaMetricaLabel, { color: theme.textMute }]}>
+              En movimiento
+            </Text>
+          </View>
+          <View style={styles.tarjetaMetrica}>
+            <Text style={[styles.tarjetaMetricaValor, { color: theme.text }]}>
+              {etiquetaActividad(v.tipo_actividad)}
+            </Text>
+            <Text style={[styles.tarjetaMetricaLabel, { color: theme.textMute }]}>Actividad</Text>
+          </View>
+        </View>
+      ) : null}
+
       <Text style={[styles.tarjetaRol, { color: theme.textMute }]}>
         {v.mi_estado === 'creador' ? 'Organizador' : 'Participante'}
       </Text>
@@ -632,6 +658,7 @@ export default function ViajesScreen() {
             { key: 'bici', label: 'Bici' },
             { key: 'running', label: 'Running' },
             { key: 'trekking', label: 'Trekking' },
+            { key: 'otro', label: 'Otro' },
           ] as { key: FiltroActividad; label: string }[]).map(({ key, label }) => (
             <Chip
               key={key}
@@ -972,6 +999,15 @@ const styles = StyleSheet.create({
   tarjetaMeta: { fontSize: 13, lineHeight: 18 },
   tarjetaGrupo: { fontSize: 12.5, fontWeight: '600' },
   tarjetaRol: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.3 },
+  tarjetaMetricas: {
+    flexDirection: 'row',
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+  },
+  tarjetaMetrica: { flex: 1, gap: 2 },
+  tarjetaMetricaValor: { fontSize: 15, fontWeight: '800' },
+  tarjetaMetricaLabel: { fontSize: 11, fontWeight: '600' },
   filaAcciones: { flexDirection: 'row', gap: 10, marginTop: 8 },
   flex1: { flex: 1 },
 

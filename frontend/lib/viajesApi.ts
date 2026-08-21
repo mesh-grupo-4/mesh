@@ -1,8 +1,9 @@
 import { API_BASE_URL } from '@/constants/Config'
 import type { PutRutaBody, RutaDetalleApi } from './viajesTypes'
 import { apiUrl, meshFetchAuthed, parseJson } from './apiClient'
+import type { CategoriaParadaApi, EstadoIntegranteApi } from './paradasApi'
 
-export type TipoActividadApi = 'moto' | 'bici' | 'running' | 'trekking'
+export type TipoActividadApi = 'moto' | 'bici' | 'running' | 'trekking' | 'otro'
 
 export type ViajeCreadoApi = {
   id: string
@@ -43,6 +44,17 @@ export type ViajeFinalizadoApi = {
   fecha_fin_real: string | null
   estado: 'finalizado'
   mi_estado: 'creador' | 'confirmado' | 'salido' | null
+  /** US2: métricas propias del viaje. Null si no hubo traza GPS. */
+  mi_distancia_m: number | null
+  mi_tiempo_movimiento_seg: number | null
+}
+
+/** US2: traza GPS realmente recorrida, ya simplificada por el backend. */
+export type RecorridoApi = {
+  viaje_id: string
+  usuario_id: string
+  puntos: [number, number][]
+  cantidad_puntos: number
 }
 
 export type InvitacionViajePendienteApi = {
@@ -487,6 +499,18 @@ export type UbicacionVivaSnapshotApi = {
   precision: number | null
   updatedAt: string
   nombre: string
+  /** RN-037: derivado en el backend de la parada abierta del integrante. */
+  estado?: EstadoIntegranteApi
+  paradaDesde?: string | null
+  paradaCategoria?: CategoriaParadaApi | null
+}
+
+export async function obtenerRecorrido(
+  viajeId: string,
+  baseUrl?: string
+): Promise<RecorridoApi> {
+  const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}/recorrido`, baseUrl))
+  return parseJson<RecorridoApi>(res)
 }
 
 export async function upsertUbicacionViva(

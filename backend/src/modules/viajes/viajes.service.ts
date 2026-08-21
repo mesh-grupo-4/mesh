@@ -7,6 +7,7 @@ import {
   computeLineStringLengthMeters,
   computeMetricasGpsPorUsuario,
   computePerfilVelocidad,
+  computeTrazaRecorrido,
 } from '../../lib/postgis'
 import { unirUsuarioAlViaje } from './viajes.membership'
 import type {
@@ -558,19 +559,33 @@ export class ViajesService {
       orderBy: { fecha_fin_real: 'desc' },
     })
 
-    return viajes.map((v) => ({
-      id: v.id,
-      creador_id: v.creador_id,
-      nombre: v.nombre,
-      es_grupal: v.es_grupal,
-      tipo_actividad: v.tipo_actividad,
-      velocidad_esperada: v.velocidad_esperada,
-      distancia_max_separacion: v.distancia_max_separacion,
-      fecha_programada: v.fecha_programada,
-      fecha_fin_real: v.fecha_fin_real,
-      estado: v.estado as 'finalizado',
-      mi_estado: v.creador_id === usuarioId ? ('creador' as const) : (v.integrantes[0]?.estado ?? null),
-    }))
+    // US2: distancia y tiempo propios de cada viaje. Una sola consulta para todos
+    // los viajes de la lista en vez de una por tarjeta.
+    const metricas = await this.prisma.metricaViaje.findMany({
+      where: { usuario_id: usuarioId, viaje_id: { in: viajes.map((v) => v.id) } },
+      select: { viaje_id: true, distancia_m: true, tiempo_movimiento_seg: true },
+    })
+    const metricaPorViaje = new Map(metricas.map((m) => [m.viaje_id, m]))
+
+    return viajes.map((v) => {
+      const mia = metricaPorViaje.get(v.id)
+      return {
+        id: v.id,
+        creador_id: v.creador_id,
+        nombre: v.nombre,
+        es_grupal: v.es_grupal,
+        tipo_actividad: v.tipo_actividad,
+        velocidad_esperada: v.velocidad_esperada,
+        distancia_max_separacion: v.distancia_max_separacion,
+        fecha_programada: v.fecha_programada,
+        fecha_fin_real: v.fecha_fin_real,
+        estado: v.estado as 'finalizado',
+        mi_estado:
+          v.creador_id === usuarioId ? ('creador' as const) : (v.integrantes[0]?.estado ?? null),
+        mi_distancia_m: mia?.distancia_m ?? null,
+        mi_tiempo_movimiento_seg: mia?.tiempo_movimiento_seg ?? null,
+      }
+    })
   }
 
   /** RN-030: solo el líder puede reprogramar un viaje aún planificado. */
@@ -782,8 +797,10 @@ export class ViajesService {
         delCreador?.distancia_m ??
         (metricas.length > 0 ? Math.max(...metricas.map((m) => m.distancia_m)) : null)
 
-      /** Paradas voluntarias (bitácora). MVP: sin tabla de eventos aún → 0. */
-      const cantidadParadasVoluntarias = 0
+      // US3: paradas voluntarias efectivamente registradas durante el viaje.
+      const cantidadParadasVoluntarias = await tx.parada.count({
+        where: { viaje_id: viajeId, tipo: 'voluntaria' },
+      })
 
       const datos = {
         duracion_segundos: duracionSegundos,
@@ -1026,6 +1043,22 @@ export class ViajesService {
    * Métricas individuales detalladas + perfil de velocidad por minuto.
    * Velocidades omitidas para moto (RN-070).
    */
+  /**
+   * US2: traza GPS que recorrió el usuario en el viaje, para dibujarla en el mapa.
+   * Lectura laxa (`assertPuedeVerViaje`) porque es historial: quien salió del
+   * viaje igual puede repasar su propio recorrido.
+   */
+  async obtenerRecorrido(usuarioId: string, viajeId: string) {
+    await this.assertPuedeVerViaje(viajeId, usuarioId)
+    const puntos = await computeTrazaRecorrido(this.prisma, viajeId, usuarioId)
+    return {
+      viaje_id: viajeId,
+      usuario_id: usuarioId,
+      puntos,
+      cantidad_puntos: puntos.length,
+    }
+  }
+
   async obtenerMisMetricas(usuarioId: string, viajeId: string) {
     await this.assertPuedeVerViaje(viajeId, usuarioId)
 
@@ -1280,22 +1313,39 @@ export class ViajesService {
 
   async listarUbicacionesVivas(usuarioId: string, viajeId: string) {
     await this.assertPuedeVerEnVivo(viajeId, usuarioId)
-    const rows = await this.prisma.ubicacionViva.findMany({
-      where: { viaje_id: viajeId },
-      include: {
-        usuario: { select: { id: true, nombre: true, apellido: true } },
-      },
-      orderBy: { updated_at: 'desc' },
+    const [rows, paradasAbiertas] = await Promise.all([
+      this.prisma.ubicacionViva.findMany({
+        where: { viaje_id: viajeId },
+        include: {
+          usuario: { select: { id: true, nombre: true, apellido: true } },
+        },
+        orderBy: { updated_at: 'desc' },
+      }),
+      // RN-037: el estado del mapa se deriva de la parada abierta, no se guarda
+      // duplicado en ubicacion_viva; así no hay dos fuentes que puedan discrepar.
+      this.prisma.parada.findMany({
+        where: { viaje_id: viajeId, fin: null },
+        select: { usuario_id: true, inicio: true, categoria: true },
+      }),
+    ])
+
+    const paradaPorUsuario = new Map(paradasAbiertas.map((p) => [p.usuario_id, p]))
+
+    return rows.map((r) => {
+      const parada = paradaPorUsuario.get(r.usuario_id)
+      return {
+        usuarioId: r.usuario_id,
+        viajeId: r.viaje_id,
+        lat: r.lat,
+        lng: r.lng,
+        precision: r.precision_m,
+        updatedAt: r.updated_at.toISOString(),
+        nombre: [r.usuario.nombre, r.usuario.apellido].filter(Boolean).join(' ').trim(),
+        estado: parada ? ('detenido_voluntario' as const) : ('en_movimiento' as const),
+        paradaDesde: parada ? parada.inicio.toISOString() : null,
+        paradaCategoria: parada?.categoria ?? null,
+      }
     })
-    return rows.map((r) => ({
-      usuarioId: r.usuario_id,
-      viajeId: r.viaje_id,
-      lat: r.lat,
-      lng: r.lng,
-      precision: r.precision_m,
-      updatedAt: r.updated_at.toISOString(),
-      nombre: [r.usuario.nombre, r.usuario.apellido].filter(Boolean).join(' ').trim(),
-    }))
   }
 
   async registrarPingUbicacion(

@@ -1,6 +1,6 @@
 import { apiUrl, meshFetchAuthed, parseJson } from './apiClient'
 
-export type ActividadPreferidaApi = 'moto' | 'bici' | 'running' | 'trekking'
+export type ActividadPreferidaApi = 'moto' | 'bici' | 'running' | 'trekking' | 'otro'
 
 export type UsuarioPerfilResponse = {
   id: string

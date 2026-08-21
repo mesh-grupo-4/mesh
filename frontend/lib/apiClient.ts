@@ -49,6 +49,17 @@ export function isAuthApiError(error: unknown): boolean {
   return error instanceof MeshApiError && error.status === 401
 }
 
+/** Pista según a dónde apunta el backend: servidor remoto vs. backend local en la LAN. */
+function timeoutHint(): string {
+  if (API_BASE_URL.startsWith('https://')) {
+    return ' Revisá tu conexión a internet y reintentá; puede que el servidor esté saturado o caído.'
+  }
+  if (Constants.isDevice && API_BASE_URL.includes('localhost')) {
+    return ' En el celular, localhost no funciona: definí EXPO_PUBLIC_API_URL con la URL del servidor o la IP de tu PC (puerto 3000).'
+  }
+  return ' Verificá que el backend local esté corriendo (npm run dev), que el celular y la PC estén en la misma Wi‑Fi y que el firewall permita el puerto 3000.'
+}
+
 export async function meshFetch(url: string, init?: RequestInit): Promise<Response> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
@@ -56,11 +67,7 @@ export async function meshFetch(url: string, init?: RequestInit): Promise<Respon
     return await fetch(url, { ...init, signal: controller.signal })
   } catch (e) {
     if (e instanceof Error && e.name === 'AbortError') {
-      const hint =
-        Constants.isDevice && API_BASE_URL.includes('localhost')
-          ? ' En el celular, localhost no funciona: definí EXPO_PUBLIC_API_URL con la IP de tu PC (puerto 3000) o usá ngrok si estás en modo túnel.'
-          : ' Verificá que el backend esté corriendo (npm run dev), que iPhone y PC estén en la misma Wi‑Fi y que el firewall permita el puerto 3000.';
-      throw new Error(`Tiempo de espera agotado al conectar con ${API_BASE_URL}.${hint}`)
+      throw new Error(`Tiempo de espera agotado al conectar con ${API_BASE_URL}.${timeoutHint()}`)
     }
     throw e
   } finally {

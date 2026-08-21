@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { connectMeshSocket } from '@/lib/meshSocket'
+import type { EstadoIntegranteApi } from '@/lib/paradasApi'
 import { getSupabase, isSupabaseConfigured } from '@/lib/supabase'
 import { listarUbicacionesVivas, type UbicacionVivaSnapshotApi } from '@/lib/viajesApi'
 
@@ -13,6 +14,10 @@ export type MemberLocation = {
   nombre: string
   /** La última posición conocida quedó vieja: el integrante perdió señal. */
   isStale: boolean
+  /** RN-037: lo calcula el backend a partir de la parada abierta. */
+  estado: EstadoIntegranteApi
+  /** Inicio de la parada en curso, si está detenido. */
+  paradaDesde: string | null
 }
 
 /** Lo que guardamos en estado; `isStale` se deriva del reloj en cada render. */
@@ -41,6 +46,8 @@ function rowToMember(row: UbicacionVivaSnapshotApi, names: Record<string, string
     precision: row.precision,
     updatedAt: row.updatedAt,
     nombre: names[row.usuarioId] || row.nombre || 'Integrante',
+    estado: row.estado ?? 'en_movimiento',
+    paradaDesde: row.paradaDesde ?? null,
   }
 }
 
@@ -58,6 +65,8 @@ function dbRowToMember(
     precision: row.precision_m != null ? Number(row.precision_m) : null,
     updatedAt: String(row.updated_at ?? new Date().toISOString()),
     nombre: names[usuarioId] || 'Integrante',
+    estado: 'en_movimiento',
+    paradaDesde: null,
   }
 }
 
@@ -78,6 +87,8 @@ function socketPayloadToMember(
     precision: payload.precision,
     updatedAt: payload.recordedAt,
     nombre: names[payload.usuarioId] || 'Integrante',
+    estado: 'en_movimiento',
+    paradaDesde: null,
   }
 }
 
@@ -88,9 +99,32 @@ export function useLiveLocations({ viajeId, userId, nameByUserId = {} }: Options
   const namesRef = useRef(nameByUserId)
   namesRef.current = nameByUserId
 
-  const mergeMember = useCallback((member: MemberSnapshot) => {
-    setMembers((prev) => ({ ...prev, [member.usuarioId]: member }))
-  }, [])
+  const mergeMember = useCallback(
+    (member: MemberSnapshot, opciones?: { conservarEstado?: boolean }) => {
+      setMembers((prev) => {
+        const anterior = prev[member.usuarioId]
+        const siguiente =
+          opciones?.conservarEstado && anterior
+            ? { ...member, estado: anterior.estado, paradaDesde: anterior.paradaDesde }
+            : member
+        return { ...prev, [member.usuarioId]: siguiente }
+      })
+    },
+    []
+  )
+
+  /** US1/US3: aplica el cambio de estado que llega por socket, sin tocar la posición. */
+  const aplicarEstado = useCallback(
+    (usuarioId: string, estado: EstadoIntegranteApi, paradaDesde: string | null) => {
+      setMembers((prev) => {
+        const anterior = prev[usuarioId]
+        if (!anterior) return prev
+        if (anterior.estado === estado && anterior.paradaDesde === paradaDesde) return prev
+        return { ...prev, [usuarioId]: { ...anterior, estado, paradaDesde } }
+      })
+    },
+    []
+  )
 
   const loadSnapshot = useCallback(async () => {
     if (!viajeId || !userId.trim()) return
@@ -149,11 +183,31 @@ export function useLiveLocations({ viajeId, userId, nameByUserId = {} }: Options
           recordedAt: string
         }) => {
           if (payload.viajeId !== viajeId) return
-          mergeMember(socketPayloadToMember(payload, namesRef.current))
+          mergeMember(socketPayloadToMember(payload, namesRef.current), { conservarEstado: true })
+        }
+
+        const onParadaIniciada = (payload: {
+          viajeId: string
+          usuarioId: string
+          inicio: string
+        }) => {
+          if (payload.viajeId !== viajeId) return
+          aplicarEstado(payload.usuarioId, 'detenido_voluntario', payload.inicio)
+        }
+
+        const onParadaFinalizada = (payload: { viajeId: string; usuarioId: string }) => {
+          if (payload.viajeId !== viajeId) return
+          aplicarEstado(payload.usuarioId, 'en_movimiento', null)
         }
 
         sock.on('viaje:ubicacion', onUbi)
-        socketCleanup = () => sock.off('viaje:ubicacion', onUbi)
+        sock.on('viaje:parada_iniciada', onParadaIniciada)
+        sock.on('viaje:parada_finalizada', onParadaFinalizada)
+        socketCleanup = () => {
+          sock.off('viaje:ubicacion', onUbi)
+          sock.off('viaje:parada_iniciada', onParadaIniciada)
+          sock.off('viaje:parada_finalizada', onParadaFinalizada)
+        }
       } catch {
         /* socket opcional si REST/Realtime funcionan */
       }
@@ -176,6 +230,7 @@ export function useLiveLocations({ viajeId, userId, nameByUserId = {} }: Options
             if (!row) return
             const member = dbRowToMember(row, namesRef.current)
             if (!member) return
+            const conservarEstado = true
             if (payload.eventType === 'DELETE') {
               setMembers((prev) => {
                 const copy = { ...prev }
@@ -184,7 +239,7 @@ export function useLiveLocations({ viajeId, userId, nameByUserId = {} }: Options
               })
               return
             }
-            mergeMember(member)
+            mergeMember(member, { conservarEstado })
           }
         )
         .subscribe((status) => {
@@ -205,7 +260,7 @@ export function useLiveLocations({ viajeId, userId, nameByUserId = {} }: Options
       socketCleanup?.()
       supabaseCleanup?.()
     }
-  }, [viajeId, userId, mergeMember])
+  }, [viajeId, userId, mergeMember, aplicarEstado])
 
   useEffect(() => {
     setMembers((prev) => {

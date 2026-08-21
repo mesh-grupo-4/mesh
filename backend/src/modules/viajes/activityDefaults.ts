@@ -10,6 +10,7 @@ const DEFAULTS: Record<TipoActividad, ParametrosActividad> = {
   bici: { velocidadEsperada: 35, distanciaMaxSeparacion: 300 },
   running: { velocidadEsperada: 15, distanciaMaxSeparacion: 100 },
   trekking: { velocidadEsperada: 5, distanciaMaxSeparacion: 50 },
+  otro: { velocidadEsperada: 20, distanciaMaxSeparacion: 200 },
 }
 
 /** RN-021: parámetros por defecto según tipo de actividad del viaje. */

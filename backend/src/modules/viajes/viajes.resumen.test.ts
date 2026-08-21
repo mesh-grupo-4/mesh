@@ -83,6 +83,8 @@ function armarPrisma(o: Opciones = {}) {
       fn({
         metricaViaje: { deleteMany: vi.fn(), createMany: vi.fn() },
         resumenViaje: { upsert: vi.fn() },
+        // US3: el resumen cuenta las paradas voluntarias registradas.
+        parada: { count: vi.fn().mockResolvedValue(0) },
       })
     ),
   } as unknown as PrismaClient

@@ -1,6 +1,10 @@
 generator client {
   provider = "prisma-client-js"
 }
+generator erd {
+  provider = "prisma-erd-generator"
+  output   = "../DER.svg"
+}
 
 datasource db {
   provider = "postgresql"
@@ -16,6 +20,7 @@ enum TipoActividad {
   bici
   running
   trekking
+  otro
 }
 
 enum EstadoViaje {
@@ -32,6 +37,49 @@ enum CategoriaParada {
   punto_control
   sanitario
   otro
+}
+
+/// Estado visible de un integrante en el mapa grupal (RN-037).
+/// `posible_incidente` queda declarado para el motor de eventos (RN-036).
+enum EstadoIntegranteViaje {
+  en_movimiento
+  detenido_voluntario
+  posible_incidente
+}
+
+enum TipoParada {
+  voluntaria
+  incidente_detectado
+}
+
+enum EstadoSolicitudParada {
+  pendiente
+  aprobada
+  rechazada
+  cancelada
+}
+
+/// Tema de la alerta que crea el líder (RN-041). Distinto de `OrigenAlerta`,
+/// que dice quién la generó.
+enum TipoAlerta {
+  parada
+  combustible
+  desvio
+  peligro
+  informacion
+}
+
+enum OrigenAlerta {
+  lider
+  sistema
+}
+
+/// RN-042: la gestión de estados es de otra US; acá todas nacen `activa`.
+enum EstadoAlerta {
+  activa
+  pausada
+  cancelada
+  resuelta
 }
 
 enum GpsSource {
@@ -89,6 +137,10 @@ model Usuario {
   amistades_solicitadas  Amistad[]          @relation("AmistadSolicitante")
   amistades_recibidas    Amistad[]          @relation("AmistadDestinatario")
   rutas_plantilla        RutaPlantilla[]
+  paradas                Parada[]
+  solicitudes_parada     SolicitudParada[]  @relation("SolicitudParadaSolicitante")
+  solicitudes_resueltas  SolicitudParada[]  @relation("SolicitudParadaResolutor")
+  alertas_creadas        Alerta[]           @relation("AlertaAutor")
 
   @@map("usuario")
 }
@@ -178,6 +230,9 @@ model Viaje {
   registros_gps RegistroGPS[]
   ubicaciones_vivas UbicacionViva[]
   metricas MetricaViaje[]
+  paradas Parada[]
+  solicitudes_parada SolicitudParada[]
+  alertas Alerta[]
 
   @@index([creador_id])
   @@map("viaje")
@@ -353,6 +408,75 @@ model ResumenViaje {
 }
 
 /// Métricas individuales por integrante, calculadas desde registro_gps al finalizar (RN-061).
+/// Parada registrada durante el viaje (US1/US3). Mientras `fin` es null el
+/// integrante figura como `detenido_voluntario` en el mapa grupal: el estado se
+/// deriva de acá, no se duplica en ubicacion_viva.
+model Parada {
+  id              String           @id @default(uuid()) @db.Uuid
+  viaje_id        String           @map("viaje_id") @db.Uuid
+  usuario_id      String           @map("usuario_id") @db.Uuid
+  lat             Float
+  lng             Float
+  tipo            TipoParada       @default(voluntaria)
+  categoria       CategoriaParada?
+  inicio          DateTime         @default(now())
+  fin             DateTime?
+  /// RN-036: el integrante confirmó que está bien tras un posible incidente.
+  confirmado_bien Boolean?         @map("confirmado_bien")
+
+  viaje   Viaje   @relation(fields: [viaje_id], references: [id], onDelete: Cascade)
+  usuario Usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+
+  @@index([viaje_id, inicio])
+  @@index([usuario_id, inicio])
+  @@map("parada")
+}
+
+/// Solicitud de parada de un integrante al líder (US2, RN-044).
+model SolicitudParada {
+  id              String                @id @default(uuid()) @db.Uuid
+  viaje_id        String                @map("viaje_id") @db.Uuid
+  solicitante_id  String                @map("solicitante_id") @db.Uuid
+  lat             Float?
+  lng             Float?
+  motivo          String?
+  estado          EstadoSolicitudParada @default(pendiente)
+  resuelta_por_id String?               @map("resuelta_por_id") @db.Uuid
+  created_at      DateTime              @default(now()) @map("created_at")
+  resolved_at     DateTime?             @map("resolved_at")
+
+  viaje        Viaje    @relation(fields: [viaje_id], references: [id], onDelete: Cascade)
+  solicitante  Usuario  @relation("SolicitudParadaSolicitante", fields: [solicitante_id], references: [id], onDelete: Cascade)
+  resuelta_por Usuario? @relation("SolicitudParadaResolutor", fields: [resuelta_por_id], references: [id], onDelete: SetNull)
+
+  @@index([viaje_id, estado])
+  @@index([solicitante_id, created_at])
+  @@map("solicitud_parada")
+}
+
+/// Alerta del viaje (US1, RN-040/041/043). Hoy solo las crea el líder; el enum
+/// `OrigenAlerta` deja lugar al motor de eventos (desvíos, atrasos, incidentes).
+model Alerta {
+  id            String       @id @default(uuid()) @db.Uuid
+  viaje_id      String       @map("viaje_id") @db.Uuid
+  creada_por_id String?      @map("creada_por_id") @db.Uuid
+  tipo          TipoAlerta
+  origen        OrigenAlerta @default(lider)
+  mensaje       String
+  /// RN-043: dónde estaba quien la creó, para ubicarla en el mapa.
+  lat           Float?
+  lng           Float?
+  estado        EstadoAlerta @default(activa)
+  created_at    DateTime     @default(now()) @map("created_at")
+  resolved_at   DateTime?    @map("resolved_at")
+
+  viaje      Viaje    @relation(fields: [viaje_id], references: [id], onDelete: Cascade)
+  creada_por Usuario? @relation("AlertaAutor", fields: [creada_por_id], references: [id], onDelete: SetNull)
+
+  @@index([viaje_id, created_at])
+  @@map("alerta")
+}
+
 model MetricaViaje {
   id                     String   @id @default(uuid()) @db.Uuid
   viaje_id               String   @map("viaje_id") @db.Uuid

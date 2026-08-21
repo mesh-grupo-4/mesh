@@ -22,6 +22,7 @@ const ACTIVIDADES: { valor: ActividadPreferida; etiqueta: string; icono: keyof t
   { valor: 'bici', etiqueta: 'Bici', icono: 'git-commit' },
   { valor: 'running', etiqueta: 'Running', icono: 'zap' },
   { valor: 'trekking', etiqueta: 'Trekking', icono: 'map' },
+  { valor: 'otro', etiqueta: 'Otro', icono: 'more-horizontal' },
 ];
 
 type StatsPerfil = {

@@ -543,6 +543,8 @@ export function ActivityTile({
         return <FontAwesome5 name="running" size={size * 0.48} color={col} style={{ marginLeft: 2 }} />;
       case 'trekking':
         return <MaterialCommunityIcons name="hiking" size={size * 0.55} color={col} />;
+      case 'otro':
+        return <MaterialCommunityIcons name="dots-horizontal" size={size * 0.55} color={col} />;
       default:
         return <Feather name="map" size={size * 0.5} color={col} />;
     }

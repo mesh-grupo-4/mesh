@@ -29,6 +29,12 @@ export function crearViajesController(service: ViajesService) {
       res.json(viajes)
     }),
 
+    recorrido: asyncHandler(async (req, res) => {
+      const viajeId = req.params.viajeId as string
+      const recorrido = await service.obtenerRecorrido(req.userId!, viajeId)
+      res.json(recorrido)
+    }),
+
     listarFinalizados: asyncHandler(async (req, res) => {
       const viajes = await service.listarFinalizados(req.userId!)
       res.json(viajes)

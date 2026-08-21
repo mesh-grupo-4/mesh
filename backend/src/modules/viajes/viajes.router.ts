@@ -4,6 +4,8 @@ import { requireUser } from '../../middleware/requireUser'
 import { ViajesService } from './viajes.service'
 import { crearViajesController } from './viajes.controller'
 import { rutasCompartirHandlers } from '../rutas-compartidas/rutas-compartidas.router'
+import { paradasHandlers } from '../paradas/paradas.router'
+import { alertasHandlers } from '../alertas/alertas.router'
 
 const service = new ViajesService(prisma)
 const c = crearViajesController(service)
@@ -22,6 +24,8 @@ viajesRouter.get('/:viajeId/participantes', requireUser, c.listarParticipantes)
 viajesRouter.get('/:viajeId/resumen', requireUser, c.resumen)
 viajesRouter.get('/:viajeId/metricas-grupales', requireUser, c.metricasGrupales)
 viajesRouter.get('/:viajeId/mis-metricas', requireUser, c.misMetricas)
+// US2: traza GPS realmente recorrida por quien consulta.
+viajesRouter.get('/:viajeId/recorrido', requireUser, c.recorrido)
 viajesRouter.get('/:viajeId', requireUser, c.detalle)
 viajesRouter.patch('/:viajeId', requireUser, c.actualizar)
 viajesRouter.delete('/:viajeId', requireUser, c.eliminar)
@@ -35,3 +39,22 @@ viajesRouter.delete('/:viajeId/ruta/compartir', requireUser, rutasCompartirHandl
 viajesRouter.post('/:viajeId/iniciar', requireUser, c.iniciar)
 viajesRouter.post('/:viajeId/finalizar', requireUser, c.finalizar)
 viajesRouter.post('/:viajeId/salir', requireUser, c.salir)
+
+// Paradas voluntarias y solicitudes de parada (US1–US3, RN-037 / RN-044).
+viajesRouter.get('/:viajeId/paradas/activa', ...paradasHandlers.activa)
+viajesRouter.post('/:viajeId/paradas', ...paradasHandlers.iniciar)
+viajesRouter.post('/:viajeId/paradas/finalizar', ...paradasHandlers.finalizar)
+viajesRouter.get('/:viajeId/solicitudes-parada', ...paradasHandlers.listarSolicitudes)
+viajesRouter.post('/:viajeId/solicitudes-parada', ...paradasHandlers.solicitar)
+viajesRouter.post(
+  '/:viajeId/solicitudes-parada/:solicitudId/responder',
+  ...paradasHandlers.responderSolicitud
+)
+viajesRouter.post(
+  '/:viajeId/solicitudes-parada/:solicitudId/cancelar',
+  ...paradasHandlers.cancelarSolicitud
+)
+
+// Alertas del viaje (US1, RN-040 / RN-041).
+viajesRouter.get('/:viajeId/alertas', ...alertasHandlers.listar)
+viajesRouter.post('/:viajeId/alertas', ...alertasHandlers.crear)
