@@ -2,3 +2,6 @@ node_modules/
 dist/
 .env
 *.log
+
+# Spec OpenAPI bundleado (artefacto generado por `npm run docs:bundle`)
+src/docs/openapi.bundled.json

@@ -2,7 +2,7 @@
 
 > **Estado:** implementadas (backend + frontend).
 > **Epics:** **E05** (alertas) · **E06** (historial y métricas).
-> **OpenAPI:** `backend/openapi/alertas.yaml`; `GET /recorrido` y `GET /finalizados` en `backend/openapi/viajes.yaml`.
+> **OpenAPI:** `backend/openapi/paths/alertas.yaml`; `GET /recorrido` y `GET /finalizados` en `backend/openapi/paths/viajes.yaml` (spec modular, ver [[adr-documentacion-api]]).
 > **RN:** RN-040 (push a todos), RN-041 (alerta manual con tipo y mensaje), RN-043 (ubicación), RN-030 (autorización), RN-061 (métricas individuales), RN-105 (horas en UTC-3).
 
 ---

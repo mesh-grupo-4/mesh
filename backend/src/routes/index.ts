@@ -7,6 +7,7 @@ import {
   rutasCompartidasRouter,
   rutasPlantillaRouter,
 } from '../modules/rutas-compartidas/rutas-compartidas.router'
+import { docsRouter } from '../docs/router'
 
 export const router = Router()
 
@@ -14,9 +15,28 @@ router.get('/health', (_req, res) => {
   res.json({ status: 'ok' })
 })
 
-router.use('/usuarios', usuariosRouter)
-router.use('/amistades', amistadesRouter)
-router.use('/grupos', gruposRouter)
-router.use('/viajes', viajesRouter)
-router.use('/rutas-compartidas', rutasCompartidasRouter)
-router.use('/rutas-plantilla', rutasPlantillaRouter)
+/**
+ * Tabla de montaje de los routers de dominio.
+ *
+ * Se declara como dato —en vez de encadenar `router.use(...)` sueltos— para que
+ * `src/docs/contrato.test.ts` pueda enumerar la superficie REST real sin tener que
+ * inferir los prefijos desde los regex internos de Express.
+ */
+export const montajes = [
+  { prefijo: '/usuarios', router: usuariosRouter },
+  { prefijo: '/amistades', router: amistadesRouter },
+  { prefijo: '/grupos', router: gruposRouter },
+  { prefijo: '/viajes', router: viajesRouter },
+  { prefijo: '/rutas-compartidas', router: rutasCompartidasRouter },
+  { prefijo: '/rutas-plantilla', router: rutasPlantillaRouter },
+] as const
+
+for (const { prefijo, router: subRouter } of montajes) {
+  router.use(prefijo, subRouter)
+}
+
+// Documentación interactiva en /api/docs. Se puede apagar en producción con
+// DOCS_ENABLED=false sin tocar el código.
+if (process.env.DOCS_ENABLED !== 'false') {
+  router.use(docsRouter)
+}

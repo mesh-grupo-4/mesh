@@ -1,0 +1,92 @@
+# Módulo Alertas — src/modules/alertas/
+# Router: montado sobre viajesRouter (alertas.router.ts) · Controller: alertas.controller.ts
+#
+# Alertas que el líder envía al grupo durante el viaje (RN-030, RN-040, RN-041, RN-043).
+# `tipo` es el tema que elige el líder; `origen` distingue al líder del motor de
+# eventos, que todavía no crea alertas por su cuenta.
+
+AlertasColeccion:
+  get:
+    operationId: listarAlertas
+    summary: Historial de alertas del viaje
+    description: |
+      Más reciente primero, hasta 200 entradas. Lo puede leer cualquier integrante
+      del viaje, en cualquier estado —incluido quien ya salió—, porque es historial.
+    tags:
+      - Alertas
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '200':
+        description: Historial del viaje.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/Alerta'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: No participa del viaje (`FORBIDDEN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Sin acceso a este viaje
+              code: FORBIDDEN
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+  post:
+    operationId: crearAlerta
+    summary: Crear una alerta para el grupo (US1, solo líder)
+    description: |
+      RN-030: solo el creador del viaje puede crearla, y solo con el viaje `en_curso`.
+      Emite `viaje:alerta` a la sala del viaje y notifica por push a todos los
+      integrantes confirmados, salvo al propio autor (RN-040).
+    tags:
+      - Alertas
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/CrearAlertaRequest'
+    responses:
+      '201':
+        description: Alerta creada y notificada.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Alerta'
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: Solo el líder puede crear alertas (`FORBIDDEN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Solo el líder puede crear alertas
+              code: FORBIDDEN
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '409':
+        description: El viaje no está en curso (`INVALID_STATE`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: El viaje no está en curso
+              code: INVALID_STATE
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'

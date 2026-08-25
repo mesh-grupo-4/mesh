@@ -1,0 +1,415 @@
+# Módulo Paradas y SolicitudesParada — src/modules/paradas/
+# Router: montado sobre viajesRouter (paradas.router.ts) · Controller: paradas.controller.ts
+#
+# Paradas voluntarias durante un viaje en_curso y solicitudes de parada al líder
+# (RN-030, RN-037, RN-044). Toda operación exige participar del viaje —creador o
+# integrante confirmado— y que el viaje esté `en_curso`; por eso cada una documenta
+# el mismo trío 404 VIAJE_NOT_FOUND / 409 INVALID_STATE / 403 FORBIDDEN de base.
+# Solo hay una parada abierta y una solicitud pendiente por integrante y viaje.
+
+ParadasColeccion:
+  post:
+    operationId: iniciarParada
+    summary: Registrar una parada voluntaria (US1)
+    description: |
+      Registra hora y ubicación de la parada. Mientras sigue abierta (`fin: null`)
+      el integrante figura como `detenido_voluntario` en el mapa grupal (RN-037):
+      el estado se **deriva** de la parada, no se guarda duplicado.
+
+      Emite `viaje:parada_iniciada` a la sala del viaje y notifica por push a los
+      demás integrantes confirmados.
+    tags:
+      - Paradas
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/IniciarParadaRequest'
+    responses:
+      '201':
+        description: Parada registrada.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Parada'
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: No participa del viaje (`FORBIDDEN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Sin acceso a este viaje
+              code: FORBIDDEN
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '409':
+        description: El viaje no está en curso (`INVALID_STATE`), o ya hay una parada abierta (`PARADA_ABIERTA`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            examples:
+              fueraDeCurso:
+                value:
+                  error: El viaje no está en curso
+                  code: INVALID_STATE
+              paradaAbierta:
+                value:
+                  error: Ya tenés una parada en curso
+                  code: PARADA_ABIERTA
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+FinalizarParada:
+  post:
+    operationId: finalizarParada
+    summary: Retomar el viaje y cerrar la parada abierta (US3)
+    description: |
+      Cierra la parada abierta del consultante, calcula `duracion_segundos` y emite
+      `viaje:parada_finalizada` con el paso a `en_movimiento`.
+    tags:
+      - Paradas
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '200':
+        description: Parada cerrada.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Parada'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: No participa del viaje (`FORBIDDEN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Sin acceso a este viaje
+              code: FORBIDDEN
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '409':
+        description: El viaje no está en curso (`INVALID_STATE`), o no hay parada abierta (`SIN_PARADA_ABIERTA`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            examples:
+              fueraDeCurso:
+                value:
+                  error: El viaje no está en curso
+                  code: INVALID_STATE
+              sinParada:
+                value:
+                  error: No tenés ninguna parada en curso
+                  code: SIN_PARADA_ABIERTA
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+ParadaActiva:
+  get:
+    operationId: obtenerParadaActiva
+    summary: Parada abierta del usuario autenticado
+    description: |
+      Rehidrata la pantalla en vivo al volver a entrar a la app. Responde `null`
+      si el usuario está en movimiento, sin parada abierta.
+    tags:
+      - Paradas
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '200':
+        description: Parada abierta, o `null`.
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '../components/schemas.yaml#/Parada'
+              type: object
+              nullable: true
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: No participa del viaje (`FORBIDDEN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Sin acceso a este viaje
+              code: FORBIDDEN
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '409':
+        description: El viaje no está en curso (`INVALID_STATE`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: El viaje no está en curso
+              code: INVALID_STATE
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+SolicitudesParadaColeccion:
+  get:
+    operationId: listarSolicitudesParada
+    summary: Listar solicitudes de parada
+    description: |
+      El líder recibe las **pendientes** del viaje, para resolverlas. Un
+      participante recibe **solo las suyas**, para conocer el estado de la que envió.
+    tags:
+      - SolicitudesParada
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '200':
+        description: Solicitudes visibles para quien consulta.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/SolicitudParada'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: No participa del viaje (`FORBIDDEN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Sin acceso a este viaje
+              code: FORBIDDEN
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '409':
+        description: El viaje no está en curso (`INVALID_STATE`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: El viaje no está en curso
+              code: INVALID_STATE
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+  post:
+    operationId: solicitarParada
+    summary: Solicitar una parada al líder (US2)
+    description: |
+      Emite `viaje:solicitud_parada` a la sala del viaje y notifica por push al líder.
+      El líder no puede solicitarse una parada a sí mismo.
+    tags:
+      - SolicitudesParada
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/SolicitarParadaRequest'
+    responses:
+      '201':
+        description: Solicitud creada en estado `pendiente`.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/SolicitudParada'
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: No participa del viaje (`FORBIDDEN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Sin acceso a este viaje
+              code: FORBIDDEN
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '409':
+        description: |
+          El viaje no está en curso (`INVALID_STATE`), el líder no se solicita
+          paradas a sí mismo (`ES_LIDER`), o ya hay una solicitud pendiente
+          (`SOLICITUD_PENDIENTE`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            examples:
+              fueraDeCurso:
+                value:
+                  error: El viaje no está en curso
+                  code: INVALID_STATE
+              esLider:
+                value:
+                  error: El líder no necesita solicitar una parada
+                  code: ES_LIDER
+              yaPendiente:
+                value:
+                  error: Ya tenés una solicitud pendiente
+                  code: SOLICITUD_PENDIENTE
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+ResponderSolicitudParada:
+  post:
+    operationId: responderSolicitudParada
+    summary: Aprobar o rechazar una solicitud (US2, solo líder)
+    description: |
+      RN-030: solo el creador del viaje puede resolver. Emite
+      `viaje:solicitud_parada_resuelta` y notifica por push al solicitante.
+    tags:
+      - SolicitudesParada
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+      - $ref: '../components/parameters.yaml#/SolicitudParadaId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/ResponderSolicitudParadaRequest'
+    responses:
+      '200':
+        description: Solicitud resuelta.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/SolicitudParada'
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: No participa del viaje, o participa pero no es el líder (`FORBIDDEN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            examples:
+              sinAcceso:
+                value:
+                  error: Sin acceso a este viaje
+                  code: FORBIDDEN
+              noLider:
+                value:
+                  error: Solo el líder puede responder solicitudes
+                  code: FORBIDDEN
+      '404':
+        description: El viaje, o la solicitud —no existe o es de otro viaje— (`VIAJE_NOT_FOUND` / `SOLICITUD_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            examples:
+              viaje:
+                value:
+                  error: Viaje no encontrado
+                  code: VIAJE_NOT_FOUND
+              solicitud:
+                value:
+                  error: Solicitud no encontrada
+                  code: SOLICITUD_NOT_FOUND
+      '409':
+        description: El viaje no está en curso (`INVALID_STATE`), o la solicitud ya fue resuelta (`SOLICITUD_RESUELTA`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            examples:
+              fueraDeCurso:
+                value:
+                  error: El viaje no está en curso
+                  code: INVALID_STATE
+              yaResuelta:
+                value:
+                  error: La solicitud ya fue resuelta
+                  code: SOLICITUD_RESUELTA
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+CancelarSolicitudParada:
+  post:
+    operationId: cancelarSolicitudParada
+    summary: Retirar la propia solicitud pendiente
+    description: Solo quien la envió puede cancelarla, y solo mientras nadie la resolvió.
+    tags:
+      - SolicitudesParada
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+      - $ref: '../components/parameters.yaml#/SolicitudParadaId'
+    responses:
+      '200':
+        description: Solicitud cancelada.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/SolicitudParada'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: No participa del viaje, o la solicitud es de otro integrante (`FORBIDDEN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            examples:
+              sinAcceso:
+                value:
+                  error: Sin acceso a este viaje
+                  code: FORBIDDEN
+              ajena:
+                value:
+                  error: Solo podés cancelar tus propias solicitudes
+                  code: FORBIDDEN
+      '404':
+        description: El viaje, o la solicitud —no existe o es de otro viaje— (`VIAJE_NOT_FOUND` / `SOLICITUD_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            examples:
+              viaje:
+                value:
+                  error: Viaje no encontrado
+                  code: VIAJE_NOT_FOUND
+              solicitud:
+                value:
+                  error: Solicitud no encontrada
+                  code: SOLICITUD_NOT_FOUND
+      '409':
+        description: El viaje no está en curso (`INVALID_STATE`), o la solicitud ya fue resuelta (`SOLICITUD_RESUELTA`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            examples:
+              fueraDeCurso:
+                value:
+                  error: El viaje no está en curso
+                  code: INVALID_STATE
+              yaResuelta:
+                value:
+                  error: La solicitud ya fue resuelta
+                  code: SOLICITUD_RESUELTA
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'

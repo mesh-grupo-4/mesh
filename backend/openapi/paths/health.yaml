@@ -1,0 +1,30 @@
+# Endpoint de salud. Definido inline en src/routes/index.ts.
+
+Health:
+  get:
+    operationId: health
+    summary: Verificar que la API responde
+    description: |
+      Chequeo de vida del servicio. Es el único endpoint público de la API:
+      no requiere Firebase ID token. Pensado para health checks del hosting y del CI.
+    tags:
+      - Sistema
+    security: []
+    responses:
+      '200':
+        description: El servicio está operativo.
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+                  enum: [ok]
+              additionalProperties: false
+            example:
+              status: ok
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
