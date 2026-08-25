@@ -236,6 +236,24 @@ ListaPlantillas:
               type: array
               items:
                 $ref: '../components/schemas.yaml#/RutaPlantillaResumen'
+            example:
+              - id: a52e9c04-7b16-4d38-8f91-3e0c6d5b2a78
+                nombre: Camino de las Altas Cumbres
+                tipo_actividad: moto
+                distancia_planeada_m: 118400
+                tiempo_estimado_seg: 7200
+                origen_nombre: Villa Carlos Paz
+                destino_nombre: Mina Clavero
+                created_at: '2026-08-14T13:41:26.339Z'
+              # Importada sin geocodificar los extremos ni estimar tiempos.
+              - id: f07b3d51-9e28-4c64-b1a7-5d0e2a9c6b83
+                nombre: Vuelta al lago
+                tipo_actividad: bici
+                distancia_planeada_m: null
+                tiempo_estimado_seg: null
+                origen_nombre: null
+                destino_nombre: null
+                created_at: '2026-07-30T18:05:12.664Z'
       '401':
         $ref: '../components/responses.yaml#/Unauthorized'
       '500':

@@ -113,6 +113,29 @@ ViajesPlanificados:
               type: array
               items:
                 $ref: '../components/schemas.yaml#/ViajeResumenPlanificado'
+            example:
+              # 2026-09-06T12:30:00Z = sábado 06/09 09:30 en Argentina (UTC-3, RN-105).
+              - id: d7e2b915-3f48-4a6c-81d9-5b0e7c2a4f16
+                creador_id: 8f14e45f-ceea-4c1e-9b1a-3d5c7a2e6b04
+                nombre: Alta Gracia y vuelta
+                es_grupal: true
+                tipo_actividad: moto
+                velocidad_esperada: 85
+                distancia_max_separacion: 500
+                fecha_programada: '2026-09-06T12:30:00.000Z'
+                estado: planificado
+                mi_estado: creador
+              # Ya arrancó: aparece en la misma lista con estado `en_curso`.
+              - id: 1b8d4c37-6e29-4f05-a3b7-9c2f8e5d0a41
+                creador_id: 2c9a7d61-4e83-4b2f-9a17-6d0e5b8c1f23
+                nombre: Subida al Cerro Champaquí
+                es_grupal: true
+                tipo_actividad: trekking
+                velocidad_esperada: 4.5
+                distancia_max_separacion: 150
+                fecha_programada: '2026-08-24T10:00:00.000Z'
+                estado: en_curso
+                mi_estado: confirmado
       '401':
         $ref: '../components/responses.yaml#/Unauthorized'
       '500':
@@ -141,6 +164,35 @@ ViajesFinalizados:
               type: array
               items:
                 $ref: '../components/schemas.yaml#/ViajeResumenFinalizado'
+            example:
+              - id: 6f3a1e58-2b74-4c09-9d16-8e5b0a3f7c24
+                creador_id: 8f14e45f-ceea-4c1e-9b1a-3d5c7a2e6b04
+                nombre: Costanera al atardecer
+                es_grupal: true
+                tipo_actividad: bici
+                velocidad_esperada: 24
+                distancia_max_separacion: 300
+                fecha_programada: '2026-08-16T21:00:00.000Z'
+                fecha_fin_real: '2026-08-16T23:12:41.330Z'
+                estado: finalizado
+                mi_estado: creador
+                mi_distancia_m: 31480.6
+                mi_tiempo_movimiento_seg: 5327
+              # Salió antes del cierre: el tramo recorrido igual cuenta en el historial.
+              # Sin traza GPS, las métricas propias van en `null`.
+              - id: 0a7c5d92-4f81-4e36-b2a9-7d1e6c3b0f58
+                creador_id: 5a1d3e88-9b64-4c07-83f2-1e7a4b6d9c50
+                nombre: null
+                es_grupal: false
+                tipo_actividad: running
+                velocidad_esperada: 11
+                distancia_max_separacion: 100
+                fecha_programada: '2026-08-09T10:30:00.000Z'
+                fecha_fin_real: '2026-08-09T11:48:03.907Z'
+                estado: finalizado
+                mi_estado: salido
+                mi_distancia_m: null
+                mi_tiempo_movimiento_seg: null
       '401':
         $ref: '../components/responses.yaml#/Unauthorized'
       '500':
@@ -164,6 +216,18 @@ ViajeActual:
           application/json:
             schema:
               $ref: '../components/schemas.yaml#/ViajeEnCurso'
+            examples:
+              enCurso:
+                summary: El usuario está transitando un viaje
+                value:
+                  id: 1b8d4c37-6e29-4f05-a3b7-9c2f8e5d0a41
+                  nombre: Subida al Cerro Champaquí
+                  tipo_actividad: trekking
+                  fecha_inicio_real: '2026-08-24T13:05:22.117Z'
+                  soy_creador: false
+              sinViaje:
+                summary: No hay viaje en curso — 200 con cuerpo `null`, no 404
+                value: null
       '401':
         $ref: '../components/responses.yaml#/Unauthorized'
       '500':
@@ -185,6 +249,21 @@ EstadisticasUsuario:
           application/json:
             schema:
               $ref: '../components/schemas.yaml#/EstadisticasUsuario'
+            examples:
+              conHistorial:
+                summary: Usuario con viajes finalizados
+                value:
+                  viajes_finalizados: 14
+                  distancia_total_m: 482613.4
+                  tiempo_total_seg: 96420
+                  actividad_favorita: bici
+              sinHistorial:
+                summary: Cuenta nueva — sin viajes cerrados todavía
+                value:
+                  viajes_finalizados: 0
+                  distancia_total_m: 0
+                  tiempo_total_seg: 0
+                  actividad_favorita: null
       '401':
         $ref: '../components/responses.yaml#/Unauthorized'
       '500':
@@ -210,6 +289,24 @@ InvitacionesViajePendientes:
               type: array
               items:
                 $ref: '../components/schemas.yaml#/InvitacionViajePendiente'
+            example:
+              - viaje_id: 1b8d4c37-6e29-4f05-a3b7-9c2f8e5d0a41
+                nombre: Subida al Cerro Champaquí
+                tipo_actividad: trekking
+                fecha_programada: '2026-08-24T10:00:00.000Z'
+                creador:
+                  id: 2c9a7d61-4e83-4b2f-9a17-6d0e5b8c1f23
+                  nombre: Bruno Ferreyra
+                created_at: '2026-08-20T15:33:07.412Z'
+              # Viaje sin nombre: la app cae al nombre del destino.
+              - viaje_id: 3e9b6a04-7c25-4d18-8f37-0b4a2e9c6d15
+                nombre: null
+                tipo_actividad: bici
+                fecha_programada: '2026-09-13T11:00:00.000Z'
+                creador:
+                  id: 5a1d3e88-9b64-4c07-83f2-1e7a4b6d9c50
+                  nombre: Diego Sosa
+                created_at: '2026-08-19T20:07:55.901Z'
       '401':
         $ref: '../components/responses.yaml#/Unauthorized'
       '500':

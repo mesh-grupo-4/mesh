@@ -20,6 +20,13 @@ UsuarioActual:
           application/json:
             schema:
               $ref: '../components/schemas.yaml#/Usuario'
+            example:
+              id: 8f14e45f-ceea-4c1e-9b1a-3d5c7a2e6b04
+              email: martina@example.com
+              nombre: Martina
+              apellido: Gómez
+              telefono: '+54 351 555 1234'
+              actividad_preferida: bici
       '401':
         $ref: '../components/responses.yaml#/Unauthorized'
       '404':
