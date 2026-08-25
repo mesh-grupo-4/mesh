@@ -6,7 +6,6 @@ type Props = {
   motivo: string | null
   restantes: number
   ocupado: boolean
-  topOffset: number
   onAprobar: () => void
   onRechazar: () => void
 }
@@ -16,12 +15,11 @@ export function SolicitudParadaBanner({
   motivo,
   restantes,
   ocupado,
-  topOffset,
   onAprobar,
   onRechazar,
 }: Props) {
   return (
-    <View style={[styles.banner, { top: topOffset }]}>
+    <View style={styles.banner}>
       <Text style={styles.titulo}>{nombre} pide parar</Text>
       {motivo ? <Text style={styles.motivo}>“{motivo}”</Text> : null}
       {restantes > 1 ? (
@@ -64,15 +62,11 @@ export function SolicitudParadaBanner({
 
 const styles = StyleSheet.create({
   banner: {
-    position: 'absolute',
-    left: 12,
-    right: 12,
     backgroundColor: '#fffbeb',
     borderWidth: 1.5,
     borderColor: '#fbbf24',
     borderRadius: 14,
     padding: 14,
-    zIndex: 25,
     shadowColor: '#000',
     shadowOpacity: 0.15,
     shadowRadius: 8,

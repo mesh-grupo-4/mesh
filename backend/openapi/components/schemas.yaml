@@ -2577,14 +2577,17 @@ TipoAlerta:
 
 CrearAlertaRequest:
   type: object
-  required: [tipo, mensaje]
+  required: [tipo]
   properties:
     tipo:
       $ref: '#/TipoAlerta'
     mensaje:
       type: string
-      minLength: 1
       maxLength: 280
+      nullable: true
+      description: |
+        Opcional. Sin mensaje, el push va solo con el título del tipo
+        ("Carga de combustible", "Desvío en la ruta", …).
     lat:
       type: number
       minimum: -90
@@ -2603,7 +2606,7 @@ Alerta:
   description: |
     Alerta enviada al grupo durante el viaje (RN-040/041). Todas nacen en estado
     `activa`; la gestión de pausar/cancelar/resolver es de otra US.
-  required: [id, viaje_id, tipo, origen, mensaje, estado, created_at]
+  required: [id, viaje_id, tipo, origen, estado, created_at]
   properties:
     id:
       type: string
@@ -2626,6 +2629,7 @@ Alerta:
       enum: [lider, sistema]
     mensaje:
       type: string
+      nullable: true
     lat:
       type: number
       nullable: true

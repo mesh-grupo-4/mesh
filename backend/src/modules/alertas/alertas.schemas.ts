@@ -11,7 +11,8 @@ export const tipoAlertaSchema = z.enum([
 
 export const crearAlertaSchema = z.object({
   tipo: tipoAlertaSchema,
-  mensaje: z.string().trim().min(1, 'El mensaje no puede estar vacío').max(280),
+  /** Opcional: el tipo ya comunica lo esencial ("Combustible", "Desvío"). */
+  mensaje: z.string().trim().max(280).optional(),
   lat: z.number().min(-90).max(90).optional(),
   lng: z.number().min(-180).max(180).optional(),
 })

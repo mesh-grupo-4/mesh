@@ -12,7 +12,7 @@ CREATE TABLE "alerta" (
     "creada_por_id" UUID,
     "tipo" "TipoAlerta" NOT NULL,
     "origen" "OrigenAlerta" NOT NULL DEFAULT 'lider',
-    "mensaje" TEXT NOT NULL,
+    "mensaje" TEXT,
     "lat" DOUBLE PRECISION,
     "lng" DOUBLE PRECISION,
     "estado" "EstadoAlerta" NOT NULL DEFAULT 'activa',

@@ -17,6 +17,7 @@ import { TIPOS_ALERTA, type TipoAlertaApi } from '@/lib/alertasApi'
 type Props = {
   visible: boolean
   enviando: boolean
+  /** `mensaje` va vacío si el líder no escribió nada: el tipo ya avisa de qué se trata. */
   onPublicar: (tipo: TipoAlertaApi, mensaje: string) => void
   onCancelar: () => void
 }
@@ -34,9 +35,7 @@ export function CrearAlertaSheet({ visible, enviando, onPublicar, onCancelar }: 
   }
 
   const publicar = () => {
-    const texto = mensaje.trim()
-    if (!texto) return
-    onPublicar(tipo, texto)
+    onPublicar(tipo, mensaje.trim())
     setMensaje('')
     setTipo('informacion')
   }
@@ -75,7 +74,7 @@ export function CrearAlertaSheet({ visible, enviando, onPublicar, onCancelar }: 
             })}
           </View>
 
-          <Text style={styles.label}>Mensaje</Text>
+          <Text style={styles.label}>Mensaje (opcional)</Text>
           <TextInput
             style={styles.input}
             value={mensaje}
@@ -103,10 +102,10 @@ export function CrearAlertaSheet({ visible, enviando, onPublicar, onCancelar }: 
                 styles.boton,
                 styles.enviar,
                 pressed && styles.presionado,
-                (!mensaje.trim() || enviando) && styles.deshabilitado,
+                enviando && styles.deshabilitado,
               ]}
               onPress={publicar}
-              disabled={!mensaje.trim() || enviando}
+              disabled={enviando}
               accessibilityRole="button"
               accessibilityLabel="Enviar alerta a todos los integrantes"
             >

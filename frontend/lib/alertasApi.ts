@@ -10,7 +10,7 @@ export type AlertaApi = {
   creada_por_nombre: string | null
   tipo: TipoAlertaApi
   origen: 'lider' | 'sistema'
-  mensaje: string
+  mensaje: string | null
   lat: number | null
   lng: number | null
   estado: 'activa' | 'pausada' | 'cancelada' | 'resuelta'
@@ -19,7 +19,7 @@ export type AlertaApi = {
 
 export async function crearAlerta(
   viajeId: string,
-  input: { tipo: TipoAlertaApi; mensaje: string; lat?: number; lng?: number }
+  input: { tipo: TipoAlertaApi; mensaje?: string; lat?: number; lng?: number }
 ): Promise<AlertaApi> {
   const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}/alertas`), {
     method: 'POST',

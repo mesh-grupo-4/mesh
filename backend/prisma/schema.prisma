@@ -462,7 +462,7 @@ model Alerta {
   creada_por_id String?      @map("creada_por_id") @db.Uuid
   tipo          TipoAlerta
   origen        OrigenAlerta @default(lider)
-  mensaje       String
+  mensaje       String?
   /// RN-043: dónde estaba quien la creó, para ubicarla en el mapa.
   lat           Float?
   lng           Float?

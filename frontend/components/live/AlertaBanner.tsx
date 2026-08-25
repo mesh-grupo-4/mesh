@@ -5,21 +5,21 @@ import { metaTipoAlerta, type AlertaApi } from '@/lib/alertasApi'
 /** US1: la alerta recién llegada, sobre el mapa en vivo. */
 type Props = {
   alerta: AlertaApi
-  topOffset: number
   onCerrar: () => void
   onVerHistorial: () => void
 }
 
-export function AlertaBanner({ alerta, topOffset, onCerrar, onVerHistorial }: Props) {
+/** Lo posiciona el stack de banners de la pantalla en vivo, no él mismo. */
+export function AlertaBanner({ alerta, onCerrar, onVerHistorial }: Props) {
   const meta = metaTipoAlerta(alerta.tipo)
 
   return (
-    <View style={[styles.banner, { top: topOffset, borderColor: meta.color }]}>
+    <View style={[styles.banner, { borderColor: meta.color }]}>
       <Pressable style={styles.contenido} onPress={onVerHistorial}>
         <Text style={styles.titulo}>
           {meta.emoji} {meta.label}
         </Text>
-        <Text style={styles.mensaje}>{alerta.mensaje}</Text>
+        {alerta.mensaje ? <Text style={styles.mensaje}>{alerta.mensaje}</Text> : null}
         {alerta.creada_por_nombre ? (
           <Text style={styles.autor}>{alerta.creada_por_nombre}</Text>
         ) : null}
@@ -39,16 +39,12 @@ export function AlertaBanner({ alerta, topOffset, onCerrar, onVerHistorial }: Pr
 
 const styles = StyleSheet.create({
   banner: {
-    position: 'absolute',
-    left: 12,
-    right: 12,
     flexDirection: 'row',
     alignItems: 'flex-start',
     backgroundColor: '#fff',
     borderWidth: 1.5,
     borderRadius: 14,
     padding: 14,
-    zIndex: 30,
     shadowColor: '#000',
     shadowOpacity: 0.15,
     shadowRadius: 8,
