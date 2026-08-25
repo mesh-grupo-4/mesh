@@ -9,6 +9,7 @@ vi.mock('../config/firebase', () => ({
 vi.mock('../config/prisma', () => ({ prisma: {} }))
 
 const { montajes } = await import('../routes')
+const { docsRouter } = await import('./router')
 const { openapiSpec } = await import('./index')
 
 const METODOS_HTTP = ['get', 'post', 'put', 'patch', 'delete', 'options', 'head'] as const
@@ -57,7 +58,13 @@ function aPlantillaOpenApi(pathExpress: string): string {
 function rutasReales(): string[] {
   const rutas: string[] = ['GET /api/health']
 
-  for (const { prefijo, router } of montajes) {
+  // El docsRouter cuelga de `/api` sin prefijo propio y no está en `montajes`, pero sus
+  // endpoints con handler (`/docs.json`, `/docs/login`) también son superficie real y se
+  // documentan. `GET /api/docs` queda afuera a propósito: swaggerUi.serve es un
+  // middleware `use`, no una `route`, así que no aparece en el stack como tal.
+  const todos = [...montajes, { prefijo: '', router: docsRouter }]
+
+  for (const { prefijo, router } of todos) {
     const stack = (router as unknown as { stack: { route?: { path: string; methods: Record<string, boolean> } }[] })
       .stack
 
@@ -156,11 +163,18 @@ describe('contrato OpenAPI ↔ router de Express', () => {
 
   it('toda operación autenticada documenta 401, y solo /api/health es pública', () => {
     // `security: []` marca una operación como pública (RN-030: el resto exige token).
+    // Solo el health check y las herramientas de la doc —que incluyen el propio login,
+    // mal podría exigir un token— pueden llevarlo.
     const publicas = operaciones()
       .filter(({ op }) => Array.isArray(op.security) && op.security.length === 0)
       .map(({ clave }) => clave)
+      .sort()
 
-    expect(publicas).toEqual(['GET /api/health'])
+    expect(publicas).toEqual([
+      'GET /api/docs.json',
+      'GET /api/health',
+      'POST /api/docs/login',
+    ])
 
     const sin401 = operaciones()
       .filter(({ op }) => !(Array.isArray(op.security) && op.security.length === 0))

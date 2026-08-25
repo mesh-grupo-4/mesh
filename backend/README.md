@@ -122,7 +122,8 @@ Crear un `.env` en `backend/` con los valores del entorno.
 | `PORT` | no | `3000` por defecto |
 | `HOST` | no | `0.0.0.0` por defecto |
 | `CORS_ORIGIN` | no | Origen permitido en producción. Solo aplica a Socket.io |
-| `DOCS_ENABLED` | no | `false` apaga Swagger UI en `/api/docs` |
+| `DOCS_ENABLED` | no | `false` apaga Swagger UI en `/api/docs`, el login incluido |
+| `FIREBASE_WEB_API_KEY` | no | Habilita `POST /api/docs/login`. Es la Web API key del proyecto Firebase, la misma que ya viaja en el bundle del frontend (pública por diseño). Sin ella el login responde 503 |
 
 ### Supabase (entorno del equipo)
 
@@ -251,7 +252,28 @@ todo endpoint nuevo se documenta junto con su implementación.
 | Spec modular (fuente de verdad) | [`openapi/`](openapi/) |
 | Documentación interactiva | `http://localhost:3000/api/docs` |
 | Spec crudo, ya bundleado | `http://localhost:3000/api/docs.json` |
+| Login de la doc | `POST http://localhost:3000/api/docs/login` |
 | Eventos Socket.io | [`docs/websockets.md`](docs/websockets.md) |
+
+### Probar la API desde Swagger UI
+
+La página funciona como un entorno de pruebas completo: **no hace falta conseguir ni
+pegar un token a mano.**
+
+1. Abrí `http://localhost:3000/api/docs`.
+2. Buscá **`POST /api/docs/login`** (tag *Documentación*), *Try it out*, y mandá tu email
+   y contraseña de Firebase.
+3. Listo. La página aplica el ID token sola en el candado *Authorize* y lo reusa en toda
+   operación que pruebes después. Un banner verde confirma la sesión y avisa cuándo vence.
+
+El token dura una hora y sobrevive a las recargas (`persistAuthorization`). Para
+renovarlo, volvé a ejecutar el login; para cerrar sesión, *Authorize* → *Logout*.
+
+Ese endpoint **no es parte del contrato de la API**: la app se autentica contra Firebase
+por su cuenta y el backend solo verifica el ID token (RN-030). Existe para que la doc sea
+usable, vive en [`src/docs/login.ts`](src/docs/login.ts) —fuera de `src/modules/`— y se
+apaga junto con Swagger UI vía `DOCS_ENABLED=false`. Requiere `FIREBASE_WEB_API_KEY`.
+Acepta 10 intentos cada 5 minutos por IP, además del bloqueo propio de Firebase (RN-005).
 
 El spec está partido en un documento raíz (`openapi/openapi.yaml`) que referencia por
 `$ref` un archivo de paths por módulo y los componentes compartidos. Se bundlea a

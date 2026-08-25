@@ -13,8 +13,14 @@ info:
     ## Autenticación
 
     Todos los endpoints requieren `Authorization: Bearer <Firebase ID token>`, salvo
-    `GET /api/health`. El backend verifica el token contra Firebase y resuelve el
-    `Usuario` local; ese UUID es el que identifica a la persona en todo el dominio.
+    `GET /api/health` y las herramientas bajo `/api/docs`. El backend verifica el token
+    contra Firebase y resuelve el `Usuario` local; ese UUID es el que identifica a la
+    persona en todo el dominio.
+
+    **Para probar desde acá**: ejecutá `POST /api/docs/login` con tu email y contraseña
+    y listo — la página aplica el token sola en el candado *Authorize* y lo reusa en
+    todas las operaciones que pruebes después, incluso si recargás. No hace falta
+    copiar ni pegar nada. Para cerrar sesión, *Authorize* → *Logout*.
 
     ## Autorización
 
@@ -94,6 +100,10 @@ tags:
     description: Pedidos de un integrante para que el líder autorice una parada (RN-044).
   - name: Alertas
     description: Alertas que el líder envía al grupo durante el viaje (RN-040/041/043).
+  - name: Documentación
+    description: |
+      Herramientas de esta página, no del contrato que consume la app: el spec crudo y
+      el login que autoriza Swagger UI. `DOCS_ENABLED=false` las apaga.
 
 paths:
   # ── Sistema ────────────────────────────────────────────────────────────────
@@ -223,6 +233,12 @@ paths:
   # ── Alertas ──────────────────────────────────────────────────────────────────
   /api/viajes/{viajeId}/alertas:
     $ref: './paths/alertas.yaml#/AlertasColeccion'
+
+  # ── Herramientas de la documentación ─────────────────────────────────────────
+  /api/docs.json:
+    $ref: './paths/docs.yaml#/SpecCrudo'
+  /api/docs/login:
+    $ref: './paths/docs.yaml#/LoginDocs'
 
 components:
   securitySchemes:

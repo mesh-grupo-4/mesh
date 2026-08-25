@@ -1,0 +1,131 @@
+# Herramientas de la documentación — src/docs/
+# Router: router.ts · Login: login.ts
+#
+# No forman parte del contrato que consume la app: existen para que Swagger UI sea
+# usable como entorno de pruebas. `DOCS_ENABLED=false` los apaga a todos.
+
+SpecCrudo:
+  get:
+    operationId: obtenerSpec
+    summary: Descargar el spec OpenAPI bundleado
+    description: |
+      El mismo documento que alimenta esta página, ya resuelto (sin `$ref` externos),
+      listo para importar en Postman, Insomnia o un generador de clientes.
+
+      Público: no requiere token.
+    tags:
+      - Documentación
+    security: []
+    responses:
+      '200':
+        description: Spec OpenAPI 3.0.3 en JSON.
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Documento OpenAPI completo.
+              additionalProperties: true
+            example:
+              openapi: 3.0.3
+              info:
+                title: Mesh API
+                version: 1.0.0
+              paths: {}
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+LoginDocs:
+  post:
+    operationId: loginDocs
+    summary: Iniciar sesión y autorizar esta página automáticamente
+    description: |
+      Intercambia email y contraseña por un **Firebase ID token**, el mismo que la app
+      obtiene al loguearse.
+
+      **Ejecutalo desde acá con "Try it out" y no hace falta nada más**: la página
+      captura el token de la respuesta y lo carga en el candado *Authorize*, así que
+      todas las operaciones que pruebes después viajan ya autenticadas. El token queda
+      guardado entre recargas.
+
+      Para cerrar sesión, abrí *Authorize* y elegí *Logout*.
+
+      ## Por qué vive bajo `/api/docs`
+
+      La API no tiene login propio: quien se autentica contra Firebase es el cliente, y
+      el backend solo verifica el ID token (RN-030). Este endpoint es una comodidad de
+      la documentación, no parte de la superficie que consume la app, y se apaga junto
+      con Swagger UI vía `DOCS_ENABLED=false`.
+
+      ## Requisitos
+
+      Necesita `FIREBASE_WEB_API_KEY` en el `.env` del backend. Sin esa variable
+      responde 503 con el código `DOCS_LOGIN_NOT_CONFIGURED`.
+
+      Acepta hasta 10 intentos cada 5 minutos por IP; Firebase además aplica su propio
+      bloqueo temporal tras repetidos fallos (RN-005).
+    tags:
+      - Documentación
+    security: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/LoginDocsRequest'
+          example:
+            email: martina@example.com
+            password: cambiar-esto-123
+    responses:
+      '200':
+        description: Sesión iniciada. La página aplica el token sola.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/LoginDocsResponse'
+            example:
+              idToken: eyJhbGciOiJSUzI1NiIsImtpZCI6IjFmMmEzYiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiWjNrOSJ9.firma-recortada
+              expiresIn: 3600
+              email: martina@example.com
+              uid: Z3k9QpLm2NfYbR7sTvXwUa1cDe2
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        description: Email o contraseña incorrectos.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Email o contraseña incorrectos
+              code: INVALID_CREDENTIALS
+      '403':
+        description: La cuenta existe pero está deshabilitada en Firebase.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: La cuenta está deshabilitada
+              code: USER_DISABLED
+      '429':
+        description: Demasiados intentos fallidos (RN-005).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Demasiados intentos fallidos. Esperá unos minutos antes de reintentar.
+              code: TOO_MANY_ATTEMPTS
+      '503':
+        description: Falta `FIREBASE_WEB_API_KEY` en el entorno del backend.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: >-
+                El login de la documentación no está configurado: falta
+                FIREBASE_WEB_API_KEY en el .env del backend.
+              code: DOCS_LOGIN_NOT_CONFIGURED
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'

@@ -82,6 +82,12 @@ ErrorCode:
     - SHARE_SNAPSHOT_INVALID
     - RUTA_INCOMPLETA
     - ROUTE_COMPUTE_FAILED
+    # Login de la documentación (src/docs/login.ts) — fuera del contrato de la app
+    - INVALID_CREDENTIALS
+    - USER_DISABLED
+    - TOO_MANY_ATTEMPTS
+    - LOGIN_FAILED
+    - DOCS_LOGIN_NOT_CONFIGURED
   example: NOT_CREATOR
 
 Error:
@@ -2642,4 +2648,44 @@ Alerta:
     created_at:
       type: string
       format: date-time
+  additionalProperties: false
+
+# ── Login de la documentación (src/docs/login.ts) ──────────────────────────────
+# No es parte del contrato de la API: existe para que Swagger UI pueda autenticarse.
+
+LoginDocsRequest:
+  type: object
+  required: [email, password]
+  properties:
+    email:
+      type: string
+      format: email
+    password:
+      type: string
+      format: password
+      minLength: 1
+      description: |
+        Contraseña de la cuenta en Firebase. Mínimo 8 caracteres al registrarse
+        (RN-003); acá no se revalida el largo, solo que no venga vacía.
+  additionalProperties: false
+
+LoginDocsResponse:
+  type: object
+  required: [idToken, expiresIn, email, uid]
+  properties:
+    idToken:
+      type: string
+      description: |
+        Firebase ID token, el mismo que manda la app en `Authorization: Bearer`.
+        La página lo aplica sola al candado *Authorize*.
+    expiresIn:
+      type: integer
+      description: Segundos de validez del token. Firebase emite tokens de 1 hora.
+    email:
+      type: string
+      format: email
+    uid:
+      type: string
+      nullable: true
+      description: UID de Firebase. Distinto del `id` (UUID) del `Usuario` local.
   additionalProperties: false
