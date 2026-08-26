@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   View,
   Text,
@@ -17,7 +17,12 @@ import { useAuth } from '@/context/AuthContext'
 import { resolveBackendUserId } from '@/lib/apiClient'
 import { listarGrupos, type GrupoListItemApi } from '@/lib/gruposApi'
 import { listarAmigos, type AmigoApi } from '@/lib/amistadesApi'
-import { crearViaje, type TipoActividadApi } from '@/lib/viajesApi'
+import {
+  crearViaje,
+  listarViajesPlanificados,
+  listarViajesFinalizados,
+  type TipoActividadApi,
+} from '@/lib/viajesApi'
 import { ajustarSiQuedoEnPasado, esFechaFutura } from '@/lib/fechaProgramada'
 import { aCamposArg, ahoraEnCamposArg, desdeCamposArg, formatearEnArg } from '@/lib/tiempoArg'
 import {
@@ -81,6 +86,35 @@ export default function CrearViajeScreen() {
   const [showPicker, setShowPicker] = useState(false)
   const [pickerMode, setPickerMode] = useState<'date' | 'time'>('date')
   const [guardando, setGuardando] = useState(false)
+  // Con plantilla ya hay una ruta precargada: se va directo a revisarla/ajustarla.
+  const [conRecorrido, setConRecorrido] = useState(() => Boolean(plantillaId))
+
+  const nombrePorDefectoAplicado = useRef(false)
+
+  useEffect(() => {
+    if (nombrePorDefectoAplicado.current) return
+    let cancelado = false
+    ;(async () => {
+      try {
+        const userId = resolveBackendUserId(backendUserId)
+        const [planificados, finalizados] = await Promise.all([
+          listarViajesPlanificados(userId),
+          listarViajesFinalizados(userId),
+        ])
+        const propios =
+          planificados.filter((v) => v.mi_estado === 'creador').length +
+          finalizados.filter((v) => v.mi_estado === 'creador').length
+        if (cancelado) return
+        nombrePorDefectoAplicado.current = true
+        setNombre((prev) => (prev === '' ? `Viaje ${propios + 1}` : prev))
+      } catch {
+        // Sin nombre por defecto el usuario lo escribe a mano; no es bloqueante.
+      }
+    })()
+    return () => {
+      cancelado = true
+    }
+  }, [backendUserId])
 
   const cargarInvitables = useCallback(async () => {
     setCargandoInvitables(true)
@@ -212,10 +246,17 @@ export default function CrearViajeScreen() {
             : 'Viaje creado correctamente.'
 
       meshAlert('Listo', msg)
-      router.replace({
-        pathname: '/configurar-ruta/[viajeId]',
-        params: { viajeId: viaje.id, userId },
-      })
+      if (conRecorrido) {
+        router.replace({
+          pathname: '/configurar-ruta/[viajeId]',
+          params: { viajeId: viaje.id, userId },
+        })
+      } else {
+        router.replace({
+          pathname: '/viaje/[viajeId]',
+          params: { viajeId: viaje.id, userId },
+        })
+      }
     } catch (e: unknown) {
       meshAlert('Error', e instanceof Error ? e.message : 'No se pudo crear el viaje.')
     } finally {
@@ -376,6 +417,44 @@ export default function CrearViajeScreen() {
         </Pressable>
       </View>
 
+      {plantillaId ? null : (
+        <>
+          <Text style={[styles.seccion, { color: theme.text }]}>Recorrido</Text>
+          <View style={styles.filaModalidad}>
+            <Pressable
+              style={[
+                styles.opcionModalidad,
+                { backgroundColor: theme.surface, borderColor: theme.border },
+                !conRecorrido && { borderColor: theme.accentLine, backgroundColor: theme.accentWeak },
+              ]}
+              onPress={() => setConRecorrido(false)}
+            >
+              <Text style={[styles.opcionTitulo, { color: !conRecorrido ? theme.accent : theme.text }]}>
+                Sin recorrido
+              </Text>
+              <Text style={[styles.opcionHint, { color: theme.textDim }]}>
+                Lo agregás después si hace falta
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[
+                styles.opcionModalidad,
+                { backgroundColor: theme.surface, borderColor: theme.border },
+                conRecorrido && { borderColor: theme.accentLine, backgroundColor: theme.accentWeak },
+              ]}
+              onPress={() => setConRecorrido(true)}
+            >
+              <Text style={[styles.opcionTitulo, { color: conRecorrido ? theme.accent : theme.text }]}>
+                Con recorrido
+              </Text>
+              <Text style={[styles.opcionHint, { color: theme.textDim }]}>
+                Trazá origen, destino y paradas
+              </Text>
+            </Pressable>
+          </View>
+        </>
+      )}
+
       {esGrupal && (
         <>
           <Text style={[styles.seccion, { color: theme.text }]}>A quién invitar</Text>
@@ -472,7 +551,7 @@ export default function CrearViajeScreen() {
         onPress={() => void handleCrear()}
         disabled={guardando || fechaInvalida}
         loading={guardando}
-        icon="map"
+        icon={conRecorrido ? 'map' : 'check'}
         style={{ marginTop: 24 }}
       >
         Crear viaje planificado
