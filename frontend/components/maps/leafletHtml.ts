@@ -8,6 +8,7 @@ export type LeafletTile = {
   urlTemplate: string
   maximumZ: number
   flipY: boolean
+  filter?: 'dark'
 }
 
 type BuildHtmlArgs = {
@@ -31,6 +32,7 @@ export function buildLeafletHtml({ centerLat, centerLng, zoom, tile, interactive
     #map { height: 100%; width: 100%; }
     .leaflet-control-attribution { display: none; }
     .mesh-marker { background: transparent; border: none; }
+    .leaflet-tile-pane.tile-filter-dark { filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9); }
   </style>
 </head>
 <body>
@@ -56,6 +58,12 @@ export function buildLeafletHtml({ centerLat, centerLng, zoom, tile, interactive
     var markersLayer = L.layerGroup().addTo(map);
     var polyLayer = null;
 
+    function applyTileFilter(filter) {
+      var pane = map.getPane('tilePane');
+      if (pane) pane.classList.toggle('tile-filter-dark', filter === 'dark');
+    }
+    applyTileFilter(${JSON.stringify(tile.filter ?? null)});
+
     function postToNative(obj) {
       try {
         if (window.ReactNativeWebView) {
@@ -65,9 +73,10 @@ export function buildLeafletHtml({ centerLat, centerLng, zoom, tile, interactive
     }
 
     window.__mesh = {
-      setTileLayer: function (urlTemplate, maxZoom, flipY) {
+      setTileLayer: function (urlTemplate, maxZoom, flipY, filter) {
         map.removeLayer(tileLayer);
         tileLayer = L.tileLayer(urlTemplate, { maxZoom: maxZoom, tms: flipY }).addTo(map);
+        applyTileFilter(filter || null);
       },
       setMarkers: function (list) {
         markersLayer.clearLayers();

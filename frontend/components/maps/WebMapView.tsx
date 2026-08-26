@@ -94,7 +94,7 @@ export const WebMapView = forwardRef<WebMapViewHandle, Props>(function WebMapVie
   useEffect(() => {
     if (!ready) return
     run(
-      `window.__mesh.setTileLayer(${JSON.stringify(tile.urlTemplate)}, ${tile.maximumZ}, ${tile.flipY})`
+      `window.__mesh.setTileLayer(${JSON.stringify(tile.urlTemplate)}, ${tile.maximumZ}, ${tile.flipY}, ${JSON.stringify(tile.filter ?? null)})`
     )
   }, [ready, tile, run])
 

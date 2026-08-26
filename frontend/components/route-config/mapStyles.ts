@@ -10,6 +10,8 @@ export type MapStyleConfig = {
   flipY: boolean
   routeStrokeColor: string
   attribution: string
+  /** Filtro CSS aplicado sobre las teselas en el WebView (ver leafletHtml.ts). */
+  filter?: 'dark'
 }
 
 /** Capas de teselas open source — sin APIs comerciales (Google/Mapbox). */
@@ -18,23 +20,28 @@ export const MAP_STYLES: MapStyleConfig[] = [
     id: 'standard',
     label: 'Mapa',
     icon: 'map',
-    // tile.openstreetmap.org bloquea apps móviles sin User-Agent propio (403, osm.wiki/Blocked);
-    // CARTO sirve los mismos datos OSM vía CDN gratuito apto para apps.
-    urlTemplate: 'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+    // CARTO (basemaps.cartocdn.com) exige API key desde 2025 y sin ella
+    // devuelve una tesela fija con "API key required" — se usa el tile server
+    // oficial de OSM en su lugar.
+    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     maximumZ: 19,
     flipY: false,
     routeStrokeColor: '#2563eb',
-    attribution: '© CARTO · © OpenStreetMap',
+    attribution: '© OpenStreetMap contributors',
   },
   {
     id: 'dark',
     label: 'Oscuro',
     icon: 'moon',
-    urlTemplate: 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+    // Mismo tile server que "standard": el modo oscuro se logra con un filtro
+    // CSS (ver leafletHtml.ts) porque no existe un tile server OSM oscuro
+    // gratuito sin API key.
+    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     maximumZ: 19,
     flipY: false,
     routeStrokeColor: '#60a5fa',
-    attribution: '© CARTO · © OpenStreetMap',
+    attribution: '© OpenStreetMap contributors',
+    filter: 'dark',
   },
   {
     id: 'satellite',
