@@ -116,6 +116,7 @@ export default function ConfigurarRutaScreen() {
     viajeId: viajeId ?? '',
     userId,
     tipoActividad,
+    velocidadEsperada,
     onSaved,
     sheetRef,
   })

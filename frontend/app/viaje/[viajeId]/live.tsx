@@ -123,6 +123,7 @@ export default function ViajeLiveScreen() {
     viajeId: viajeId ?? '',
     userId,
     nameByUserId,
+    selfSeed: initialCenter ? { lat: initialCenter.latitude, lng: initialCenter.longitude } : null,
   })
 
   const myPosition = useMemo(() => {

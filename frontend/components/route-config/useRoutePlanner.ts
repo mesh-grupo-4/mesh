@@ -84,6 +84,9 @@ type UseRoutePlannerArgs = {
   viajeId: string
   userId: string
   tipoActividad?: TipoActividadApi
+  /** Velocidad esperada del viaje (km/h): reemplaza la duración de OSRM, que
+   * el demo público siempre calcula para auto sin importar el perfil pedido. */
+  velocidadEsperada?: number
   onSaved?: () => void
   sheetRef?: RefObject<RouteBottomSheetHandle | null>
 }
@@ -92,6 +95,7 @@ export function useRoutePlanner({
   viajeId,
   userId,
   tipoActividad,
+  velocidadEsperada,
   onSaved,
   sheetRef,
 }: UseRoutePlannerArgs) {
@@ -235,7 +239,16 @@ export function useRoutePlanner({
       try {
         const res = await calcularRutaOsrm(movilidad, puntosRef.current)
         if (cancel) return
-        setRutaOk(res)
+        // El demo público de OSRM (router.project-osrm.org) sólo tiene el grafo
+        // de auto: ignora el perfil pedido y devuelve la misma duration para
+        // driving/cycling/walking. Recalculamos con la velocidad de la
+        // actividad para que la demora no salga siempre "a auto".
+        const duracionCorregida =
+          velocidadEsperada && velocidadEsperada > 0
+            ? (res.distanceM / 1000 / velocidadEsperada) * 3600
+            : res.durationSec
+        const resCorregido = { ...res, durationSec: duracionCorregida }
+        setRutaOk(resCorregido)
         setRouteLineLatLng(res.polylineLatLng)
         setFitRouteCoords(
           res.polylineLatLng.map(([lat, lng]) => ({ latitude: lat, longitude: lng }))
@@ -256,7 +269,7 @@ export function useRoutePlanner({
     return () => {
       cancel = true
     }
-  }, [rutaKey, movilidad, modoSeleccionMapa])
+  }, [rutaKey, movilidad, modoSeleccionMapa, velocidadEsperada])
 
   const actualizarWaypoint = useCallback(
     (

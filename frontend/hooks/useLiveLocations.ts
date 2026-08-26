@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { DeviceEventEmitter } from 'react-native'
 
 import { connectMeshSocket } from '@/lib/meshSocket'
 import type { EstadoIntegranteApi } from '@/lib/paradasApi'
@@ -36,6 +37,18 @@ type Options = {
   viajeId: string
   userId: string
   nameByUserId?: Record<string, string>
+  /** Última posición GPS conocida en el dispositivo, para pintar "vos" sin
+   * esperar a que la posición vaya y vuelva por el backend. */
+  selfSeed?: { lat: number; lng: number } | null
+}
+
+type LocationTick = {
+  viajeId: string
+  userId: string
+  lat: number
+  lng: number
+  accuracy?: number
+  recordedAt: string
 }
 
 function rowToMember(row: UbicacionVivaSnapshotApi, names: Record<string, string>): MemberSnapshot {
@@ -92,7 +105,7 @@ function socketPayloadToMember(
   }
 }
 
-export function useLiveLocations({ viajeId, userId, nameByUserId = {} }: Options) {
+export function useLiveLocations({ viajeId, userId, nameByUserId = {}, selfSeed = null }: Options) {
   const [members, setMembers] = useState<Record<string, MemberSnapshot>>({})
   const [realtimeOk, setRealtimeOk] = useState(true)
   const [staleTick, setStaleTick] = useState(0)
@@ -134,7 +147,15 @@ export function useLiveLocations({ viajeId, userId, nameByUserId = {} }: Options
       for (const row of rows) {
         next[row.usuarioId] = rowToMember(row, namesRef.current)
       }
-      setMembers(next)
+      setMembers((prev) => {
+        // El snapshot del backend puede no traer todavía la fila propia (el
+        // primer PUT de ubicación puede tardar unos segundos): no le pisamos
+        // el pin local a "vos" con un snapshot que aún no la tiene.
+        if (!next[userId] && prev[userId]) {
+          return { ...next, [userId]: prev[userId] }
+        }
+        return next
+      })
     } catch {
       /* red intermitente */
     }
@@ -143,6 +164,50 @@ export function useLiveLocations({ viajeId, userId, nameByUserId = {} }: Options
   useEffect(() => {
     void loadSnapshot()
   }, [loadSnapshot])
+
+  // "Vos" en el mapa no debería depender de que el ping GPS complete el viaje
+  // de ida y vuelta por el backend: lo pintamos con la última posición local
+  // apenas se conoce y lo actualizamos con cada tick del tracking (cada 5 s).
+  useEffect(() => {
+    if (!selfSeed || !userId.trim()) return
+    setMembers((prev) => {
+      if (prev[userId]) return prev
+      return {
+        ...prev,
+        [userId]: {
+          usuarioId: userId,
+          lat: selfSeed.lat,
+          lng: selfSeed.lng,
+          precision: null,
+          updatedAt: new Date().toISOString(),
+          nombre: namesRef.current[userId] || 'Vos',
+          estado: 'en_movimiento',
+          paradaDesde: null,
+        },
+      }
+    })
+  }, [selfSeed, userId])
+
+  useEffect(() => {
+    if (!viajeId || !userId.trim()) return
+    const sub = DeviceEventEmitter.addListener('mesh:location_tick', (tick: LocationTick) => {
+      if (tick.viajeId !== viajeId || tick.userId !== userId) return
+      mergeMember(
+        {
+          usuarioId: userId,
+          lat: tick.lat,
+          lng: tick.lng,
+          precision: tick.accuracy ?? null,
+          updatedAt: tick.recordedAt,
+          nombre: namesRef.current[userId] || 'Vos',
+          estado: 'en_movimiento',
+          paradaDesde: null,
+        },
+        { conservarEstado: true }
+      )
+    })
+    return () => sub.remove()
+  }, [viajeId, userId, mergeMember])
 
   // Refresco de respaldo. Vive en su propio efecto para que cambiar el período
   // no re-suscriba el socket ni el canal de Supabase.
