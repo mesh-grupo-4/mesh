@@ -1,9 +1,9 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
 import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native'
-import MapView, { Marker, Polyline, PROVIDER_DEFAULT, UrlTile } from 'react-native-maps'
-import type { Region } from 'react-native-maps'
 
 import { useTheme } from '@/components/MeshUI'
+import { WebMapView, zoomFromLatDelta, type WebMapViewHandle, type MarkerSpec, type LatLng } from '@/components/maps/WebMapView'
+import { pinMarkerHtml, PIN_SIZE, PIN_ANCHOR } from '@/components/maps/pinMarker'
 
 import { getMapStyle, type MapStyleId } from './mapStyles'
 import {
@@ -33,10 +33,8 @@ type Props = {
   onCameraTargetApplied?: () => void
   fitRouteCoords?: { latitude: number; longitude: number }[] | null
   mapPickMode?: boolean
-  onRegionChangeComplete?: (region: Region) => void
+  onRegionChangeComplete?: (region: LatLng) => void
   calculando?: boolean
-  /** Por defecto true; desactivar en previews de rutas ajenas. */
-  showsUserLocation?: boolean
   /** Padding inferior al ajustar la ruta (default 280 del editor). */
   fitBottomPadding?: number
 }
@@ -53,38 +51,27 @@ export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function Route
     mapPickMode = false,
     onRegionChangeComplete,
     calculando = false,
-    showsUserLocation = true,
     fitBottomPadding = 280,
   },
   ref
 ) {
   const theme = useTheme()
-  const mapRef = useRef<MapView>(null)
+  const mapRef = useRef<WebMapViewHandle>(null)
   const capa = getMapStyle(mapStyle)
 
   useImperativeHandle(ref, () => ({
     fitRoute(coords) {
-      if (!mapRef.current || coords.length < 2) return
-      mapRef.current.fitToCoordinates(coords, {
-        edgePadding: { top: 80, right: 40, bottom: fitBottomPadding, left: 40 },
-        animated: true,
-      })
+      if (coords.length < 2) return
+      mapRef.current?.fitBounds(coords, { top: 80, right: 40, bottom: fitBottomPadding, left: 40 }, true)
     },
     focusPoint(target) {
-      if (!mapRef.current) return
-      mapRef.current.animateCamera(
-        {
-          center: target,
-          zoom: 15,
-        },
-        { duration: 400 }
-      )
+      mapRef.current?.animateTo(target, 15)
     },
   }))
 
   useEffect(() => {
     if (!cameraTarget) return
-    mapRef.current?.animateCamera({ center: cameraTarget, zoom: 15 }, { duration: 400 })
+    mapRef.current?.animateTo(cameraTarget, 15)
     onCameraTargetApplied?.()
   }, [cameraTarget, onCameraTargetApplied])
 
@@ -92,54 +79,37 @@ export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function Route
     if (mapPickMode) return
     const coords = fitRouteCoords ?? (routeLineLatLng?.map(([lat, lng]) => ({ latitude: lat, longitude: lng })) ?? null)
     if (!coords || coords.length < 2) return
-    mapRef.current?.fitToCoordinates(coords, {
-      edgePadding: { top: 80, right: 40, bottom: fitBottomPadding, left: 40 },
-      animated: true,
-    })
-  }, [fitRouteCoords, routeLineLatLng, mapPickMode])
+    mapRef.current?.fitBounds(coords, { top: 80, right: 40, bottom: fitBottomPadding, left: 40 }, true)
+  }, [fitRouteCoords, routeLineLatLng, mapPickMode, fitBottomPadding])
 
-  const markers = waypoints.filter(waypointTieneCoords)
+  const markers = useMemo<MarkerSpec[]>(() => {
+    if (mapPickMode) return []
+    return waypoints.filter(waypointTieneCoords).map((w) => ({
+      id: w.id,
+      lat: w.lat,
+      lng: w.lon,
+      html: pinMarkerHtml(colorMarcador(w.type, theme)),
+      size: PIN_SIZE,
+      anchor: PIN_ANCHOR,
+      popup: w.name || undefined,
+    }))
+  }, [waypoints, mapPickMode, theme])
 
   return (
     <View style={StyleSheet.absoluteFillObject}>
-      <MapView
+      <WebMapView
         ref={mapRef}
-        style={StyleSheet.absoluteFillObject}
-        provider={PROVIDER_DEFAULT}
-        initialRegion={initialRegion}
-        showsUserLocation={showsUserLocation}
-        showsMyLocationButton={Platform.OS === 'android' && !mapPickMode && showsUserLocation}
-        mapType={Platform.OS === 'android' ? 'none' : 'mutedStandard'}
+        initialCenter={{ latitude: initialRegion.latitude, longitude: initialRegion.longitude }}
+        initialZoom={zoomFromLatDelta(initialRegion.latitudeDelta)}
+        tile={capa}
+        markers={markers}
+        polyline={
+          routeLineLatLng && routeLineLatLng.length > 1 && !mapPickMode
+            ? { coords: routeLineLatLng, color: theme.accent, width: ROUTE_POLYLINE_WIDTH }
+            : null
+        }
         onRegionChangeComplete={onRegionChangeComplete}
-      >
-        <UrlTile
-          key={capa.id}
-          urlTemplate={capa.urlTemplate}
-          maximumZ={capa.maximumZ}
-          flipY={capa.flipY}
-          zIndex={-1}
-        />
-        {routeLineLatLng && routeLineLatLng.length > 1 && !mapPickMode ? (
-          <Polyline
-            coordinates={routeLineLatLng.map(([lat, lng]) => ({
-              latitude: lat,
-              longitude: lng,
-            }))}
-            strokeColor={theme.accent}
-            strokeWidth={ROUTE_POLYLINE_WIDTH}
-          />
-        ) : null}
-        {!mapPickMode
-          ? markers.map((w) => (
-              <Marker
-                key={w.id}
-                coordinate={{ latitude: w.lat, longitude: w.lon }}
-                title={w.name || undefined}
-                pinColor={colorMarcador(w.type, theme)}
-              />
-            ))
-          : null}
-      </MapView>
+      />
 
       {calculando && !mapPickMode ? (
         <View style={[styles.loadingOverlay, { backgroundColor: theme.scrim }]} pointerEvents="none">

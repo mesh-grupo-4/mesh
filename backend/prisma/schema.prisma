@@ -162,11 +162,12 @@ model Grupo {
   fecha_creacion DateTime @default(now()) @map("fecha_creacion")
   lider_id       String   @map("lider_id") @db.Uuid
 
-  lider                Usuario           @relation("GrupoLider", fields: [lider_id], references: [id], onDelete: Restrict)
-  miembros             GrupoMiembro[]
-  viajes               ViajeGrupo[]
-  invitaciones_destino GrupoInvitacion[] @relation("InvitacionesDestino")
-  invitaciones_origen  GrupoInvitacion[] @relation("InvitacionesOrigen")
+  lider                    Usuario           @relation("GrupoLider", fields: [lider_id], references: [id], onDelete: Restrict)
+  miembros                 GrupoMiembro[]
+  viajes                   ViajeGrupo[]
+  viaje_integrantes_origen ViajeIntegrante[] @relation("ViajeIntegranteGrupoOrigen")
+  invitaciones_destino     GrupoInvitacion[] @relation("InvitacionesDestino")
+  invitaciones_origen     GrupoInvitacion[] @relation("InvitacionesOrigen")
 
   @@map("grupo")
 }
@@ -279,15 +280,17 @@ model ViajeGrupo {
 }
 
 model ViajeIntegrante {
-  viaje_id     String                @map("viaje_id") @db.Uuid
-  usuario_id   String                @map("usuario_id") @db.Uuid
-  estado       EstadoViajeIntegrante
-  origen       OrigenViajeIntegrante
-  created_at   DateTime              @default(now()) @map("created_at")
-  fecha_salida DateTime?             @map("fecha_salida")
+  viaje_id        String                @map("viaje_id") @db.Uuid
+  usuario_id      String                @map("usuario_id") @db.Uuid
+  estado          EstadoViajeIntegrante
+  origen          OrigenViajeIntegrante
+  grupo_origen_id String?               @map("grupo_origen_id") @db.Uuid
+  created_at      DateTime              @default(now()) @map("created_at")
+  fecha_salida    DateTime?             @map("fecha_salida")
 
-  viaje   Viaje   @relation(fields: [viaje_id], references: [id], onDelete: Cascade)
-  usuario Usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  viaje        Viaje   @relation(fields: [viaje_id], references: [id], onDelete: Cascade)
+  usuario      Usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  grupo_origen Grupo?  @relation("ViajeIntegranteGrupoOrigen", fields: [grupo_origen_id], references: [id], onDelete: SetNull)
 
   @@id([viaje_id, usuario_id])
   @@index([usuario_id, estado])

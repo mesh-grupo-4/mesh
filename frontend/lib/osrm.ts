@@ -9,7 +9,7 @@ const OSRM_BASE = 'https://router.project-osrm.org'
 
 export type OsrmRouteResult = {
   linestring: GeoJsonLineString
-  /** Coordenadas [lat, lng][] para react-native-maps Polyline */
+  /** Coordenadas [lat, lng][] para dibujar la polyline en el mapa */
   polylineLatLng: [number, number][]
   distanceM: number
   durationSec: number

@@ -1,10 +1,11 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
 import { Platform, StyleSheet, Text, View } from 'react-native'
-import MapView, { Polyline, PROVIDER_DEFAULT, UrlTile } from 'react-native-maps'
 
-import { MemberMapMarker } from '@/components/live/MemberMapMarker'
 import { getMapStyle, type MapStyleId } from '@/components/route-config/mapStyles'
+import { WebMapView, zoomFromLatDelta, type WebMapViewHandle, type MarkerSpec } from '@/components/maps/WebMapView'
 import type { MemberLocation } from '@/hooks/useLiveLocations'
+
+import { memberMarkerHtml } from './memberMarker'
 
 export type LiveMapViewHandle = {
   focusOnCoordinate: (lat: number, lng: number) => void
@@ -22,65 +23,53 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
   { routeLineLatLng, members, currentUserId, initialCenter, mapStyle },
   ref
 ) {
-  const mapRef = useRef<MapView>(null)
+  const mapRef = useRef<WebMapViewHandle>(null)
   const capa = getMapStyle(mapStyle)
   const centeredOnce = useRef(false)
 
   useImperativeHandle(ref, () => ({
     focusOnCoordinate(lat, lng) {
-      mapRef.current?.animateCamera({ center: { latitude: lat, longitude: lng }, zoom: 15 }, { duration: 400 })
+      mapRef.current?.animateTo({ latitude: lat, longitude: lng }, 15)
     },
   }))
 
   useEffect(() => {
     if (!initialCenter || centeredOnce.current) return
     centeredOnce.current = true
-    mapRef.current?.animateCamera({ center: initialCenter, zoom: 15 }, { duration: 400 })
+    mapRef.current?.animateTo(initialCenter, 15)
   }, [initialCenter])
 
-  const fallbackRegion = initialCenter
-    ? {
-        latitude: initialCenter.latitude,
-        longitude: initialCenter.longitude,
-        latitudeDelta: 0.04,
-        longitudeDelta: 0.04,
-      }
-    : {
-        latitude: -31.4167,
-        longitude: -64.1833,
-        latitudeDelta: 0.08,
-        longitudeDelta: 0.08,
-      }
+  const fallbackCenter = initialCenter ?? { latitude: -31.4167, longitude: -64.1833 }
+  const fallbackZoom = zoomFromLatDelta(initialCenter ? 0.04 : 0.08)
+
+  const markers = useMemo<MarkerSpec[]>(
+    () =>
+      members.map((m) => ({
+        id: m.usuarioId,
+        lat: m.lat,
+        lng: m.lng,
+        html: memberMarkerHtml(m, m.usuarioId === currentUserId),
+        size: [48, 48],
+        anchor: [24, 24],
+        zIndexOffset: m.usuarioId === currentUserId ? 1000 : 0,
+      })),
+    [members, currentUserId]
+  )
 
   return (
     <View style={styles.container}>
-      <MapView
+      <WebMapView
         ref={mapRef}
-        style={StyleSheet.absoluteFillObject}
-        provider={PROVIDER_DEFAULT}
-        initialRegion={fallbackRegion}
-        showsUserLocation
-        showsMyLocationButton={false}
-        mapType={Platform.OS === 'android' ? 'none' : 'mutedStandard'}
-      >
-        <UrlTile
-          key={capa.id}
-          urlTemplate={capa.urlTemplate}
-          maximumZ={capa.maximumZ}
-          flipY={capa.flipY}
-          zIndex={-1}
-        />
-        {routeLineLatLng && routeLineLatLng.length > 1 ? (
-          <Polyline
-            coordinates={routeLineLatLng.map(([lat, lng]) => ({ latitude: lat, longitude: lng }))}
-            strokeColor={capa.routeStrokeColor}
-            strokeWidth={5}
-          />
-        ) : null}
-        {members.map((m) => (
-          <MemberMapMarker key={m.usuarioId} member={m} isMe={m.usuarioId === currentUserId} />
-        ))}
-      </MapView>
+        initialCenter={fallbackCenter}
+        initialZoom={fallbackZoom}
+        tile={capa}
+        markers={markers}
+        polyline={
+          routeLineLatLng && routeLineLatLng.length > 1
+            ? { coords: routeLineLatLng, color: capa.routeStrokeColor, width: 5 }
+            : null
+        }
+      />
       <View
         style={[
           styles.attribution,

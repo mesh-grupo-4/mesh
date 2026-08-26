@@ -1727,12 +1727,17 @@ RespuestaInvitacionViaje:
 
 ParticipanteViaje:
   type: object
-  description: Integrante del viaje, con el estado de su invitación y cómo llegó.
+  description: >-
+    Integrante del viaje, con el estado de su invitación, cómo llegó, el rol
+    heredado y si llegó a unirse de verdad una vez que el viaje arrancó.
   required:
     - usuario
     - estado
     - origen
     - created_at
+    - rol
+    - union_efectiva
+    - grupo_origen
   properties:
     usuario:
       type: object
@@ -1761,6 +1766,33 @@ ParticipanteViaje:
     created_at:
       type: string
       format: date-time
+    rol:
+      allOf:
+        - $ref: '#/RolMiembro'
+      description: >-
+        `lider` si es el creador del viaje, o el rol que tiene en el grupo
+        desde el que fue invitado (`grupo_origen`). `participante` por
+        defecto si no vino de un grupo.
+    union_efectiva:
+      type: boolean
+      description: >-
+        Tiene al menos un registro GPS posterior al inicio real del viaje.
+        Es `false` para todos mientras el viaje no haya arrancado
+        (`fecha_inicio_real` nula), incluso si ya `estado = confirmado`.
+    grupo_origen:
+      type: object
+      nullable: true
+      description: Grupo desde el que se lo invitó al viaje, si vino de uno.
+      required:
+        - id
+        - nombre
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+      additionalProperties: false
   additionalProperties: false
 
 EstadisticasUsuario:

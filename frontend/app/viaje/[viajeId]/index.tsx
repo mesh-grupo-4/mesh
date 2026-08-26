@@ -699,10 +699,16 @@ export default function ViajeDetalleScreen() {
             {/* Participants list */}
             {viaje.es_grupal && (
               <View style={styles.participantsSection}>
-                <Text style={[styles.sectionTitle, { color: theme.text }]}>
-                  Participantes · {participantes.length}
-                </Text>
-                {participantes.map((part) => {
+                <Pressable
+                  style={styles.sectionTitleRow}
+                  onPress={() => router.push({ pathname: '/viaje/[viajeId]/miembros', params: { viajeId } })}
+                >
+                  <Text style={[styles.sectionTitle, { color: theme.text }]}>
+                    Participantes · {participantes.length}
+                  </Text>
+                  <Feather name="chevron-right" size={18} color={theme.textDim} />
+                </Pressable>
+                {participantes.slice(0, 4).map((part) => {
                   const dummyPerson = {
                     nombre: part.usuario.nombre,
                     apellido: '',
@@ -720,6 +726,16 @@ export default function ViajeDetalleScreen() {
                     </View>
                   )
                 })}
+                {participantes.length > 4 && (
+                  <Btn
+                    variant="secondary"
+                    block
+                    icon="users"
+                    onPress={() => router.push({ pathname: '/viaje/[viajeId]/miembros', params: { viajeId } })}
+                  >
+                    Ver todos los miembros
+                  </Btn>
+                )}
               </View>
             )}
           </ScrollView>
@@ -958,6 +974,11 @@ const styles = StyleSheet.create({
   },
   participantsSection: {
     gap: 10,
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   sectionTitle: {
     fontSize: 15.5,

@@ -1,8 +1,8 @@
 import * as Crypto from 'expo-crypto'
 import * as Location from 'expo-location'
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
-import type { Region } from 'react-native-maps'
 import { meshAlert } from '@/lib/meshAlert'
+import type { LatLng } from '@/components/maps/WebMapView'
 
 import {
   calcularRutaOsrm,
@@ -331,7 +331,7 @@ export function useRoutePlanner({
     sheetRef?.current?.snapToDefault()
   }, [sheetRef])
 
-  const onRegionChangeComplete = useCallback((region: Region) => {
+  const onRegionChangeComplete = useCallback((region: LatLng) => {
     if (!modoSeleccionMapa) return
     setCentroMapaPendiente({ lat: region.latitude, lon: region.longitude })
   }, [modoSeleccionMapa])

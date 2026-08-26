@@ -1,0 +1,122 @@
+/**
+ * Mapa embebido: Leaflet + teselas OSM/CARTO (sin SDK de Google/Mapbox).
+ * Comunicación RN -> WebView vía `injectJavaScript` llamando a `window.__mesh.*`.
+ * Comunicación WebView -> RN vía `ReactNativeWebView.postMessage` (JSON).
+ */
+
+export type LeafletTile = {
+  urlTemplate: string
+  maximumZ: number
+  flipY: boolean
+}
+
+type BuildHtmlArgs = {
+  centerLat: number
+  centerLng: number
+  zoom: number
+  tile: LeafletTile
+  interactive: boolean
+}
+
+export function buildLeafletHtml({ centerLat, centerLng, zoom, tile, interactive }: BuildHtmlArgs): string {
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; background: #e5e7eb; }
+    #map { height: 100%; width: 100%; }
+    .leaflet-control-attribution { display: none; }
+    .mesh-marker { background: transparent; border: none; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <script>
+    var map = L.map('map', {
+      zoomControl: ${interactive},
+      dragging: ${interactive},
+      touchZoom: ${interactive},
+      doubleClickZoom: ${interactive},
+      scrollWheelZoom: ${interactive},
+      boxZoom: ${interactive},
+      keyboard: ${interactive},
+      tap: ${interactive},
+      attributionControl: false,
+    }).setView([${centerLat}, ${centerLng}], ${zoom});
+
+    var tileLayer = L.tileLayer(${JSON.stringify(tile.urlTemplate)}, {
+      maxZoom: ${tile.maximumZ},
+      tms: ${tile.flipY},
+    }).addTo(map);
+
+    var markersLayer = L.layerGroup().addTo(map);
+    var polyLayer = null;
+
+    function postToNative(obj) {
+      try {
+        if (window.ReactNativeWebView) {
+          window.ReactNativeWebView.postMessage(JSON.stringify(obj));
+        }
+      } catch (e) {}
+    }
+
+    window.__mesh = {
+      setTileLayer: function (urlTemplate, maxZoom, flipY) {
+        map.removeLayer(tileLayer);
+        tileLayer = L.tileLayer(urlTemplate, { maxZoom: maxZoom, tms: flipY }).addTo(map);
+      },
+      setMarkers: function (list) {
+        markersLayer.clearLayers();
+        (list || []).forEach(function (m) {
+          var size = m.size || [48, 48];
+          var anchor = m.anchor || [size[0] / 2, size[1] / 2];
+          var icon = L.divIcon({
+            className: 'mesh-marker',
+            html: m.html,
+            iconSize: size,
+            iconAnchor: anchor,
+          });
+          var marker = L.marker([m.lat, m.lng], {
+            icon: icon,
+            zIndexOffset: m.zIndexOffset || 0,
+          }).addTo(markersLayer);
+          if (m.popup) marker.bindPopup(m.popup);
+        });
+      },
+      setPolyline: function (coords, color, width) {
+        if (polyLayer) {
+          map.removeLayer(polyLayer);
+          polyLayer = null;
+        }
+        if (coords && coords.length > 1) {
+          polyLayer = L.polyline(coords, { color: color, weight: width, opacity: 0.88 }).addTo(map);
+        }
+      },
+      fitBounds: function (coords, padding, animated) {
+        if (!coords || coords.length < 2) return;
+        var bounds = L.latLngBounds(coords);
+        map.fitBounds(bounds, {
+          paddingTopLeft: [padding.left, padding.top],
+          paddingBottomRight: [padding.right, padding.bottom],
+          animate: !!animated,
+        });
+      },
+      animateTo: function (lat, lng, zoom) {
+        map.setView([lat, lng], zoom == null ? map.getZoom() : zoom, { animate: true });
+      },
+    };
+
+    map.on('moveend', function () {
+      var c = map.getCenter();
+      postToNative({ type: 'regionChangeComplete', lat: c.lat, lng: c.lng });
+    });
+
+    postToNative({ type: 'ready' });
+  </script>
+</body>
+</html>`
+}

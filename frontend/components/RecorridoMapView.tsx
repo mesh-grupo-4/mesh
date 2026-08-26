@@ -1,13 +1,14 @@
-import { useEffect, useRef } from 'react'
-import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native'
-import MapView, { Marker, Polyline, PROVIDER_DEFAULT, UrlTile } from 'react-native-maps'
+import { useEffect, useMemo, useRef } from 'react'
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
 
 import { useTheme } from '@/components/MeshUI'
+import { WebMapView, zoomFromLatDelta, type WebMapViewHandle, type MarkerSpec } from '@/components/maps/WebMapView'
+import { pinMarkerHtml, PIN_SIZE, PIN_ANCHOR } from '@/components/maps/pinMarker'
 import { getMapStyle } from '@/components/route-config/mapStyles'
 
 /**
  * US2: dibuja la traza GPS realmente recorrida en un viaje finalizado.
- * OpenStreetMap vía UrlTile, igual que el resto de los mapas de la app.
+ * OpenStreetMap vía Leaflet embebido, igual que el resto de los mapas de la app.
  */
 type Props = {
   puntos: [number, number][]
@@ -19,20 +20,47 @@ const PADDING_FIT = { top: 40, right: 40, bottom: 40, left: 40 }
 
 export function RecorridoMapView({ puntos, cargando = false, altura = 220 }: Props) {
   const theme = useTheme()
-  const mapRef = useRef<MapView>(null)
+  const mapRef = useRef<WebMapViewHandle>(null)
   const capa = getMapStyle('standard')
   const hayTraza = puntos.length > 1
 
   useEffect(() => {
     if (!hayTraza) return
-    // Un frame de gracia: en Android el ajuste se pierde si el mapa no terminó de montar.
+    // Un frame de gracia: el WebView todavía puede no estar listo si el fit se pide de inmediato.
     const id = setTimeout(() => {
-      mapRef.current?.fitToCoordinates(
+      mapRef.current?.fitBounds(
         puntos.map(([lat, lng]) => ({ latitude: lat, longitude: lng })),
-        { edgePadding: PADDING_FIT, animated: false }
+        PADDING_FIT,
+        false
       )
     }, 350)
     return () => clearTimeout(id)
+  }, [puntos, hayTraza])
+
+  const markers = useMemo<MarkerSpec[]>(() => {
+    if (!hayTraza) return []
+    const inicio = puntos[0]!
+    const fin = puntos[puntos.length - 1]!
+    return [
+      {
+        id: 'inicio',
+        lat: inicio[0],
+        lng: inicio[1],
+        html: pinMarkerHtml('#15803d'),
+        size: PIN_SIZE,
+        anchor: PIN_ANCHOR,
+        popup: 'Inicio',
+      },
+      {
+        id: 'fin',
+        lat: fin[0],
+        lng: fin[1],
+        html: pinMarkerHtml('#dc2626'),
+        size: PIN_SIZE,
+        anchor: PIN_ANCHOR,
+        popup: 'Fin',
+      },
+    ]
   }, [puntos, hayTraza])
 
   if (cargando) {
@@ -54,46 +82,22 @@ export function RecorridoMapView({ puntos, cargando = false, altura = 220 }: Pro
   }
 
   const inicio = puntos[0]!
-  const fin = puntos[puntos.length - 1]!
 
   return (
-    <View style={[styles.caja, { height: altura }]}>
-      <MapView
+    <View style={[styles.caja, { height: altura }]} pointerEvents="none">
+      <WebMapView
         ref={mapRef}
-        style={StyleSheet.absoluteFillObject}
-        provider={PROVIDER_DEFAULT}
-        initialRegion={{
-          latitude: inicio[0],
-          longitude: inicio[1],
-          latitudeDelta: 0.08,
-          longitudeDelta: 0.08,
+        initialCenter={{ latitude: inicio[0], longitude: inicio[1] }}
+        initialZoom={zoomFromLatDelta(0.08)}
+        tile={capa}
+        interactive={false}
+        markers={markers}
+        polyline={{
+          coords: puntos,
+          color: theme.accent,
+          width: 4,
         }}
-        mapType={Platform.OS === 'android' ? 'none' : 'mutedStandard'}
-        pointerEvents="none"
-        showsUserLocation={false}
-      >
-        <UrlTile
-          urlTemplate={capa.urlTemplate}
-          maximumZ={capa.maximumZ}
-          flipY={capa.flipY}
-          zIndex={-1}
-        />
-        <Polyline
-          coordinates={puntos.map(([lat, lng]) => ({ latitude: lat, longitude: lng }))}
-          strokeColor={theme.accent}
-          strokeWidth={4}
-        />
-        <Marker
-          coordinate={{ latitude: inicio[0], longitude: inicio[1] }}
-          title="Inicio"
-          pinColor="#15803d"
-        />
-        <Marker
-          coordinate={{ latitude: fin[0], longitude: fin[1] }}
-          title="Fin"
-          pinColor="#dc2626"
-        />
-      </MapView>
+      />
     </View>
   )
 }

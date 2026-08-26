@@ -72,6 +72,9 @@ export type ViajeParticipanteApi = {
   estado: 'pendiente' | 'confirmado' | 'rechazado' | 'salido'
   origen: 'creador' | 'qr' | 'link' | 'grupo' | 'amigo'
   created_at: string
+  rol: 'lider' | 'participante'
+  union_efectiva: boolean
+  grupo_origen: { id: string; nombre: string } | null
 }
 
 export type UnirseQrViajeResponse = {

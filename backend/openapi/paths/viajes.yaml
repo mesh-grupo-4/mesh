@@ -424,8 +424,14 @@ ParticipantesViaje:
     operationId: listarParticipantes
     summary: Listar los integrantes del viaje
     description: |
-      Todos los integrantes con el estado de su invitación y la vía por la que llegaron,
-      ordenados por estado y luego por antigüedad.
+      Todos los integrantes con el estado de su invitación, la vía por la que llegaron,
+      su rol y si se unieron de verdad una vez que el viaje arrancó, ordenados por
+      estado y luego por antigüedad.
+
+      `rol` es `lider` para el creador del viaje, o el rol heredado del `grupo_origen`
+      cuando la invitación vino de un grupo; `participante` en cualquier otro caso.
+      `union_efectiva` indica si hay GPS del integrante posterior al inicio real del
+      viaje (`false` para todos mientras el viaje no arrancó).
 
       Accesible para el creador y para cualquier integrante que no haya rechazado.
     tags:
@@ -441,6 +447,45 @@ ParticipantesViaje:
               type: array
               items:
                 $ref: '../components/schemas.yaml#/ParticipanteViaje'
+            example:
+              # Creador: siempre lider, sin grupo_origen.
+              - usuario:
+                  id: 8f14e45f-ceea-4c1e-9b1a-3d5c7a2e6b04
+                  nombre: Lucía
+                  apellido: Fernández
+                  email: lucia.fernandez@example.com
+                estado: confirmado
+                origen: creador
+                created_at: '2026-08-20T14:00:00.000Z'
+                rol: lider
+                union_efectiva: true
+                grupo_origen: null
+              # Invitado desde un grupo del que es lider: hereda ese rol.
+              - usuario:
+                  id: 2c9a7d61-4e83-4b2f-9a17-6d0e5b8c1f23
+                  nombre: Marcos
+                  apellido: Ibáñez
+                  email: marcos.ibanez@example.com
+                estado: confirmado
+                origen: grupo
+                created_at: '2026-08-20T14:05:00.000Z'
+                rol: lider
+                union_efectiva: false
+                grupo_origen:
+                  id: 3d5c7a2e-6b04-4f16-81d9-5b0e7c2a4f16
+                  nombre: Club Bici Córdoba
+              # Se unió sin grupo (QR): participante por defecto.
+              - usuario:
+                  id: 9c2f8e5d-0a41-4b2f-9a17-6d0e5b8c1f23
+                  nombre: Rocío
+                  apellido: Paz
+                  email: rocio.paz@example.com
+                estado: confirmado
+                origen: qr
+                created_at: '2026-08-24T09:50:00.000Z'
+                rol: participante
+                union_efectiva: true
+                grupo_origen: null
       '401':
         $ref: '../components/responses.yaml#/Unauthorized'
       '403':

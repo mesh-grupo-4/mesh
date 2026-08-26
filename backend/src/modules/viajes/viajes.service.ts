@@ -82,19 +82,25 @@ export class ViajesService {
       }
     }
 
-    // origen prioriza 'grupo' sobre 'amigo' cuando una persona viene por ambos caminos
-    const invitadosPorGrupo = new Set<string>()
+    // origen prioriza 'grupo' sobre 'amigo' cuando una persona viene por ambos caminos.
+    // grupo_origen_id guarda el primer grupo (según el orden de grupoIds) que incluye
+    // a cada invitado, para poder mostrar de qué grupo vino y heredar su rol ahí.
+    const invitadosPorGrupoMap = new Map<string, string>()
     if (grupoIds.length > 0) {
       const miembros = await this.prisma.grupoMiembro.findMany({
         where: { grupo_id: { in: grupoIds } },
-        select: { usuario_id: true },
+        select: { usuario_id: true, grupo_id: true },
       })
+      const ordenGrupo = new Map(grupoIds.map((id, idx) => [id, idx]))
       for (const m of miembros) {
-        if (m.usuario_id !== creadorId) {
-          invitadosPorGrupo.add(m.usuario_id)
+        if (m.usuario_id === creadorId) continue
+        const actual = invitadosPorGrupoMap.get(m.usuario_id)
+        if (!actual || ordenGrupo.get(m.grupo_id)! < ordenGrupo.get(actual)!) {
+          invitadosPorGrupoMap.set(m.usuario_id, m.grupo_id)
         }
       }
     }
+    const invitadosPorGrupo = new Set(invitadosPorGrupoMap.keys())
 
     const invitadosPorAmigo = new Set(amigoIds.filter((id) => !invitadosPorGrupo.has(id)))
     const totalInvitados = invitadosPorGrupo.size + invitadosPorAmigo.size
@@ -141,6 +147,7 @@ export class ViajesService {
           usuario_id: usuarioId,
           estado: 'pendiente' as const,
           origen: 'grupo' as const,
+          grupo_origen_id: invitadosPorGrupoMap.get(usuarioId)!,
         })),
         ...[...invitadosPorAmigo].map((usuarioId) => ({
           viaje_id: viaje.id,
@@ -310,19 +317,70 @@ export class ViajesService {
   async listarParticipantes(usuarioId: string, viajeId: string) {
     await this.assertPuedeVerViaje(viajeId, usuarioId)
 
-    const integrantes = await this.prisma.viajeIntegrante.findMany({
-      where: { viaje_id: viajeId },
-      include: {
-        usuario: { select: { id: true, nombre: true, apellido: true, email: true } },
-      },
-      orderBy: [{ estado: 'asc' }, { created_at: 'asc' }],
-    })
+    const [viaje, integrantes] = await Promise.all([
+      this.prisma.viaje.findUniqueOrThrow({
+        where: { id: viajeId },
+        select: { creador_id: true, fecha_inicio_real: true },
+      }),
+      this.prisma.viajeIntegrante.findMany({
+        where: { viaje_id: viajeId },
+        include: {
+          usuario: { select: { id: true, nombre: true, apellido: true, email: true } },
+        },
+        orderBy: [{ estado: 'asc' }, { created_at: 'asc' }],
+      }),
+    ])
+
+    const grupoOrigenIds = [
+      ...new Set(
+        integrantes.map((i) => i.grupo_origen_id).filter((id): id is string => id !== null)
+      ),
+    ]
+    const usuarioIds = integrantes.map((i) => i.usuario_id)
+
+    const [gruposOrigen, membresias, gpsPostInicio] = await Promise.all([
+      grupoOrigenIds.length > 0
+        ? this.prisma.grupo.findMany({
+            where: { id: { in: grupoOrigenIds } },
+            select: { id: true, nombre: true },
+          })
+        : Promise.resolve([]),
+      grupoOrigenIds.length > 0
+        ? this.prisma.grupoMiembro.findMany({
+            where: { grupo_id: { in: grupoOrigenIds }, usuario_id: { in: usuarioIds } },
+            select: { grupo_id: true, usuario_id: true, rol: true },
+          })
+        : Promise.resolve([]),
+      viaje.fecha_inicio_real
+        ? this.prisma.registroGPS.groupBy({
+            by: ['usuario_id'],
+            where: {
+              viaje_id: viajeId,
+              usuario_id: { in: usuarioIds },
+              timestamp: { gt: viaje.fecha_inicio_real },
+            },
+          })
+        : Promise.resolve([]),
+    ])
+
+    const nombrePorGrupo = new Map(gruposOrigen.map((g) => [g.id, g.nombre]))
+    const rolPorGrupoUsuario = new Map(membresias.map((m) => [`${m.grupo_id}:${m.usuario_id}`, m.rol]))
+    const unidosTrasInicio = new Set(gpsPostInicio.map((r) => r.usuario_id))
 
     return integrantes.map((i) => ({
       usuario: i.usuario,
       estado: i.estado,
       origen: i.origen,
       created_at: i.created_at,
+      rol:
+        i.usuario_id === viaje.creador_id
+          ? ('lider' as const)
+          : (i.grupo_origen_id && rolPorGrupoUsuario.get(`${i.grupo_origen_id}:${i.usuario_id}`)) ||
+            ('participante' as const),
+      union_efectiva: unidosTrasInicio.has(i.usuario_id),
+      grupo_origen: i.grupo_origen_id
+        ? { id: i.grupo_origen_id, nombre: nombrePorGrupo.get(i.grupo_origen_id) ?? '' }
+        : null,
     }))
   }
 

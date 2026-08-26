@@ -11,7 +11,7 @@ const AVATAR_COLORS = [
   '#748ffc',
 ];
 
-function colorFromName(nombre: string): string {
+export function colorFromName(nombre: string): string {
   let hash = 0;
   for (let i = 0; i < nombre.length; i++) {
     hash = nombre.charCodeAt(i) + ((hash << 5) - hash);
@@ -19,7 +19,7 @@ function colorFromName(nombre: string): string {
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length] ?? AVATAR_COLORS[0];
 }
 
-function inicialesDe(nombre: string): string {
+export function inicialesDe(nombre: string): string {
   const partes = nombre.trim().split(/\s+/).filter(Boolean);
   if (partes.length === 0) return '?';
   if (partes.length === 1) return partes[0]!.charAt(0).toUpperCase();
