@@ -1,6 +1,7 @@
 generator client {
   provider = "prisma-client-js"
 }
+
 generator erd {
   provider = "prisma-erd-generator"
   output   = "../DER.svg"
@@ -41,6 +42,15 @@ enum CategoriaParada {
 
 /// Estado visible de un integrante en el mapa grupal (RN-037).
 /// `posible_incidente` queda declarado para el motor de eventos (RN-036).
+/// RN-026: de dónde salió el ítem del checklist de preparativos.
+/// `sugerido` lo siembra el sistema según el tipo de actividad, `lider` lo agrega
+/// el creador del viaje como base para todos, `personal` lo agrega cada integrante.
+enum OrigenChecklistItem {
+  sugerido
+  lider
+  personal
+}
+
 enum EstadoIntegranteViaje {
   en_movimiento
   detenido_voluntario
@@ -125,22 +135,23 @@ model Usuario {
   actividad_preferida TipoActividad? @map("actividad_preferida")
   push_token          String?        @map("push_token")
 
-  grupos_liderados       Grupo[]            @relation("GrupoLider")
+  grupos_liderados       Grupo[]           @relation("GrupoLider")
   membresias             GrupoMiembro[]
-  viajes_creados         Viaje[]            @relation("ViajeCreador")
+  viajes_creados         Viaje[]           @relation("ViajeCreador")
   participaciones_viaje  ViajeIntegrante[]
   registros_gps          RegistroGPS[]
   metricas_viaje         MetricaViaje[]
   ubicacion_viva         UbicacionViva?
-  invitaciones_recibidas GrupoInvitacion[]  @relation("InvitacionesRecibidas")
-  invitaciones_enviadas  GrupoInvitacion[]  @relation("InvitacionesEnviadas")
-  amistades_solicitadas  Amistad[]          @relation("AmistadSolicitante")
-  amistades_recibidas    Amistad[]          @relation("AmistadDestinatario")
+  invitaciones_recibidas GrupoInvitacion[] @relation("InvitacionesRecibidas")
+  invitaciones_enviadas  GrupoInvitacion[] @relation("InvitacionesEnviadas")
+  amistades_solicitadas  Amistad[]         @relation("AmistadSolicitante")
+  amistades_recibidas    Amistad[]         @relation("AmistadDestinatario")
   rutas_plantilla        RutaPlantilla[]
   paradas                Parada[]
-  solicitudes_parada     SolicitudParada[]  @relation("SolicitudParadaSolicitante")
-  solicitudes_resueltas  SolicitudParada[]  @relation("SolicitudParadaResolutor")
-  alertas_creadas        Alerta[]           @relation("AlertaAutor")
+  solicitudes_parada     SolicitudParada[] @relation("SolicitudParadaSolicitante")
+  solicitudes_resueltas  SolicitudParada[] @relation("SolicitudParadaResolutor")
+  alertas_creadas        Alerta[]          @relation("AlertaAutor")
+  checklist_items        ChecklistItem[]
 
   @@map("usuario")
 }
@@ -161,10 +172,10 @@ model Grupo {
 }
 
 model GrupoMiembro {
-  grupo_id    String   @map("grupo_id") @db.Uuid
-  usuario_id  String   @map("usuario_id") @db.Uuid
+  grupo_id    String     @map("grupo_id") @db.Uuid
+  usuario_id  String     @map("usuario_id") @db.Uuid
   rol         RolMiembro
-  fecha_union DateTime @default(now()) @map("fecha_union")
+  fecha_union DateTime   @default(now()) @map("fecha_union")
 
   grupo   Grupo   @relation(fields: [grupo_id], references: [id], onDelete: Cascade)
   usuario Usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
@@ -208,31 +219,32 @@ model Amistad {
 }
 
 model Viaje {
-  id                 String      @id @default(uuid()) @db.Uuid
-  creador_id         String      @map("creador_id") @db.Uuid
-  nombre             String?
-  es_grupal          Boolean     @map("es_grupal")
-  tipo_actividad            TipoActividad @map("tipo_actividad")
-  velocidad_esperada        Float         @map("velocidad_esperada")
-  distancia_max_separacion  Int           @map("distancia_max_separacion")
-  estado                    EstadoViaje   @default(planificado)
-  fecha_programada DateTime    @map("fecha_programada")
-  fecha_inicio_real  DateTime?   @map("fecha_inicio_real")
-  fecha_fin_real     DateTime?   @map("fecha_fin_real")
-  created_at         DateTime    @default(now()) @map("created_at")
+  id                       String        @id @default(uuid()) @db.Uuid
+  creador_id               String        @map("creador_id") @db.Uuid
+  nombre                   String?
+  es_grupal                Boolean       @map("es_grupal")
+  tipo_actividad           TipoActividad @map("tipo_actividad")
+  velocidad_esperada       Float         @map("velocidad_esperada")
+  distancia_max_separacion Int           @map("distancia_max_separacion")
+  estado                   EstadoViaje   @default(planificado)
+  fecha_programada         DateTime      @map("fecha_programada")
+  fecha_inicio_real        DateTime?     @map("fecha_inicio_real")
+  fecha_fin_real           DateTime?     @map("fecha_fin_real")
+  created_at               DateTime      @default(now()) @map("created_at")
 
   creador     Usuario           @relation("ViajeCreador", fields: [creador_id], references: [id], onDelete: Restrict)
   integrantes ViajeIntegrante[]
   grupos      ViajeGrupo[]
 
-  ruta    Ruta?
-  resumen ResumenViaje?
-  registros_gps RegistroGPS[]
-  ubicaciones_vivas UbicacionViva[]
-  metricas MetricaViaje[]
-  paradas Parada[]
+  ruta               Ruta?
+  resumen            ResumenViaje?
+  registros_gps      RegistroGPS[]
+  ubicaciones_vivas  UbicacionViva[]
+  metricas           MetricaViaje[]
+  paradas            Parada[]
   solicitudes_parada SolicitudParada[]
-  alertas Alerta[]
+  alertas            Alerta[]
+  checklist_items    ChecklistItem[]
 
   @@index([creador_id])
   @@map("viaje")
@@ -314,7 +326,7 @@ model Ruta {
   distancia_planeada_m Float?  @map("distancia_planeada_m")
   tiempo_estimado_seg  Int?    @map("tiempo_estimado_seg")
 
-  viaje               Viaje               @relation(fields: [viaje_id], references: [id], onDelete: Cascade)
+  viaje               Viaje              @relation(fields: [viaje_id], references: [id], onDelete: Cascade)
   paradas_intermedias ParadaIntermedia[]
   compartida          RutaCompartida?
 
@@ -323,12 +335,12 @@ model Ruta {
 
 /// Link privado de una ruta planificada (RN-085–088). Snapshot congelado al generar el token.
 model RutaCompartida {
-  id           String    @id @default(uuid()) @db.Uuid
-  ruta_id      String?   @unique @map("ruta_id") @db.Uuid
-  token        String    @unique @db.VarChar(64)
-  snapshot     Json
-  created_at   DateTime  @default(now()) @map("created_at")
-  revocado_en  DateTime? @map("revocado_en")
+  id          String    @id @default(uuid()) @db.Uuid
+  ruta_id     String?   @unique @map("ruta_id") @db.Uuid
+  token       String    @unique @db.VarChar(64)
+  snapshot    Json
+  created_at  DateTime  @default(now()) @map("created_at")
+  revocado_en DateTime? @map("revocado_en")
 
   ruta       Ruta?           @relation(fields: [ruta_id], references: [id], onDelete: SetNull)
   plantillas RutaPlantilla[]
@@ -354,8 +366,8 @@ model RutaPlantilla {
   tiempo_estimado_seg  Int?          @map("tiempo_estimado_seg")
   created_at           DateTime      @default(now()) @map("created_at")
 
-  usuario         Usuario              @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
-  ruta_compartida RutaCompartida       @relation(fields: [ruta_compartida_id], references: [id], onDelete: Restrict)
+  usuario         Usuario               @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  ruta_compartida RutaCompartida        @relation(fields: [ruta_compartida_id], references: [id], onDelete: Restrict)
   paradas         RutaPlantillaParada[]
 
   @@unique([usuario_id, ruta_compartida_id])
@@ -379,13 +391,13 @@ model RutaPlantillaParada {
 }
 
 model ParadaIntermedia {
-  id         String          @id @default(uuid()) @db.Uuid
-  ruta_id    String          @map("ruta_id") @db.Uuid
-  orden      Int
-  lat        Float
-  lng        Float
-  nombre     String?
-  categoria  CategoriaParada @default(otro)
+  id        String          @id @default(uuid()) @db.Uuid
+  ruta_id   String          @map("ruta_id") @db.Uuid
+  orden     Int
+  lat       Float
+  lng       Float
+  nombre    String?
+  categoria CategoriaParada @default(otro)
 
   ruta Ruta @relation(fields: [ruta_id], references: [id], onDelete: Cascade)
 
@@ -493,4 +505,37 @@ model MetricaViaje {
   @@unique([viaje_id, usuario_id])
   @@index([usuario_id])
   @@map("metrica_viaje")
+}
+
+/// RN-026: checklist de preparativos pre-ruta.
+///
+/// Cada fila pertenece a UN integrante (`usuario_id`): el checklist es personal,
+/// porque el equipamiento que uno lleva no es el que lleva otro. Los ítems que el
+/// creador del viaje define como base (`origen: lider`) se copian a cada integrante;
+/// `origen_item_id` apunta al ítem original del creador para poder sincronizar altas
+/// y bajas sin comparar textos.
+model ChecklistItem {
+  id             String              @id @default(uuid()) @db.Uuid
+  viaje_id       String              @map("viaje_id") @db.Uuid
+  usuario_id     String              @map("usuario_id") @db.Uuid
+  origen_item_id String?             @map("origen_item_id") @db.Uuid
+  texto          String              @db.VarChar(120)
+  origen         OrigenChecklistItem
+  completado     Boolean             @default(false)
+  orden          Int
+  created_at     DateTime            @default(now()) @map("created_at")
+  updated_at     DateTime            @updatedAt @map("updated_at")
+
+  viaje   Viaje   @relation(fields: [viaje_id], references: [id], onDelete: Cascade)
+  usuario Usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+
+  origen_item ChecklistItem?  @relation("ChecklistItemCopia", fields: [origen_item_id], references: [id], onDelete: Cascade)
+  copias      ChecklistItem[] @relation("ChecklistItemCopia")
+
+  // Un mismo texto no se repite dentro del checklist de una persona en un viaje:
+  // así la siembra de sugeridos y la importación desde otro viaje son idempotentes.
+  @@unique([viaje_id, usuario_id, texto])
+  @@index([viaje_id, usuario_id, orden])
+  @@index([origen_item_id])
+  @@map("checklist_item")
 }

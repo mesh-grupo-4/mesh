@@ -77,7 +77,7 @@ A diferencia de soluciones existentes (Strava, Garmin, Google Maps, Life360) que
 | RN-023 | La estimación de tiempos depende del tipo de actividad seleccionado y la distancia, más el tiempo configurable de cada parada. |
 | RN-024 | Las rutas se trazan sobre OpenStreetMap; las paradas son reordenables. |
 | RN-025 | Los parámetros configurables por el líder son: velocidad promedio esperada, distancia máxima de separación del grupo y tiempo de tolerancia de atraso. |
-| RN-026 | El checklist de preparativos sugiere ítems según tipo de actividad y permite agregar personalizados. Los checklists son reutilizables. |
+| RN-026 | El checklist de preparativos es **personal**: cada integrante tiene el suyo dentro del viaje, con su propio estado de completado. El sistema **sugiere** ítems según el `tipo_actividad` la primera vez que el integrante lo abre (`origen: sugerido`, borrables). Cada uno puede **agregar** ítems propios (`origen: personal`). El **creador del viaje** puede definir ítems **base para todo el grupo** (`origen: lider`, RN-030): se copian al checklist de cada integrante confirmado, que los marca pero no los edita ni los borra; si el creador los renombra o borra, el cambio se propaga. Los checklists son **reutilizables**: se pueden importar los ítems propios de otro viaje del que se participó, sin duplicar los que ya están. El checklist se edita en `planificado` y `en_curso`; en `finalizado` queda de solo lectura. |
 
 ### 2.4 Reglas de Ejecución en Tiempo Real
 
@@ -578,10 +578,17 @@ MetricaViaje
 ChecklistItem
 ├── id (PK)
 ├── viaje_id (FK)
-├── texto
-├── sugerido_por_sistema (boolean)
+├── usuario_id (FK)          ← dueño de la fila: el checklist es personal
+├── origen_item_id (FK, null) ← si es copia de un ítem base, apunta al original del creador
+├── texto (varchar 120)
+├── origen (sugerido|lider|personal)
 ├── completado (boolean)
-└── usuario_id (FK)
+├── orden (int)
+├── created_at
+└── updated_at
+
+    UNIQUE (viaje_id, usuario_id, texto)   ← siembra e importación idempotentes
+    FK origen_item_id ON DELETE CASCADE    ← el creador borra el ítem base y caen las copias
 
 RecorridoPublicado
 ├── id (PK)

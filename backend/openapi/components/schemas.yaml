@@ -50,6 +50,8 @@ ErrorCode:
     - ROUTE_NOT_FOUND
     - SHARE_NOT_FOUND
     - SOLICITUD_NOT_FOUND
+    - ITEM_NOT_FOUND
+    - VIAJE_ORIGEN_NOT_FOUND
     # Conflictos de estado
     - INVALID_STATE
     - TRIP_NOT_FINISHED
@@ -67,6 +69,7 @@ ErrorCode:
     - ES_LIDER
     - SOLICITUD_PENDIENTE
     - SOLICITUD_RESUELTA
+    - ITEM_DUPLICADO
     # Reglas de negocio puntuales
     - SELF_FRIEND_REQUEST
     - SELF_UNFRIEND
@@ -76,6 +79,9 @@ ErrorCode:
     - CANNOT_CHANGE_OWN_ROLE
     - CANNOT_DEMOTE_LEADER
     - SAME_GROUP_ORIGIN
+    # Checklist de preparativos (RN-026)
+    - ITEM_OBLIGATORIO
+    - MISMO_VIAJE
     # Links de ruta compartida (RN-085–088)
     - QR_EXPIRED
     - SHARE_REVOKED
@@ -2688,4 +2694,143 @@ LoginDocsResponse:
       type: string
       nullable: true
       description: UID de Firebase. Distinto del `id` (UUID) del `Usuario` local.
+  additionalProperties: false
+
+# ── Checklist de preparativos (SCRUM-22, RN-026) ────────────────────────────────
+
+OrigenChecklistItem:
+  type: string
+  description: |
+    De dónde salió el ítem:
+    * `sugerido` — lo sembró el sistema según el tipo de actividad del viaje (RN-026).
+    * `lider` — lo definió el creador del viaje como base para todo el grupo.
+    * `personal` — lo agregó el propio integrante, o llegó importado de otro viaje.
+  enum: [sugerido, lider, personal]
+  example: sugerido
+
+ChecklistItem:
+  type: object
+  description: |
+    Ítem del checklist de preparativos (RN-026). El checklist es **personal**: cada
+    integrante tiene el suyo dentro del viaje, con su propio estado de `completado`.
+  required:
+    - id
+    - viaje_id
+    - usuario_id
+    - texto
+    - origen
+    - completado
+    - orden
+    - puede_editar
+    - created_at
+    - updated_at
+  properties:
+    id:
+      type: string
+      format: uuid
+      example: 5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f
+    viaje_id:
+      type: string
+      format: uuid
+      example: 3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d
+    usuario_id:
+      type: string
+      format: uuid
+      description: Dueño del ítem. Siempre es quien hace la consulta.
+      example: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d
+    texto:
+      type: string
+      maxLength: 120
+      example: Casco
+    origen:
+      $ref: '#/OrigenChecklistItem'
+    completado:
+      type: boolean
+      example: false
+    orden:
+      type: integer
+      description: Posición dentro del checklist del usuario, de menor a mayor.
+      example: 0
+    puede_editar:
+      type: boolean
+      description: |
+        `false` en las copias de un ítem base del creador: el integrante puede
+        marcarlas pero no editarles el texto ni borrarlas (RN-030, el backend decide).
+      example: true
+    created_at:
+      type: string
+      format: date-time
+      description: UTC (RN-105/106). El frontend lo convierte a hora de Argentina.
+      example: '2026-08-26T14:05:00.000Z'
+    updated_at:
+      type: string
+      format: date-time
+      example: '2026-08-26T14:05:00.000Z'
+  additionalProperties: false
+
+AgregarChecklistItemRequest:
+  type: object
+  required: [texto]
+  properties:
+    texto:
+      type: string
+      minLength: 1
+      maxLength: 120
+      description: Se recorta al guardar. No puede repetirse dentro del mismo checklist.
+      example: Cargador de celular
+    paraTodos:
+      type: boolean
+      default: false
+      description: |
+        Solo el creador del viaje puede mandarlo en `true` (RN-030). El ítem queda
+        como base del viaje y se copia al checklist de cada integrante confirmado.
+      example: false
+  additionalProperties: false
+
+ActualizarChecklistItemRequest:
+  type: object
+  description: Al menos uno de los dos campos es obligatorio.
+  minProperties: 1
+  properties:
+    texto:
+      type: string
+      minLength: 1
+      maxLength: 120
+      description: No se acepta sobre una copia de un ítem base del creador.
+      example: Cargador de celular y cable
+    completado:
+      type: boolean
+      example: true
+  additionalProperties: false
+
+ImportarChecklistRequest:
+  type: object
+  required: [viajeOrigenId]
+  properties:
+    viajeOrigenId:
+      type: string
+      format: uuid
+      description: |
+        Viaje anterior del que se copian los ítems. El consultante tiene que haber
+        participado de él, y no puede ser el mismo viaje de destino.
+      example: 8e1f0a2b-3c4d-4e5f-9a0b-1c2d3e4f5a6b
+  additionalProperties: false
+
+ImportarChecklistResponse:
+  type: object
+  description: Resultado de la importación y el checklist ya actualizado (RN-026).
+  required: [importados, omitidos, items]
+  properties:
+    importados:
+      type: integer
+      description: Ítems copiados desde el viaje origen.
+      example: 6
+    omitidos:
+      type: integer
+      description: Ítems del viaje origen que ya estaban en el checklist actual.
+      example: 3
+    items:
+      type: array
+      items:
+        $ref: '#/ChecklistItem'
   additionalProperties: false

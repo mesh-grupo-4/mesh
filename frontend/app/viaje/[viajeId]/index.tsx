@@ -760,6 +760,22 @@ export default function ViajeDetalleScreen() {
               </View>
             )}
 
+            {viaje.estado !== 'finalizado' &&
+              (esLider || viaje.mi_participacion?.estado === 'confirmado') && (
+                <View style={styles.optionsBlock}>
+                  <Btn
+                    variant="secondary"
+                    block
+                    icon="check-square"
+                    onPress={() =>
+                      router.push({ pathname: '/viaje/[viajeId]/checklist', params: { viajeId } })
+                    }
+                  >
+                    Checklist de preparativos
+                  </Btn>
+                </View>
+              )}
+
             {viaje.estado === 'finalizado' && (
               <View style={{ gap: 10 }}>
                 <Btn

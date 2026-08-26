@@ -100,6 +100,11 @@ tags:
     description: Pedidos de un integrante para que el líder autorice una parada (RN-044).
   - name: Alertas
     description: Alertas que el líder envía al grupo durante el viaje (RN-040/041/043).
+  - name: Checklist
+    description: |
+      Checklist de preparativos pre-ruta (RN-026). Es personal: cada integrante tiene
+      el suyo dentro del viaje, con ítems sugeridos según la actividad, ítems base que
+      define el creador y los que agrega cada uno. Reutilizable entre viajes.
   - name: Documentación
     description: |
       Herramientas de esta página, no del contrato que consume la app: el spec crudo y
@@ -233,6 +238,14 @@ paths:
   # ── Alertas ──────────────────────────────────────────────────────────────────
   /api/viajes/{viajeId}/alertas:
     $ref: './paths/alertas.yaml#/AlertasColeccion'
+
+  # ── Checklist de preparativos ────────────────────────────────────────────────
+  /api/viajes/{viajeId}/checklist:
+    $ref: './paths/checklist.yaml#/ChecklistColeccion'
+  /api/viajes/{viajeId}/checklist/importar:
+    $ref: './paths/checklist.yaml#/ImportarChecklist'
+  /api/viajes/{viajeId}/checklist/{itemId}:
+    $ref: './paths/checklist.yaml#/ChecklistItemPorId'
 
   # ── Herramientas de la documentación ─────────────────────────────────────────
   /api/docs.json:

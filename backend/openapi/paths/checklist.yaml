@@ -1,0 +1,453 @@
+# Módulo Checklist — src/modules/checklist/
+# Router: montado sobre viajesRouter (checklist.router.ts) · Controller: checklist.controller.ts
+#
+# Checklist de preparativos pre-ruta (SCRUM-22, RN-026). Es **personal**: cada
+# integrante tiene el suyo dentro del viaje, con su propio estado de completado.
+#
+# Tres orígenes de ítem conviven en la misma lista:
+#   * `sugerido` — sembrado por el sistema según `tipo_actividad` la primera vez que
+#     el integrante abre su checklist. Se puede borrar.
+#   * `lider` — definido por el creador del viaje como base para todo el grupo. El
+#     integrante lo marca pero no lo edita ni lo borra (`puede_editar: false`).
+#   * `personal` — agregado por el propio integrante o importado de otro viaje.
+#
+# Toda operación exige participar del viaje —creador o integrante confirmado—, de ahí
+# el 404 VIAJE_NOT_FOUND / 403 FORBIDDEN de base. Las mutaciones además requieren que
+# el viaje no esté `finalizado` (409 INVALID_STATE): un viaje terminado ya no se prepara.
+
+ChecklistColeccion:
+  get:
+    operationId: listarChecklist
+    summary: Ver mi checklist de preparativos del viaje (RN-026)
+    description: |
+      Devuelve el checklist del consultante, sincronizado antes de responder:
+
+      * La primera vez siembra los ítems que el sistema sugiere para el
+        `tipo_actividad` del viaje (moto, bici, running, trekking, otro).
+      * En cada llamada agrega los ítems base que el creador haya sumado desde la
+        última consulta, así quien se une tarde al viaje también los recibe.
+
+      La sincronización es idempotente: llamar de nuevo no duplica nada. En un viaje
+      `finalizado` no se siembra ni se sincroniza; se devuelve lo que quedó registrado.
+    tags:
+      - Checklist
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '200':
+        description: Checklist del consultante, ordenado por `orden`.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/ChecklistItem'
+            example:
+              - id: 5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f
+                viaje_id: 3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d
+                usuario_id: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d
+                texto: Casco
+                origen: sugerido
+                completado: true
+                orden: 0
+                puede_editar: true
+                created_at: '2026-08-26T14:05:00.000Z'
+                updated_at: '2026-08-26T14:07:12.000Z'
+              - id: 6d7e8f90-ab1c-4d2e-9f3a-4b5c6d7e8f90
+                viaje_id: 3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d
+                usuario_id: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d
+                texto: Chaleco reflectivo
+                origen: lider
+                completado: false
+                orden: 10
+                puede_editar: false
+                created_at: '2026-08-26T14:05:00.000Z'
+                updated_at: '2026-08-26T14:05:00.000Z'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: No participa del viaje (`FORBIDDEN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Sin acceso a este viaje
+              code: FORBIDDEN
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+  post:
+    operationId: agregarItemChecklist
+    summary: Agregar un ítem al checklist (RN-026)
+    description: |
+      Agrega un ítem personalizado. Por defecto queda como `personal`, visible solo
+      en el checklist de quien lo crea.
+
+      Con `paraTodos: true` —reservado al **creador del viaje** (RN-030)— el ítem
+      queda como base del viaje: se copia al checklist de cada integrante confirmado,
+      que podrá marcarlo pero no editarlo ni borrarlo. Si el creador después le
+      corrige el texto o lo borra, el cambio se propaga a todas las copias.
+    tags:
+      - Checklist
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/AgregarChecklistItemRequest'
+          examples:
+            personal:
+              summary: Ítem propio
+              value:
+                texto: Cargador de celular
+            paraTodos:
+              summary: Ítem base del viaje (solo el creador)
+              value:
+                texto: Chaleco reflectivo
+                paraTodos: true
+    responses:
+      '201':
+        description: Ítem agregado.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ChecklistItem'
+            example:
+              id: 7e8f90ab-1c2d-4e3f-8a4b-5c6d7e8f90ab
+              viaje_id: 3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d
+              usuario_id: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d
+              texto: Cargador de celular
+              origen: personal
+              completado: false
+              orden: 10
+              puede_editar: true
+              created_at: '2026-08-26T14:20:00.000Z'
+              updated_at: '2026-08-26T14:20:00.000Z'
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: |
+          No participa del viaje (`FORBIDDEN`), o mandó `paraTodos: true` sin ser el
+          creador del viaje (`NOT_CREATOR`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            examples:
+              sinAcceso:
+                value:
+                  error: Sin acceso a este viaje
+                  code: FORBIDDEN
+              noEsCreador:
+                value:
+                  error: Solo el creador del viaje puede agregar ítems para todo el grupo
+                  code: NOT_CREATOR
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '409':
+        description: |
+          El viaje ya finalizó (`INVALID_STATE`), o ese texto ya está en el checklist
+          del consultante (`ITEM_DUPLICADO`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            examples:
+              finalizado:
+                value:
+                  error: El viaje ya finalizó
+                  code: INVALID_STATE
+              duplicado:
+                value:
+                  error: Ese ítem ya está en tu checklist
+                  code: ITEM_DUPLICADO
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+ChecklistItemPorId:
+  patch:
+    operationId: actualizarItemChecklist
+    summary: Marcar, desmarcar o renombrar un ítem del checklist
+    description: |
+      Actualiza un ítem propio. `completado` se puede cambiar siempre; `texto`
+      solo sobre ítems con `puede_editar: true`.
+
+      Si el creador del viaje renombra uno de sus ítems base, el nuevo texto se
+      propaga a las copias del resto del grupo.
+    tags:
+      - Checklist
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+      - $ref: '../components/parameters.yaml#/ChecklistItemId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/ActualizarChecklistItemRequest'
+          examples:
+            marcar:
+              summary: Tildar el ítem
+              value:
+                completado: true
+            renombrar:
+              summary: Corregir el texto
+              value:
+                texto: Cargador de celular y cable
+    responses:
+      '200':
+        description: Ítem actualizado.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ChecklistItem'
+            example:
+              id: 7e8f90ab-1c2d-4e3f-8a4b-5c6d7e8f90ab
+              viaje_id: 3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d
+              usuario_id: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d
+              texto: Cargador de celular
+              origen: personal
+              completado: true
+              orden: 10
+              puede_editar: true
+              created_at: '2026-08-26T14:20:00.000Z'
+              updated_at: '2026-08-26T14:31:45.000Z'
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: |
+          No participa del viaje (`FORBIDDEN`), o intentó editar el texto de un ítem
+          que definió el creador (`ITEM_OBLIGATORIO`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            examples:
+              sinAcceso:
+                value:
+                  error: Sin acceso a este viaje
+                  code: FORBIDDEN
+              itemBase:
+                value:
+                  error: 'Ese ítem lo definió el creador del viaje: podés marcarlo, no editarlo'
+                  code: ITEM_OBLIGATORIO
+      '404':
+        description: |
+          El viaje no existe (`VIAJE_NOT_FOUND`), o el ítem no existe o no es del
+          consultante (`ITEM_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            examples:
+              viaje:
+                value:
+                  error: Viaje no encontrado
+                  code: VIAJE_NOT_FOUND
+              item:
+                value:
+                  error: Ítem no encontrado
+                  code: ITEM_NOT_FOUND
+      '409':
+        description: |
+          El viaje ya finalizó (`INVALID_STATE`), o el nuevo texto ya está en el
+          checklist (`ITEM_DUPLICADO`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            examples:
+              finalizado:
+                value:
+                  error: El viaje ya finalizó
+                  code: INVALID_STATE
+              duplicado:
+                value:
+                  error: Ese ítem ya está en tu checklist
+                  code: ITEM_DUPLICADO
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+  delete:
+    operationId: eliminarItemChecklist
+    summary: Quitar un ítem del checklist
+    description: |
+      Borra un ítem propio: un sugerido que no aplica, o uno personalizado. Los ítems
+      base del creador no se pueden borrar desde el checklist de un integrante.
+
+      Si el creador borra uno de sus ítems base, desaparece del checklist de todo el
+      grupo (las copias caen en cascada).
+    tags:
+      - Checklist
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+      - $ref: '../components/parameters.yaml#/ChecklistItemId'
+    responses:
+      '204':
+        description: Ítem eliminado. Sin cuerpo.
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: |
+          No participa del viaje (`FORBIDDEN`), o el ítem lo definió el creador
+          (`ITEM_OBLIGATORIO`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            examples:
+              sinAcceso:
+                value:
+                  error: Sin acceso a este viaje
+                  code: FORBIDDEN
+              itemBase:
+                value:
+                  error: Ese ítem lo definió el creador del viaje y no se puede borrar
+                  code: ITEM_OBLIGATORIO
+      '404':
+        description: |
+          El viaje no existe (`VIAJE_NOT_FOUND`), o el ítem no existe o no es del
+          consultante (`ITEM_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            examples:
+              viaje:
+                value:
+                  error: Viaje no encontrado
+                  code: VIAJE_NOT_FOUND
+              item:
+                value:
+                  error: Ítem no encontrado
+                  code: ITEM_NOT_FOUND
+      '409':
+        description: El viaje ya finalizó (`INVALID_STATE`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: El viaje ya finalizó
+              code: INVALID_STATE
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+ImportarChecklist:
+  post:
+    operationId: importarChecklist
+    summary: Reutilizar el checklist de un viaje anterior (RN-026)
+    description: |
+      Copia al viaje actual los ítems que el consultante tenía en otro viaje del que
+      participó. Es la forma en que los checklists son **reutilizables** (RN-026).
+
+      No pisa lo que ya está: los textos repetidos se cuentan en `omitidos` y no se
+      duplican. Todo lo importado entra como `personal`, incluso si en el viaje origen
+      era un ítem base: la obligación del creador de aquel viaje no rige en este.
+    tags:
+      - Checklist
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/ImportarChecklistRequest'
+          example:
+            viajeOrigenId: 8e1f0a2b-3c4d-4e5f-9a0b-1c2d3e4f5a6b
+    responses:
+      '200':
+        description: Ítems importados y checklist resultante.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ImportarChecklistResponse'
+            example:
+              importados: 2
+              omitidos: 8
+              items:
+                - id: 7e8f90ab-1c2d-4e3f-8a4b-5c6d7e8f90ab
+                  viaje_id: 3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d
+                  usuario_id: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d
+                  texto: Kit de primeros auxilios
+                  origen: personal
+                  completado: false
+                  orden: 11
+                  puede_editar: true
+                  created_at: '2026-08-26T14:40:00.000Z'
+                  updated_at: '2026-08-26T14:40:00.000Z'
+      '400':
+        description: |
+          Entrada inválida (`VALIDATION_ERROR`), o el viaje origen es el mismo que el
+          de destino (`MISMO_VIAJE`).
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '../components/schemas.yaml#/ValidationError'
+                - $ref: '../components/schemas.yaml#/Error'
+            examples:
+              validacion:
+                summary: Validación Zod fallida
+                value:
+                  error: Validación fallida
+                  code: VALIDATION_ERROR
+                  details:
+                    formErrors: []
+                    fieldErrors:
+                      viajeOrigenId:
+                        - Invalid uuid
+              mismoViaje:
+                summary: Origen igual al destino
+                value:
+                  error: No podés importar el checklist del mismo viaje
+                  code: MISMO_VIAJE
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: No participa del viaje de destino o del de origen (`FORBIDDEN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Sin acceso a este viaje
+              code: FORBIDDEN
+      '404':
+        description: |
+          El viaje de destino no existe (`VIAJE_NOT_FOUND`), o el de origen no existe
+          (`VIAJE_ORIGEN_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            examples:
+              destino:
+                value:
+                  error: Viaje no encontrado
+                  code: VIAJE_NOT_FOUND
+              origen:
+                value:
+                  error: Viaje no encontrado
+                  code: VIAJE_ORIGEN_NOT_FOUND
+      '409':
+        description: El viaje de destino ya finalizó (`INVALID_STATE`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: El viaje ya finalizó
+              code: INVALID_STATE
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'

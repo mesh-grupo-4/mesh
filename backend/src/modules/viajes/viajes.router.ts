@@ -6,6 +6,7 @@ import { crearViajesController } from './viajes.controller'
 import { rutasCompartirHandlers } from '../rutas-compartidas/rutas-compartidas.router'
 import { paradasHandlers } from '../paradas/paradas.router'
 import { alertasHandlers } from '../alertas/alertas.router'
+import { checklistHandlers } from '../checklist/checklist.router'
 
 const service = new ViajesService(prisma)
 const c = crearViajesController(service)
@@ -58,3 +59,10 @@ viajesRouter.post(
 // Alertas del viaje (US1, RN-040 / RN-041).
 viajesRouter.get('/:viajeId/alertas', ...alertasHandlers.listar)
 viajesRouter.post('/:viajeId/alertas', ...alertasHandlers.crear)
+
+// Checklist de preparativos pre-ruta (SCRUM-22, RN-026).
+viajesRouter.get('/:viajeId/checklist', ...checklistHandlers.listar)
+viajesRouter.post('/:viajeId/checklist', ...checklistHandlers.agregar)
+viajesRouter.post('/:viajeId/checklist/importar', ...checklistHandlers.importar)
+viajesRouter.patch('/:viajeId/checklist/:itemId', ...checklistHandlers.actualizar)
+viajesRouter.delete('/:viajeId/checklist/:itemId', ...checklistHandlers.eliminar)

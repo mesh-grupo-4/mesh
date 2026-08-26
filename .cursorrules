@@ -122,6 +122,15 @@ Solo existen `líder` y `participante` dentro de un grupo. No inventar roles int
 ### 6. Mocks y datos ficticios
 No introducir mocks ni datos ficticios en flujos de GPS fuera de archivos de **test**. Nunca en código que afecte dev o prod.
 
+### 7. Documentación Swagger/OpenAPI obligatoria (backend)
+Todo desarrollo en `backend/` que toque la API REST —endpoint nuevo, cambio de request/response, nuevos códigos de error, cambio de permisos— **debe documentarse en el spec OpenAPI en el mismo cambio o PR**. Un endpoint sin spec se considera incompleto: no cumple el DoD y rompe el build.
+
+- Fuente de verdad: `backend/openapi/` → `openapi.yaml` (raíz) + `paths/*.yaml` (operaciones) + `components/*.yaml` (schemas, parámetros, respuestas, security). **No** editar `src/docs/openapi.bundled.json` a mano: se genera con `npm run docs:bundle`.
+- Cada operación declara `operationId` único, `summary`, `tags` ya declarados en la raíz, todos los parámetros de path que usa, al menos una respuesta `2xx` y `401` si es autenticada (solo `GET /api/health` y `/api/docs` son públicos).
+- Incluir `example` de request y de response, y los códigos de error con la forma `{ error, code }`.
+- Antes de dar el trabajo por terminado, correr `npm run docs:lint` y `npm test`: el test de contrato (`src/docs/contrato.test.ts`) falla si hay endpoints sin documentar o documentación fantasma.
+- OpenAPI no cubre WebSockets: los cambios en el canal Socket.io se documentan en `backend/docs/websockets.md`.
+
 ---
 
 ## Reglas de negocio críticas (resumen ejecutivo)
@@ -187,7 +196,15 @@ Los modos disponibles son: `moto`, `bici`, `running`, `trekking`, `otro`. Cada u
 ## Decisiones de arquitectura
 
 ### API-First
-API RESTful documentada bajo **OpenAPI**. Todo endpoint nuevo debe tener su spec antes o junto con la implementación.
+API RESTful documentada bajo **OpenAPI 3.0.3** y servida como **Swagger UI** en `/api/docs`. Todo endpoint nuevo debe tener su spec antes o junto con la implementación (ver *Regla inviolable 7*).
+
+El spec es modular y vive en `backend/openapi/`: `openapi.yaml` como documento raíz (info, servers, security, tags y `paths` por `$ref`), las operaciones en `paths/` y lo compartido en `components/`.
+
+```bash
+npm run docs:lint      # valida el spec con @redocly/cli
+npm run docs:bundle    # bundlea a src/docs/openapi.bundled.json (lo corren predev, build y pretest)
+npm run docs:preview   # previsualiza la documentación
+```
 
 ### Mapas
 **OpenStreetMap** exclusivamente. Sin dependencia de APIs comerciales (Google Maps, Mapbox). Costo de carga: $0.
@@ -271,7 +288,7 @@ Todos los textos superan el tamaño mínimo para uso outdoor (RN-052). La interf
 - Estimación: Poker Planning con Fibonacci (1, 2, 3, 5, 8).
 - Gestión: Jira.
 - DoR: US cargada en Jira + criterios de aceptación + estimación.
-- DoD: Code review + estándares de código + tests unitarios + tests de integración + criterios de aceptación cumplidos + aprobación del PO.
+- DoD: Code review + estándares de código + tests unitarios + tests de integración + **spec OpenAPI actualizado si tocó la API** + criterios de aceptación cumplidos + aprobación del PO.
 
 ### Estilo de código
 - TypeScript estricto en frontend y backend.
@@ -336,6 +353,7 @@ Antes de generar o modificar código, verificar:
 - [ ] ¿Los tipos espaciales son POINT/LINESTRING de PostGIS?
 - [ ] ¿Toda fecha/hora mostrada pasa por `lib/tiempoArg.ts` (UTC-3, RN-105)?
 - [ ] ¿Validé la entrada con Zod?
+- [ ] ¿Documenté en el spec OpenAPI (`backend/openapi/`) todo endpoint nuevo o modificado, y corrí `npm run docs:lint` + `npm test`?
 - [ ] ¿Respeté la arquitectura de capas? (Controller → Service → Repository)
 - [ ] ¿Mapas usan OpenStreetMap, no Google Maps ni Mapbox?
 - [ ] ¿No toqué `.env` ni credenciales sin permiso?
