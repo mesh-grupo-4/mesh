@@ -1,6 +1,7 @@
 import * as Location from 'expo-location'
 import { DeviceEventEmitter, Platform } from 'react-native'
 
+import { filtrosGpsPorActividad, velocidadImplicitaKmh } from '@/lib/gpsFilters'
 import { enqueueGpsSample } from '@/lib/tracking/gpsQueue'
 import {
   clearTrackingContext,
@@ -14,10 +15,36 @@ export type PermisoResultado = {
 }
 
 let foregroundWatch: Location.LocationSubscription | null = null
+let tipoActividadActual = 'otro'
+let ultimaMuestra: { lat: number; lng: number; ts: number } | null = null
+
+function aceptarMuestra(
+  lat: number,
+  lng: number,
+  accuracy: number | null | undefined,
+  ts: number
+): boolean {
+  const f = filtrosGpsPorActividad(tipoActividadActual)
+  if (accuracy != null && accuracy > f.precisionMaxM) return false
+
+  const prev = ultimaMuestra
+  if (prev) {
+    const seg = (ts - prev.ts) / 1000
+    if (seg > 0 && seg <= 120) {
+      const vel = velocidadImplicitaKmh(prev.lat, prev.lng, lat, lng, seg)
+      if (vel != null && vel > f.velocidadMaxKmh) return false
+    }
+  }
+
+  ultimaMuestra = { lat, lng, ts }
+  return true
+}
 
 function emitLocationSample(viajeId: string, userId: string, loc: Location.LocationObject): void {
   const { latitude, longitude, accuracy } = loc.coords
   const ts = loc.timestamp > 0 ? loc.timestamp : Date.now()
+  if (!aceptarMuestra(latitude, longitude, accuracy, ts)) return
+
   enqueueGpsSample({
     viajeId,
     userId,
@@ -47,9 +74,9 @@ async function startForegroundWatch(viajeId: string, userId: string): Promise<vo
   await stopForegroundWatch()
   foregroundWatch = await Location.watchPositionAsync(
     {
-      accuracy: Location.Accuracy.Balanced,
+      accuracy: Location.Accuracy.High,
       timeInterval: 5000,
-      distanceInterval: 0,
+      distanceInterval: 4,
     },
     (loc) => emitLocationSample(viajeId, userId, loc)
   )
@@ -67,9 +94,15 @@ export async function solicitarPermisosUbicacion(): Promise<PermisoResultado> {
   return { foreground: true, background: bg.status === 'granted' }
 }
 
-export async function iniciarTrackingViaje(viajeId: string, userId: string): Promise<void> {
+export async function iniciarTrackingViaje(
+  viajeId: string,
+  userId: string,
+  tipoActividad = 'otro'
+): Promise<void> {
   if (Platform.OS === 'web') return
-  await setTrackingContext(viajeId, userId)
+  tipoActividadActual = tipoActividad
+  ultimaMuestra = null
+  await setTrackingContext(viajeId, userId, tipoActividad)
   const fg = await Location.getForegroundPermissionsAsync()
   if (fg.status !== 'granted') return
 
@@ -91,9 +124,9 @@ export async function iniciarTrackingViaje(viajeId: string, userId: string): Pro
 
   try {
     await Location.startLocationUpdatesAsync(MESH_LOCATION_TASK, {
-      accuracy: Location.Accuracy.Balanced,
+      accuracy: Location.Accuracy.High,
       timeInterval: 5000,
-      distanceInterval: 0,
+      distanceInterval: 4,
       showsBackgroundLocationIndicator: true,
       ...(Platform.OS === 'android'
         ? {
@@ -126,6 +159,7 @@ export async function detenerTrackingViaje(): Promise<void> {
   if (Platform.OS === 'web') return
   await stopForegroundWatch()
   await stopBackgroundTask()
+  ultimaMuestra = null
   // Ojo: NO se borra el acumulado de distancia acá. La pantalla de resumen lo usa
   // como fallback cuando el backend no responde, y la limpia ella cuando ya no
   // hace falta. Ver `app/viaje/[viajeId]/resumen.tsx`.

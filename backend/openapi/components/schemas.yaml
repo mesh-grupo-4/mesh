@@ -66,6 +66,8 @@ ErrorCode:
     - INVITATION_ALREADY_RESPONDED
     - PARADA_ABIERTA
     - SIN_PARADA_ABIERTA
+    - USAR_CONFIRMAR_BIEN
+    - SIN_INCIDENTE_ABIERTO
     - ES_LIDER
     - SOLICITUD_PENDIENTE
     - SOLICITUD_RESUELTA
@@ -2535,10 +2537,11 @@ ResponderSolicitudParadaRequest:
 Parada:
   type: object
   description: |
-    Parada voluntaria de un integrante durante el viaje (RN-037). Mientras `fin`
-    es `null` la parada sigue abierta y el integrante figura como
-    `detenido_voluntario` en el mapa grupal.
-  required: [id, viaje_id, usuario_id, lat, lng, inicio]
+    Parada de un integrante durante el viaje (RN-037). Mientras `fin` es `null` la parada
+    sigue abierta. El estado en el mapa grupal se **deriva** del tipo:
+    `voluntaria` → `detenido_voluntario`; `incidente_detectado` → `posible_incidente`
+    (RN-036, generada por el motor de eventos).
+  required: [id, viaje_id, usuario_id, lat, lng, tipo, inicio]
   properties:
     id:
       type: string
@@ -2558,6 +2561,13 @@ Parada:
         - $ref: '#/CategoriaParada'
       type: string
       nullable: true
+      description: Solo en paradas voluntarias (US1). `null` en incidentes detectados.
+    tipo:
+      type: string
+      enum: [voluntaria, incidente_detectado]
+      description: |
+        `voluntaria`: el integrante registró la parada (US1).
+        `incidente_detectado`: el motor detectó detención sospechosa (RN-036).
     inicio:
       type: string
       format: date-time
@@ -2617,7 +2627,7 @@ SolicitudParada:
 TipoAlerta:
   type: string
   description: Tema de la alerta, elegido por el líder (RN-041).
-  enum: [parada, combustible, desvio, peligro, informacion]
+  enum: [parada, combustible, desvio, peligro, informacion, atraso]
 
 CrearAlertaRequest:
   type: object

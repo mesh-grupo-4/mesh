@@ -6,6 +6,7 @@ import type {
   ResponderSolicitudInput,
   SolicitarParadaInput,
 } from './paradas.schemas'
+import { prefijoAlertaAfectado } from '../motor-eventos/motorEventos.config'
 
 /** Etiquetas de categoría para el texto de las notificaciones (RN-022). */
 const ETIQUETA_CATEGORIA: Record<string, string> = {
@@ -115,12 +116,68 @@ export class ParadasService {
     if (!abierta) {
       throw new HttpError(409, 'No tenés ninguna parada en curso', 'SIN_PARADA_ABIERTA')
     }
+    if (abierta.tipo === 'incidente_detectado') {
+      throw new HttpError(
+        409,
+        'Confirmá que estás bien para cerrar el posible incidente',
+        'USAR_CONFIRMAR_BIEN'
+      )
+    }
 
     const fin = new Date()
     const parada = await this.prisma.parada.update({
       where: { id: abierta.id },
       data: { fin },
       include: { usuario: { select: { id: true, nombre: true, apellido: true } } },
+    })
+
+    this.emitir(viajeId, 'viaje:parada_finalizada', {
+      viajeId,
+      paradaId: parada.id,
+      usuarioId,
+      nombre: nombreDe(parada.usuario),
+      inicio: parada.inicio.toISOString(),
+      fin: fin.toISOString(),
+      duracionSegundos: duracionSeg(parada.inicio, fin),
+      estado: 'en_movimiento' as const,
+    })
+
+    return this.mapParada(parada)
+  }
+
+  /** RN-036: el integrante confirma que está bien tras un posible incidente detectado. */
+  async confirmarEstoyBien(usuarioId: string, viajeId: string) {
+    await this.assertParticipaEnViajeEnCurso(viajeId, usuarioId)
+
+    const abierta = await this.prisma.parada.findFirst({
+      where: {
+        viaje_id: viajeId,
+        usuario_id: usuarioId,
+        fin: null,
+        tipo: 'incidente_detectado',
+      },
+      orderBy: { inicio: 'desc' },
+      include: { usuario: { select: { id: true, nombre: true, apellido: true } } },
+    })
+    if (!abierta) {
+      throw new HttpError(409, 'No hay un posible incidente abierto', 'SIN_INCIDENTE_ABIERTO')
+    }
+
+    const fin = new Date()
+    const parada = await this.prisma.parada.update({
+      where: { id: abierta.id },
+      data: { fin, confirmado_bien: true },
+      include: { usuario: { select: { id: true, nombre: true, apellido: true } } },
+    })
+
+    await this.prisma.alerta.updateMany({
+      where: {
+        viaje_id: viajeId,
+        origen: 'sistema',
+        estado: 'activa',
+        mensaje: { startsWith: prefijoAlertaAfectado(usuarioId) },
+      },
+      data: { estado: 'resuelta', resolved_at: fin },
     })
 
     this.emitir(viajeId, 'viaje:parada_finalizada', {
@@ -310,6 +367,7 @@ export class ParadasService {
     lat: number
     lng: number
     categoria: string | null
+    tipo?: string
     inicio: Date
     fin: Date | null
   }) {
@@ -320,6 +378,7 @@ export class ParadasService {
       lat: p.lat,
       lng: p.lng,
       categoria: p.categoria,
+      tipo: p.tipo ?? 'voluntaria',
       inicio: p.inicio.toISOString(),
       fin: p.fin ? p.fin.toISOString() : null,
       duracion_segundos: p.fin ? duracionSeg(p.inicio, p.fin) : null,

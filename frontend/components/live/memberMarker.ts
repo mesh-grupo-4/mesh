@@ -14,7 +14,8 @@ const MARKER_BOX = 48
 
 export function memberMarkerHtml(member: MemberLocation, isMe: boolean): string {
   const detenido = member.estado === 'detenido_voluntario'
-  const ringColor = detenido ? '#f59e0b' : isMe ? '#15803d' : 'transparent'
+  const incidente = member.estado === 'posible_incidente'
+  const ringColor = incidente ? '#dc2626' : detenido ? '#f59e0b' : isMe ? '#15803d' : 'transparent'
   const bg = colorFromName(member.nombre)
   const iniciales = inicialesDe(member.nombre)
   const boxOpacity = member.isStale ? 0.45 : 1
@@ -26,9 +27,9 @@ export function memberMarkerHtml(member: MemberLocation, isMe: boolean): string 
       </div>
     </div>
     ${
-      detenido
-        ? `<div style="position:absolute;right:2px;bottom:2px;width:16px;height:16px;border-radius:50%;background:#f59e0b;display:flex;align-items:center;justify-content:center;border:1.5px solid #fff;">
-      <span style="color:#fff;font-size:8px;font-weight:900;letter-spacing:-0.5px;font-family:sans-serif;">II</span>
+      detenido || incidente
+        ? `<div style="position:absolute;right:2px;bottom:2px;width:16px;height:16px;border-radius:50%;background:${incidente ? '#dc2626' : '#f59e0b'};display:flex;align-items:center;justify-content:center;border:1.5px solid #fff;">
+      <span style="color:#fff;font-size:8px;font-weight:900;letter-spacing:-0.5px;font-family:sans-serif;">${incidente ? '!' : 'II'}</span>
     </div>`
         : ''
     }

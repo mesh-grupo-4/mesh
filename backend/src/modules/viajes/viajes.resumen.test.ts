@@ -67,6 +67,11 @@ function armarPrisma(o: Opciones = {}) {
     viaje: { findUnique: vi.fn().mockResolvedValue(viaje) },
     viajeIntegrante: {
       findUnique: vi.fn().mockResolvedValue(miIntegrante),
+      findMany: vi.fn().mockResolvedValue([
+        { usuario_id: creadorId },
+        { usuario_id: usuarioId },
+        { usuario_id: otroId },
+      ]),
       count: vi.fn().mockResolvedValue(3),
     },
     resumenViaje: { findUnique: resumenFindUnique, upsert: vi.fn() },
@@ -106,8 +111,8 @@ describe('ViajesService.obtenerResumen', () => {
 
     expect(r.totales.duracion_segundos).toBe(5400)
     expect(r.totales.distancia_real_m).toBe(40850)
-    // 3 integrantes + el creador, que no tiene fila en viaje_integrante.
-    expect(r.totales.cantidad_integrantes).toBe(4)
+    // 3 integrantes únicos (creador ya está en viaje_integrante).
+    expect(r.totales.cantidad_integrantes).toBe(3)
     expect(r.mis_metricas.distancia_m).toBe(40120.5)
     expect(r.mis_metricas.sali_antes).toBe(false)
   })

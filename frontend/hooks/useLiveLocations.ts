@@ -255,9 +255,14 @@ export function useLiveLocations({ viajeId, userId, nameByUserId = {}, selfSeed 
           viajeId: string
           usuarioId: string
           inicio: string
+          estado?: EstadoIntegranteApi
         }) => {
           if (payload.viajeId !== viajeId) return
-          aplicarEstado(payload.usuarioId, 'detenido_voluntario', payload.inicio)
+          aplicarEstado(
+            payload.usuarioId,
+            payload.estado ?? 'detenido_voluntario',
+            payload.inicio
+          )
         }
 
         const onParadaFinalizada = (payload: { viajeId: string; usuarioId: string }) => {

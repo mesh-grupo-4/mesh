@@ -94,5 +94,5 @@ viaje abre con el mapa del recorrido, con marcadores de inicio y fin.
 
 ## Pendiente relacionado
 
-- RN-042: pausar / cancelar / resolver alertas.
-- El motor de eventos todavía no crea alertas con `origen: sistema` (desvíos, atrasos, incidentes).
+- RN-042: pausar / cancelar / resolver alertas manuales desde la UI.
+- RN-025: exponer `tolerancia_atraso` configurable por el líder en el viaje (hoy el motor usa defaults por actividad).

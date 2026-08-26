@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 
-import { metaTipoAlerta, type AlertaApi } from '@/lib/alertasApi'
+import { metaTipoAlerta, mensajeAlertaVisible, type AlertaApi } from '@/lib/alertasApi'
 
 /** US1: la alerta recién llegada, sobre el mapa en vivo. */
 type Props = {
@@ -19,9 +19,13 @@ export function AlertaBanner({ alerta, onCerrar, onVerHistorial }: Props) {
         <Text style={styles.titulo}>
           {meta.emoji} {meta.label}
         </Text>
-        {alerta.mensaje ? <Text style={styles.mensaje}>{alerta.mensaje}</Text> : null}
+        {alerta.mensaje ? (
+          <Text style={styles.mensaje}>{mensajeAlertaVisible(alerta.mensaje)}</Text>
+        ) : null}
         {alerta.creada_por_nombre ? (
           <Text style={styles.autor}>{alerta.creada_por_nombre}</Text>
+        ) : alerta.origen === 'sistema' ? (
+          <Text style={styles.autor}>Alerta automática</Text>
         ) : null}
       </Pressable>
       <Pressable

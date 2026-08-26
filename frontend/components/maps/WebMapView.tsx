@@ -21,7 +21,9 @@ export type PolylineSpec = {
   coords: [number, number][]
   color: string
   width: number
-} | null
+  opacity?: number
+  dashed?: boolean
+}
 
 export type EdgePadding = { top: number; right: number; bottom: number; left: number }
 
@@ -35,7 +37,8 @@ type Props = {
   initialZoom: number
   tile: LeafletTile
   markers?: MarkerSpec[]
-  polyline?: PolylineSpec
+  polyline?: PolylineSpec | null
+  polylines?: PolylineSpec[]
   interactive?: boolean
   onReady?: () => void
   onRegionChangeComplete?: (center: LatLng) => void
@@ -49,7 +52,7 @@ export function zoomFromLatDelta(latitudeDelta: number): number {
 }
 
 export const WebMapView = forwardRef<WebMapViewHandle, Props>(function WebMapView(
-  { initialCenter, initialZoom, tile, markers, polyline, interactive = true, onReady, onRegionChangeComplete, style },
+  { initialCenter, initialZoom, tile, markers, polyline, polylines, interactive = true, onReady, onRegionChangeComplete, style },
   ref
 ) {
   const webRef = useRef<WebView>(null)
@@ -80,16 +83,15 @@ export const WebMapView = forwardRef<WebMapViewHandle, Props>(function WebMapVie
     run(`window.__mesh.setMarkers(${JSON.stringify(markers ?? [])})`)
   }, [ready, markers, run])
 
+  const lineasActivas = useMemo(() => {
+    if (polylines && polylines.length > 0) return polylines
+    return polyline ? [polyline] : []
+  }, [polylines, polyline])
+
   useEffect(() => {
     if (!ready) return
-    if (polyline) {
-      run(
-        `window.__mesh.setPolyline(${JSON.stringify(polyline.coords)}, ${JSON.stringify(polyline.color)}, ${polyline.width})`
-      )
-    } else {
-      run(`window.__mesh.setPolyline(null, '', 0)`)
-    }
-  }, [ready, polyline, run])
+    run(`window.__mesh.setPolylines(${JSON.stringify(lineasActivas)})`)
+  }, [ready, lineasActivas, run])
 
   useEffect(() => {
     if (!ready) return

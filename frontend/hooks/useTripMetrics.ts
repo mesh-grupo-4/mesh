@@ -2,18 +2,20 @@ import { useEffect, useRef, useState } from 'react'
 import { DeviceEventEmitter } from 'react-native'
 
 import { formatDistanceKm, formatElapsedHms, haversineDistanceM } from '@/lib/geo/haversine'
+import { filtrosGpsPorActividad } from '@/lib/gpsFilters'
 import { loadTripMetrics, saveTripMetrics } from '@/lib/tripMetricsStore'
 
 type Options = {
   viajeId: string
   userId: string
   fechaInicioReal: string | null
+  tipoActividad?: string
 }
 
 /** Cada cuánto bajamos el acumulado a disco. Un tick GPS llega cada 5 s. */
 const PERSIST_INTERVAL_MS = 10000
 
-export function useTripMetrics({ viajeId, userId, fechaInicioReal }: Options) {
+export function useTripMetrics({ viajeId, userId, fechaInicioReal, tipoActividad = 'otro' }: Options) {
   const [elapsedLabel, setElapsedLabel] = useState('00:00:00')
   const [distanceM, setDistanceM] = useState(0)
 
@@ -77,7 +79,8 @@ export function useTripMetrics({ viajeId, userId, fechaInicioReal }: Options) {
         const prev = prevRef.current
         if (prev) {
           const delta = haversineDistanceM(prev.lat, prev.lng, p.lat, p.lng)
-          if (delta > 0 && delta < 500) {
+          const f = filtrosGpsPorActividad(tipoActividad)
+          if (delta > f.segmentoMinM && delta <= f.segmentoMaxM) {
             distanceRef.current += delta
             setDistanceM(distanceRef.current)
           }
@@ -86,7 +89,7 @@ export function useTripMetrics({ viajeId, userId, fechaInicioReal }: Options) {
       }
     )
     return () => sub.remove()
-  }, [viajeId, userId])
+  }, [viajeId, userId, tipoActividad])
 
   // Persiste con throttle y también al desmontar, para no castigar AsyncStorage
   // con una escritura cada 5 segundos.

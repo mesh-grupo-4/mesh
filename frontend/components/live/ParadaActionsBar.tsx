@@ -9,6 +9,8 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 type Props = {
   /** Inicio de la parada en curso; null si el integrante está en movimiento. */
   paradaDesde: string | null
+  /** Parada abierta detectada por el motor (RN-036). */
+  esIncidenteDetectado?: boolean
   /** El botón de solicitar no se muestra al líder ni en viajes individuales. */
   puedeSolicitar: boolean
   /** Hay una solicitud propia esperando respuesta del líder. */
@@ -16,6 +18,7 @@ type Props = {
   ocupado: boolean
   onDetenerse: () => void
   onRetomar: () => void
+  onEstoyBien?: () => void
   onSolicitar: () => void
 }
 
@@ -32,11 +35,13 @@ function transcurrido(desde: string): string {
 
 export function ParadaActionsBar({
   paradaDesde,
+  esIncidenteDetectado = false,
   puedeSolicitar,
   solicitudPendiente,
   ocupado,
   onDetenerse,
   onRetomar,
+  onEstoyBien,
   onSolicitar,
 }: Props) {
   const [, forzarRender] = useState(0)
@@ -54,20 +59,24 @@ export function ParadaActionsBar({
         <Pressable
           style={({ pressed }) => [
             styles.boton,
-            styles.retomar,
+            esIncidenteDetectado ? styles.estoyBien : styles.retomar,
             pressed && styles.presionado,
             ocupado && styles.deshabilitado,
           ]}
-          onPress={onRetomar}
-          disabled={ocupado}
+          onPress={esIncidenteDetectado ? onEstoyBien : onRetomar}
+          disabled={ocupado || (esIncidenteDetectado && !onEstoyBien)}
           accessibilityRole="button"
-          accessibilityLabel="Retomar el viaje y finalizar la parada"
+          accessibilityLabel={
+            esIncidenteDetectado ? 'Confirmar que estoy bien' : 'Retomar el viaje y finalizar la parada'
+          }
         >
           {ocupado ? (
             <ActivityIndicator color="#fff" />
           ) : (
             <>
-              <Text style={styles.retomarTxt}>Retomar viaje</Text>
+              <Text style={styles.retomarTxt}>
+                {esIncidenteDetectado ? 'Estoy bien' : 'Retomar viaje'}
+              </Text>
               <Text style={styles.cronometro}>{transcurrido(paradaDesde)}</Text>
             </>
           )}
@@ -170,6 +179,12 @@ const styles = StyleSheet.create({
     gap: 12,
     backgroundColor: '#15803d',
     borderColor: '#15803d',
+  },
+  estoyBien: {
+    flexDirection: 'row',
+    gap: 12,
+    backgroundColor: '#dc2626',
+    borderColor: '#dc2626',
   },
   retomarTxt: {
     fontSize: 18,

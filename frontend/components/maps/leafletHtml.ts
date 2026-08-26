@@ -56,7 +56,12 @@ export function buildLeafletHtml({ centerLat, centerLng, zoom, tile, interactive
     }).addTo(map);
 
     var markersLayer = L.layerGroup().addTo(map);
-    var polyLayer = null;
+    var polyLayers = [];
+
+    function clearPolylines() {
+      polyLayers.forEach(function (layer) { map.removeLayer(layer); });
+      polyLayers = [];
+    }
 
     function applyTileFilter(filter) {
       var pane = map.getPane('tilePane');
@@ -97,13 +102,22 @@ export function buildLeafletHtml({ centerLat, centerLng, zoom, tile, interactive
         });
       },
       setPolyline: function (coords, color, width) {
-        if (polyLayer) {
-          map.removeLayer(polyLayer);
-          polyLayer = null;
-        }
+        clearPolylines();
         if (coords && coords.length > 1) {
-          polyLayer = L.polyline(coords, { color: color, weight: width, opacity: 0.88 }).addTo(map);
+          polyLayers.push(L.polyline(coords, { color: color, weight: width, opacity: 0.88 }).addTo(map));
         }
+      },
+      setPolylines: function (list) {
+        clearPolylines();
+        (list || []).forEach(function (pl) {
+          if (!pl.coords || pl.coords.length < 2) return;
+          polyLayers.push(L.polyline(pl.coords, {
+            color: pl.color,
+            weight: pl.width || 4,
+            opacity: pl.opacity != null ? pl.opacity : 0.88,
+            dashArray: pl.dashed ? '8 10' : null,
+          }).addTo(map));
+        });
       },
       fitBounds: function (coords, padding, animated) {
         if (!coords || coords.length < 2) return;

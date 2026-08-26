@@ -21,12 +21,15 @@ import type {
 import { parametrosPorActividad } from './activityDefaults'
 import { aplicarPuestosRanking } from './ranking'
 import { RutasCompartidasService } from '../rutas-compartidas/rutas-compartidas.service'
+import { MotorEventosService } from '../motor-eventos/motorEventos.service'
 
 export class ViajesService {
   private readonly rutasCompartidas: RutasCompartidasService
+  private readonly motor: MotorEventosService
 
   constructor(private readonly prisma: PrismaClient) {
     this.rutasCompartidas = new RutasCompartidasService(prisma)
+    this.motor = new MotorEventosService(prisma)
   }
 
   async crearViaje(creadorId: string, input: CreateViajeInput) {
@@ -922,9 +925,7 @@ export class ViajesService {
     }
 
     const [cantidadIntegrantes, mia, miIntegrante] = await Promise.all([
-      this.prisma.viajeIntegrante.count({
-        where: { viaje_id: viajeId, estado: { in: ['confirmado', 'salido'] } },
-      }),
+      this.contarIntegrantesEfectivos(viajeId, viaje.creador_id),
       this.prisma.metricaViaje.findUnique({
         where: { viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId } },
       }),
@@ -947,8 +948,7 @@ export class ViajesService {
         duracion_segundos: resumen?.duracion_segundos ?? null,
         distancia_planeada_m: resumen?.distancia_planeada_m ?? null,
         distancia_real_m: resumen?.distancia_real_m ?? null,
-        // El creador no tiene fila en viaje_integrante: se suma aparte.
-        cantidad_integrantes: cantidadIntegrantes + 1,
+        cantidad_integrantes: cantidadIntegrantes,
         cantidad_paradas: resumen?.cantidad_paradas ?? 0,
       },
       mis_metricas: {
@@ -1091,7 +1091,7 @@ export class ViajesService {
         distancia_real_m: resumen?.distancia_real_m ?? null,
         distancia_planeada_m: resumen?.distancia_planeada_m ?? null,
         cantidad_paradas: resumen?.cantidad_paradas ?? 0,
-        cantidad_integrantes: integrantes.length + 1,
+        cantidad_integrantes: await this.contarIntegrantesEfectivos(viajeId, viaje.creador_id),
       },
       por_integrante,
     }
@@ -1262,6 +1262,20 @@ export class ViajesService {
     throw new HttpError(403, 'Sin acceso a este viaje', 'FORBIDDEN')
   }
 
+  /**
+   * Personas que participaron (confirmadas o salieron). El creador se incluye
+   * siempre por compatibilidad con viajes legacy sin fila en viaje_integrante.
+   */
+  private async contarIntegrantesEfectivos(viajeId: string, creadorId: string): Promise<number> {
+    const integrantes = await this.prisma.viajeIntegrante.findMany({
+      where: { viaje_id: viajeId, estado: { in: ['confirmado', 'salido'] } },
+      select: { usuario_id: true },
+    })
+    const ids = new Set(integrantes.map((i) => i.usuario_id))
+    ids.add(creadorId)
+    return ids.size
+  }
+
   private async assertPuedeEnviarGps(viajeId: string, usuarioId: string): Promise<void> {
     const viaje = await this.prisma.viaje.findUnique({
       where: { id: viajeId },
@@ -1333,6 +1347,9 @@ export class ViajesService {
       source: input.source,
     }))
     await this.prisma.registroGPS.createMany({ data: rows })
+    for (const row of rows) {
+      this.dispatchMotorPing(viajeId, usuarioId, row.lat, row.lng, row.timestamp)
+    }
     const last = rows[rows.length - 1]
     if (last) {
       await this.upsertUbicacionVivaSnapshot({
@@ -1366,6 +1383,7 @@ export class ViajesService {
       lng: input.lng,
       precision: input.precision ?? null,
     })
+    this.dispatchMotorPing(viajeId, usuarioId, input.lat, input.lng, input.recordedAt)
     return row
   }
 
@@ -1383,7 +1401,7 @@ export class ViajesService {
       // duplicado en ubicacion_viva; así no hay dos fuentes que puedan discrepar.
       this.prisma.parada.findMany({
         where: { viaje_id: viajeId, fin: null },
-        select: { usuario_id: true, inicio: true, categoria: true },
+        select: { usuario_id: true, inicio: true, categoria: true, tipo: true },
       }),
     ])
 
@@ -1391,6 +1409,11 @@ export class ViajesService {
 
     return rows.map((r) => {
       const parada = paradaPorUsuario.get(r.usuario_id)
+      const estado = parada
+        ? parada.tipo === 'incidente_detectado'
+          ? ('posible_incidente' as const)
+          : ('detenido_voluntario' as const)
+        : ('en_movimiento' as const)
       return {
         usuarioId: r.usuario_id,
         viajeId: r.viaje_id,
@@ -1399,7 +1422,7 @@ export class ViajesService {
         precision: r.precision_m,
         updatedAt: r.updated_at.toISOString(),
         nombre: [r.usuario.nombre, r.usuario.apellido].filter(Boolean).join(' ').trim(),
-        estado: parada ? ('detenido_voluntario' as const) : ('en_movimiento' as const),
+        estado,
         paradaDesde: parada ? parada.inicio.toISOString() : null,
         paradaCategoria: parada?.categoria ?? null,
       }
@@ -1438,6 +1461,19 @@ export class ViajesService {
       lng,
       precision: accuracy ?? null,
     })
+    this.dispatchMotorPing(viajeId, usuarioId, lat, lng, ts)
+  }
+
+  private dispatchMotorPing(
+    viajeId: string,
+    usuarioId: string,
+    lat: number,
+    lng: number,
+    timestamp: Date
+  ): void {
+    void this.motor
+      .procesarPing({ viajeId, usuarioId, lat, lng, timestamp })
+      .catch((e) => console.warn('[viajes] motor de eventos:', e))
   }
 
   private emitUbicacionLive(

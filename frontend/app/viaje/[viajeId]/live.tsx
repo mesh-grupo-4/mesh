@@ -20,6 +20,7 @@ import { CrearAlertaSheet } from '@/components/live/CrearAlertaSheet'
 import { CenterLocationButton } from '@/components/live/CenterLocationButton'
 import { ParadaActionsBar } from '@/components/live/ParadaActionsBar'
 import { SolicitudParadaBanner } from '@/components/live/SolicitudParadaBanner'
+import { LlegadaDestinoBanner } from '@/components/live/LlegadaDestinoBanner'
 import { LiveMapView, type LiveMapViewHandle } from '@/components/live/LiveMapView'
 import type { LiveMember } from '@/components/live/LiveMembersBar'
 import { LiveTripHeader } from '@/components/live/LiveTripHeader'
@@ -28,12 +29,15 @@ import { MapStylePicker } from '@/components/route-config/MapStylePicker'
 import type { MapStyleId } from '@/components/route-config/mapStyles'
 import { DEV_USER_ID, API_BASE_URL } from '@/constants/Config'
 import { useAuth } from '@/context/AuthContext'
+import { useBreadcrumbTrail } from '@/hooks/useBreadcrumbTrail'
 import { useLiveLocations } from '@/hooks/useLiveLocations'
+import { useLlegadaDestino } from '@/hooks/useLlegadaDestino'
 import { useAlertas } from '@/hooks/useAlertas'
 import { useParadas } from '@/hooks/useParadas'
 import { useNextStopEta } from '@/hooks/useNextStopEta'
 import { useTripMetrics } from '@/hooks/useTripMetrics'
 import type { RouteStop } from '@/lib/geo/nextStop'
+import { dividirRutaPorAvance } from '@/lib/geo/routeProgress'
 import { nombreCompleto } from '@/lib/nombres'
 import type { TipoAlertaApi } from '@/lib/alertasApi'
 import type { CategoriaParadaApi } from '@/lib/paradasApi'
@@ -183,6 +187,7 @@ export default function ViajeLiveScreen() {
     enviando: paradaEnCurso,
     registrarParada,
     retomarViaje,
+    confirmarBien,
     pedirParada,
     responderSolicitud,
     descartarResultado,
@@ -209,6 +214,36 @@ export default function ViajeLiveScreen() {
     viajeId: viajeId ?? '',
     userId,
     fechaInicioReal: viaje?.fecha_inicio_real ?? null,
+    tipoActividad: viaje?.tipo_actividad ?? 'otro',
+  })
+
+  const breadcrumb = useBreadcrumbTrail({
+    viajeId: viajeId ?? '',
+    userId,
+    tipoActividad: viaje?.tipo_actividad ?? 'otro',
+    habilitado: viaje?.estado === 'en_curso',
+  })
+
+  const destino = useMemo(() => {
+    const fin = routeStops.find((s) => s.type === 'DESTINATION')
+    if (!fin) return null
+    return { lat: fin.lat, lng: fin.lng, nombre: fin.name ?? null }
+  }, [routeStops])
+
+  const routeRemaining = useMemo(() => {
+    if (!routeLine?.length || !myPosition) return routeLine
+    return dividirRutaPorAvance(routeLine, myPosition).restante
+  }, [routeLine, myPosition])
+
+  const alertasEnMapa = useMemo(
+    () => alertas.filter((a) => a.estado === 'activa' && a.lat != null && a.lng != null),
+    [alertas]
+  )
+
+  const { llegada, descartar: descartarLlegada, destinoNombre } = useLlegadaDestino({
+    destino,
+    pos: myPosition,
+    habilitado: viaje?.estado === 'en_curso',
   })
 
   useEffect(() => {
@@ -280,8 +315,21 @@ export default function ViajeLiveScreen() {
         router.replace({ pathname: '/viaje/[viajeId]/resumen', params: { viajeId } })
       }
 
+      const onSalio = (payload: { viajeId: string; usuarioId: string }) => {
+        if (payload.viajeId !== viajeId) return
+        setParticipantes((prev) =>
+          prev.map((p) =>
+            p.usuario.id === payload.usuarioId ? { ...p, estado: 'salido' as const } : p
+          )
+        )
+      }
+
       sock.on('viaje:finalizado', onFin)
-      cleanup = () => sock.off('viaje:finalizado', onFin)
+      sock.on('viaje:participante_salio', onSalio)
+      cleanup = () => {
+        sock.off('viaje:finalizado', onFin)
+        sock.off('viaje:participante_salio', onSalio)
+      }
     })()
 
     return () => cleanup?.()
@@ -292,15 +340,15 @@ export default function ViajeLiveScreen() {
   useEffect(() => {
     let cancelled = false
     void (async () => {
-      if (!viajeId || !userId.trim() || Platform.OS === 'web') return
+      if (!viajeId || !userId.trim() || !viaje || Platform.OS === 'web') return
       const perm = await solicitarPermisosUbicacion()
       if (cancelled) return
       setFg(perm.foreground)
       if (perm.foreground) {
-        await iniciarTrackingViaje(viajeId, userId.trim())
+        await iniciarTrackingViaje(viajeId, userId.trim(), viaje.tipo_actividad)
       }
       try {
-        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High })
         if (!cancelled) {
           setInitialCenter({ latitude: pos.coords.latitude, longitude: pos.coords.longitude })
         }
@@ -311,7 +359,7 @@ export default function ViajeLiveScreen() {
     return () => {
       cancelled = true
     }
-  }, [viajeId, userId])
+  }, [viajeId, userId, viaje?.tipo_actividad])
 
   // Fallback: si el GPS no resolvió una posición, centramos en el origen de la ruta.
   useEffect(() => {
@@ -425,6 +473,18 @@ export default function ViajeLiveScreen() {
     })()
   }
 
+  /** RN-036: confirma que estás bien tras un posible incidente detectado por el sistema. */
+  const handleEstoyBien = () => {
+    void (async () => {
+      try {
+        await confirmarBien()
+        meshAlert('Confirmado', 'Volviste a figurar en movimiento en el mapa del grupo.')
+      } catch (e) {
+        meshAlert('No se pudo confirmar', mensajeDeError(e))
+      }
+    })()
+  }
+
   /** US2 */
   const handleSolicitar = () => {
     if (miSolicitud?.estado === 'pendiente') {
@@ -496,8 +556,8 @@ export default function ViajeLiveScreen() {
   const irAAlertas = () =>
     router.push({ pathname: '/viaje/[viajeId]/alertas', params: { viajeId: viajeId ?? '' } })
 
-  /** Los flotantes arrancan bajo el header y se corren si hay banners visibles. */
-  const TOP_OVERLAYS = 128
+  /** Los flotantes arrancan bajo el header compacto y se corren si hay banners visibles. */
+  const TOP_OVERLAYS = 96
   const topFlotantes = TOP_OVERLAYS + (altoBanners > 0 ? altoBanners + 10 : 0)
   // Sin medir, el botón de centrar quedaba debajo de la botonera al aparecer
   // la fila de paradas.
@@ -538,8 +598,10 @@ export default function ViajeLiveScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <LiveMapView
         ref={mapRef}
-        routeLineLatLng={routeLine}
+        routeRemaining={routeRemaining}
+        breadcrumb={breadcrumb}
         members={memberList}
+        alertasEnMapa={alertasEnMapa}
         currentUserId={userId}
         initialCenter={initialCenter}
         mapStyle={mapStyle}
@@ -596,6 +658,17 @@ export default function ViajeLiveScreen() {
           />
         ) : null}
 
+        {llegada ? (
+          <LlegadaDestinoBanner
+            destinoNombre={destinoNombre}
+            esCreador={esLider}
+            ocupado={accion}
+            onContinuar={descartarLlegada}
+            onFinalizar={esLider ? confirmarFinalizar : undefined}
+            onSalir={!esLider ? confirmarSalir : undefined}
+          />
+        ) : null}
+
         {esLider && pendientes.length > 0 && pendientes[0] ? (
           <SolicitudParadaBanner
             nombre={pendientes[0].nombre}
@@ -627,11 +700,13 @@ export default function ViajeLiveScreen() {
         {viaje?.estado === 'en_curso' ? (
           <ParadaActionsBar
             paradaDesde={paradaActiva?.inicio ?? null}
+            esIncidenteDetectado={paradaActiva?.tipo === 'incidente_detectado'}
             puedeSolicitar={puedeSolicitarParada}
             solicitudPendiente={miSolicitud?.estado === 'pendiente'}
             ocupado={paradaEnCurso || accion}
             onDetenerse={handleDetenerse}
             onRetomar={handleRetomar}
+            onEstoyBien={handleEstoyBien}
             onSolicitar={handleSolicitar}
           />
         ) : null}
@@ -719,7 +794,7 @@ const styles = StyleSheet.create({
   },
   bannerStack: {
     position: 'absolute',
-    top: 128,
+    top: 96,
     left: 12,
     right: 12,
     gap: 8,

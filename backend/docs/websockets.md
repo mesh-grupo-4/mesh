@@ -193,6 +193,58 @@ Emitido por `ViajesService.salirViaje()`, y **solo si el viaje está en curso**.
 La persona pasa a estado `salido` y deja de publicar ubicación, pero conserva su fila para
 seguir figurando en el resumen con lo que recorrió. El viaje **no** se cierra para el resto.
 
+### `viaje:alerta`
+
+Emitido por `AlertasService.crear()` al publicar una alerta manual, y por
+`MotorEventosService` al detectar desvío (RN-034), atraso (RN-035) o posible
+incidente (RN-036).
+
+```jsonc
+{
+  "viajeId": "3f2c9a10-...",
+  "alerta": {
+    "id": "...",
+    "tipo": "manual", // también: desvio | atraso | peligro (sistema)
+    "origen": "lider", // sistema cuando la genera el motor
+    "mensaje": "Precaución en curva",
+    "estado": "activa",
+    "creada_por_id": "9d8c7b6a-...",
+    "lat": -31.4201,
+    "lng": -64.1888
+  }
+}
+```
+
+Las alertas del sistema incluyen el prefijo interno `[afectado:{usuarioId}]` en
+`mensaje` para deduplicar por integrante; el frontend lo oculta al mostrar.
+
+### Paradas voluntarias e incidentes (`paradas.service.ts`, `motorEventos.service.ts`)
+
+| Evento | Cuándo |
+|---|---|
+| `viaje:parada_iniciada` | Parada voluntaria (US1) o incidente detectado por el motor (RN-036) |
+| `viaje:parada_finalizada` | Retomar viaje (US3) o confirmar "Estoy bien" (RN-036) |
+| `viaje:solicitud_parada` | Solicitud de parada al líder (US2) |
+| `viaje:solicitud_parada_resuelta` | El líder aprueba o rechaza la solicitud |
+
+Payload de `viaje:parada_iniciada` cuando el motor detecta detención sospechosa:
+
+```jsonc
+{
+  "viajeId": "...",
+  "paradaId": "...",
+  "usuarioId": "...",
+  "nombre": "Ana Pérez",
+  "lat": -31.4201,
+  "lng": -64.1888,
+  "categoria": null,
+  "inicio": "2026-08-21T17:05:00.000Z",
+  "estado": "posible_incidente"
+}
+```
+
+Para paradas voluntarias, `estado` es `detenido_voluntario`.
+
 ---
 
 ## Resumen
@@ -206,6 +258,11 @@ seguir figurando en el resumen con lo que recorrió. El viaje **no** se cierra p
 | `viaje:finalizado` | servidor → sala | — | solo el creador la dispara |
 | `viaje:ubicacion` | servidor → sala | — | — |
 | `viaje:participante_salio` | servidor → sala | — | — |
+| `viaje:alerta` | servidor → sala | — | — |
+| `viaje:parada_iniciada` | servidor → sala | — | — |
+| `viaje:parada_finalizada` | servidor → sala | — | — |
+| `viaje:solicitud_parada` | servidor → sala | — | — |
+| `viaje:solicitud_parada_resuelta` | servidor → sala | — | — |
 
 ## Escala
 

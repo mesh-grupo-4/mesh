@@ -45,6 +45,7 @@ viajesRouter.post('/:viajeId/salir', requireUser, c.salir)
 viajesRouter.get('/:viajeId/paradas/activa', ...paradasHandlers.activa)
 viajesRouter.post('/:viajeId/paradas', ...paradasHandlers.iniciar)
 viajesRouter.post('/:viajeId/paradas/finalizar', ...paradasHandlers.finalizar)
+viajesRouter.post('/:viajeId/paradas/confirmar-bien', ...paradasHandlers.confirmarBien)
 viajesRouter.get('/:viajeId/solicitudes-parada', ...paradasHandlers.listarSolicitudes)
 viajesRouter.post('/:viajeId/solicitudes-parada', ...paradasHandlers.solicitar)
 viajesRouter.post(

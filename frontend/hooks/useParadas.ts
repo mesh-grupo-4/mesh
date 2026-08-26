@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { connectMeshSocket } from '@/lib/meshSocket'
 import {
   cancelarSolicitudParada,
+  confirmarEstoyBien,
   finalizarParada,
   iniciarParada,
   listarSolicitudesParada,
@@ -12,6 +13,7 @@ import {
   type CategoriaParadaApi,
   type ParadaApi,
   type SolicitudParadaApi,
+  type EstadoIntegranteApi,
 } from '@/lib/paradasApi'
 
 type Options = {
@@ -125,11 +127,45 @@ export function useParadas({ viajeId, userId, esLider, habilitado }: Options) {
           }
         }
 
+        const onParadaIniciada = (p: {
+          viajeId: string
+          usuarioId: string
+          paradaId: string
+          lat: number
+          lng: number
+          categoria: CategoriaParadaApi | null
+          inicio: string
+          estado?: EstadoIntegranteApi
+        }) => {
+          if (p.viajeId !== viajeId || p.usuarioId !== userIdRef.current) return
+          setParadaActiva({
+            id: p.paradaId,
+            viaje_id: viajeId,
+            usuario_id: p.usuarioId,
+            lat: p.lat,
+            lng: p.lng,
+            categoria: p.categoria,
+            tipo: p.estado === 'posible_incidente' ? 'incidente_detectado' : 'voluntaria',
+            inicio: p.inicio,
+            fin: null,
+            duracion_segundos: null,
+          })
+        }
+
+        const onParadaFinalizada = (p: { viajeId: string; usuarioId: string }) => {
+          if (p.viajeId !== viajeId || p.usuarioId !== userIdRef.current) return
+          setParadaActiva(null)
+        }
+
         sock.on('viaje:solicitud_parada', onSolicitud)
         sock.on('viaje:solicitud_parada_resuelta', onResuelta)
+        sock.on('viaje:parada_iniciada', onParadaIniciada)
+        sock.on('viaje:parada_finalizada', onParadaFinalizada)
         cleanup = () => {
           sock.off('viaje:solicitud_parada', onSolicitud)
           sock.off('viaje:solicitud_parada_resuelta', onResuelta)
+          sock.off('viaje:parada_iniciada', onParadaIniciada)
+          sock.off('viaje:parada_finalizada', onParadaFinalizada)
         }
       } catch {
         /* sin socket queda el refresco manual */
@@ -161,6 +197,17 @@ export function useParadas({ viajeId, userId, esLider, habilitado }: Options) {
     setEnviando(true)
     try {
       const parada = await finalizarParada(viajeId)
+      setParadaActiva(null)
+      return parada
+    } finally {
+      setEnviando(false)
+    }
+  }, [viajeId])
+
+  const confirmarBien = useCallback(async () => {
+    setEnviando(true)
+    try {
+      const parada = await confirmarEstoyBien(viajeId)
       setParadaActiva(null)
       return parada
     } finally {
@@ -212,6 +259,7 @@ export function useParadas({ viajeId, userId, esLider, habilitado }: Options) {
     enviando,
     registrarParada,
     retomarViaje,
+    confirmarBien,
     pedirParada,
     responderSolicitud,
     cancelarMiSolicitud,

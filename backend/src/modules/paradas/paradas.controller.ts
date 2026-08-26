@@ -25,6 +25,11 @@ export function crearParadasController(service: ParadasService) {
       res.json(parada)
     }),
 
+    confirmarBien: asyncHandler(async (req, res) => {
+      const parada = await service.confirmarEstoyBien(req.userId!, (req.params.viajeId as string))
+      res.json(parada)
+    }),
+
     activa: asyncHandler(async (req, res) => {
       const parada = await service.miParadaActiva(req.userId!, (req.params.viajeId as string))
       res.json(parada)

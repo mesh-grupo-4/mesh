@@ -22,6 +22,7 @@ export type ParadaApi = {
   lat: number
   lng: number
   categoria: CategoriaParadaApi | null
+  tipo: 'voluntaria' | 'incidente_detectado'
   inicio: string
   fin: string | null
   duracion_segundos: number | null
@@ -56,6 +57,14 @@ export async function iniciarParada(
 
 export async function finalizarParada(viajeId: string): Promise<ParadaApi> {
   const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}/paradas/finalizar`), {
+    method: 'POST',
+  })
+  return parseJson<ParadaApi>(res)
+}
+
+/** RN-036: confirma que estás bien tras un posible incidente detectado por el sistema. */
+export async function confirmarEstoyBien(viajeId: string): Promise<ParadaApi> {
+  const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}/paradas/confirmar-bien`), {
     method: 'POST',
   })
   return parseJson<ParadaApi>(res)

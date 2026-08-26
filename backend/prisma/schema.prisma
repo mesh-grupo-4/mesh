@@ -77,6 +77,7 @@ enum TipoAlerta {
   desvio
   peligro
   informacion
+  atraso
 }
 
 enum OrigenAlerta {

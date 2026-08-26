@@ -1,7 +1,7 @@
 import { apiUrl, meshFetchAuthed, parseJson } from './apiClient'
 
 /** RN-041: temas que el líder elige al crear la alerta. */
-export type TipoAlertaApi = 'parada' | 'combustible' | 'desvio' | 'peligro' | 'informacion'
+export type TipoAlertaApi = 'parada' | 'combustible' | 'desvio' | 'peligro' | 'informacion' | 'atraso'
 
 export type AlertaApi = {
   id: string
@@ -44,10 +44,18 @@ export const TIPOS_ALERTA: {
   { id: 'parada', label: 'Parada', emoji: '⏸', color: '#f59e0b' },
   { id: 'combustible', label: 'Combustible', emoji: '⛽', color: '#0ea5e9' },
   { id: 'desvio', label: 'Desvío', emoji: '↗', color: '#8b5cf6' },
+  { id: 'atraso', label: 'Atraso', emoji: '🐢', color: '#ea580c' },
   { id: 'peligro', label: 'Peligro', emoji: '⚠', color: '#dc2626' },
   { id: 'informacion', label: 'Información', emoji: 'ℹ', color: '#6b7280' },
 ]
 
 export function metaTipoAlerta(tipo: TipoAlertaApi) {
   return TIPOS_ALERTA.find((t) => t.id === tipo) ?? TIPOS_ALERTA[4]!
+}
+
+/** Oculta el prefijo interno `[afectado:uuid]` de alertas del motor de eventos. */
+export function mensajeAlertaVisible(mensaje: string | null): string | null {
+  if (!mensaje) return null
+  const limpio = mensaje.replace(/^\[afectado:[0-9a-f-]+\]\s*/i, '').trim()
+  return limpio || null
 }

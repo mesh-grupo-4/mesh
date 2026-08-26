@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client'
 import type { PrismaClient } from '@prisma/client'
 import type { GeoJsonLineString } from './geo'
 import { assertLineString } from './geo'
+import { filtrosGpsPorActividad } from './gpsFilters'
 
 /**
  * Longitud del trazado en metros (elipsoide WGS84) usando PostGIS geography.
@@ -26,6 +27,63 @@ export async function computeLineStringLengthMeters(
   return len
 }
 
+/**
+ * Distancia mínima en metros entre un punto y un LineString GeoJSON (RN-034).
+ * Devuelve null si la geometría no es válida.
+ */
+export async function computeDistanciaPuntoARutaM(
+  prisma: PrismaClient,
+  lat: number,
+  lng: number,
+  linestring: GeoJsonLineString
+): Promise<number | null> {
+  try {
+    assertLineString(linestring)
+  } catch {
+    return null
+  }
+  const jsonText = JSON.stringify(linestring)
+  const rows = await prisma.$queryRaw<{ dist_m: number }[]>(
+    Prisma.sql`
+      SELECT ST_Distance(
+        ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography,
+        ST_GeomFromGeoJSON(${jsonText}::text)::geography
+      ) AS dist_m
+    `
+  )
+  const dist = rows[0]?.dist_m
+  return typeof dist === 'number' && !Number.isNaN(dist) ? dist : null
+}
+
+/**
+ * Progreso en metros sobre el LineString desde el origen (RN-035).
+ * Usa ST_LineLocatePoint × longitud geodésica de la ruta.
+ */
+export async function computeProgresoEnRutaM(
+  prisma: PrismaClient,
+  lat: number,
+  lng: number,
+  linestring: GeoJsonLineString
+): Promise<number | null> {
+  try {
+    assertLineString(linestring)
+  } catch {
+    return null
+  }
+  const jsonText = JSON.stringify(linestring)
+  const rows = await prisma.$queryRaw<{ progreso_m: number }[]>(
+    Prisma.sql`
+      SELECT
+        ST_LineLocatePoint(
+          ST_GeomFromGeoJSON(${jsonText}::text)::geometry,
+          ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)
+        ) * ST_Length(ST_GeomFromGeoJSON(${jsonText}::text)::geography) AS progreso_m
+    `
+  )
+  const progreso = rows[0]?.progreso_m
+  return typeof progreso === 'number' && !Number.isNaN(progreso) ? progreso : null
+}
+
 export type MetricaGpsUsuario = {
   usuario_id: string
   distancia_m: number
@@ -33,16 +91,21 @@ export type MetricaGpsUsuario = {
   velocidad_maxima_kmh: number | null
 }
 
-/** Descarta lecturas GPS con más de 100 m de error declarado. */
-const PRECISION_MAX_M = 100
-/** Bajo este umbral es ruido de un dispositivo quieto, no desplazamiento. */
-const SEGMENTO_MIN_M = 1
-/** Salto de GPS. Mismo umbral que usa `useTripMetrics` en el frontend. */
-const SEGMENTO_MAX_M = 500
 /** Hueco largo (app cerrada o sin señal): no interpolamos el tramo faltante. */
 const SEGMENTO_MAX_SEG = 120
 /** Mínimo de segundos por segmento para calcular velocidad (evita ruido GPS). */
 const VELOCIDAD_MIN_SEG = 5
+
+async function tipoActividadDelViaje(
+  prisma: PrismaClient,
+  viajeId: string
+): Promise<string> {
+  const viaje = await prisma.viaje.findUnique({
+    where: { id: viajeId },
+    select: { tipo_actividad: true },
+  })
+  return viaje?.tipo_actividad ?? 'otro'
+}
 
 /**
  * Distancia recorrida, tiempo en movimiento y velocidad máxima por usuario en un viaje,
@@ -62,6 +125,7 @@ export async function computePerfilVelocidad(
   viajeId: string,
   usuarioId: string
 ): Promise<PerfilVelocidadPunto[]> {
+  const f = filtrosGpsPorActividad(await tipoActividadDelViaje(prisma, viajeId))
   return prisma.$queryRaw<PerfilVelocidadPunto[]>(
     Prisma.sql`
       WITH puntos AS (
@@ -71,7 +135,7 @@ export async function computePerfilVelocidad(
         FROM registro_gps
         WHERE viaje_id = ${viajeId}::uuid
           AND usuario_id = ${usuarioId}::uuid
-          AND (precision_m IS NULL OR precision_m <= ${PRECISION_MAX_M})
+          AND (precision_m IS NULL OR precision_m <= ${f.precisionMaxM})
       ),
       mintime AS (
         SELECT MIN("timestamp") AS t0 FROM puntos
@@ -88,10 +152,11 @@ export async function computePerfilVelocidad(
         AVG(metros / segundos * 3.6)::float8 AS velocidad_kmh
       FROM segmentos
       WHERE metros IS NOT NULL
-        AND metros > ${SEGMENTO_MIN_M}
-        AND metros <= ${SEGMENTO_MAX_M}
+        AND metros > ${f.segmentoMinM}
+        AND metros <= ${f.segmentoMaxM}
         AND segundos >= ${VELOCIDAD_MIN_SEG}
         AND segundos <= ${SEGMENTO_MAX_SEG}
+        AND (metros / segundos * 3.6) <= ${f.velocidadMaxKmh}
       GROUP BY bucket_min
       ORDER BY bucket_min
     `
@@ -112,6 +177,7 @@ export async function computeTrazaRecorrido(
   viajeId: string,
   usuarioId: string
 ): Promise<[number, number][]> {
+  const f = filtrosGpsPorActividad(await tipoActividadDelViaje(prisma, viajeId))
   const filas = await prisma.$queryRaw<{ lat: number; lng: number; orden: number }[]>(
     Prisma.sql`
       WITH puntos AS (
@@ -122,7 +188,7 @@ export async function computeTrazaRecorrido(
         FROM registro_gps
         WHERE viaje_id = ${viajeId}::uuid
           AND usuario_id = ${usuarioId}::uuid
-          AND (precision_m IS NULL OR precision_m <= ${PRECISION_MAX_M})
+          AND (precision_m IS NULL OR precision_m <= ${f.precisionMaxM})
         ORDER BY "timestamp"
       ),
       linea AS (
@@ -150,6 +216,7 @@ export async function computeMetricasGpsPorUsuario(
   prisma: PrismaClient,
   viajeId: string
 ): Promise<MetricaGpsUsuario[]> {
+  const f = filtrosGpsPorActividad(await tipoActividadDelViaje(prisma, viajeId))
   return prisma.$queryRaw<MetricaGpsUsuario[]>(
     Prisma.sql`
       WITH puntos AS (
@@ -159,7 +226,7 @@ export async function computeMetricasGpsPorUsuario(
           ST_SetSRID(ST_MakePoint(lng, lat), 4326)::geography AS geog
         FROM registro_gps
         WHERE viaje_id = ${viajeId}::uuid
-          AND (precision_m IS NULL OR precision_m <= ${PRECISION_MAX_M})
+          AND (precision_m IS NULL OR precision_m <= ${f.precisionMaxM})
       ),
       segmentos AS (
         SELECT
@@ -173,10 +240,11 @@ export async function computeMetricasGpsPorUsuario(
         SELECT *
         FROM segmentos
         WHERE metros IS NOT NULL
-          AND metros > ${SEGMENTO_MIN_M}
-          AND metros <= ${SEGMENTO_MAX_M}
+          AND metros > ${f.segmentoMinM}
+          AND metros <= ${f.segmentoMaxM}
           AND segundos > 0
           AND segundos <= ${SEGMENTO_MAX_SEG}
+          AND (metros / segundos * 3.6) <= ${f.velocidadMaxKmh}
       )
       SELECT
         usuario_id::text                        AS usuario_id,
@@ -184,6 +252,7 @@ export async function computeMetricasGpsPorUsuario(
         COALESCE(SUM(segundos), 0)::float8      AS segundos_movimiento,
         MAX(
           CASE WHEN segundos >= ${VELOCIDAD_MIN_SEG}
+               AND (metros / segundos * 3.6) <= ${f.velocidadMaxKmh}
                THEN metros / segundos * 3.6
                ELSE NULL
           END

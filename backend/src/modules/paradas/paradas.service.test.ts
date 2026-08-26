@@ -274,6 +274,71 @@ describe('US3 — retomar el viaje', () => {
       code: 'SIN_PARADA_ABIERTA',
     })
   })
+
+  it('rechaza finalizar un incidente detectado y pide confirmar bien', async () => {
+    const m = armarPrisma()
+    m.paradaFindFirst.mockResolvedValue({ id: paradaId, tipo: 'incidente_detectado', fin: null })
+    const service = new ParadasService(m.prisma)
+
+    await expect(service.finalizarParada(integranteId, viajeId)).rejects.toMatchObject({
+      status: 409,
+      code: 'USAR_CONFIRMAR_BIEN',
+    })
+    expect(m.paradaUpdate).not.toHaveBeenCalled()
+  })
+})
+
+// --------------------------------------------------------------------- RN-036
+
+describe('RN-036 — confirmar estoy bien', () => {
+  it('cierra el incidente, resuelve alertas del sistema y emite en_movimiento', async () => {
+    const inicio = new Date('2026-08-21T14:00:00.000Z')
+    const fin = new Date('2026-08-21T14:08:00.000Z')
+    vi.useFakeTimers()
+    vi.setSystemTime(fin)
+
+    const m = armarPrisma()
+    m.paradaFindFirst.mockResolvedValue({
+      id: paradaId,
+      viaje_id: viajeId,
+      usuario_id: integranteId,
+      lat: -31.42,
+      lng: -64.18,
+      tipo: 'incidente_detectado',
+      inicio,
+      fin: null,
+      usuario,
+    })
+    m.paradaUpdate.mockResolvedValue({
+      id: paradaId,
+      viaje_id: viajeId,
+      usuario_id: integranteId,
+      lat: -31.42,
+      lng: -64.18,
+      categoria: null,
+      tipo: 'incidente_detectado',
+      inicio,
+      fin,
+      usuario,
+    })
+    m.prisma.alerta = { updateMany: vi.fn().mockResolvedValue({ count: 1 }) } as never
+
+    const parada = await new ParadasService(m.prisma).confirmarEstoyBien(integranteId, viajeId)
+
+    expect(parada.fin).toBe(fin.toISOString())
+    expect(eventos()).toContain('viaje:parada_finalizada')
+    vi.useRealTimers()
+  })
+
+  it('falla si no hay incidente abierto', async () => {
+    const m = armarPrisma()
+    const service = new ParadasService(m.prisma)
+
+    await expect(service.confirmarEstoyBien(integranteId, viajeId)).rejects.toMatchObject({
+      status: 409,
+      code: 'SIN_INCIDENTE_ABIERTO',
+    })
+  })
 })
 
 // ------------------------------------------------------------------------ US2
