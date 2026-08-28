@@ -713,7 +713,7 @@ export default function ViajesScreen() {
           {tab === 'mis_viajes' && (
             <>
               <Btn block size="lg" icon="plus" onPress={() => router.push('/viaje/crear')}>
-                Crear viaje
+                Nuevo viaje
               </Btn>
 
               <SelectionHeader

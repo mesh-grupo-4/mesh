@@ -197,7 +197,7 @@ export default function InicioScreen() {
       <Text style={[styles.eyebrow, { color: theme.textDim }]}>ACCESOS RÁPIDOS</Text>
       <View style={styles.acciones}>
         <Btn block size="lg" icon="plus" onPress={() => router.push('/viaje/crear')}>
-          Crear viaje
+          Nuevo viaje
         </Btn>
         <Btn
           block

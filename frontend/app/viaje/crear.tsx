@@ -272,10 +272,6 @@ export default function CrearViajeScreen() {
       {/* Sin este título el header del Stack muestra el nombre de la ruta ("crear").
           No lo ocultamos como en `live.tsx` porque esta pantalla no tiene botón de volver propio. */}
       <Stack.Screen options={{ title: 'Nuevo viaje' }} />
-      <Text style={[styles.titulo, { color: theme.text }]}>Nuevo viaje</Text>
-      <Text style={[styles.hint, { color: theme.textDim }]}>
-        Elegí la actividad, la fecha y, si querés, grupos o amigos para invitar (RN-028).
-      </Text>
 
       {plantillaId ? (
         <View
@@ -298,7 +294,9 @@ export default function CrearViajeScreen() {
         </View>
       ) : null}
 
-      <Text style={[styles.seccion, { color: theme.text }]}>Nombre del viaje</Text>
+      <Text style={[styles.seccion, styles.seccionPrimera, { color: theme.text }]}>
+        Nombre del viaje
+      </Text>
       <TextInput
         style={[
           styles.input,
@@ -364,16 +362,25 @@ export default function CrearViajeScreen() {
               onPress={() => setTipoActividad(a.id)}
               style={[
                 styles.activityItem,
+                a.id === 'otro' && styles.activityItemFull,
                 {
                   backgroundColor: isActive ? theme.accentWeak : theme.surface,
                   borderColor: isActive ? theme.accentLine : theme.border,
                 },
               ]}
             >
-              <ActivityTile activity={a.id} />
-              <Text style={[styles.activityLabel, { color: theme.text }]}>{a.label}</Text>
+              <ActivityTile activity={a.id} size={34} />
+              <Text
+                style={[
+                  styles.activityLabel,
+                  a.id === 'otro' && styles.activityLabelFull,
+                  { color: theme.text },
+                ]}
+              >
+                {a.label}
+              </Text>
               {isActive ? (
-                <Feather name="check" size={20} color={theme.accent} style={styles.checkIcon} />
+                <Feather name="check" size={16} color={theme.accent} style={styles.checkIcon} />
               ) : null}
             </Pressable>
           )
@@ -459,7 +466,7 @@ export default function CrearViajeScreen() {
         <>
           <Text style={[styles.seccion, { color: theme.text }]}>A quién invitar</Text>
           <Text style={[styles.hint, { color: theme.textDim }]}>
-            Cada persona recibe una invitación para confirmar (RN-029).
+            Cada persona recibe una invitación para confirmar.
           </Text>
 
           {cargandoInvitables ? (
@@ -562,25 +569,40 @@ export default function CrearViajeScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: 24, paddingBottom: 40, gap: 10 },
-  titulo: { fontSize: 24, fontWeight: '700', letterSpacing: -0.4 },
+  content: { paddingHorizontal: 24, paddingTop: 12, paddingBottom: 40, gap: 10 },
   hint: { fontSize: 14, lineHeight: 20 },
   seccion: { fontSize: 17, fontWeight: '600', marginTop: 16 },
-  activityList: { gap: 11, marginTop: 8 },
+  seccionPrimera: { marginTop: 0 },
+  activityList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: 8,
+    marginTop: 8,
+  },
   activityItem: {
+    width: '48%',
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 14,
-    borderRadius: 12,
+    gap: 9,
+    paddingVertical: 9,
+    paddingHorizontal: 11,
+    borderRadius: 11,
     borderWidth: 1.2,
+  },
+  activityItemFull: {
+    width: '100%',
+    justifyContent: 'center',
   },
   activityLabel: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
-    marginLeft: 14,
   },
-  checkIcon: { marginRight: 4 },
+  activityLabelFull: {
+    flex: 0,
+  },
+  checkIcon: { marginLeft: 2 },
   paramHint: { fontSize: 14, lineHeight: 20, marginTop: 8 },
   filaModalidad: { flexDirection: 'row', gap: 10, marginTop: 8 },
   opcionModalidad: {

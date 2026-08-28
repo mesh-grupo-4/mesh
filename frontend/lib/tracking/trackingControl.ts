@@ -1,3 +1,4 @@
+import Constants, { ExecutionEnvironment } from 'expo-constants'
 import * as Location from 'expo-location'
 import { DeviceEventEmitter, Platform } from 'react-native'
 
@@ -13,6 +14,14 @@ export type PermisoResultado = {
   foreground: boolean
   background: boolean
 }
+
+/**
+ * Expo Go no puede correr tareas de ubicación en segundo plano (`expo-task-manager`):
+ * al registrarlas crashea el runtime nativo ("lateinit property launcher has not been
+ * initialized"). En ese entorno hacemos tracking solo en primer plano. El segundo plano
+ * real requiere un development build / EAS build.
+ */
+const EN_EXPO_GO = Constants.executionEnvironment === ExecutionEnvironment.StoreClient
 
 let foregroundWatch: Location.LocationSubscription | null = null
 let tipoActividadActual = 'otro'
@@ -87,7 +96,7 @@ export async function solicitarPermisosUbicacion(): Promise<PermisoResultado> {
   if (fg.status !== 'granted') {
     return { foreground: false, background: false }
   }
-  if (Platform.OS === 'web') {
+  if (Platform.OS === 'web' || EN_EXPO_GO) {
     return { foreground: true, background: false }
   }
   const bg = await Location.requestBackgroundPermissionsAsync()
@@ -105,6 +114,12 @@ export async function iniciarTrackingViaje(
   await setTrackingContext(viajeId, userId, tipoActividad)
   const fg = await Location.getForegroundPermissionsAsync()
   if (fg.status !== 'granted') return
+
+  if (EN_EXPO_GO) {
+    await stopBackgroundTask()
+    await startForegroundWatch(viajeId, userId)
+    return
+  }
 
   const bg = await Location.getBackgroundPermissionsAsync()
   const useBackgroundTask = Platform.OS === 'android' || bg.status === 'granted'
@@ -149,9 +164,13 @@ export async function iniciarTrackingViaje(
 }
 
 async function stopBackgroundTask(): Promise<void> {
-  const running = await Location.hasStartedLocationUpdatesAsync(MESH_LOCATION_TASK)
-  if (running) {
-    await Location.stopLocationUpdatesAsync(MESH_LOCATION_TASK)
+  try {
+    const running = await Location.hasStartedLocationUpdatesAsync(MESH_LOCATION_TASK)
+    if (running) {
+      await Location.stopLocationUpdatesAsync(MESH_LOCATION_TASK)
+    }
+  } catch {
+    // En Expo Go la tarea de segundo plano no existe; nada que detener.
   }
 }
 

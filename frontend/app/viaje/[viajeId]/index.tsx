@@ -143,6 +143,8 @@ export default function ViajeDetalleScreen() {
   const [fechaEdit, setFechaEdit] = useState<Date>(() => new Date())
   const [guardandoFecha, setGuardandoFecha] = useState(false)
   const [guardandoAlertaConfig, setGuardandoAlertaConfig] = useState(false)
+  const [alertaConfigAbierta, setAlertaConfigAbierta] = useState(false)
+  const [participantesAbierto, setParticipantesAbierto] = useState(false)
 
   const esLider = viaje != null && userId === viaje.creador_id
   const puedeCompartirRuta =
@@ -509,21 +511,41 @@ export default function ViajeDetalleScreen() {
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <TopBar
-        title="Viaje"
-        sub={viaje ? (viaje.es_grupal ? 'Salida Grupal' : 'Salida Individual') : 'Cargando...'}
+        title={viaje?.estado === 'planificado' ? 'Configurando viaje' : 'Viaje'}
+        sub={!viaje ? 'Cargando...' : undefined}
         onBack={() => router.back()}
         bordered={false}
         right={
           viaje ? (
-            <Pressable
-              onPress={() => router.push({ pathname: '/viaje/[viajeId]/qr', params: { viajeId } })}
-              style={({ pressed }) => [
-                styles.iconBtn,
-                { backgroundColor: pressed ? theme.surface2 : theme.surface, borderColor: theme.border }
-              ]}
-            >
-              <Feather name="share-2" size={18} color={theme.text} />
-            </Pressable>
+            <View style={styles.topBarActions}>
+              <Pressable
+                onPress={() => router.push({ pathname: '/viaje/[viajeId]/qr', params: { viajeId } })}
+                style={({ pressed }) => [
+                  styles.iconBtn,
+                  { backgroundColor: pressed ? theme.surface2 : theme.surface, borderColor: theme.border }
+                ]}
+              >
+                <Feather name="share-2" size={18} color={theme.text} />
+              </Pressable>
+              {esLider && viaje.estado === 'planificado' ? (
+                <Pressable
+                  onPress={confirmarEliminar}
+                  disabled={accion}
+                  style={({ pressed }) => [
+                    styles.iconBtn,
+                    {
+                      backgroundColor: pressed ? theme.dangerWeak : theme.surface,
+                      borderColor: theme.danger,
+                      opacity: accion ? 0.6 : 1,
+                    },
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Cancelar viaje"
+                >
+                  <Feather name="trash-2" size={18} color={theme.danger} />
+                </Pressable>
+              ) : null}
+            </View>
           ) : null
         }
       />
@@ -542,9 +564,16 @@ export default function ViajeDetalleScreen() {
                 </Badge>
                 <ActivityTile activity={viaje.tipo_actividad} size={28} />
               </View>
-              <Text style={[styles.title, { color: theme.text }]}>
-                {viaje.nombre?.trim() || (viaje.es_grupal ? 'Salida grupal' : 'Salida individual')}
-              </Text>
+              <View style={styles.titleRow}>
+                <Text style={[styles.title, { color: theme.text }]}>
+                  {viaje.nombre?.trim() || (viaje.es_grupal ? 'Salida grupal' : 'Salida individual')}
+                </Text>
+                {viaje.nombre?.trim() ? (
+                  <Text style={[styles.titleAside, { color: theme.textDim }]}>
+                    {viaje.es_grupal ? 'Salida grupal' : 'Salida individual'}
+                  </Text>
+                ) : null}
+              </View>
             </View>
 
             {/* Mapa real de la ruta planificada */}
@@ -585,14 +614,28 @@ export default function ViajeDetalleScreen() {
                   </View>
                 </>
               ) : (
-                <View style={styles.noRouteCard}>
-                  <Feather name="map" size={28} color={theme.textMute} style={{ marginBottom: 6 }} />
-                  <Text style={[styles.noRouteTitle, { color: theme.text }]}>Recorrido sin configurar</Text>
-                  <Text style={[styles.noRouteBody, { color: theme.textDim }]}>
-                    {puedeEditarPlan
-                      ? 'Tocá acá para definir el trayecto y habilitar la guía GPS en vivo.'
-                      : 'Definí el trayecto para habilitar la guía GPS en vivo.'}
-                  </Text>
+                <View style={styles.mapBox}>
+                  <RouteMapView
+                    waypoints={[]}
+                    routeLineLatLng={null}
+                    mapStyle="standard"
+                    initialRegion={REGION_FALLBACK}
+                    cameraTarget={null}
+                    fitRouteCoords={null}
+                    mapPickMode={false}
+                    calculando={false}
+                  />
+                  <View style={styles.noRouteOverlay} pointerEvents="none">
+                    <View style={[styles.noRoutePanel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                      <Feather name="map" size={24} color={theme.textMute} style={{ marginBottom: 6 }} />
+                      <Text style={[styles.noRouteTitle, { color: theme.text }]}>Recorrido sin configurar</Text>
+                      <Text style={[styles.noRouteBody, { color: theme.textDim }]}>
+                        {puedeEditarPlan
+                          ? 'Tocá acá para definir el trayecto y habilitar la guía GPS en vivo.'
+                          : 'Definí el trayecto para habilitar la guía GPS en vivo.'}
+                      </Text>
+                    </View>
+                  </View>
                 </View>
               )}
             </Pressable>
@@ -600,7 +643,7 @@ export default function ViajeDetalleScreen() {
             {/* Stats row */}
             <View style={styles.statsRow}>
               <View style={[styles.statCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                <Feather name="activity" size={18} color={theme.accent} style={{ marginBottom: 6 }} />
+                <Feather name="activity" size={16} color={theme.accent} style={{ marginBottom: 3 }} />
                 <Text style={[styles.statNum, { color: theme.text }]} numberOfLines={1}>
                   {viaje.ruta?.distancia_planeada_m
                     ? `${(viaje.ruta.distancia_planeada_m / 1000).toFixed(1)} km`
@@ -623,7 +666,7 @@ export default function ViajeDetalleScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Editar hora"
               >
-                <Feather name="clock" size={18} color={theme.accent} style={{ marginBottom: 6 }} />
+                <Feather name="clock" size={16} color={theme.accent} style={{ marginBottom: 3 }} />
                 <Text style={[styles.statNum, { color: theme.text }]} numberOfLines={1}>
                   {formatHora(viaje.fecha_programada)}
                 </Text>
@@ -644,7 +687,7 @@ export default function ViajeDetalleScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Editar fecha"
               >
-                <Feather name="calendar" size={18} color={theme.accent} style={{ marginBottom: 6 }} />
+                <Feather name="calendar" size={16} color={theme.accent} style={{ marginBottom: 3 }} />
                 <Text style={[styles.statNum, { color: theme.text }]} numberOfLines={1}>
                   {formatFecha(viaje.fecha_programada)}
                 </Text>
@@ -652,16 +695,32 @@ export default function ViajeDetalleScreen() {
               </Pressable>
             </View>
 
+            {(puedeConfigurarAlertas || viaje.es_grupal) && (
+            <View style={styles.collapsibleGroup}>
             {puedeConfigurarAlertas && viaje ? (
               <View style={[styles.alertConfigCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                <View style={styles.alertConfigHeader}>
-                  <Feather name="alert-triangle" size={18} color={theme.accent} />
+                <Pressable
+                  onPress={() => setAlertaConfigAbierta((v) => !v)}
+                  style={({ pressed }) => [styles.alertConfigHeader, { opacity: pressed ? 0.7 : 1 }]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Configurar alertas"
+                  accessibilityState={{ expanded: alertaConfigAbierta }}
+                >
+                  <Feather name="alert-triangle" size={16} color={theme.accent} />
                   <Text style={[styles.alertConfigTitle, { color: theme.text }]}>
-                    Alerta de posible incidente
+                    Configurar alertas
                   </Text>
-                </View>
+                  <Feather
+                    name={alertaConfigAbierta ? 'chevron-up' : 'chevron-down'}
+                    size={16}
+                    color={theme.textDim}
+                  />
+                </Pressable>
+
+                {alertaConfigAbierta ? (
+                  <>
                 <Text style={[styles.alertConfigHint, { color: theme.textDim }]}>
-                  Si alguien queda detenido sin registrar parada, el líder recibe una alerta automática (RN-036).
+                  Si alguien queda detenido sin registrar parada, el líder recibe una alerta automática.
                 </Text>
 
                 <Pressable
@@ -780,8 +839,65 @@ export default function ViajeDetalleScreen() {
                 <Text style={[styles.alertConfigHint, { color: theme.textDim, marginTop: 6 }]}>
                   Si está desactivado, cualquier integrante puede enviar alertas manuales durante el viaje.
                 </Text>
+                  </>
+                ) : null}
               </View>
             ) : null}
+
+            {viaje.es_grupal && (
+              <View style={[styles.alertConfigCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                <Pressable
+                  onPress={() => setParticipantesAbierto((v) => !v)}
+                  style={({ pressed }) => [styles.alertConfigHeader, { opacity: pressed ? 0.7 : 1 }]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Participantes"
+                  accessibilityState={{ expanded: participantesAbierto }}
+                >
+                  <Feather name="users" size={16} color={theme.accent} />
+                  <Text style={[styles.alertConfigTitle, { color: theme.text }]}>
+                    Participantes · {participantes.length}
+                  </Text>
+                  <Feather
+                    name={participantesAbierto ? 'chevron-up' : 'chevron-down'}
+                    size={16}
+                    color={theme.textDim}
+                  />
+                </Pressable>
+
+                {participantesAbierto ? (
+                  <>
+                    {participantes.slice(0, 4).map((part) => {
+                      const dummyPerson = {
+                        nombre: part.usuario.nombre,
+                        apellido: '',
+                      }
+                      return (
+                        <View key={part.usuario.id} style={[styles.participantRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                          <Avatar person={dummyPerson} size="sm" />
+                          <Text style={[styles.participantName, { color: theme.text }]} numberOfLines={1}>
+                            {part.usuario.nombre}
+                            {part.usuario.id === userId ? ' (vos)' : ''}
+                          </Text>
+                          <Badge tone={badgeParticipante(part.estado).tone}>
+                            {badgeParticipante(part.estado).texto}
+                          </Badge>
+                        </View>
+                      )
+                    })}
+                    <Btn
+                      variant="secondary"
+                      block
+                      icon="users"
+                      onPress={() => router.push({ pathname: '/viaje/[viajeId]/miembros', params: { viajeId } })}
+                    >
+                      {participantes.length > 4 ? 'Ver todos los miembros' : 'Ver miembros'}
+                    </Btn>
+                  </>
+                ) : null}
+              </View>
+            )}
+            </View>
+            )}
 
             {puedeEditarPlan && showPicker && (
               <View>
@@ -821,29 +937,55 @@ export default function ViajeDetalleScreen() {
               </View>
             )}
 
-            {viaje.estado === 'planificado' && esLider && (
-              <View style={styles.optionsBlock}>
-                <Btn
-                  variant="secondary"
-                  block
-                  icon="share-2"
-                  onPress={() => router.push({ pathname: '/viaje/[viajeId]/qr', params: { viajeId } })}
-                >
-                  Invitar / Compartir QR
-                </Btn>
-              </View>
-            )}
+            {(() => {
+              const puedeInvitar = viaje.estado === 'planificado' && esLider
+              const puedeChecklist =
+                viaje.estado !== 'finalizado' &&
+                (esLider || viaje.mi_participacion?.estado === 'confirmado')
+              if (!puedeInvitar && !puedeChecklist) return null
+              return (
+                <View style={styles.preTripActions}>
+                  {puedeInvitar && (
+                    <Btn
+                      variant="secondary"
+                      block
+                      size="sm"
+                      icon="share-2"
+                      onPress={() =>
+                        router.push({ pathname: '/viaje/[viajeId]/qr', params: { viajeId } })
+                      }
+                    >
+                      Invitar / Compartir QR
+                    </Btn>
+                  )}
+                  {puedeChecklist && (
+                    <Btn
+                      variant="secondary"
+                      block
+                      size="sm"
+                      icon="check-square"
+                      onPress={() =>
+                        router.push({ pathname: '/viaje/[viajeId]/checklist', params: { viajeId } })
+                      }
+                    >
+                      Checklist de preparativos
+                    </Btn>
+                  )}
+                </View>
+              )
+            })()}
 
             {puedeCompartirRuta && (
               <View style={styles.optionsBlock}>
                 <Btn
                   variant="secondary"
                   block
+                  size="sm"
                   icon="map"
                   onPress={() => void compartirRuta()}
                   disabled={accion}
                   loading={accion}
-                  style={{ marginBottom: esLider ? 10 : 0 }}
+                  style={{ marginBottom: esLider ? 8 : 0 }}
                 >
                   Compartir ruta
                 </Btn>
@@ -851,6 +993,7 @@ export default function ViajeDetalleScreen() {
                   <Btn
                     variant="ghost"
                     block
+                    size="sm"
                   icon="x-circle"
                   onPress={revocarLinkRuta}
                     disabled={accion}
@@ -861,61 +1004,14 @@ export default function ViajeDetalleScreen() {
               </View>
             )}
 
-            {/* Participants list */}
-            {viaje.es_grupal && (
-              <View style={styles.participantsSection}>
-                <Pressable
-                  style={styles.sectionTitleRow}
-                  onPress={() => router.push({ pathname: '/viaje/[viajeId]/miembros', params: { viajeId } })}
-                >
-                  <Text style={[styles.sectionTitle, { color: theme.text }]}>
-                    Participantes · {participantes.length}
-                  </Text>
-                  <Feather name="chevron-right" size={18} color={theme.textDim} />
-                </Pressable>
-                {participantes.slice(0, 4).map((part) => {
-                  const dummyPerson = {
-                    nombre: part.usuario.nombre,
-                    apellido: '',
-                  }
-                  return (
-                    <View key={part.usuario.id} style={[styles.participantRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                      <Avatar person={dummyPerson} size="sm" />
-                      <Text style={[styles.participantName, { color: theme.text }]} numberOfLines={1}>
-                        {part.usuario.nombre}
-                        {part.usuario.id === userId ? ' (vos)' : ''}
-                      </Text>
-                      <Badge tone={badgeParticipante(part.estado).tone}>
-                        {badgeParticipante(part.estado).texto}
-                      </Badge>
-                    </View>
-                  )
-                })}
-                {participantes.length > 4 && (
-                  <Btn
-                    variant="secondary"
-                    block
-                    icon="users"
-                    onPress={() => router.push({ pathname: '/viaje/[viajeId]/miembros', params: { viajeId } })}
-                  >
-                    Ver todos los miembros
-                  </Btn>
-                )}
-              </View>
-            )}
           </ScrollView>
 
           {/* Sticky Bottom Actions */}
           <View style={[styles.bottomPad, { backgroundColor: theme.background, borderTopColor: theme.border }]}>
             {viaje.estado === 'planificado' && esLider && (
-              <View style={{ gap: 10 }}>
-                <Btn variant="primary" block icon="play" onPress={confirmarIniciar} disabled={accion} loading={accion}>
-                  Iniciar viaje en vivo
-                </Btn>
-                <Btn variant="danger" block icon="trash-2" onPress={confirmarEliminar} disabled={accion}>
-                  Cancelar viaje
-                </Btn>
-              </View>
+              <Btn variant="primary" block icon="play" onPress={confirmarIniciar} disabled={accion} loading={accion}>
+                Iniciar viaje en vivo
+              </Btn>
             )}
 
             {viaje.estado === 'planificado' && !esLider && (
@@ -940,22 +1036,6 @@ export default function ViajeDetalleScreen() {
                 )}
               </View>
             )}
-
-            {viaje.estado !== 'finalizado' &&
-              (esLider || viaje.mi_participacion?.estado === 'confirmado') && (
-                <View style={styles.optionsBlock}>
-                  <Btn
-                    variant="secondary"
-                    block
-                    icon="check-square"
-                    onPress={() =>
-                      router.push({ pathname: '/viaje/[viajeId]/checklist', params: { viajeId } })
-                    }
-                  >
-                    Checklist de preparativos
-                  </Btn>
-                </View>
-              )}
 
             {viaje.estado === 'finalizado' && (
               <View style={{ gap: 10 }}>
@@ -1029,9 +1109,9 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 40,
-    gap: 18,
+    paddingTop: 8,
+    paddingBottom: 16,
+    gap: 10,
   },
   iconBtn: {
     width: 38,
@@ -1042,17 +1122,29 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerInfo: {
-    gap: 8,
+    gap: 4,
   },
   badgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    columnGap: 10,
+  },
   title: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '800',
     letterSpacing: -0.5,
+    flexShrink: 1,
+  },
+  titleAside: {
+    marginLeft: 'auto',
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'right',
   },
   cardRoute: {
     borderRadius: 14,
@@ -1060,14 +1152,14 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   mapBox: {
-    height: 220,
+    height: 148,
     width: '100%',
   },
   routePoints: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 14,
+    padding: 10,
   },
   routePointRow: {
     flexDirection: 'row',
@@ -1084,10 +1176,20 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     fontWeight: '600',
   },
-  noRouteCard: {
-    padding: 24,
+  noRouteOverlay: {
+    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
+    padding: 16,
+  },
+  noRoutePanel: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    borderRadius: 12,
+    borderWidth: 1,
+    maxWidth: 300,
   },
   noRouteTitle: {
     fontSize: 15.5,
@@ -1101,32 +1203,32 @@ const styles = StyleSheet.create({
   },
   statsRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 8,
   },
   statCard: {
     flex: 1,
-    padding: 12,
+    padding: 9,
     borderRadius: 12,
     borderWidth: 1.2,
     alignItems: 'flex-start',
   },
   statNum: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
-    marginTop: 4,
+    marginTop: 2,
   },
   statLabel: {
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '600',
     textTransform: 'uppercase',
-    marginTop: 2,
+    marginTop: 1,
     letterSpacing: 0.2,
   },
   alertConfigCard: {
     borderWidth: 1.2,
     borderRadius: 14,
-    padding: 14,
-    gap: 10,
+    padding: 11,
+    gap: 8,
   },
   alertConfigHeader: {
     flexDirection: 'row',
@@ -1134,7 +1236,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   alertConfigTitle: {
-    fontSize: 15.5,
+    flex: 1,
+    fontSize: 14.5,
     fontWeight: '700',
   },
   alertConfigHint: {
@@ -1210,17 +1313,17 @@ const styles = StyleSheet.create({
   optionsBlock: {
     marginTop: 4,
   },
-  participantsSection: {
-    gap: 10,
+  preTripActions: {
+    marginTop: 6,
+    gap: 6,
   },
-  sectionTitleRow: {
+  collapsibleGroup: {
+    gap: 6,
+  },
+  topBarActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  sectionTitle: {
-    fontSize: 15.5,
-    fontWeight: '700',
+    gap: 8,
   },
   participantRow: {
     flexDirection: 'row',
@@ -1236,7 +1339,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   bottomPad: {
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
     borderTopWidth: 1.2,
   },
   modalBg: {
