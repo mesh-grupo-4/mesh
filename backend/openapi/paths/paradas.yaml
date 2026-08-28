@@ -18,6 +18,10 @@ ParadasColeccion:
 
       Emite `viaje:parada_iniciada` a la sala del viaje y notifica por push a los
       demás integrantes confirmados.
+
+      Si `categoria` es `accidente` (RN-022), además crea una alerta de peligro
+      (`tipo: peligro`, `origen: integrante`) con la ubicación de la parada,
+      la emite por `viaje:alerta` y manda push "Accidente reportado" al grupo.
     tags:
       - Paradas
     parameters:

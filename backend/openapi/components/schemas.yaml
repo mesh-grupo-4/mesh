@@ -237,9 +237,11 @@ EstadoViaje:
 
 CategoriaParada:
   type: string
-  description: Categoría de una parada intermedia de la ruta (RN-022).
+  description: >-
+    Categoría de una parada (RN-022). `accidente` solo aplica a paradas
+    voluntarias del viaje en vivo y además dispara una alerta de peligro al grupo.
   enum:
-    - kiosco
+    - accidente
     - combustible
     - descanso
     - gastronomia

@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 // RN-022: categorías de parada. Coinciden con el enum CategoriaParada de Prisma.
 export const categoriaParadaSchema = z.enum([
-  'kiosco',
+  'accidente',
   'combustible',
   'descanso',
   'gastronomia',

@@ -2,7 +2,7 @@ import { apiUrl, meshFetchAuthed, parseJson } from './apiClient'
 
 /** RN-022: categorías de parada. */
 export type CategoriaParadaApi =
-  | 'kiosco'
+  | 'accidente'
   | 'combustible'
   | 'descanso'
   | 'gastronomia'
@@ -125,18 +125,18 @@ export async function cancelarSolicitudParada(
 
 /** Etiquetas y emoji de cada categoría, para el selector y los mensajes. */
 export const CATEGORIAS_PARADA: { id: CategoriaParadaApi; label: string; emoji: string }[] = [
+  { id: 'accidente', label: 'Accidente', emoji: '🚨' },
   { id: 'combustible', label: 'Combustible', emoji: '⛽' },
   { id: 'descanso', label: 'Descanso', emoji: '☕' },
   { id: 'gastronomia', label: 'Gastronomía', emoji: '🍔' },
   { id: 'sanitario', label: 'Sanitario', emoji: '🚻' },
-  { id: 'kiosco', label: 'Kiosco', emoji: '🏪' },
   { id: 'punto_control', label: 'Punto de control', emoji: '📍' },
   { id: 'otro', label: 'Otro', emoji: '⋯' },
 ]
 
 /** Motivo legible para notificaciones (alineado con ETIQUETA_CATEGORIA del backend). */
 const MOTIVO_CATEGORIA: Record<CategoriaParadaApi, string> = {
-  kiosco: 'un kiosco',
+  accidente: 'un accidente',
   combustible: 'cargar combustible',
   descanso: 'descansar',
   gastronomia: 'comer',

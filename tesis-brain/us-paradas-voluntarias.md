@@ -121,6 +121,7 @@ Con parada abierta:  [ ⏸ Retomar viaje  04:12 ]
 ```
 
 - "Me detuve" abre el selector de categoría; al confirmar, queda el cronómetro corriendo.
+- La categoría **accidente** aparece destacada (botón rojo a ancho completo) en el selector. Al elegirla, además de registrar la parada, el backend crea una **alerta de peligro** (`viaje:alerta`, `origen: integrante`) visible para todo el grupo con la ubicación de la parada, y manda push "Accidente reportado".
 - Los demás integrantes reciben un banner en vivo vía `viaje:parada_iniciada` con nombre y motivo (categoría RN-022), botones **Seguir parada** / **Ignorar**.
 - **Seguir parada** calcula ruta OSRM desde la posición actual hasta el punto de la parada y dibuja una guía ámbar en el mapa; si OSRM falla, línea directa.
 - Al retomar el viaje (`viaje:parada_finalizada`), la guía se limpia automáticamente.

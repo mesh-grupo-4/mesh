@@ -1,7 +1,6 @@
 export type RouteWaypointType = 'ORIGIN' | 'STOP' | 'DESTINATION'
 
 export type StopCategory =
-  | 'kiosco'
   | 'gastronomia'
   | 'combustible'
   | 'descanso'

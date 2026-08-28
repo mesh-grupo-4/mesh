@@ -10,7 +10,7 @@ import { prefijoAlertaAfectado } from '../motor-eventos/motorEventos.config'
 
 /** Etiquetas de categoría para el texto de las notificaciones (RN-022). */
 const ETIQUETA_CATEGORIA: Record<string, string> = {
-  kiosco: 'un kiosco',
+  accidente: 'un accidente',
   combustible: 'cargar combustible',
   descanso: 'descansar',
   gastronomia: 'comer',
@@ -101,6 +101,11 @@ export class ParadasService {
     }
     this.emitir(viajeId, 'viaje:parada_iniciada', payload)
     void this.notificarParadaIniciada(viajeId, usuarioId, payload.nombre, parada.categoria)
+
+    // RN-022: un accidente no es una parada más; avisa al grupo con una alerta.
+    if (parada.categoria === 'accidente') {
+      void this.alertarAccidente(viajeId, usuarioId, payload.nombre, parada.lat, parada.lng)
+    }
 
     return this.mapParada(parada)
   }
@@ -417,6 +422,80 @@ export class ParadasService {
       getIo().to(`viaje:${viajeId}`).emit(evento, payload)
     } catch (e) {
       console.warn(`[paradas] No se pudo emitir ${evento}:`, e)
+    }
+  }
+
+  /**
+   * RN-022 / RN-040: al reportar un accidente se crea una alerta de peligro
+   * visible para todo el grupo (misma forma que las alertas manuales).
+   */
+  private async alertarAccidente(
+    viajeId: string,
+    autorId: string,
+    nombre: string,
+    lat: number,
+    lng: number
+  ): Promise<void> {
+    try {
+      const alerta = await this.prisma.alerta.create({
+        data: {
+          viaje_id: viajeId,
+          creada_por_id: autorId,
+          tipo: 'peligro',
+          origen: 'integrante',
+          mensaje: `Accidente — ${nombre} reportó un accidente`,
+          lat,
+          lng,
+        },
+        include: { creada_por: { select: { nombre: true, apellido: true } } },
+      })
+
+      const mapeada = {
+        id: alerta.id,
+        viaje_id: alerta.viaje_id,
+        creada_por_id: alerta.creada_por_id,
+        creada_por_nombre: nombreDe(alerta.creada_por ?? { nombre: nombre, apellido: null }),
+        tipo: alerta.tipo,
+        origen: alerta.origen,
+        mensaje: alerta.mensaje,
+        lat: alerta.lat,
+        lng: alerta.lng,
+        estado: alerta.estado,
+        created_at: alerta.created_at.toISOString(),
+      }
+      this.emitir(viajeId, 'viaje:alerta', { viajeId, alerta: mapeada })
+
+      const integrantes = await this.prisma.viajeIntegrante.findMany({
+        where: { viaje_id: viajeId, estado: 'confirmado' },
+        select: { usuario: { select: { id: true, push_token: true } } },
+      })
+      const viaje = await this.prisma.viaje.findUnique({
+        where: { id: viajeId },
+        select: { creador_id: true, creador: { select: { push_token: true } } },
+      })
+      const destinos = new Map<string, string>()
+      if (viaje && viaje.creador_id !== autorId && viaje.creador.push_token) {
+        destinos.set(viaje.creador_id, viaje.creador.push_token)
+      }
+      for (const i of integrantes) {
+        if (i.usuario.id !== autorId && i.usuario.push_token) {
+          destinos.set(i.usuario.id, i.usuario.push_token)
+        }
+      }
+      if (destinos.size === 0) return
+
+      const { sendExpoPush } = await import('../../lib/expoPush')
+      await sendExpoPush(
+        [...destinos.values()].map((to) => ({
+          to,
+          title: 'Accidente reportado',
+          body: `${nombre} reportó un accidente.`,
+          data: { viajeId, tipo: 'alerta' },
+          sound: 'default' as const,
+        }))
+      )
+    } catch (e) {
+      console.warn('[paradas] alertarAccidente falló:', e)
     }
   }
 

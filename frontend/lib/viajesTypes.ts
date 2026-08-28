@@ -10,7 +10,7 @@ export type GeoJsonLineString = {
 }
 
 export type CategoriaParada =
-  | 'kiosco'
+  | 'accidente'
   | 'combustible'
   | 'descanso'
   | 'gastronomia'

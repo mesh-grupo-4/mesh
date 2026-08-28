@@ -195,9 +195,11 @@ seguir figurando en el resumen con lo que recorrió. El viaje **no** se cierra p
 
 ### `viaje:alerta`
 
-Emitido por `AlertasService.crear()` al publicar una alerta manual, y por
+Emitido por `AlertasService.crear()` al publicar una alerta manual, por
 `MotorEventosService` al detectar desvío (RN-034), atraso (RN-035) o posible
-incidente (RN-036).
+incidente (RN-036), y por `ParadasService.iniciarParada()` cuando la parada
+voluntaria es de categoría `accidente` (RN-022): alerta `tipo: "peligro"`,
+`origen: "integrante"`, con la ubicación de la parada.
 
 ```jsonc
 {

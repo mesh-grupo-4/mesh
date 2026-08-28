@@ -14,7 +14,6 @@ export type RoutePointPayload = {
 }
 
 const CATEGORY_TO_API: Record<StopCategory, CategoriaParada> = {
-  kiosco: 'kiosco',
   gastronomia: 'gastronomia',
   combustible: 'combustible',
   descanso: 'descanso',
@@ -23,7 +22,8 @@ const CATEGORY_TO_API: Record<StopCategory, CategoriaParada> = {
 }
 
 const CATEGORY_TO_UI: Record<CategoriaParada, StopCategory> = {
-  kiosco: 'kiosco',
+  // `accidente` no es una categoría de parada planificada: cae a "otro" en el editor.
+  accidente: 'otro',
   combustible: 'combustible',
   descanso: 'descanso',
   gastronomia: 'gastronomia',

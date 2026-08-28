@@ -12,7 +12,6 @@ type CategoryOption = {
 }
 
 const OPTIONS: CategoryOption[] = [
-  { value: 'kiosco', label: 'Kiosco', icon: 'storefront-outline' },
   { value: 'gastronomia', label: 'Restaurante', icon: 'restaurant-outline' },
   { value: 'combustible', label: 'Combustible', icon: 'car-outline' },
   { value: 'descanso', label: 'Descanso', icon: 'cafe-outline' },

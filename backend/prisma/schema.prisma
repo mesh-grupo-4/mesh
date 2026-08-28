@@ -31,7 +31,7 @@ enum EstadoViaje {
 }
 
 enum CategoriaParada {
-  kiosco
+  accidente
   combustible
   descanso
   gastronomia
