@@ -1,3 +1,4 @@
+import { Feather } from '@expo/vector-icons'
 import { useEffect, useState } from 'react'
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
 
@@ -104,6 +105,7 @@ export function ParadaActionsBar({
         accessibilityRole="button"
         accessibilityLabel="Registrar que me detuve"
       >
+        <Feather name="pause" size={19} color="#fff" />
         <Text style={styles.detenerseTxt}>Me detuve</Text>
       </Pressable>
 
@@ -125,6 +127,9 @@ export function ParadaActionsBar({
               : 'Pedir una parada al líder'
           }
         >
+          {!solicitudPendiente ? (
+            <Feather name="bell" size={16} color="#4338ca" />
+          ) : null}
           <Text style={[styles.solicitarTxt, solicitudPendiente && styles.solicitarTxtPendiente]}>
             {solicitudPendiente ? 'Esperando al líder…' : 'Pedir parada'}
           </Text>
@@ -144,21 +149,24 @@ const styles = StyleSheet.create({
   },
   boton: {
     flex: 1,
-    minHeight: 60,
-    borderRadius: 14,
+    flexDirection: 'row',
+    gap: 8,
+    minHeight: 58,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
     paddingHorizontal: 12,
   },
   detenerse: {
-    backgroundColor: '#fffbeb',
-    borderColor: '#fbbf24',
+    backgroundColor: '#d97706',
+    borderColor: '#b45309',
   },
   detenerseTxt: {
     fontSize: 17,
     fontWeight: '800',
-    color: '#b45309',
+    color: '#fff',
+    letterSpacing: 0.3,
   },
   solicitar: {
     backgroundColor: '#eef2ff',
@@ -169,7 +177,7 @@ const styles = StyleSheet.create({
     borderColor: '#e5e7eb',
   },
   solicitarTxt: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '800',
     color: '#4338ca',
     textAlign: 'center',

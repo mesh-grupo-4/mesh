@@ -1,5 +1,10 @@
+import { Feather } from '@expo/vector-icons'
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native'
+import { GestureHandlerRootView } from 'react-native-gesture-handler'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
+import { useTheme } from '@/components/MeshUI'
+import { DragToDismiss } from '@/components/DragToDismiss'
 import { CATEGORIAS_PARADA, type CategoriaParadaApi } from '@/lib/paradasApi'
 
 /** Selector de categoría al registrar una parada voluntaria (RN-022). */
@@ -10,36 +15,90 @@ type Props = {
 }
 
 export function CategoriaParadaSheet({ visible, onSeleccionar, onCancelar }: Props) {
+  const theme = useTheme()
+  const insets = useSafeAreaInsets()
+
+  const accidente = CATEGORIAS_PARADA.find((c) => c.id === 'accidente')
+  const resto = CATEGORIAS_PARADA.filter((c) => c.id !== 'accidente')
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancelar}>
-      <Pressable style={styles.fondo} onPress={onCancelar}>
-        <Pressable style={styles.hoja} onPress={(e) => e.stopPropagation()}>
-          <View style={styles.asa} />
-          <Text style={styles.titulo}>¿Por qué parás?</Text>
+      <GestureHandlerRootView style={styles.fondo}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onCancelar} />
+        <DragToDismiss
+          onDismiss={onCancelar}
+          style={[
+            styles.hoja,
+            {
+              backgroundColor: theme.surface,
+              paddingBottom: Math.max(insets.bottom, 16) + 8,
+            },
+          ]}
+        >
+          <View style={[styles.asa, { backgroundColor: theme.borderStrong }]} />
+
+          <Text style={[styles.titulo, { color: theme.text }]}>¿Por qué parás?</Text>
+          <Text style={[styles.subtitulo, { color: theme.textDim }]}>
+            Se le avisa al grupo con el motivo.
+          </Text>
+
+          {accidente ? (
+            <Pressable
+              style={({ pressed }) => [
+                styles.accidente,
+                { backgroundColor: theme.danger },
+                pressed && styles.presionado,
+              ]}
+              onPress={() => onSeleccionar(accidente.id)}
+              accessibilityRole="button"
+              accessibilityLabel="Reportar un accidente"
+            >
+              <View style={styles.accidenteIcono}>
+                <Feather name="alert-triangle" size={22} color="#fff" />
+              </View>
+              <View style={styles.accidenteTxtWrap}>
+                <Text style={styles.accidenteTitulo}>Accidente</Text>
+                <Text style={styles.accidenteSub}>Avisa a todo el grupo al instante</Text>
+              </View>
+              <Feather name="chevron-right" size={22} color="rgba(255,255,255,0.9)" />
+            </Pressable>
+          ) : null}
 
           <View style={styles.grilla}>
-            {CATEGORIAS_PARADA.map((c) => (
+            {resto.map((c) => (
               <Pressable
                 key={c.id}
-                style={({ pressed }) => [styles.opcion, pressed && styles.opcionPresionada]}
+                style={({ pressed }) => [
+                  styles.opcion,
+                  { backgroundColor: theme.surface2, borderColor: theme.border },
+                  pressed && [styles.presionado, { borderColor: theme.accentLine }],
+                ]}
                 onPress={() => onSeleccionar(c.id)}
                 accessibilityRole="button"
                 accessibilityLabel={`Parada por ${c.label}`}
               >
-                <Text style={styles.emoji}>{c.emoji}</Text>
-                <Text style={styles.opcionTxt}>{c.label}</Text>
+                <View style={[styles.opcionEmojiWrap, { backgroundColor: theme.surface }]}>
+                  <Text style={styles.emoji}>{c.emoji}</Text>
+                </View>
+                <Text style={[styles.opcionTxt, { color: theme.text }]} numberOfLines={2}>
+                  {c.label}
+                </Text>
               </Pressable>
             ))}
           </View>
 
           <Pressable
-            style={({ pressed }) => [styles.cancelar, pressed && styles.opcionPresionada]}
+            style={({ pressed }) => [
+              styles.cancelar,
+              { backgroundColor: theme.surface2 },
+              pressed && styles.presionado,
+            ]}
             onPress={onCancelar}
           >
-            <Text style={styles.cancelarTxt}>Cancelar</Text>
+            <Text style={[styles.cancelarTxt, { color: theme.textDim }]}>Cancelar</Text>
           </Pressable>
-        </Pressable>
-      </Pressable>
+        </DragToDismiss>
+      </GestureHandlerRootView>
     </Modal>
   )
 }
@@ -51,26 +110,58 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   hoja: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 28,
+    paddingTop: 8,
   },
   asa: {
     alignSelf: 'center',
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#d1d5db',
-    marginBottom: 14,
+    marginBottom: 16,
   },
   titulo: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#111827',
-    marginBottom: 14,
+    letterSpacing: -0.3,
+  },
+  subtitulo: {
+    fontSize: 13.5,
+    marginTop: 3,
+    marginBottom: 16,
+  },
+  accidente: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    minHeight: 66,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    marginBottom: 12,
+  },
+  accidenteIcono: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  accidenteTxtWrap: {
+    flex: 1,
+  },
+  accidenteTitulo: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#fff',
+    letterSpacing: 0.2,
+  },
+  accidenteSub: {
+    fontSize: 12.5,
+    color: 'rgba(255,255,255,0.85)',
+    marginTop: 1,
   },
   grilla: {
     flexDirection: 'row',
@@ -81,37 +172,41 @@ const styles = StyleSheet.create({
     // Dos por fila: objetivos grandes para tocar en movimiento (RN-052).
     flexBasis: '47%',
     flexGrow: 1,
-    minHeight: 64,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    minHeight: 58,
     borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#f9fafb',
+    paddingHorizontal: 10,
+  },
+  opcionEmojiWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 8,
-    gap: 2,
-  },
-  opcionPresionada: {
-    opacity: 0.7,
   },
   emoji: {
-    fontSize: 22,
+    fontSize: 18,
   },
   opcionTxt: {
-    fontSize: 15,
+    flex: 1,
+    fontSize: 14.5,
     fontWeight: '700',
-    color: '#374151',
-    textAlign: 'center',
+  },
+  presionado: {
+    opacity: 0.7,
   },
   cancelar: {
-    marginTop: 16,
-    minHeight: 52,
+    marginTop: 14,
+    minHeight: 50,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
   cancelarTxt: {
-    fontSize: 16,
+    fontSize: 15.5,
     fontWeight: '700',
-    color: '#6b7280',
   },
 })

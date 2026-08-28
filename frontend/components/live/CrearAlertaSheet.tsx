@@ -11,6 +11,9 @@ import {
   View,
 } from 'react-native'
 
+import { GestureHandlerRootView } from 'react-native-gesture-handler'
+
+import { DragToDismiss } from '@/components/DragToDismiss'
 import {
   MENSAJE_PREDETERMINADO,
   TIPOS_ALERTA,
@@ -84,12 +87,13 @@ export function CrearAlertaSheet({
   return (
     <>
       <Modal visible={visible && !eligiendoMapa} transparent animationType="slide" onRequestClose={cerrar}>
+        <GestureHandlerRootView style={styles.root}>
         <KeyboardAvoidingView
           style={styles.fondo}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
           <Pressable style={styles.fondoTap} onPress={cerrar} />
-          <View style={styles.hoja}>
+          <DragToDismiss onDismiss={cerrar} style={styles.hoja}>
             <View style={styles.asa} />
             <Text style={styles.titulo}>Nueva alerta para el grupo</Text>
 
@@ -182,8 +186,9 @@ export function CrearAlertaSheet({
                 )}
               </Pressable>
             </View>
-          </View>
+          </DragToDismiss>
         </KeyboardAvoidingView>
+        </GestureHandlerRootView>
       </Modal>
 
       <AlertaMapPickModal
@@ -200,6 +205,9 @@ export function CrearAlertaSheet({
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
   fondo: {
     flex: 1,
     justifyContent: 'flex-end',

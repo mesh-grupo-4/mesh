@@ -12,24 +12,44 @@ type Props = {
   onChange: (id: MapStyleId) => void
   /** Offset desde safe area top; default 72 (debajo del TopBar). */
   topOffset?: number
+  /** Si se pasa, se usa como `top` absoluto (sin sumar el safe area). */
+  topAbsolute?: number
+  /** Botón blanco (para que resalte sobre el mapa). */
+  light?: boolean
 }
 
-export function MapStylePicker({ value, onChange, topOffset = 72 }: Props) {
+export function MapStylePicker({ value, onChange, topOffset = 72, topAbsolute, light = false }: Props) {
   const theme = useTheme()
   const insets = useSafeAreaInsets()
   const [abierto, setAbierto] = useState(false)
   const actual = MAP_STYLES.find((s) => s.id === value) ?? MAP_STYLES[0]
+  const top = topAbsolute ?? insets.top + topOffset
 
   return (
-    <View style={[styles.wrap, { top: insets.top + topOffset }]} pointerEvents="box-none">
+    <View style={[styles.wrap, { top }]} pointerEvents="box-none">
+      <Pressable
+        style={[
+          styles.btn,
+          {
+            backgroundColor: light ? '#fff' : theme.surface,
+            borderColor: light ? 'transparent' : theme.border,
+            shadowColor: light ? '#000' : theme.shadow,
+          },
+        ]}
+        onPress={() => setAbierto((v) => !v)}
+        accessibilityLabel="Cambiar estilo del mapa"
+      >
+        <Feather name={actual.icon} size={20} color={light ? '#1f2937' : theme.text} />
+      </Pressable>
+
       {abierto ? (
         <View
           style={[
             styles.panel,
             {
-              backgroundColor: theme.surface,
-              borderColor: theme.border,
-              shadowColor: theme.shadow,
+              backgroundColor: light ? '#fff' : theme.surface,
+              borderColor: light ? 'transparent' : theme.border,
+              shadowColor: light ? '#000' : theme.shadow,
             },
           ]}
         >
@@ -63,21 +83,6 @@ export function MapStylePicker({ value, onChange, topOffset = 72 }: Props) {
           })}
         </View>
       ) : null}
-
-      <Pressable
-        style={[
-          styles.btn,
-          {
-            backgroundColor: theme.surface,
-            borderColor: theme.border,
-            shadowColor: theme.shadow,
-          },
-        ]}
-        onPress={() => setAbierto((v) => !v)}
-        accessibilityLabel="Cambiar estilo del mapa"
-      >
-        <Feather name={actual.icon} size={20} color={theme.text} />
-      </Pressable>
     </View>
   )
 }
@@ -86,7 +91,8 @@ const styles = StyleSheet.create({
   wrap: {
     position: 'absolute',
     right: 12,
-    zIndex: 10,
+    zIndex: 30,
+    elevation: 30,
     alignItems: 'flex-end',
     gap: 8,
   },

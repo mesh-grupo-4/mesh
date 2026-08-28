@@ -102,6 +102,7 @@ export default function ViajeLiveScreen() {
   const [fg, setFg] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
   const [mapStyle, setMapStyle] = useState<MapStyleId>('standard')
+  const [headerExpandido, setHeaderExpandido] = useState(false)
   const [accion, setAccion] = useState(false)
   const [eligiendoCategoria, setEligiendoCategoria] = useState(false)
   const [componiendoAlerta, setComponiendoAlerta] = useState(false)
@@ -681,6 +682,7 @@ export default function ViajeLiveScreen() {
         members={liveMembers}
         currentUserId={userId}
         onBack={() => router.back()}
+        onExpandedChange={setHeaderExpandido}
       />
 
       {/* Pila de banners: se apilan solos y su alto real corre a los botones
@@ -758,14 +760,18 @@ export default function ViajeLiveScreen() {
         ) : null}
       </View>
 
-      <AlertasButton
-        cantidad={alertas.length}
-        topOffset={topFlotantes + 14}
-        onPress={irAAlertas}
-        onCrear={puedeCrearAlertas ? () => setComponiendoAlerta(true) : undefined}
-      />
+      {!headerExpandido ? (
+        <>
+          <AlertasButton
+            cantidad={alertas.length}
+            topOffset={topFlotantes + 14}
+            onPress={irAAlertas}
+            onCrear={puedeCrearAlertas ? () => setComponiendoAlerta(true) : undefined}
+          />
 
-      <MapStylePicker value={mapStyle} onChange={setMapStyle} topOffset={topFlotantes} />
+          <MapStylePicker value={mapStyle} onChange={setMapStyle} topAbsolute={topFlotantes + 14} light />
+        </>
+      ) : null}
 
       <CenterLocationButton onPress={handleCenterOnMe} bottomOffset={bottomCentrarMapa} />
 

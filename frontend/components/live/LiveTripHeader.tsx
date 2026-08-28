@@ -17,15 +17,29 @@ type Props = {
   members: LiveMember[]
   currentUserId: string
   onBack: () => void
+  /** Para que el mapa esconda sus controles flotantes mientras el panel está abierto. */
+  onExpandedChange?: (expanded: boolean) => void
 }
 
 const MAX_AVATARES_COMPACTOS = 4
 
-export function LiveTripHeader({ tripName, nextStop, hasRoute, members, currentUserId, onBack }: Props) {
+export function LiveTripHeader({
+  tripName,
+  nextStop,
+  hasRoute,
+  members,
+  currentUserId,
+  onBack,
+  onExpandedChange,
+}: Props) {
   const theme = useTheme()
   const insets = useSafeAreaInsets()
   const [expandido, setExpandido] = useState(false)
   const [showEta, setShowEta] = useState(false)
+
+  useEffect(() => {
+    onExpandedChange?.(expandido)
+  }, [expandido, onExpandedChange])
 
   useEffect(() => {
     if (expandido) return
@@ -48,6 +62,9 @@ export function LiveTripHeader({ tripName, nextStop, hasRoute, members, currentU
   const lineaCompacta = hasRoute && nextStop ? etaLine : tripName
   const avataresCompactos = members.slice(0, MAX_AVATARES_COMPACTOS)
   const restantes = members.length - avataresCompactos.length
+
+  // Cada tanto los avatares dejan paso a la próxima parada, y vuelven.
+  const enFaseParada = !expandido && showEta && hasRoute && !!nextStop
 
   return (
     <View
@@ -115,31 +132,48 @@ export function LiveTripHeader({ tripName, nextStop, hasRoute, members, currentU
             )}
           </View>
 
-          {!expandido && members.length > 0 ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.compactAvatars}
-              contentContainerStyle={styles.compactAvatarsContent}
+          {!expandido && members.length > 0 && !enFaseParada ? (
+            <Animated.View
+              key="avatares"
+              entering={FadeIn.duration(220)}
+              exiting={FadeOut.duration(160)}
             >
-              {avataresCompactos.map((m) => (
-                <View
-                  key={m.id}
-                  style={[
-                    styles.compactAvatarWrap,
-                    m.id === currentUserId && { borderColor: theme.good, borderWidth: 1.5 },
-                    (!m.enMapa || m.sinSenal) && styles.compactAvatarOffline,
-                  ]}
-                >
-                  <AvatarFallback nombre={m.nombre} size={24} />
-                </View>
-              ))}
-              {restantes > 0 ? (
-                <View style={[styles.compactMore, { backgroundColor: theme.surface2 }]}>
-                  <Text style={[styles.compactMoreTxt, { color: theme.textDim }]}>+{restantes}</Text>
-                </View>
-              ) : null}
-            </ScrollView>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.compactAvatars}
+                contentContainerStyle={styles.compactAvatarsContent}
+              >
+                {avataresCompactos.map((m) => (
+                  <View
+                    key={m.id}
+                    style={[
+                      styles.compactAvatarWrap,
+                      m.id === currentUserId && { borderColor: theme.good, borderWidth: 1.5 },
+                      (!m.enMapa || m.sinSenal) && styles.compactAvatarOffline,
+                    ]}
+                  >
+                    <AvatarFallback nombre={m.nombre} size={24} />
+                  </View>
+                ))}
+                {restantes > 0 ? (
+                  <View style={[styles.compactMore, { backgroundColor: theme.surface2 }]}>
+                    <Text style={[styles.compactMoreTxt, { color: theme.textDim }]}>+{restantes}</Text>
+                  </View>
+                ) : null}
+              </ScrollView>
+            </Animated.View>
+          ) : null}
+
+          {enFaseParada ? (
+            <Animated.View
+              key="parada-flag"
+              entering={FadeIn.duration(220)}
+              exiting={FadeOut.duration(160)}
+              style={[styles.paradaFlag, { backgroundColor: theme.accentWeak }]}
+            >
+              <Feather name="flag" size={14} color={theme.accent} />
+            </Animated.View>
           ) : null}
 
           <View style={styles.trailing}>
@@ -176,7 +210,8 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    zIndex: 20,
+    zIndex: 50,
+    elevation: 50,
     borderBottomWidth: 1,
   },
   bar: {
@@ -250,6 +285,13 @@ const styles = StyleSheet.create({
     flexGrow: 0,
     flexShrink: 1,
     maxWidth: 108,
+  },
+  paradaFlag: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   compactAvatarsContent: {
     flexDirection: 'row',
