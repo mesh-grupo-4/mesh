@@ -31,10 +31,15 @@ const alertaCreada = {
   creada_por: { nombre: 'Juan', apellido: 'Pérez' },
 }
 
-function armarPrisma(estadoViaje = 'en_curso') {
+function armarPrisma(
+  estadoViaje = 'en_curso',
+  opts: { alertasSoloLider?: boolean } = {}
+) {
+  const alertasSoloLider = opts.alertasSoloLider ?? true
   const viajeFindUnique = vi.fn().mockResolvedValue({
     creador_id: liderId,
     estado: estadoViaje,
+    alertas_solo_lider: alertasSoloLider,
   })
   const integranteFindUnique = vi.fn().mockResolvedValue({ estado: 'confirmado' })
   const integranteFindMany = vi.fn().mockResolvedValue([
@@ -135,8 +140,8 @@ describe('US1 — crear alertas del líder', () => {
     expect(mensajes[0]?.body).toBeUndefined()
   })
 
-  it('RN-030: un participante no puede crear alertas', async () => {
-    const m = armarPrisma()
+  it('RN-030: un participante no puede crear alertas si alertas_solo_lider', async () => {
+    const m = armarPrisma('en_curso', { alertasSoloLider: true })
 
     await expect(
       new AlertasService(m.prisma).crear(integranteId, viajeId, {
@@ -145,6 +150,28 @@ describe('US1 — crear alertas del líder', () => {
       })
     ).rejects.toMatchObject({ status: 403 })
     expect(m.alertaCreate).not.toHaveBeenCalled()
+  })
+
+  it('un integrante puede crear alertas si el líder lo habilitó', async () => {
+    const m = armarPrisma('en_curso', { alertasSoloLider: false })
+    m.alertaCreate.mockResolvedValue({
+      ...alertaCreada,
+      creada_por_id: integranteId,
+      origen: 'integrante',
+      creada_por: { nombre: 'Ana', apellido: 'García' },
+    })
+
+    const alerta = await new AlertasService(m.prisma).crear(integranteId, viajeId, {
+      tipo: 'parada',
+      mensaje: 'Paramos adelante',
+    })
+
+    expect(m.alertaCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ origen: 'integrante', creada_por_id: integranteId }),
+      })
+    )
+    expect(alerta.origen).toBe('integrante')
   })
 
   it('no se pueden crear alertas si el viaje no está en curso', async () => {

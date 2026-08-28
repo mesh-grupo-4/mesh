@@ -89,7 +89,7 @@ CREATE UNIQUE INDEX solicitud_parada_pendiente_unica
 
 | Evento | Cuándo | Payload relevante |
 |---|---|---|
-| `viaje:parada_iniciada` | US1 | `usuarioId`, `nombre`, `categoria`, `inicio`, `estado: detenido_voluntario` |
+| `viaje:parada_iniciada` | US1 | `usuarioId`, `nombre`, `categoria`, `inicio`, `estado: detenido_voluntario` — el frontend muestra banner grupal (excepto al autor) con Seguir parada / Ignorar |
 | `viaje:parada_finalizada` | US3 | `usuarioId`, `duracionSegundos`, `estado: en_movimiento` |
 | `viaje:solicitud_parada` | US2 | `solicitudId`, `solicitanteId`, `nombre`, `motivo` |
 | `viaje:solicitud_parada_resuelta` | US2 | `solicitudId`, `estado`, `resueltaPor` |
@@ -121,6 +121,9 @@ Con parada abierta:  [ ⏸ Retomar viaje  04:12 ]
 ```
 
 - "Me detuve" abre el selector de categoría; al confirmar, queda el cronómetro corriendo.
+- Los demás integrantes reciben un banner en vivo vía `viaje:parada_iniciada` con nombre y motivo (categoría RN-022), botones **Seguir parada** / **Ignorar**.
+- **Seguir parada** calcula ruta OSRM desde la posición actual hasta el punto de la parada y dibuja una guía ámbar en el mapa; si OSRM falla, línea directa.
+- Al retomar el viaje (`viaje:parada_finalizada`), la guía se limpia automáticamente.
 - El líder ve la solicitud como banner sobre el mapa, con "Aprobar" / "Rechazar", además del push.
 - En el mapa, el integrante detenido lleva anillo ámbar y distintivo de pausa.
 

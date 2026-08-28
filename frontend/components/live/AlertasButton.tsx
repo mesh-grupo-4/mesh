@@ -88,10 +88,10 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   crear: {
-    backgroundColor: '#4338ca',
+    backgroundColor: '#fff',
   },
   crearTxt: {
-    color: '#fff',
+    color: '#4338ca',
     fontSize: 26,
     fontWeight: '300',
     lineHeight: 30,

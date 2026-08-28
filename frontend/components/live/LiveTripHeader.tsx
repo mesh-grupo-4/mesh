@@ -1,9 +1,10 @@
 import { Feather } from '@expo/vector-icons'
 import { useEffect, useState } from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
+import { AvatarFallback } from '@/components/AvatarFallback'
 import { useTheme } from '@/components/MeshUI'
 import { formatDistanceShort, formatEtaLabel, type NextStopInfo } from '@/lib/geo/nextStop'
 
@@ -17,6 +18,8 @@ type Props = {
   currentUserId: string
   onBack: () => void
 }
+
+const MAX_AVATARES_COMPACTOS = 4
 
 export function LiveTripHeader({ tripName, nextStop, hasRoute, members, currentUserId, onBack }: Props) {
   const theme = useTheme()
@@ -43,21 +46,24 @@ export function LiveTripHeader({ tripName, nextStop, hasRoute, members, currentU
       : 'Calculando próxima parada…'
 
   const lineaCompacta = hasRoute && nextStop ? etaLine : tripName
+  const avataresCompactos = members.slice(0, MAX_AVATARES_COMPACTOS)
+  const restantes = members.length - avataresCompactos.length
 
   return (
-    <View style={[styles.wrap, { paddingTop: insets.top + 6 }]} pointerEvents="box-none">
+    <View
+      style={[
+        styles.wrap,
+        {
+          paddingTop: insets.top + 8,
+          backgroundColor: theme.surface,
+          borderBottomColor: theme.border,
+        },
+      ]}
+      pointerEvents="box-none"
+    >
       <Pressable
         onPress={() => setExpandido((v) => !v)}
-        style={({ pressed }) => [
-          styles.card,
-          expandido && styles.cardExpanded,
-          {
-            backgroundColor: theme.surface,
-            borderColor: theme.border,
-            shadowColor: theme.shadow,
-            opacity: pressed ? 0.96 : 1,
-          },
-        ]}
+        style={({ pressed }) => [styles.bar, expandido && styles.barExpanded, pressed && styles.barPressed]}
         accessibilityRole="button"
         accessibilityLabel={expandido ? 'Contraer panel del viaje' : 'Expandir panel del viaje'}
       >
@@ -92,7 +98,7 @@ export function LiveTripHeader({ tripName, nextStop, hasRoute, members, currentU
                 entering={FadeIn.duration(200)}
                 exiting={FadeOut.duration(150)}
                 style={[styles.subTitle, { color: theme.textDim }]}
-                numberOfLines={2}
+                numberOfLines={1}
               >
                 {lineaCompacta}
               </Animated.Text>
@@ -109,6 +115,33 @@ export function LiveTripHeader({ tripName, nextStop, hasRoute, members, currentU
             )}
           </View>
 
+          {!expandido && members.length > 0 ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.compactAvatars}
+              contentContainerStyle={styles.compactAvatarsContent}
+            >
+              {avataresCompactos.map((m) => (
+                <View
+                  key={m.id}
+                  style={[
+                    styles.compactAvatarWrap,
+                    m.id === currentUserId && { borderColor: theme.good, borderWidth: 1.5 },
+                    (!m.enMapa || m.sinSenal) && styles.compactAvatarOffline,
+                  ]}
+                >
+                  <AvatarFallback nombre={m.nombre} size={24} />
+                </View>
+              ))}
+              {restantes > 0 ? (
+                <View style={[styles.compactMore, { backgroundColor: theme.surface2 }]}>
+                  <Text style={[styles.compactMoreTxt, { color: theme.textDim }]}>+{restantes}</Text>
+                </View>
+              ) : null}
+            </ScrollView>
+          ) : null}
+
           <View style={styles.trailing}>
             <Feather
               name={expandido ? 'chevron-up' : 'chevron-down'}
@@ -119,7 +152,11 @@ export function LiveTripHeader({ tripName, nextStop, hasRoute, members, currentU
         </View>
 
         {expandido ? (
-          <Animated.View layout={LinearTransition} entering={FadeIn.duration(220)}>
+          <Animated.View
+            layout={LinearTransition}
+            entering={FadeIn.duration(220)}
+            style={[styles.expandedBlock, { borderTopColor: theme.border }]}
+          >
             <Text style={[styles.etaExpanded, { color: theme.textDim }]} numberOfLines={2}>
               {etaLine}
             </Text>
@@ -127,12 +164,7 @@ export function LiveTripHeader({ tripName, nextStop, hasRoute, members, currentU
               <LiveMembersBar members={members} currentUserId={currentUserId} />
             ) : null}
           </Animated.View>
-        ) : (
-          <View style={styles.compactMeta}>
-            <Feather name="users" size={14} color={theme.textMute} />
-            <Text style={[styles.compactCount, { color: theme.textDim }]}>{members.length}</Text>
-          </View>
-        )}
+        ) : null}
       </Pressable>
     </View>
   )
@@ -145,81 +177,102 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 20,
-    paddingHorizontal: 12,
+    borderBottomWidth: 1,
   },
-  card: {
-    borderRadius: 14,
-    borderWidth: 1.2,
-    paddingHorizontal: 10,
-    paddingBottom: 8,
-    paddingTop: 8,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 4,
+  bar: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
   },
-  cardExpanded: {
-    paddingBottom: 10,
+  barExpanded: {
+    paddingBottom: 14,
+  },
+  barPressed: {
+    opacity: 0.96,
   },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
+    minHeight: 40,
   },
   backBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    borderWidth: 1.2,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 6,
   },
   trailing: {
-    width: 28,
+    width: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
   titleCenter: {
     flex: 1,
-    minHeight: 36,
+    minWidth: 0,
+    minHeight: 32,
     justifyContent: 'center',
-    alignItems: 'center',
   },
   mainTitle: {
-    fontSize: 17,
+    fontSize: 20,
     fontWeight: '800',
-    textAlign: 'center',
+    textAlign: 'left',
     letterSpacing: -0.3,
   },
   mainTitleCompact: {
-    fontSize: 15,
+    fontSize: 18,
     fontWeight: '800',
-    textAlign: 'center',
+    textAlign: 'left',
     letterSpacing: -0.2,
   },
   subTitle: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
-    textAlign: 'center',
-    lineHeight: 17,
+    textAlign: 'left',
+    lineHeight: 16,
   },
   etaExpanded: {
     fontSize: 13,
     fontWeight: '600',
     textAlign: 'center',
-    marginTop: 6,
+    marginTop: 10,
     marginBottom: 4,
     lineHeight: 18,
   },
-  compactMeta: {
+  expandedBlock: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    marginTop: 8,
+    paddingTop: 4,
+  },
+  compactAvatars: {
+    flexGrow: 0,
+    flexShrink: 1,
+    maxWidth: 108,
+  },
+  compactAvatarsContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     gap: 4,
-    marginTop: 4,
   },
-  compactCount: {
-    fontSize: 12,
-    fontWeight: '700',
+  compactAvatarWrap: {
+    borderRadius: 14,
+    padding: 1,
+  },
+  compactAvatarOffline: {
+    opacity: 0.55,
+  },
+  compactMore: {
+    minWidth: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  compactMoreTxt: {
+    fontSize: 10,
+    fontWeight: '800',
   },
 })

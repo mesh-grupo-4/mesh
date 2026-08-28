@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { DeviceEventEmitter } from 'react-native'
 
 import { connectMeshSocket } from '@/lib/meshSocket'
+import { meshWarning } from '@/lib/meshAlert'
+import { calcularRutaOsrm, perfilOsrmDesdeActividad } from '@/lib/osrm'
+import type { TipoActividadApi } from '@/lib/viajesApi'
 import {
   cancelarSolicitudParada,
   confirmarEstoyBien,
@@ -22,6 +26,8 @@ type Options = {
   esLider: boolean
   /** El viaje tiene más integrantes: sin eso no hay a quién pedirle la parada. */
   habilitado: boolean
+  tipoActividad: TipoActividadApi
+  myPosition: { lat: number; lng: number } | null
 }
 
 type SolicitudEntrante = {
@@ -32,13 +38,57 @@ type SolicitudEntrante = {
   createdAt: string
 }
 
-export function useParadas({ viajeId, userId, esLider, habilitado }: Options) {
+export type ParadaEntrante = {
+  paradaId: string
+  usuarioId: string
+  nombre: string
+  lat: number
+  lng: number
+  categoria: CategoriaParadaApi | null
+  inicio: string
+}
+
+export type SeguirParadaActiva = {
+  paradaId: string
+  usuarioId: string
+  nombre: string
+  lat: number
+  lng: number
+  categoria: CategoriaParadaApi | null
+  polyline: [number, number][]
+}
+
+function lineaDirecta(
+  desde: { lat: number; lng: number },
+  hasta: { lat: number; lng: number }
+): [number, number][] {
+  return [
+    [desde.lat, desde.lng],
+    [hasta.lat, hasta.lng],
+  ]
+}
+
+export function useParadas({
+  viajeId,
+  userId,
+  esLider,
+  habilitado,
+  tipoActividad,
+  myPosition,
+}: Options) {
   const [paradaActiva, setParadaActiva] = useState<ParadaApi | null>(null)
   const [miSolicitud, setMiSolicitud] = useState<SolicitudParadaApi | null>(null)
   const [pendientes, setPendientes] = useState<SolicitudEntrante[]>([])
+  const [paradasEntrantes, setParadasEntrantes] = useState<ParadaEntrante[]>([])
+  const [seguirParada, setSeguirParada] = useState<SeguirParadaActiva | null>(null)
   const [enviando, setEnviando] = useState(false)
+  const [calculandoSeguir, setCalculandoSeguir] = useState(false)
   const userIdRef = useRef(userId)
+  const myPositionRef = useRef(myPosition)
   userIdRef.current = userId
+  myPositionRef.current = myPosition
+
+  const paradaEntrante = paradasEntrantes[0] ?? null
 
   // ------------------------------------------------------------ carga inicial
 
@@ -130,6 +180,7 @@ export function useParadas({ viajeId, userId, esLider, habilitado }: Options) {
         const onParadaIniciada = (p: {
           viajeId: string
           usuarioId: string
+          nombre?: string
           paradaId: string
           lat: number
           lng: number
@@ -137,24 +188,61 @@ export function useParadas({ viajeId, userId, esLider, habilitado }: Options) {
           inicio: string
           estado?: EstadoIntegranteApi
         }) => {
-          if (p.viajeId !== viajeId || p.usuarioId !== userIdRef.current) return
-          setParadaActiva({
-            id: p.paradaId,
-            viaje_id: viajeId,
-            usuario_id: p.usuarioId,
+          if (p.viajeId !== viajeId) return
+
+          if (p.usuarioId === userIdRef.current) {
+            setParadaActiva({
+              id: p.paradaId,
+              viaje_id: viajeId,
+              usuario_id: p.usuarioId,
+              lat: p.lat,
+              lng: p.lng,
+              categoria: p.categoria,
+              tipo: p.estado === 'posible_incidente' ? 'incidente_detectado' : 'voluntaria',
+              inicio: p.inicio,
+              fin: null,
+              duracion_segundos: null,
+            })
+            return
+          }
+
+          const estado = p.estado ?? 'detenido_voluntario'
+          if (estado !== 'detenido_voluntario') return
+
+          const entrante: ParadaEntrante = {
+            paradaId: p.paradaId,
+            usuarioId: p.usuarioId,
+            nombre: p.nombre ?? 'Un integrante',
             lat: p.lat,
             lng: p.lng,
             categoria: p.categoria,
-            tipo: p.estado === 'posible_incidente' ? 'incidente_detectado' : 'voluntaria',
             inicio: p.inicio,
-            fin: null,
-            duracion_segundos: null,
-          })
+          }
+          setParadasEntrantes((prev) =>
+            prev.some((x) => x.paradaId === entrante.paradaId) ? prev : [...prev, entrante]
+          )
         }
 
-        const onParadaFinalizada = (p: { viajeId: string; usuarioId: string }) => {
-          if (p.viajeId !== viajeId || p.usuarioId !== userIdRef.current) return
-          setParadaActiva(null)
+        const onParadaFinalizada = (p: {
+          viajeId: string
+          usuarioId: string
+          paradaId?: string
+        }) => {
+          if (p.viajeId !== viajeId) return
+
+          if (p.usuarioId === userIdRef.current) {
+            setParadaActiva(null)
+          }
+
+          setParadasEntrantes((prev) =>
+            prev.filter((x) => x.usuarioId !== p.usuarioId && x.paradaId !== p.paradaId)
+          )
+          setSeguirParada((prev) =>
+            prev &&
+            (prev.usuarioId === p.usuarioId || (p.paradaId && prev.paradaId === p.paradaId))
+              ? null
+              : prev
+          )
         }
 
         sock.on('viaje:solicitud_parada', onSolicitud)
@@ -176,6 +264,61 @@ export function useParadas({ viajeId, userId, esLider, habilitado }: Options) {
   }, [viajeId, habilitado, esLider])
 
   // --------------------------------------------------------------- acciones
+
+  const ignorarParadaEntrante = useCallback(() => {
+    setParadasEntrantes((prev) => prev.slice(1))
+  }, [])
+
+  const dejarDeSeguirParada = useCallback(() => {
+    setSeguirParada(null)
+  }, [])
+
+  const activarSeguirParada = useCallback(async () => {
+    const entrante = paradasEntrantes[0]
+    if (!entrante) return null
+
+    const pos = myPositionRef.current
+    if (!pos) {
+      meshWarning('Sin ubicación', 'No tenemos tu posición para calcular la ruta hasta la parada.')
+      return null
+    }
+
+    setCalculandoSeguir(true)
+    try {
+      const destino = { lat: entrante.lat, lng: entrante.lng }
+      let polyline: [number, number][]
+
+      try {
+        const perfil = perfilOsrmDesdeActividad(tipoActividad)
+        const ruta = await calcularRutaOsrm(perfil, [
+          [pos.lng, pos.lat],
+          [destino.lng, destino.lat],
+        ])
+        polyline = ruta.polylineLatLng
+      } catch {
+        polyline = lineaDirecta(pos, destino)
+        meshWarning(
+          'Ruta aproximada',
+          'No pudimos calcular la ruta por calles; mostramos una línea directa hasta la parada.'
+        )
+      }
+
+      const activa: SeguirParadaActiva = {
+        paradaId: entrante.paradaId,
+        usuarioId: entrante.usuarioId,
+        nombre: entrante.nombre,
+        lat: entrante.lat,
+        lng: entrante.lng,
+        categoria: entrante.categoria,
+        polyline,
+      }
+      setSeguirParada(activa)
+      setParadasEntrantes((prev) => prev.filter((x) => x.paradaId !== entrante.paradaId))
+      return activa
+    } finally {
+      setCalculandoSeguir(false)
+    }
+  }, [paradasEntrantes, tipoActividad])
 
   /** US1 */
   const registrarParada = useCallback(
@@ -209,11 +352,18 @@ export function useParadas({ viajeId, userId, esLider, habilitado }: Options) {
     try {
       const parada = await confirmarEstoyBien(viajeId)
       setParadaActiva(null)
+      DeviceEventEmitter.emit('mesh:integrante_estado', {
+        viajeId,
+        usuarioId: userId,
+        estado: 'en_movimiento',
+        paradaDesde: null,
+      })
+      DeviceEventEmitter.emit('mesh:alertas_resueltas', { viajeId, usuarioId: userId })
       return parada
     } finally {
       setEnviando(false)
     }
-  }, [viajeId])
+  }, [viajeId, userId])
 
   /** US2 */
   const pedirParada = useCallback(
@@ -256,7 +406,11 @@ export function useParadas({ viajeId, userId, esLider, habilitado }: Options) {
     paradaActiva,
     miSolicitud,
     pendientes,
+    paradaEntrante,
+    paradasEntrantes,
+    seguirParada,
     enviando,
+    calculandoSeguir,
     registrarParada,
     retomarViaje,
     confirmarBien,
@@ -264,6 +418,9 @@ export function useParadas({ viajeId, userId, esLider, habilitado }: Options) {
     responderSolicitud,
     cancelarMiSolicitud,
     descartarResultado,
+    ignorarParadaEntrante,
+    activarSeguirParada,
+    dejarDeSeguirParada,
     refrescar,
   }
 }

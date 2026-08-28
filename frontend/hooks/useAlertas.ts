@@ -1,7 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { DeviceEventEmitter } from 'react-native'
 
 import { connectMeshSocket } from '@/lib/meshSocket'
-import { crearAlerta, listarAlertas, type AlertaApi, type TipoAlertaApi } from '@/lib/alertasApi'
+import { meshWarning } from '@/lib/meshAlert'
+import { calcularGuiaHastaDestino } from '@/lib/osrmGuia'
+import {
+  crearAlerta,
+  listarAlertas,
+  usuarioAfectadoDesdeMensaje,
+  type AlertaApi,
+  type TipoAlertaApi,
+} from '@/lib/alertasApi'
+import type { TipoActividadApi } from '@/lib/viajesApi'
 
 type Options = {
   viajeId: string
@@ -9,6 +19,16 @@ type Options = {
   userId?: string
   /** Solo se suscribe y carga cuando hay viaje. */
   habilitado: boolean
+  tipoActividad?: TipoActividadApi
+  myPosition?: { lat: number; lng: number } | null
+}
+
+export type SeguirAlertaActiva = {
+  alertaId: string
+  lat: number
+  lng: number
+  label: string
+  polyline: [number, number][]
 }
 
 /**
@@ -21,15 +41,36 @@ function agregarSinDuplicar(prev: AlertaApi[], alerta: AlertaApi): AlertaApi[] {
   return [alerta, ...prev]
 }
 
-export function useAlertas({ viajeId, userId, habilitado }: Options) {
+function esAlertaParaBanner(alerta: AlertaApi, userId: string | undefined, vistas: Set<string>): boolean {
+  const esMia = userId != null && alerta.creada_por_id === userId
+  const afectadoYo =
+    userId != null &&
+    alerta.origen === 'sistema' &&
+    alerta.tipo === 'peligro' &&
+    usuarioAfectadoDesdeMensaje(alerta.mensaje) === userId
+  return !esMia && !afectadoYo && !vistas.has(alerta.id) && alerta.origen !== 'sistema'
+}
+
+export function useAlertas({
+  viajeId,
+  userId,
+  habilitado,
+  tipoActividad = 'otro',
+  myPosition = null,
+}: Options) {
   const [alertas, setAlertas] = useState<AlertaApi[]>([])
   const [cargando, setCargando] = useState(false)
   const [enviando, setEnviando] = useState(false)
-  /** Última alerta recibida por socket, para el banner del mapa. */
-  const [ultima, setUltima] = useState<AlertaApi | null>(null)
+  const [alertasEntrantes, setAlertasEntrantes] = useState<AlertaApi[]>([])
+  const [seguirAlerta, setSeguirAlerta] = useState<SeguirAlertaActiva | null>(null)
+  const [calculandoSeguir, setCalculandoSeguir] = useState(false)
   const vistasRef = useRef<Set<string>>(new Set())
   const userIdRef = useRef(userId)
+  const myPositionRef = useRef(myPosition)
   userIdRef.current = userId
+  myPositionRef.current = myPosition
+
+  const alertaEntrante = alertasEntrantes[0] ?? null
 
   const refrescar = useCallback(async () => {
     if (!viajeId || !habilitado) return
@@ -59,12 +100,12 @@ export function useAlertas({ viajeId, userId, habilitado }: Options) {
         const onAlerta = (p: { viajeId: string; alerta: AlertaApi }) => {
           if (p.viajeId !== viajeId) return
           setAlertas((prev) => agregarSinDuplicar(prev, p.alerta))
-          // El banner es para lo que no viste: ni lo ya cargado en el historial,
-          // ni la alerta que acabás de escribir vos.
-          const esMia = userIdRef.current != null && p.alerta.creada_por_id === userIdRef.current
-          if (!esMia && !vistasRef.current.has(p.alerta.id)) {
+          if (esAlertaParaBanner(p.alerta, userIdRef.current, vistasRef.current)) {
             vistasRef.current.add(p.alerta.id)
-            setUltima(p.alerta)
+            setAlertasEntrantes((prev) => {
+              if (prev.some((a) => a.id === p.alerta.id)) return prev
+              return [...prev, p.alerta]
+            })
           }
         }
         sock.on('viaje:alerta', onAlerta)
@@ -75,6 +116,33 @@ export function useAlertas({ viajeId, userId, habilitado }: Options) {
     })()
 
     return () => cleanup?.()
+  }, [viajeId, habilitado])
+
+  useEffect(() => {
+    if (!viajeId || !habilitado) return
+    const sub = DeviceEventEmitter.addListener(
+      'mesh:alertas_resueltas',
+      (p: { viajeId: string; usuarioId: string }) => {
+        if (p.viajeId !== viajeId) return
+        setAlertas((prev) =>
+          prev.map((a) => {
+            if (a.origen !== 'sistema' || a.estado !== 'activa') return a
+            if (usuarioAfectadoDesdeMensaje(a.mensaje) !== p.usuarioId) return a
+            return { ...a, estado: 'resuelta' }
+          })
+        )
+        setAlertasEntrantes((prev) =>
+          prev.filter(
+            (a) =>
+              !(
+                a.origen === 'sistema' &&
+                usuarioAfectadoDesdeMensaje(a.mensaje) === p.usuarioId
+              )
+          )
+        )
+      }
+    )
+    return () => sub.remove()
   }, [viajeId, habilitado])
 
   const publicar = useCallback(
@@ -92,7 +160,55 @@ export function useAlertas({ viajeId, userId, habilitado }: Options) {
     [viajeId]
   )
 
-  const descartarUltima = useCallback(() => setUltima(null), [])
+  const ignorarAlertaEntrante = useCallback(() => {
+    setAlertasEntrantes((prev) => prev.slice(1))
+  }, [])
 
-  return { alertas, ultima, cargando, enviando, publicar, refrescar, descartarUltima }
+  const activarSeguirAlerta = useCallback(async () => {
+    const entrante = alertasEntrantes[0]
+    if (!entrante || entrante.lat == null || entrante.lng == null) return null
+
+    const pos = myPositionRef.current
+    if (!pos) {
+      meshWarning('Sin ubicación', 'No tenemos tu posición para calcular la ruta hasta el punto.')
+      return null
+    }
+
+    setCalculandoSeguir(true)
+    try {
+      const destino = { lat: entrante.lat, lng: entrante.lng }
+      const polyline = await calcularGuiaHastaDestino(pos, destino, tipoActividad)
+      const activa: SeguirAlertaActiva = {
+        alertaId: entrante.id,
+        lat: destino.lat,
+        lng: destino.lng,
+        label: entrante.creada_por_nombre ?? 'Punto de parada',
+        polyline,
+      }
+      setSeguirAlerta(activa)
+      setAlertasEntrantes((prev) => prev.filter((a) => a.id !== entrante.id))
+      return activa
+    } finally {
+      setCalculandoSeguir(false)
+    }
+  }, [alertasEntrantes, tipoActividad])
+
+  const dejarDeSeguirAlerta = useCallback(() => {
+    setSeguirAlerta(null)
+  }, [])
+
+  return {
+    alertas,
+    alertaEntrante,
+    alertasEntrantes,
+    seguirAlerta,
+    cargando,
+    enviando,
+    calculandoSeguir,
+    publicar,
+    refrescar,
+    ignorarAlertaEntrante,
+    activarSeguirAlerta,
+    dejarDeSeguirAlerta,
+  }
 }

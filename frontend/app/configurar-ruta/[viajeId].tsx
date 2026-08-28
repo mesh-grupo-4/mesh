@@ -4,6 +4,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 
 import { TopBar, useTheme } from '@/components/MeshUI'
+import { CenterLocationButton } from '@/components/live/CenterLocationButton'
 import { MapPickOverlay } from '@/components/route-config/MapPickOverlay'
 import { RouteBottomSheet } from '@/components/route-config/RouteBottomSheet'
 import { MapStylePicker } from '@/components/route-config/MapStylePicker'
@@ -84,9 +85,11 @@ export default function ConfigurarRutaScreen() {
     destino,
     paradas,
     regionInicial,
+    ubicacionActual,
     cameraTarget,
     setCameraTarget,
     fitRouteCoords,
+    centrarEnMiUbicacion,
     routeLineLatLng,
     waypointsConCoords,
     calculando,
@@ -147,6 +150,7 @@ export default function ConfigurarRutaScreen() {
           mapPickMode={Boolean(modoSeleccionMapa)}
           onRegionChangeComplete={onRegionChangeComplete}
           calculando={calculando}
+          userLocation={ubicacionActual}
         />
 
         {!modoSeleccionMapa ? (
@@ -163,6 +167,12 @@ export default function ConfigurarRutaScreen() {
         ) : null}
 
         {!modoSeleccionMapa ? <MapStylePicker value={mapStyle} onChange={setMapStyle} /> : null}
+
+        <CenterLocationButton
+          onPress={() => void centrarEnMiUbicacion()}
+          bottomOffset={modoSeleccionMapa ? 180 : 320}
+          align="right"
+        />
 
         {modoSeleccionMapa ? (
           <MapPickOverlay

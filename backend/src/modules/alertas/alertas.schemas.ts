@@ -7,6 +7,7 @@ export const tipoAlertaSchema = z.enum([
   'desvio',
   'peligro',
   'informacion',
+  'atraso',
 ])
 
 export const crearAlertaSchema = z.object({

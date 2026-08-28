@@ -31,6 +31,7 @@ import {
   obtenerViaje,
   obtenerRuta,
   actualizarFechaViaje,
+  actualizarViaje,
   listarParticipantesViaje,
   type ViajeDetalleApi,
   type ViajeParticipanteApi,
@@ -141,6 +142,7 @@ export default function ViajeDetalleScreen() {
   const [pickerMode, setPickerMode] = useState<'date' | 'time'>('date')
   const [fechaEdit, setFechaEdit] = useState<Date>(() => new Date())
   const [guardandoFecha, setGuardandoFecha] = useState(false)
+  const [guardandoAlertaConfig, setGuardandoAlertaConfig] = useState(false)
 
   const esLider = viaje != null && userId === viaje.creador_id
   const puedeCompartirRuta =
@@ -272,6 +274,38 @@ export default function ViajeDetalleScreen() {
   }, [viajeId, userId])
 
   const puedeEditarPlan = viaje?.estado === 'planificado' && esLider
+  const puedeConfigurarAlertas =
+    esLider && viaje?.es_grupal === true && viaje.estado !== 'finalizado'
+
+  const guardarConfigAlerta = useCallback(
+    async (input: {
+      alertaIncidenteHabilitada?: boolean
+      alertaIncidenteMinutos?: number | null
+      alertasSoloLider?: boolean
+    }) => {
+      if (!viajeId || !userId || !puedeConfigurarAlertas) return
+      setGuardandoAlertaConfig(true)
+      try {
+        const actualizado = await actualizarViaje(viajeId, userId, input)
+        setViaje((prev) =>
+          prev
+            ? {
+                ...prev,
+                alerta_incidente_habilitada: actualizado.alerta_incidente_habilitada,
+                alerta_incidente_minutos: actualizado.alerta_incidente_minutos,
+                alerta_incidente_minutos_efectivo: actualizado.alerta_incidente_minutos_efectivo,
+                alertas_solo_lider: actualizado.alertas_solo_lider,
+              }
+            : prev
+        )
+      } catch (e) {
+        meshAlert('Error', e instanceof Error ? e.message : 'No se pudo guardar la configuración')
+      } finally {
+        setGuardandoAlertaConfig(false)
+      }
+    },
+    [viajeId, userId, puedeConfigurarAlertas]
+  )
 
   const abrirPicker = (mode: 'date' | 'time') => {
     if (!viaje || !puedeEditarPlan) return
@@ -618,6 +652,137 @@ export default function ViajeDetalleScreen() {
               </Pressable>
             </View>
 
+            {puedeConfigurarAlertas && viaje ? (
+              <View style={[styles.alertConfigCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                <View style={styles.alertConfigHeader}>
+                  <Feather name="alert-triangle" size={18} color={theme.accent} />
+                  <Text style={[styles.alertConfigTitle, { color: theme.text }]}>
+                    Alerta de posible incidente
+                  </Text>
+                </View>
+                <Text style={[styles.alertConfigHint, { color: theme.textDim }]}>
+                  Si alguien queda detenido sin registrar parada, el líder recibe una alerta automática (RN-036).
+                </Text>
+
+                <Pressable
+                  onPress={() =>
+                    void guardarConfigAlerta({
+                      alertaIncidenteHabilitada: !viaje.alerta_incidente_habilitada,
+                    })
+                  }
+                  disabled={guardandoAlertaConfig}
+                  style={({ pressed }) => [
+                    styles.alertToggleRow,
+                    { borderColor: theme.border, opacity: pressed ? 0.88 : 1 },
+                  ]}
+                >
+                  <Text style={[styles.alertToggleLabel, { color: theme.text }]}>Detección automática</Text>
+                  <View
+                    style={[
+                      styles.alertTogglePill,
+                      {
+                        backgroundColor: viaje.alerta_incidente_habilitada ? theme.good : theme.surface2,
+                        borderColor: viaje.alerta_incidente_habilitada ? theme.good : theme.border,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.alertTogglePillTxt,
+                        { color: viaje.alerta_incidente_habilitada ? '#fff' : theme.textDim },
+                      ]}
+                    >
+                      {viaje.alerta_incidente_habilitada ? 'Activa' : 'Off'}
+                    </Text>
+                  </View>
+                </Pressable>
+
+                {viaje.alerta_incidente_habilitada ? (
+                  <View style={styles.alertMinutosRow}>
+                    <Text style={[styles.alertMinutosLabel, { color: theme.textDim }]}>
+                      Minutos quieto sin parada
+                    </Text>
+                    <View style={styles.alertMinutosControls}>
+                      <Pressable
+                        onPress={() => {
+                          const base =
+                            viaje.alerta_incidente_minutos ?? viaje.alerta_incidente_minutos_efectivo
+                          if (base <= 2) return
+                          void guardarConfigAlerta({ alertaIncidenteMinutos: base - 1 })
+                        }}
+                        disabled={guardandoAlertaConfig}
+                        style={[styles.alertStepBtn, { borderColor: theme.border }]}
+                      >
+                        <Feather name="minus" size={16} color={theme.text} />
+                      </Pressable>
+                      <Text style={[styles.alertMinutosValue, { color: theme.text }]}>
+                        {viaje.alerta_incidente_minutos_efectivo} min
+                      </Text>
+                      <Pressable
+                        onPress={() => {
+                          const base =
+                            viaje.alerta_incidente_minutos ?? viaje.alerta_incidente_minutos_efectivo
+                          if (base >= 30) return
+                          void guardarConfigAlerta({ alertaIncidenteMinutos: base + 1 })
+                        }}
+                        disabled={guardandoAlertaConfig}
+                        style={[styles.alertStepBtn, { borderColor: theme.border }]}
+                      >
+                        <Feather name="plus" size={16} color={theme.text} />
+                      </Pressable>
+                      {viaje.alerta_incidente_minutos != null ? (
+                        <Pressable
+                          onPress={() => void guardarConfigAlerta({ alertaIncidenteMinutos: null })}
+                          disabled={guardandoAlertaConfig}
+                          hitSlop={6}
+                        >
+                          <Text style={[styles.alertResetTxt, { color: theme.accent }]}>Por actividad</Text>
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  </View>
+                ) : null}
+
+                <Pressable
+                  onPress={() =>
+                    void guardarConfigAlerta({
+                      alertasSoloLider: !(viaje.alertas_solo_lider ?? true),
+                    })
+                  }
+                  disabled={guardandoAlertaConfig}
+                  style={({ pressed }) => [
+                    styles.alertToggleRow,
+                    { borderColor: theme.border, opacity: pressed ? 0.88 : 1, marginTop: 10 },
+                  ]}
+                >
+                  <Text style={[styles.alertToggleLabel, { color: theme.text }]}>
+                    Solo el líder crea alertas
+                  </Text>
+                  <View
+                    style={[
+                      styles.alertTogglePill,
+                      {
+                        backgroundColor: (viaje.alertas_solo_lider ?? true) ? theme.good : theme.surface2,
+                        borderColor: (viaje.alertas_solo_lider ?? true) ? theme.good : theme.border,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.alertTogglePillTxt,
+                        { color: (viaje.alertas_solo_lider ?? true) ? '#fff' : theme.textDim },
+                      ]}
+                    >
+                      {(viaje.alertas_solo_lider ?? true) ? 'Sí' : 'No'}
+                    </Text>
+                  </View>
+                </Pressable>
+                <Text style={[styles.alertConfigHint, { color: theme.textDim, marginTop: 6 }]}>
+                  Si está desactivado, cualquier integrante puede enviar alertas manuales durante el viaje.
+                </Text>
+              </View>
+            ) : null}
+
             {puedeEditarPlan && showPicker && (
               <View>
                 <DateTimePicker
@@ -956,6 +1121,79 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     marginTop: 2,
     letterSpacing: 0.2,
+  },
+  alertConfigCard: {
+    borderWidth: 1.2,
+    borderRadius: 14,
+    padding: 14,
+    gap: 10,
+  },
+  alertConfigHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  alertConfigTitle: {
+    fontSize: 15.5,
+    fontWeight: '700',
+  },
+  alertConfigHint: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  alertToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  alertToggleLabel: {
+    fontSize: 14.5,
+    fontWeight: '600',
+  },
+  alertTogglePill: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  alertTogglePillTxt: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  alertMinutosRow: {
+    gap: 8,
+  },
+  alertMinutosLabel: {
+    fontSize: 12.5,
+    fontWeight: '600',
+  },
+  alertMinutosControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  alertStepBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    borderWidth: 1.2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  alertMinutosValue: {
+    fontSize: 16,
+    fontWeight: '800',
+    minWidth: 56,
+    textAlign: 'center',
+  },
+  alertResetTxt: {
+    fontSize: 12.5,
+    fontWeight: '700',
+    marginLeft: 4,
   },
   warnCard: {
     flexDirection: 'row',

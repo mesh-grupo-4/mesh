@@ -3,14 +3,17 @@ import type { MemberLocation } from '@/hooks/useLiveLocations'
 
 /**
  * HTML de un `divIcon` de Leaflet que replica el marcador nativo que dibujaba
- * `AvatarFallback` sobre react-native-maps: caja 48px, avatar 36px con
- * iniciales, anillo de 3px (verde si soy yo, ámbar si está detenido — este
- * último tiene prioridad, igual que el `style` array original) y badge "II"
- * cuando corresponde. Opacidad reducida si la posición quedó vieja.
+ * `AvatarFallback` sobre react-native-maps: avatar con iniciales, anillo de 2px
+ * (verde si soy yo, ámbar si está detenido — este último tiene prioridad) y
+ * badge "II" cuando corresponde. Opacidad reducida si la posición quedó vieja.
+ *
+ * Tamaño compacto para no tapar el recorrido cuando hay varios participantes.
  */
-const AVATAR_SIZE = 36
-const RING_WIDTH = 3
-const MARKER_BOX = 48
+export const MEMBER_MARKER_BOX = 34
+const AVATAR_SIZE = 26
+const RING_WIDTH = 2
+const MARKER_BOX = MEMBER_MARKER_BOX
+const BADGE_SIZE = 12
 
 export function memberMarkerHtml(member: MemberLocation, isMe: boolean): string {
   const detenido = member.estado === 'detenido_voluntario'
@@ -28,8 +31,8 @@ export function memberMarkerHtml(member: MemberLocation, isMe: boolean): string 
     </div>
     ${
       detenido || incidente
-        ? `<div style="position:absolute;right:2px;bottom:2px;width:16px;height:16px;border-radius:50%;background:${incidente ? '#dc2626' : '#f59e0b'};display:flex;align-items:center;justify-content:center;border:1.5px solid #fff;">
-      <span style="color:#fff;font-size:8px;font-weight:900;letter-spacing:-0.5px;font-family:sans-serif;">${incidente ? '!' : 'II'}</span>
+        ? `<div style="position:absolute;right:1px;bottom:1px;width:${BADGE_SIZE}px;height:${BADGE_SIZE}px;border-radius:50%;background:${incidente ? '#dc2626' : '#f59e0b'};display:flex;align-items:center;justify-content:center;border:1px solid #fff;">
+      <span style="color:#fff;font-size:6px;font-weight:900;letter-spacing:-0.5px;font-family:sans-serif;">${incidente ? '!' : 'II'}</span>
     </div>`
         : ''
     }

@@ -70,9 +70,26 @@ export const responderInvitacionViajeSchema = z.object({
 
 export type ResponderInvitacionViajeInput = z.infer<typeof responderInvitacionViajeSchema>
 
-export const actualizarViajeSchema = z.object({
-  fechaProgramada: fechaProgramadaFuturaSchema,
-})
+export const actualizarViajeSchema = z
+  .object({
+    fechaProgramada: fechaProgramadaFuturaSchema.optional(),
+    alertaIncidenteHabilitada: z.boolean().optional(),
+    alertaIncidenteMinutos: z.number().int().min(2).max(30).nullable().optional(),
+    alertasSoloLider: z.boolean().optional(),
+  })
+  .superRefine((data, ctx) => {
+    const tieneCampo =
+      data.fechaProgramada != null ||
+      data.alertaIncidenteHabilitada != null ||
+      data.alertaIncidenteMinutos !== undefined ||
+      data.alertasSoloLider != null
+    if (!tieneCampo) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Enviá al menos un campo para actualizar',
+      })
+    }
+  })
 
 export type ActualizarViajeInput = z.infer<typeof actualizarViajeSchema>
 

@@ -9,7 +9,8 @@ const TITULO_POR_TIPO: Record<TipoAlerta, string> = {
   combustible: 'Carga de combustible',
   desvio: 'Desvío en la ruta',
   peligro: 'Atención: peligro',
-  informacion: 'Aviso del líder',
+  informacion: 'Aviso del grupo',
+  atraso: 'Atraso en la ruta',
 }
 
 function nombreDe(u: { nombre: string; apellido: string | null } | null): string | null {
@@ -20,21 +21,41 @@ function nombreDe(u: { nombre: string; apellido: string | null } | null): string
 export class AlertasService {
   constructor(private readonly prisma: PrismaClient) {}
 
-  /** RN-030: solo el creador del viaje crea alertas, y solo con el viaje en curso. */
-  private async assertEsLiderDeViajeEnCurso(viajeId: string, usuarioId: string): Promise<void> {
+  /**
+   * RN-030: crea alertas quien tenga permiso según `alertas_solo_lider`,
+   * siempre con el viaje en curso.
+   */
+  private async assertPuedeCrearAlerta(
+    viajeId: string,
+    usuarioId: string
+  ): Promise<{ esLider: boolean }> {
     const viaje = await this.prisma.viaje.findUnique({
       where: { id: viajeId },
-      select: { creador_id: true, estado: true },
+      select: { creador_id: true, estado: true, alertas_solo_lider: true },
     })
     if (!viaje) {
       throw new HttpError(404, 'Viaje no encontrado', 'VIAJE_NOT_FOUND')
     }
-    if (viaje.creador_id !== usuarioId) {
-      throw new HttpError(403, 'Solo el líder puede crear alertas', 'FORBIDDEN')
-    }
     if (viaje.estado !== 'en_curso') {
       throw new HttpError(409, 'El viaje no está en curso', 'INVALID_STATE')
     }
+
+    const esLider = viaje.creador_id === usuarioId
+    if (esLider) return { esLider: true }
+
+    if (viaje.alertas_solo_lider) {
+      throw new HttpError(403, 'Solo el líder puede crear alertas', 'FORBIDDEN')
+    }
+
+    const integrante = await this.prisma.viajeIntegrante.findUnique({
+      where: { viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId } },
+      select: { estado: true },
+    })
+    if (integrante?.estado !== 'confirmado') {
+      throw new HttpError(403, 'Sin acceso a este viaje', 'FORBIDDEN')
+    }
+
+    return { esLider: false }
   }
 
   /** Lectura del historial: cualquier integrante, en cualquier estado del viaje. */
@@ -60,14 +81,14 @@ export class AlertasService {
 
   /** US1: crea la alerta, la emite al viaje y notifica a todos los integrantes. */
   async crear(usuarioId: string, viajeId: string, input: CrearAlertaInput) {
-    await this.assertEsLiderDeViajeEnCurso(viajeId, usuarioId)
+    const { esLider } = await this.assertPuedeCrearAlerta(viajeId, usuarioId)
 
     const alerta = await this.prisma.alerta.create({
       data: {
         viaje_id: viajeId,
         creada_por_id: usuarioId,
         tipo: input.tipo,
-        origen: 'lider',
+        origen: esLider ? 'lider' : 'integrante',
         mensaje: input.mensaje?.trim() || null,
         lat: input.lat ?? null,
         lng: input.lng ?? null,
@@ -131,7 +152,7 @@ export class AlertasService {
     }
   }
 
-  /** RN-040: push a todos los integrantes del viaje, salvo el líder que la creó. */
+  /** RN-040: push a todos los integrantes del viaje, salvo quien la creó. */
   private async notificar(
     viajeId: string,
     autorId: string,

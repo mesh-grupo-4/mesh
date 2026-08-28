@@ -99,10 +99,11 @@ A diferencia de soluciones existentes (Strava, Garmin, Google Maps, Life360) que
 | ID | Regla |
 |---|---|
 | RN-040 | Las alertas se envían como notificación push a todos los integrantes del viaje. |
-| RN-041 | El líder puede crear alertas manuales con tipo y mensaje personalizado. Los tipos son **parada**, **combustible**, **desvío**, **peligro** e **información**; se registran con la ubicación de quien las crea y solo con el viaje en curso. |
+| RN-041 | Alertas manuales con tipo y mensaje predeterminado editable. Tipos: **parada**, **combustible**, **desvío**, **peligro**, **información** y **atraso**. La ubicación (`lat`/`lng`) es opcional y representa el punto de parada futuro marcado en el mapa, no el GPS del autor. Solo con viaje `en_curso`. |
 | RN-042 | Las alertas activas pueden pausarse o cancelarse individualmente por el líder. |
 | RN-043 | Las alertas automáticas de incidente incluyen la ubicación exacta del evento. |
 | RN-044 | Un integrante puede solicitar una parada al grupo; el líder puede aprobarla o rechazarla. |
+| RN-108 | El líder configura `alertas_solo_lider` (default `true`). Si está desactivado, cualquier integrante confirmado puede crear alertas manuales durante el viaje. |
 
 ### 2.6 Reglas de Interfaz Adaptativa
 

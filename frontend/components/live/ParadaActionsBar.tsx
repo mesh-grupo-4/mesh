@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
 
+import { useTheme } from '@/components/MeshUI'
+
 /** Botonera de paradas del viaje en curso (US1–US3).
  *
  * Vive sobre la barra de Finalizar/Salir para que ambas acciones queden al
@@ -44,6 +46,7 @@ export function ParadaActionsBar({
   onEstoyBien,
   onSolicitar,
 }: Props) {
+  const theme = useTheme()
   const [, forzarRender] = useState(0)
 
   // Cronómetro de la parada en curso.
@@ -54,8 +57,10 @@ export function ParadaActionsBar({
   }, [paradaDesde])
 
   if (paradaDesde) {
+    if (esIncidenteDetectado) return null
+
     return (
-      <View style={styles.fila}>
+      <View style={[styles.fila, { backgroundColor: theme.surface }]}>
         <Pressable
           style={({ pressed }) => [
             styles.boton,
@@ -86,7 +91,7 @@ export function ParadaActionsBar({
   }
 
   return (
-    <View style={styles.fila}>
+    <View style={[styles.fila, { backgroundColor: theme.surface }]}>
       <Pressable
         style={({ pressed }) => [
           styles.boton,
@@ -136,7 +141,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingTop: 10,
     paddingBottom: 6,
-    backgroundColor: '#fff',
   },
   boton: {
     flex: 1,

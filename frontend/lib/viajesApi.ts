@@ -218,6 +218,10 @@ export type ViajeDetalleApi = {
   tipo_actividad: string
   velocidad_esperada: number
   distancia_max_separacion: number
+  alerta_incidente_habilitada: boolean
+  alerta_incidente_minutos: number | null
+  alerta_incidente_minutos_efectivo: number
+  alertas_solo_lider: boolean
   estado: 'planificado' | 'en_curso' | 'finalizado'
   fecha_programada: string
   fecha_inicio_real: string | null
@@ -242,6 +246,10 @@ export type ViajeActualizadoApi = {
   id: string
   fecha_programada: string
   estado: 'planificado' | 'en_curso' | 'finalizado'
+  alerta_incidente_habilitada: boolean
+  alerta_incidente_minutos: number | null
+  alerta_incidente_minutos_efectivo: number
+  alertas_solo_lider: boolean
 }
 
 export async function actualizarFechaViaje(
@@ -250,12 +258,39 @@ export async function actualizarFechaViaje(
   fechaProgramada: Date,
   baseUrl: string = API_BASE_URL
 ): Promise<ViajeActualizadoApi> {
+  return actualizarViaje(viajeId, userId, { fechaProgramada }, baseUrl)
+}
+
+export async function actualizarViaje(
+  viajeId: string,
+  userId: string,
+  input: {
+    fechaProgramada?: Date
+    alertaIncidenteHabilitada?: boolean
+    alertaIncidenteMinutos?: number | null
+    alertasSoloLider?: boolean
+  },
+  baseUrl: string = API_BASE_URL
+): Promise<ViajeActualizadoApi> {
+  const body: Record<string, unknown> = {}
+  if (input.fechaProgramada != null) {
+    body.fechaProgramada = input.fechaProgramada.toISOString()
+  }
+  if (input.alertaIncidenteHabilitada != null) {
+    body.alertaIncidenteHabilitada = input.alertaIncidenteHabilitada
+  }
+  if (input.alertaIncidenteMinutos !== undefined) {
+    body.alertaIncidenteMinutos = input.alertaIncidenteMinutos
+  }
+  if (input.alertasSoloLider != null) {
+    body.alertasSoloLider = input.alertasSoloLider
+  }
   const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}`, baseUrl), {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ fechaProgramada: fechaProgramada.toISOString() }),
+    body: JSON.stringify(body),
   })
   return parseJson<ViajeActualizadoApi>(res)
 }

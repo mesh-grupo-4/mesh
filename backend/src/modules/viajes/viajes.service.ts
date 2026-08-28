@@ -19,6 +19,7 @@ import type {
   UpsertUbicacionVivaInput,
 } from './viajes.schemas'
 import { parametrosPorActividad } from './activityDefaults'
+import { minutosIncidenteEfectivo } from '../motor-eventos/motorEventos.config'
 import { aplicarPuestosRanking } from './ranking'
 import { RutasCompartidasService } from '../rutas-compartidas/rutas-compartidas.service'
 import { MotorEventosService } from '../motor-eventos/motorEventos.service'
@@ -132,6 +133,7 @@ export class ViajesService {
           velocidad_esperada: params.velocidadEsperada,
           distancia_max_separacion: params.distanciaMaxSeparacion,
           fecha_programada: input.fechaProgramada,
+          alerta_incidente_habilitada: input.esGrupal,
         },
       })
 
@@ -649,7 +651,7 @@ export class ViajesService {
     })
   }
 
-  /** RN-030: solo el líder puede reprogramar un viaje aún planificado. */
+  /** RN-030: solo el líder puede reprogramar o ajustar alertas automáticas. */
   async actualizarViaje(creadorId: string, viajeId: string, input: ActualizarViajeInput) {
     const viaje = await this.prisma.viaje.findUnique({ where: { id: viajeId } })
     if (!viaje) {
@@ -658,22 +660,70 @@ export class ViajesService {
     if (viaje.creador_id !== creadorId) {
       throw new HttpError(403, 'Solo el creador puede modificar el viaje', 'NOT_CREATOR')
     }
-    if (viaje.estado !== 'planificado') {
-      throw new HttpError(409, 'Solo se puede editar un viaje planificado', 'INVALID_STATE')
+    if (viaje.estado === 'finalizado') {
+      throw new HttpError(409, 'No se puede editar un viaje finalizado', 'INVALID_STATE')
     }
-    if (input.fechaProgramada.getTime() <= Date.now()) {
-      throw new HttpError(400, 'La fecha programada debe ser futura', 'FECHA_PASADA')
+
+    const data: {
+      fecha_programada?: Date
+      alerta_incidente_habilitada?: boolean
+      alerta_incidente_minutos?: number | null
+      alertas_solo_lider?: boolean
+    } = {}
+
+    if (input.fechaProgramada != null) {
+      if (viaje.estado !== 'planificado') {
+        throw new HttpError(409, 'Solo se puede reprogramar un viaje planificado', 'INVALID_STATE')
+      }
+      if (input.fechaProgramada.getTime() <= Date.now()) {
+        throw new HttpError(400, 'La fecha programada debe ser futura', 'FECHA_PASADA')
+      }
+      data.fecha_programada = input.fechaProgramada
+    }
+
+    if (input.alertaIncidenteHabilitada != null || input.alertaIncidenteMinutos !== undefined) {
+      if (!viaje.es_grupal) {
+        throw new HttpError(
+          409,
+          'Las alertas de incidente solo aplican en viajes grupales',
+          'INDIVIDUAL_TRIP'
+        )
+      }
+      if (input.alertaIncidenteHabilitada != null) {
+        data.alerta_incidente_habilitada = input.alertaIncidenteHabilitada
+      }
+      if (input.alertaIncidenteMinutos !== undefined) {
+        data.alerta_incidente_minutos = input.alertaIncidenteMinutos
+      }
+    }
+
+    if (input.alertasSoloLider != null) {
+      if (!viaje.es_grupal) {
+        throw new HttpError(
+          409,
+          'La configuración de alertas manuales solo aplica en viajes grupales',
+          'INDIVIDUAL_TRIP'
+        )
+      }
+      data.alertas_solo_lider = input.alertasSoloLider
     }
 
     const actualizado = await this.prisma.viaje.update({
       where: { id: viajeId },
-      data: { fecha_programada: input.fechaProgramada },
+      data,
     })
 
     return {
       id: actualizado.id,
       fecha_programada: actualizado.fecha_programada,
       estado: actualizado.estado,
+      alerta_incidente_habilitada: actualizado.alerta_incidente_habilitada,
+      alerta_incidente_minutos: actualizado.alerta_incidente_minutos,
+      alerta_incidente_minutos_efectivo: minutosIncidenteEfectivo(
+        actualizado.tipo_actividad,
+        actualizado.alerta_incidente_minutos
+      ),
+      alertas_solo_lider: actualizado.alertas_solo_lider,
     }
   }
 
@@ -1332,6 +1382,10 @@ export class ViajesService {
 
     return {
       ...resto,
+      alerta_incidente_minutos_efectivo: minutosIncidenteEfectivo(
+        resto.tipo_actividad,
+        resto.alerta_incidente_minutos
+      ),
       mi_participacion: miParticipacion,
     }
   }
