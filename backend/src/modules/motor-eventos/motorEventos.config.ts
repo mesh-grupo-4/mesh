@@ -27,6 +27,15 @@ export function umbralesMotorPorActividad(tipo: TipoActividad): UmbralesMotor {
   return POR_ACTIVIDAD[tipo] ?? DEFAULTS
 }
 
+/** Minutos efectivos de detención antes de marcar posible incidente en un viaje. */
+export function minutosIncidenteEfectivo(
+  tipo: TipoActividad,
+  minutosViaje: number | null | undefined
+): number {
+  if (minutosViaje != null) return minutosViaje
+  return umbralesMotorPorActividad(tipo).detencionMinutos
+}
+
 /** Prefijo en `alerta.mensaje` para deduplicar alertas del sistema por integrante. */
 export function prefijoAlertaAfectado(usuarioId: string): string {
   return `[afectado:${usuarioId}]`

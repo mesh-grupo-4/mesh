@@ -726,12 +726,13 @@ ViajePorId:
 
   patch:
     operationId: actualizarViaje
-    summary: Reprogramar un viaje
+    summary: Actualizar un viaje
     description: |
-      Cambia la fecha de salida. Es lo único editable después del alta.
+      Permite reprogramar la salida o ajustar la detección automática de posible incidente.
 
-      **Solo el creador** puede hacerlo (RN-030), y únicamente mientras el viaje siga
-      `planificado`. La nueva fecha debe ser futura (RN-107).
+      **Solo el creador** puede hacerlo (RN-030). La fecha solo se edita en estado
+      `planificado` y debe ser futura (RN-107). La config de alertas de incidente
+      solo aplica a viajes grupales, en `planificado` o `en_curso`.
     tags:
       - Viajes
     parameters:

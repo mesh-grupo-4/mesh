@@ -116,10 +116,13 @@ export function useLiveLocations({ viajeId, userId, nameByUserId = {}, selfSeed 
     (member: MemberSnapshot, opciones?: { conservarEstado?: boolean }) => {
       setMembers((prev) => {
         const anterior = prev[member.usuarioId]
-        const siguiente =
-          opciones?.conservarEstado && anterior
-            ? { ...member, estado: anterior.estado, paradaDesde: anterior.paradaDesde }
-            : member
+        const conservar =
+          opciones?.conservarEstado &&
+          anterior &&
+          (anterior.estado === 'detenido_voluntario' || anterior.estado === 'posible_incidente')
+        const siguiente = conservar
+          ? { ...member, estado: anterior.estado, paradaDesde: anterior.paradaDesde }
+          : member
         return { ...prev, [member.usuarioId]: siguiente }
       })
     },
@@ -223,6 +226,23 @@ export function useLiveLocations({ viajeId, userId, nameByUserId = {}, selfSeed 
     const id = setInterval(() => setStaleTick((t) => t + 1), STALE_CHECK_MS)
     return () => clearInterval(id)
   }, [])
+
+  useEffect(() => {
+    if (!viajeId || !userId.trim()) return
+    const sub = DeviceEventEmitter.addListener(
+      'mesh:integrante_estado',
+      (p: {
+        viajeId: string
+        usuarioId: string
+        estado: EstadoIntegranteApi
+        paradaDesde: string | null
+      }) => {
+        if (p.viajeId !== viajeId) return
+        aplicarEstado(p.usuarioId, p.estado, p.paradaDesde)
+      }
+    )
+    return () => sub.remove()
+  }, [viajeId, userId, aplicarEstado])
 
   useEffect(() => {
     if (!viajeId || !userId.trim()) return

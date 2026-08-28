@@ -44,13 +44,25 @@ export default function AlertasViajeScreen() {
   }, [viajeId, userId])
 
   const esLider = viaje != null && userId === viaje.creador_id
-  const puedeCrear = esLider && viaje?.estado === 'en_curso'
+  const puedeCrear =
+    viaje?.estado === 'en_curso' &&
+    (esLider || (viaje?.alertas_solo_lider ?? true) === false)
+
+  const centroMapaAlerta = useMemo(
+    () => ({ latitude: -31.4167, longitude: -64.1833 }),
+    []
+  )
 
   const handlePublicar = useCallback(
-    (tipo: TipoAlertaApi, mensaje: string) => {
+    (tipo: TipoAlertaApi, mensaje: string, ubicacion?: { lat: number; lng: number }) => {
       void (async () => {
         try {
-          await publicar({ tipo, mensaje: mensaje.trim() || undefined })
+          await publicar({
+            tipo,
+            mensaje: mensaje.trim() || undefined,
+            lat: ubicacion?.lat,
+            lng: ubicacion?.lng,
+          })
           setComponiendo(false)
         } catch (e) {
           meshAlert(
@@ -97,7 +109,7 @@ export default function AlertasViajeScreen() {
             <Text style={[styles.vacioTxt, { color: theme.textMute }]}>
               {puedeCrear
                 ? 'Creá una alerta para avisarle algo al grupo durante el viaje.'
-                : 'Las alertas que envíe el líder van a aparecer acá.'}
+                : 'Las alertas del viaje van a aparecer acá.'}
             </Text>
           </View>
         ) : null}
@@ -116,6 +128,7 @@ export default function AlertasViajeScreen() {
       <CrearAlertaSheet
         visible={componiendo}
         enviando={enviando}
+        centroMapaInicial={centroMapaAlerta}
         onPublicar={handlePublicar}
         onCancelar={() => setComponiendo(false)}
       />

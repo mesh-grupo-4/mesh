@@ -82,6 +82,7 @@ enum TipoAlerta {
 
 enum OrigenAlerta {
   lider
+  integrante
   sistema
 }
 
@@ -228,6 +229,12 @@ model Viaje {
   tipo_actividad           TipoActividad @map("tipo_actividad")
   velocidad_esperada       Float         @map("velocidad_esperada")
   distancia_max_separacion Int           @map("distancia_max_separacion")
+  /// RN-036: detección automática de posible incidente (solo viajes grupales).
+  alerta_incidente_habilitada Boolean   @default(true) @map("alerta_incidente_habilitada")
+  /// Minutos quieto sin parada manual; null = umbral por actividad.
+  alerta_incidente_minutos    Int?      @map("alerta_incidente_minutos")
+  /// RN-041: si true, solo el creador puede crear alertas manuales.
+  alertas_solo_lider          Boolean   @default(true) @map("alertas_solo_lider")
   estado                   EstadoViaje   @default(planificado)
   fecha_programada         DateTime      @map("fecha_programada")
   fecha_inicio_real        DateTime?     @map("fecha_inicio_real")

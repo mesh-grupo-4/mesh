@@ -204,16 +204,20 @@ incidente (RN-036).
   "viajeId": "3f2c9a10-...",
   "alerta": {
     "id": "...",
-    "tipo": "manual", // también: desvio | atraso | peligro (sistema)
-    "origen": "lider", // sistema cuando la genera el motor
-    "mensaje": "Precaución en curva",
+    "tipo": "combustible", // parada | combustible | desvio | peligro | informacion | atraso
+    "origen": "lider", // lider | integrante | sistema
+    "mensaje": "Paramos en la próxima estación de servicio",
     "estado": "activa",
     "creada_por_id": "9d8c7b6a-...",
-    "lat": -31.4201,
+    "lat": -31.4201, // opcional: punto de parada futuro marcado en el mapa
     "lng": -64.1888
   }
 }
 ```
+
+En el frontend, las alertas manuales con `lat`/`lng` muestran un banner grupal con
+**Seguir** / **Ignorar** (misma lógica que `viaje:parada_iniciada`): Seguir calcula
+ruta OSRM hasta el punto y dibuja una guía índigo en el mapa.
 
 Las alertas del sistema incluyen el prefijo interno `[afectado:{usuarioId}]` en
 `mensaje` para deduplicar por integrante; el frontend lo oculta al mostrar.
@@ -243,7 +247,7 @@ Payload de `viaje:parada_iniciada` cuando el motor detecta detención sospechosa
 }
 ```
 
-Para paradas voluntarias, `estado` es `detenido_voluntario`.
+Para paradas voluntarias, `estado` es `detenido_voluntario`. El frontend en `live` escucha este evento para mostrar un banner a todos los participantes (excepto quien paró) con nombre y motivo; «Seguir parada» dibuja guía OSRM en el mapa.
 
 ---
 

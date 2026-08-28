@@ -39,6 +39,8 @@ type Props = {
   markers?: MarkerSpec[]
   polyline?: PolylineSpec | null
   polylines?: PolylineSpec[]
+  /** Punto azul de "estoy acá" (GPS del dispositivo). */
+  userLocation?: LatLng | null
   interactive?: boolean
   onReady?: () => void
   onRegionChangeComplete?: (center: LatLng) => void
@@ -52,7 +54,19 @@ export function zoomFromLatDelta(latitudeDelta: number): number {
 }
 
 export const WebMapView = forwardRef<WebMapViewHandle, Props>(function WebMapView(
-  { initialCenter, initialZoom, tile, markers, polyline, polylines, interactive = true, onReady, onRegionChangeComplete, style },
+  {
+    initialCenter,
+    initialZoom,
+    tile,
+    markers,
+    polyline,
+    polylines,
+    userLocation = null,
+    interactive = true,
+    onReady,
+    onRegionChangeComplete,
+    style,
+  },
   ref
 ) {
   const webRef = useRef<WebView>(null)
@@ -99,6 +113,15 @@ export const WebMapView = forwardRef<WebMapViewHandle, Props>(function WebMapVie
       `window.__mesh.setTileLayer(${JSON.stringify(tile.urlTemplate)}, ${tile.maximumZ}, ${tile.flipY}, ${JSON.stringify(tile.filter ?? null)})`
     )
   }, [ready, tile, run])
+
+  useEffect(() => {
+    if (!ready) return
+    if (userLocation) {
+      run(`window.__mesh.setUserLocation(${userLocation.latitude}, ${userLocation.longitude})`)
+    } else {
+      run('window.__mesh.clearUserLocation()')
+    }
+  }, [ready, userLocation, run])
 
   useImperativeHandle(ref, () => ({
     fitBounds(coords, padding = { top: 40, right: 40, bottom: 40, left: 40 }, animated = true) {

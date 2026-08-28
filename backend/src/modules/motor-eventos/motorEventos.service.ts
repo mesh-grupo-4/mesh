@@ -9,7 +9,11 @@ import { distanciaMetros } from '../../lib/geo2d'
 import type { GeoJsonLineString } from '../../lib/geo'
 import { computeDistanciaPuntoARutaM, computeProgresoEnRutaM } from '../../lib/postgis'
 import { getIo } from '../../realtime/ioRegistry'
-import { prefijoAlertaAfectado, umbralesMotorPorActividad } from './motorEventos.config'
+import {
+  minutosIncidenteEfectivo,
+  prefijoAlertaAfectado,
+  umbralesMotorPorActividad,
+} from './motorEventos.config'
 
 type PingInput = {
   viajeId: string
@@ -27,6 +31,8 @@ type ViajeMotor = {
   distancia_max_separacion: number
   velocidad_esperada: number
   creador_id: string
+  alerta_incidente_habilitada: boolean
+  alerta_incidente_minutos: number | null
 }
 
 type EstadoDetencion = {
@@ -63,6 +69,8 @@ export class MotorEventosService {
         distancia_max_separacion: true,
         velocidad_esperada: true,
         creador_id: true,
+        alerta_incidente_habilitada: true,
+        alerta_incidente_minutos: true,
       },
     })
     if (!viaje || viaje.estado !== 'en_curso') return
@@ -80,7 +88,7 @@ export class MotorEventosService {
 
     await Promise.all([
       this.evaluarDesvio(input, viaje.distancia_max_separacion),
-      this.evaluarDetencionSospechosa(input, viaje.tipo_actividad, tieneParadaVoluntaria),
+      this.evaluarDetencionSospechosa(input, viaje, tieneParadaVoluntaria),
       this.evaluarAtraso(input, viaje, tieneParadaVoluntaria),
     ])
   }
@@ -125,15 +133,25 @@ export class MotorEventosService {
 
   private async evaluarDetencionSospechosa(
     input: PingInput,
-    tipoActividad: TipoActividad,
+    viaje: ViajeMotor,
     tieneParadaVoluntaria: boolean
   ): Promise<void> {
+    // RN-036 solo aplica en salidas grupales: en individual no hay a quién alertar.
+    if (!viaje.es_grupal || !viaje.alerta_incidente_habilitada) {
+      this.detencionPorClave.delete(this.clave(input.viajeId, input.usuarioId))
+      return
+    }
+
     if (tieneParadaVoluntaria) {
       this.detencionPorClave.delete(this.clave(input.viajeId, input.usuarioId))
       return
     }
 
-    const umbrales = umbralesMotorPorActividad(tipoActividad)
+    const umbrales = umbralesMotorPorActividad(viaje.tipo_actividad)
+    const detencionMinutos = minutosIncidenteEfectivo(
+      viaje.tipo_actividad,
+      viaje.alerta_incidente_minutos
+    )
     const key = this.clave(input.viajeId, input.usuarioId)
     const prev = this.detencionPorClave.get(key)
 
@@ -157,7 +175,7 @@ export class MotorEventosService {
     }
 
     const quietoMs = input.timestamp.getTime() - prev.quietoDesde.getTime()
-    const umbralMs = umbrales.detencionMinutos * 60 * 1000
+    const umbralMs = detencionMinutos * 60 * 1000
     if (quietoMs < umbralMs) return
 
     const usuario = await this.prisma.usuario.findUnique({
@@ -196,7 +214,7 @@ export class MotorEventosService {
       tipo: 'peligro',
       lat: input.lat,
       lng: input.lng,
-      mensaje: `${prefijoAlertaAfectado(input.usuarioId)}Posible incidente — ${nombre} lleva ${umbrales.detencionMinutos} min detenido sin registrar parada`,
+      mensaje: `${prefijoAlertaAfectado(input.usuarioId)}Posible incidente — ${nombre} lleva ${detencionMinutos} min detenido sin registrar parada`,
       tituloPush: 'Posible incidente',
       notificarSoloLider: true,
     })

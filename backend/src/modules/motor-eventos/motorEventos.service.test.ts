@@ -43,6 +43,8 @@ function armarPrisma(overrides: Record<string, unknown> = {}) {
     distancia_max_separacion: 80,
     velocidad_esperada: 5,
     creador_id: liderId,
+    alerta_incidente_habilitada: true,
+    alerta_incidente_minutos: null,
   })
   const paradaFindFirst = vi.fn().mockResolvedValue(null)
   const paradaCreate = vi.fn().mockResolvedValue({
@@ -224,6 +226,49 @@ describe('MotorEventosService — detención sospechosa (RN-036)', () => {
     expect(m.alertaCreate).not.toHaveBeenCalled()
     expect(m.paradaCreate).not.toHaveBeenCalled()
   })
+
+  it('ignora viajes individuales', async () => {
+    const m = armarPrisma()
+    m.viajeFindUnique.mockResolvedValue({
+      id: viajeId,
+      estado: 'en_curso',
+      es_grupal: false,
+      tipo_actividad: 'trekking',
+      distancia_max_separacion: 80,
+      velocidad_esperada: 5,
+      creador_id: liderId,
+      alerta_incidente_habilitada: true,
+      alerta_incidente_minutos: null,
+    })
+    const service = new MotorEventosService(m.prisma)
+
+    await service.procesarPing(ping('2026-08-21T14:00:00.000Z'))
+    await service.procesarPing(ping('2026-08-21T14:10:00.000Z'))
+
+    expect(m.paradaCreate).not.toHaveBeenCalled()
+    expect(m.alertaCreate).not.toHaveBeenCalled()
+  })
+
+  it('ignora detención si la alerta de incidente está deshabilitada', async () => {
+    const m = armarPrisma()
+    m.viajeFindUnique.mockResolvedValue({
+      id: viajeId,
+      estado: 'en_curso',
+      es_grupal: true,
+      tipo_actividad: 'trekking',
+      distancia_max_separacion: 80,
+      velocidad_esperada: 5,
+      creador_id: liderId,
+      alerta_incidente_habilitada: false,
+      alerta_incidente_minutos: null,
+    })
+    const service = new MotorEventosService(m.prisma)
+
+    await service.procesarPing(ping('2026-08-21T14:00:00.000Z'))
+    await service.procesarPing(ping('2026-08-21T14:10:00.000Z'))
+
+    expect(m.paradaCreate).not.toHaveBeenCalled()
+  })
 })
 
 describe('MotorEventosService — atraso (RN-035)', () => {
@@ -237,6 +282,8 @@ describe('MotorEventosService — atraso (RN-035)', () => {
       distancia_max_separacion: 80,
       velocidad_esperada: 5,
       creador_id: liderId,
+      alerta_incidente_habilitada: false,
+      alerta_incidente_minutos: null,
     })
     const service = new MotorEventosService(m.prisma)
 

@@ -133,3 +133,20 @@ export const CATEGORIAS_PARADA: { id: CategoriaParadaApi; label: string; emoji: 
   { id: 'punto_control', label: 'Punto de control', emoji: '📍' },
   { id: 'otro', label: 'Otro', emoji: '⋯' },
 ]
+
+/** Motivo legible para notificaciones (alineado con ETIQUETA_CATEGORIA del backend). */
+const MOTIVO_CATEGORIA: Record<CategoriaParadaApi, string> = {
+  kiosco: 'un kiosco',
+  combustible: 'cargar combustible',
+  descanso: 'descansar',
+  gastronomia: 'comer',
+  punto_control: 'un punto de control',
+  sanitario: 'el baño',
+  otro: 'una parada',
+}
+
+/** Devuelve el motivo para el subtítulo del popup: «se detuvo para cargar combustible». */
+export function motivoParadaLegible(categoria: CategoriaParadaApi | null): string | null {
+  if (!categoria) return null
+  return MOTIVO_CATEGORIA[categoria] ?? MOTIVO_CATEGORIA.otro
+}

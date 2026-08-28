@@ -37,6 +37,8 @@ type Props = {
   calculando?: boolean
   /** Padding inferior al ajustar la ruta (default 280 del editor). */
   fitBottomPadding?: number
+  /** Ubicación GPS actual del usuario (punto azul). */
+  userLocation?: { latitude: number; longitude: number } | null
 }
 
 export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function RouteMapView(
@@ -52,6 +54,7 @@ export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function Route
     onRegionChangeComplete,
     calculando = false,
     fitBottomPadding = 280,
+    userLocation = null,
   },
   ref
 ) {
@@ -108,6 +111,7 @@ export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function Route
             ? { coords: routeLineLatLng, color: theme.accent, width: ROUTE_POLYLINE_WIDTH }
             : null
         }
+        userLocation={userLocation}
         onRegionChangeComplete={onRegionChangeComplete}
       />
 

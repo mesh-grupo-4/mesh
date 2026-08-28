@@ -42,9 +42,10 @@ AlertasColeccion:
         $ref: '../components/responses.yaml#/InternalServerError'
   post:
     operationId: crearAlerta
-    summary: Crear una alerta para el grupo (US1, solo líder)
+    summary: Crear una alerta para el grupo (US1)
     description: |
-      RN-030: solo el creador del viaje puede crearla, y solo con el viaje `en_curso`.
+      RN-030: el creador del viaje siempre puede crear alertas; los integrantes
+      solo si `alertas_solo_lider` es `false`. El viaje debe estar `en_curso`.
       Emite `viaje:alerta` a la sala del viaje y notifica por push a todos los
       integrantes confirmados, salvo al propio autor (RN-040).
     tags:
@@ -69,7 +70,7 @@ AlertasColeccion:
       '401':
         $ref: '../components/responses.yaml#/Unauthorized'
       '403':
-        description: Solo el líder puede crear alertas (`FORBIDDEN`).
+        description: Sin permiso para crear alertas (`FORBIDDEN`).
         content:
           application/json:
             schema:

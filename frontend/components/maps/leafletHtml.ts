@@ -56,6 +56,7 @@ export function buildLeafletHtml({ centerLat, centerLng, zoom, tile, interactive
     }).addTo(map);
 
     var markersLayer = L.layerGroup().addTo(map);
+    var userLocLayer = null;
     var polyLayers = [];
 
     function clearPolylines() {
@@ -130,6 +131,34 @@ export function buildLeafletHtml({ centerLat, centerLng, zoom, tile, interactive
       },
       animateTo: function (lat, lng, zoom) {
         map.setView([lat, lng], zoom == null ? map.getZoom() : zoom, { animate: true });
+      },
+      setUserLocation: function (lat, lng) {
+        if (userLocLayer) {
+          map.removeLayer(userLocLayer);
+          userLocLayer = null;
+        }
+        if (lat == null || lng == null) return;
+        userLocLayer = L.layerGroup().addTo(map);
+        L.circleMarker([lat, lng], {
+          radius: 14,
+          fillColor: '#3b82f6',
+          fillOpacity: 0.18,
+          color: 'transparent',
+          weight: 0,
+        }).addTo(userLocLayer);
+        L.circleMarker([lat, lng], {
+          radius: 8,
+          fillColor: '#2563eb',
+          fillOpacity: 1,
+          color: '#ffffff',
+          weight: 2.5,
+        }).addTo(userLocLayer);
+      },
+      clearUserLocation: function () {
+        if (userLocLayer) {
+          map.removeLayer(userLocLayer);
+          userLocLayer = null;
+        }
       },
     };
 

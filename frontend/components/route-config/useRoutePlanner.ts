@@ -110,7 +110,9 @@ export function useRoutePlanner({
   )
 
   const [regionInicial, setRegionInicial] = useState(REGION_FALLBACK)
+  const [ubicacionActual, setUbicacionActual] = useState<CameraTarget | null>(null)
   const [cameraTarget, setCameraTarget] = useState<CameraTarget | null>(null)
+  const [centradoInicialEnUsuario, setCentradoInicialEnUsuario] = useState(false)
   const [fitRouteCoords, setFitRouteCoords] = useState<{ latitude: number; longitude: number }[] | null>(
     null
   )
@@ -141,9 +143,13 @@ export function useRoutePlanner({
           accuracy: Location.Accuracy.Balanced,
         })
         if (cancel) return
-        setRegionInicial({
+        const target = {
           latitude: pos.coords.latitude,
           longitude: pos.coords.longitude,
+        }
+        setUbicacionActual(target)
+        setRegionInicial({
+          ...target,
           latitudeDelta: 0.05,
           longitudeDelta: 0.05,
         })
@@ -206,6 +212,50 @@ export function useRoutePlanner({
     () => waypointsOrdenados.filter(waypointTieneCoords),
     [waypointsOrdenados]
   )
+
+  // Al abrir el mapa sin ruta dibujada, centramos en la posición GPS del usuario.
+  useEffect(() => {
+    if (!ubicacionActual || centradoInicialEnUsuario || modoSeleccionMapa) return
+    const hayRutaVisible = Boolean(routeLineLatLng && routeLineLatLng.length > 1)
+    const hayWaypoints = waypointsConCoords.length > 0
+    if (hayRutaVisible || hayWaypoints) return
+    setCameraTarget(ubicacionActual)
+    setCentradoInicialEnUsuario(true)
+  }, [
+    ubicacionActual,
+    centradoInicialEnUsuario,
+    modoSeleccionMapa,
+    routeLineLatLng,
+    waypointsConCoords.length,
+  ])
+
+  const centrarEnMiUbicacion = useCallback(async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync()
+      if (status !== 'granted') {
+        meshAlert(
+          'Ubicación',
+          'Activa el permiso de ubicación para ver dónde estás en el mapa.'
+        )
+        return
+      }
+      const pos = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      })
+      const target = {
+        latitude: pos.coords.latitude,
+        longitude: pos.coords.longitude,
+      }
+      setUbicacionActual(target)
+      setCameraTarget(target)
+    } catch {
+      if (ubicacionActual) {
+        setCameraTarget(ubicacionActual)
+        return
+      }
+      meshAlert('Ubicación', 'No pudimos obtener tu posición. Revisá que el GPS esté activo.')
+    }
+  }, [ubicacionActual])
 
   // Solo las coordenadas disparan un recálculo. Antes el efecto dependía de los
   // waypoints enteros, así que editar el *nombre* de un punto ya ubicado pegaba
@@ -327,14 +377,18 @@ export function useRoutePlanner({
         setCentroMapaPendiente({ lat: wp.lat, lon: wp.lon })
         setCameraTarget({ latitude: wp.lat, longitude: wp.lon })
       } else {
-        setCentroMapaPendiente({
-          lat: regionInicial.latitude,
-          lon: regionInicial.longitude,
-        })
+        const centro = ubicacionActual ?? {
+          latitude: regionInicial.latitude,
+          longitude: regionInicial.longitude,
+        }
+        setCentroMapaPendiente({ lat: centro.latitude, lon: centro.longitude })
+        if (ubicacionActual) {
+          setCameraTarget(ubicacionActual)
+        }
       }
       sheetRef?.current?.snapToMin()
     },
-    [waypointsOrdenados, regionInicial, sheetRef]
+    [waypointsOrdenados, regionInicial, ubicacionActual, sheetRef]
   )
 
   const cancelarSeleccionMapa = useCallback(() => {
@@ -434,9 +488,11 @@ export function useRoutePlanner({
     destino,
     paradas,
     regionInicial,
+    ubicacionActual,
     cameraTarget,
     setCameraTarget,
     fitRouteCoords,
+    centrarEnMiUbicacion,
     routeLineLatLng,
     waypointsConCoords,
     calculando,

@@ -3,13 +3,15 @@ import { apiUrl, meshFetchAuthed, parseJson } from './apiClient'
 /** RN-041: temas que el líder elige al crear la alerta. */
 export type TipoAlertaApi = 'parada' | 'combustible' | 'desvio' | 'peligro' | 'informacion' | 'atraso'
 
+export type OrigenAlertaApi = 'lider' | 'integrante' | 'sistema'
+
 export type AlertaApi = {
   id: string
   viaje_id: string
   creada_por_id: string | null
   creada_por_nombre: string | null
   tipo: TipoAlertaApi
-  origen: 'lider' | 'sistema'
+  origen: OrigenAlertaApi
   mensaje: string | null
   lat: number | null
   lng: number | null
@@ -49,6 +51,16 @@ export const TIPOS_ALERTA: {
   { id: 'informacion', label: 'Información', emoji: 'ℹ', color: '#6b7280' },
 ]
 
+/** RN-041: mensajes predeterminados editables al elegir el tipo. */
+export const MENSAJE_PREDETERMINADO: Record<TipoAlertaApi, string> = {
+  parada: 'Paramos un rato más adelante.',
+  combustible: 'Paramos en la próxima estación de servicio.',
+  desvio: 'Tomamos un desvío por esta zona.',
+  peligro: 'Atención: hay un peligro en el camino.',
+  informacion: 'Aviso para el grupo.',
+  atraso: 'Vamos con atraso, ajusten el ritmo.',
+}
+
 export function metaTipoAlerta(tipo: TipoAlertaApi) {
   return TIPOS_ALERTA.find((t) => t.id === tipo) ?? TIPOS_ALERTA[4]!
 }
@@ -58,4 +70,10 @@ export function mensajeAlertaVisible(mensaje: string | null): string | null {
   if (!mensaje) return null
   const limpio = mensaje.replace(/^\[afectado:[0-9a-f-]+\]\s*/i, '').trim()
   return limpio || null
+}
+
+export function usuarioAfectadoDesdeMensaje(mensaje: string | null): string | null {
+  if (!mensaje) return null
+  const m = mensaje.match(/^\[afectado:([0-9a-f-]+)\]/i)
+  return m?.[1] ?? null
 }

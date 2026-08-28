@@ -5,26 +5,25 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Platform,
-  Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native'
-import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { meshAlert } from '@/lib/meshAlert';
 
-import { AlertaBanner } from '@/components/live/AlertaBanner'
+import { AlertaGrupalBanner } from '@/components/live/AlertaGrupalBanner'
 import { AlertasButton } from '@/components/live/AlertasButton'
 import { CategoriaParadaSheet } from '@/components/live/CategoriaParadaSheet'
 import { CrearAlertaSheet } from '@/components/live/CrearAlertaSheet'
 import { CenterLocationButton } from '@/components/live/CenterLocationButton'
-import { ParadaActionsBar } from '@/components/live/ParadaActionsBar'
+import { ParadaVoluntariaBanner } from '@/components/live/ParadaVoluntariaBanner'
 import { SolicitudParadaBanner } from '@/components/live/SolicitudParadaBanner'
 import { LlegadaDestinoBanner } from '@/components/live/LlegadaDestinoBanner'
+import { EstoyBienBanner } from '@/components/live/EstoyBienBanner'
+import { LiveBottomPanel } from '@/components/live/LiveBottomPanel'
 import { LiveMapView, type LiveMapViewHandle } from '@/components/live/LiveMapView'
 import type { LiveMember } from '@/components/live/LiveMembersBar'
 import { LiveTripHeader } from '@/components/live/LiveTripHeader'
-import { TripMetricsPanel } from '@/components/live/TripMetricsPanel'
 import { MapStylePicker } from '@/components/route-config/MapStylePicker'
 import type { MapStyleId } from '@/components/route-config/mapStyles'
 import { DEV_USER_ID, API_BASE_URL } from '@/constants/Config'
@@ -41,6 +40,7 @@ import { dividirRutaPorAvance } from '@/lib/geo/routeProgress'
 import { nombreCompleto } from '@/lib/nombres'
 import type { TipoAlertaApi } from '@/lib/alertasApi'
 import type { CategoriaParadaApi } from '@/lib/paradasApi'
+import { motivoParadaLegible } from '@/lib/paradasApi'
 import { linestringToLatLng, waypointsFromRutaDetalle } from '@/lib/routePayload'
 import { connectMeshSocket } from '@/lib/meshSocket'
 import { isSupabaseConfigured } from '@/lib/supabase'
@@ -57,6 +57,7 @@ import {
   salirViaje,
   type ViajeDetalleApi,
   type ViajeParticipanteApi,
+  type TipoActividadApi,
 } from '@/lib/viajesApi'
 
 function mensajeDeError(e: unknown): string {
@@ -74,7 +75,6 @@ function duracionLegible(segundos: number): string {
 
 export default function ViajeLiveScreen() {
   const router = useRouter()
-  const insets = useSafeAreaInsets()
   const { backendUserId } = useAuth()
   const params = useLocalSearchParams<{ viajeId: string | string[]; userId?: string | string[] }>()
   const mapRef = useRef<LiveMapViewHandle>(null)
@@ -184,31 +184,81 @@ export default function ViajeLiveScreen() {
     paradaActiva,
     miSolicitud,
     pendientes,
+    paradaEntrante,
+    paradasEntrantes,
+    seguirParada,
     enviando: paradaEnCurso,
+    calculandoSeguir,
     registrarParada,
     retomarViaje,
     confirmarBien,
     pedirParada,
     responderSolicitud,
     descartarResultado,
+    ignorarParadaEntrante,
+    activarSeguirParada,
   } = useParadas({
     viajeId: viajeId ?? '',
     userId,
     esLider,
     habilitado: viaje?.estado === 'en_curso',
+    tipoActividad: (viaje?.tipo_actividad ?? 'otro') as TipoActividadApi,
+    myPosition,
   })
+
+  const guiaParada = useMemo(() => {
+    if (!seguirParada) return null
+    return {
+      coords: seguirParada.polyline,
+      destino: {
+        lat: seguirParada.lat,
+        lng: seguirParada.lng,
+        nombre: seguirParada.nombre,
+        categoria: seguirParada.categoria,
+      },
+    }
+  }, [seguirParada])
 
   const {
     alertas,
-    ultima: ultimaAlerta,
+    alertaEntrante,
+    alertasEntrantes,
+    seguirAlerta,
     enviando: alertaEnviando,
+    calculandoSeguir: calculandoSeguirAlerta,
     publicar: publicarAlerta,
-    descartarUltima,
+    ignorarAlertaEntrante,
+    activarSeguirAlerta,
   } = useAlertas({
     viajeId: viajeId ?? '',
     userId,
     habilitado: Boolean(viajeId && userId.trim()),
+    tipoActividad: (viaje?.tipo_actividad ?? 'otro') as TipoActividadApi,
+    myPosition,
   })
+
+  const guiaAlerta = useMemo(() => {
+    if (!seguirAlerta) return null
+    return {
+      coords: seguirAlerta.polyline,
+      destino: {
+        lat: seguirAlerta.lat,
+        lng: seguirAlerta.lng,
+        nombre: seguirAlerta.label,
+      },
+      color: '#4338ca',
+    }
+  }, [seguirAlerta])
+
+  const puedeCrearAlertas =
+    viaje?.estado === 'en_curso' &&
+    (esLider || (viaje?.alertas_solo_lider ?? true) === false)
+
+  const centroMapaAlerta = useMemo(() => {
+    if (myPosition) return { latitude: myPosition.lat, longitude: myPosition.lng }
+    if (initialCenter) return initialCenter
+    return { latitude: -31.4167, longitude: -64.1833 }
+  }, [myPosition, initialCenter])
 
   const { elapsedLabel, distanceLabel } = useTripMetrics({
     viajeId: viajeId ?? '',
@@ -505,6 +555,17 @@ export default function ViajeLiveScreen() {
     })()
   }
 
+  const handleSeguirParada = () => {
+    void (async () => {
+      const activa = await activarSeguirParada()
+      if (!activa || !myPosition) return
+      mapRef.current?.fitBoundsToCoords([
+        [myPosition.lat, myPosition.lng],
+        [activa.lat, activa.lng],
+      ])
+    })()
+  }
+
   const handleResponderSolicitud = (
     solicitudId: string,
     decision: 'aprobada' | 'rechazada'
@@ -534,17 +595,19 @@ export default function ViajeLiveScreen() {
     )
   }, [miSolicitud, descartarResultado])
 
-  /** US1: la alerta viaja con la posición del líder para ubicarla en el mapa. */
-  const handlePublicarAlerta = (tipo: TipoAlertaApi, mensaje: string) => {
+  /** US1: la alerta solo lleva ubicación si el autor marcó un punto en el mapa. */
+  const handlePublicarAlerta = (
+    tipo: TipoAlertaApi,
+    mensaje: string,
+    ubicacion?: { lat: number; lng: number }
+  ) => {
     void (async () => {
-      const pos = await posicionActual()
       try {
         await publicarAlerta({
           tipo,
-          // Vacío = sin mensaje: el tipo ya dice de qué se trata.
           mensaje: mensaje.trim() || undefined,
-          lat: pos?.lat,
-          lng: pos?.lng,
+          lat: ubicacion?.lat,
+          lng: ubicacion?.lng,
         })
         setComponiendoAlerta(false)
       } catch (e) {
@@ -561,7 +624,9 @@ export default function ViajeLiveScreen() {
   const topFlotantes = TOP_OVERLAYS + (altoBanners > 0 ? altoBanners + 10 : 0)
   // Sin medir, el botón de centrar quedaba debajo de la botonera al aparecer
   // la fila de paradas.
+  const incidentePropio = paradaActiva?.tipo === 'incidente_detectado'
   const bottomCentrar = (altoBotonera || 130) + 12
+  const bottomCentrarMapa = bottomCentrar + (incidentePropio ? 168 : 0)
 
   const handleCenterOnMe = () => {
     void (async () => {
@@ -602,6 +667,8 @@ export default function ViajeLiveScreen() {
         breadcrumb={breadcrumb}
         members={memberList}
         alertasEnMapa={alertasEnMapa}
+        guiaParada={guiaParada}
+        guiaAlerta={guiaAlerta}
         currentUserId={userId}
         initialCenter={initialCenter}
         mapStyle={mapStyle}
@@ -647,14 +714,13 @@ export default function ViajeLiveScreen() {
           </View>
         ) : null}
 
-        {ultimaAlerta ? (
-          <AlertaBanner
-            alerta={ultimaAlerta}
-            onCerrar={descartarUltima}
-            onVerHistorial={() => {
-              descartarUltima()
-              irAAlertas()
-            }}
+        {alertaEntrante ? (
+          <AlertaGrupalBanner
+            alerta={alertaEntrante}
+            restantes={alertasEntrantes.length}
+            ocupado={calculandoSeguirAlerta}
+            onSeguir={() => void activarSeguirAlerta()}
+            onIgnorar={ignorarAlertaEntrante}
           />
         ) : null}
 
@@ -666,6 +732,17 @@ export default function ViajeLiveScreen() {
             onContinuar={descartarLlegada}
             onFinalizar={esLider ? confirmarFinalizar : undefined}
             onSalir={!esLider ? confirmarSalir : undefined}
+          />
+        ) : null}
+
+        {paradaEntrante ? (
+          <ParadaVoluntariaBanner
+            nombre={paradaEntrante.nombre}
+            motivo={motivoParadaLegible(paradaEntrante.categoria)}
+            restantes={paradasEntrantes.length}
+            ocupado={calculandoSeguir}
+            onSeguir={handleSeguirParada}
+            onIgnorar={ignorarParadaEntrante}
           />
         ) : null}
 
@@ -683,54 +760,43 @@ export default function ViajeLiveScreen() {
 
       <AlertasButton
         cantidad={alertas.length}
-        topOffset={topFlotantes}
+        topOffset={topFlotantes + 14}
         onPress={irAAlertas}
-        onCrear={
-          esLider && viaje?.estado === 'en_curso' ? () => setComponiendoAlerta(true) : undefined
-        }
+        onCrear={puedeCrearAlertas ? () => setComponiendoAlerta(true) : undefined}
       />
 
       <MapStylePicker value={mapStyle} onChange={setMapStyle} topOffset={topFlotantes} />
 
-      <CenterLocationButton onPress={handleCenterOnMe} bottomOffset={bottomCentrar} />
+      <CenterLocationButton onPress={handleCenterOnMe} bottomOffset={bottomCentrarMapa} />
 
-      <View onLayout={(e) => setAltoBotonera(e.nativeEvent.layout.height)}>
-        <TripMetricsPanel elapsedLabel={elapsedLabel} distanceLabel={distanceLabel} />
+      {incidentePropio && paradaActiva ? (
+        <EstoyBienBanner
+          paradaDesde={paradaActiva.inicio}
+          ocupado={paradaEnCurso || !!accion}
+          bottomOffset={bottomCentrar}
+          onConfirmar={handleEstoyBien}
+        />
+      ) : null}
 
-        {viaje?.estado === 'en_curso' ? (
-          <ParadaActionsBar
-            paradaDesde={paradaActiva?.inicio ?? null}
-            esIncidenteDetectado={paradaActiva?.tipo === 'incidente_detectado'}
-            puedeSolicitar={puedeSolicitarParada}
-            solicitudPendiente={miSolicitud?.estado === 'pendiente'}
-            ocupado={paradaEnCurso || accion}
-            onDetenerse={handleDetenerse}
-            onRetomar={handleRetomar}
-            onEstoyBien={handleEstoyBien}
-            onSolicitar={handleSolicitar}
-          />
-        ) : null}
-
-        <Pressable
-          style={({ pressed }) => [
-            styles.endBar,
-            // `edgeToEdgeEnabled` dibuja bajo la barra de navegación de Android:
-            // sin este inset los botones del sistema tapan el botón de finalizar.
-            { paddingBottom: Math.max(insets.bottom, 12) + 14 },
-            esLider ? styles.endBarDanger : styles.endBarGhost,
-            pressed && styles.endBarPressed,
-            accion && styles.endBarDisabled,
-          ]}
-          onPress={esLider ? confirmarFinalizar : confirmarSalir}
-          disabled={accion}
-        >
-          <Text
-            style={[styles.endBarText, esLider ? styles.endBarTextDanger : styles.endBarTextGhost]}
-          >
-            {accion ? 'Procesando...' : esLider ? 'Finalizar viaje' : 'Salir del viaje'}
-          </Text>
-        </Pressable>
-      </View>
+      <LiveBottomPanel
+        elapsedLabel={elapsedLabel}
+        distanceLabel={distanceLabel}
+        enCurso={viaje?.estado === 'en_curso'}
+        esLider={esLider}
+        accion={!!accion}
+        paradaDesde={paradaActiva?.inicio ?? null}
+        esIncidenteDetectado={paradaActiva?.tipo === 'incidente_detectado'}
+        puedeSolicitar={puedeSolicitarParada}
+        solicitudPendiente={miSolicitud?.estado === 'pendiente'}
+        paradaEnCurso={paradaEnCurso}
+        onDetenerse={handleDetenerse}
+        onRetomar={handleRetomar}
+        onEstoyBien={handleEstoyBien}
+        onSolicitar={handleSolicitar}
+        onFinalizar={confirmarFinalizar}
+        onSalir={confirmarSalir}
+        onHeightChange={setAltoBotonera}
+      />
 
       <CategoriaParadaSheet
         visible={eligiendoCategoria}
@@ -741,6 +807,7 @@ export default function ViajeLiveScreen() {
       <CrearAlertaSheet
         visible={componiendoAlerta}
         enviando={alertaEnviando}
+        centroMapaInicial={centroMapaAlerta}
         onPublicar={handlePublicarAlerta}
         onCancelar={() => setComponiendoAlerta(false)}
       />
@@ -761,36 +828,6 @@ const styles = StyleSheet.create({
   muted: {
     color: '#6b7280',
     fontSize: 15,
-  },
-  endBar: {
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderTopWidth: 1,
-  },
-  endBarDanger: {
-    backgroundColor: '#fff1f2',
-    borderTopColor: '#fecaca',
-  },
-  endBarGhost: {
-    backgroundColor: '#f9fafb',
-    borderTopColor: '#e5e7eb',
-  },
-  endBarPressed: {
-    opacity: 0.7,
-  },
-  endBarDisabled: {
-    opacity: 0.45,
-  },
-  endBarText: {
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  endBarTextDanger: {
-    color: '#dc2626',
-  },
-  endBarTextGhost: {
-    color: '#6b7280',
   },
   bannerStack: {
     position: 'absolute',

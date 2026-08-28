@@ -1275,6 +1275,10 @@ Viaje:
     - tipo_actividad
     - velocidad_esperada
     - distancia_max_separacion
+    - alerta_incidente_habilitada
+    - alerta_incidente_minutos
+    - alerta_incidente_minutos_efectivo
+    - alertas_solo_lider
     - estado
     - fecha_programada
     - fecha_inicio_real
@@ -1311,6 +1315,33 @@ Viaje:
         Separación máxima tolerada en metros antes de generar una alerta (RN-021):
         moto 1000 · bici 300 · running 100 · trekking 50 · otro 200.
       example: 300
+    alerta_incidente_habilitada:
+      type: boolean
+      description: |
+        RN-036: si el motor detecta detención sospechosa y genera alerta de posible incidente.
+        Solo aplica en viajes grupales; en individuales queda en `false`.
+      example: true
+    alerta_incidente_minutos:
+      type: integer
+      nullable: true
+      minimum: 2
+      maximum: 30
+      description: |
+        Minutos quieto sin parada manual antes de marcar posible incidente.
+        `null` usa el umbral por actividad (trekking 5 · running 4 · bici/moto 3).
+      example: null
+    alerta_incidente_minutos_efectivo:
+      type: integer
+      minimum: 2
+      maximum: 30
+      description: Umbral resuelto que usa el motor (custom o por actividad).
+      example: 5
+    alertas_solo_lider:
+      type: boolean
+      description: |
+        RN-041: si `true`, solo el creador del viaje puede crear alertas manuales.
+        Si `false`, cualquier integrante confirmado puede crearlas durante el viaje.
+      example: true
     estado:
       $ref: '#/EstadoViaje'
     fecha_programada:
@@ -1604,15 +1635,32 @@ CrearViajeRequest:
 
 ActualizarViajeRequest:
   type: object
-  description: Reprogramación del viaje. Es el único campo editable después del alta.
-  required:
-    - fechaProgramada
+  description: |
+    Campos editables del viaje por el líder (RN-030).
+    Enviá al menos uno. La fecha solo se puede cambiar en estado `planificado`;
+    la configuración de alertas de incidente aplica en `planificado` y `en_curso`.
+  minProperties: 1
   properties:
     fechaProgramada:
       type: string
       format: date-time
       description: Nueva fecha de salida, en UTC. Debe ser futura (RN-107).
       example: '2026-09-02T13:00:00.000Z'
+    alertaIncidenteHabilitada:
+      type: boolean
+      description: Activa o desactiva la detección automática de posible incidente (RN-036).
+      example: true
+    alertaIncidenteMinutos:
+      type: integer
+      nullable: true
+      minimum: 2
+      maximum: 30
+      description: Minutos quieto sin parada manual; `null` restaura el umbral por actividad.
+      example: 5
+    alertasSoloLider:
+      type: boolean
+      description: Restringe la creación de alertas manuales al líder (RN-041).
+      example: true
   additionalProperties: false
 
 ViajeReprogramado:
@@ -1621,6 +1669,10 @@ ViajeReprogramado:
     - id
     - fecha_programada
     - estado
+    - alerta_incidente_habilitada
+    - alerta_incidente_minutos
+    - alerta_incidente_minutos_efectivo
+    - alertas_solo_lider
   properties:
     id:
       type: string
@@ -1630,6 +1682,15 @@ ViajeReprogramado:
       format: date-time
     estado:
       $ref: '#/EstadoViaje'
+    alerta_incidente_habilitada:
+      type: boolean
+    alerta_incidente_minutos:
+      type: integer
+      nullable: true
+    alerta_incidente_minutos_efectivo:
+      type: integer
+    alertas_solo_lider:
+      type: boolean
   additionalProperties: false
 
 ViajeEliminado:
@@ -2647,7 +2708,9 @@ CrearAlertaRequest:
       minimum: -90
       maximum: 90
       nullable: true
-      description: Posición de quien crea la alerta, para ubicarla en el mapa (RN-043).
+      description: |
+        Punto de parada futuro marcado en el mapa (opcional). No es la posición
+        GPS del autor: solo se envía si el usuario eligió un lugar en el mapa (RN-043).
     lng:
       type: number
       minimum: -180
@@ -2679,8 +2742,8 @@ Alerta:
       $ref: '#/TipoAlerta'
     origen:
       type: string
-      description: Quién la generó. El motor de eventos todavía no crea alertas.
-      enum: [lider, sistema]
+      description: Quién la generó (`lider`, `integrante` o `sistema`/motor).
+      enum: [lider, integrante, sistema]
     mensaje:
       type: string
       nullable: true
