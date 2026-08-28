@@ -196,7 +196,7 @@ export default function PerfilScreen() {
                 key: 'amigos',
                 label: 'Amigos',
                 value: cargandoStats && !stats ? '·' : String(stats?.amigos ?? 0),
-                onPress: () => router.push('/amigos'),
+                onPress: () => router.push('/(tabs)/grupos?tab=amigos'),
               },
               {
                 key: 'km',
@@ -290,7 +290,7 @@ export default function PerfilScreen() {
               borderColor: theme.border,
             },
           ]}
-          onPress={() => router.push('/amigos')}
+          onPress={() => router.push('/(tabs)/grupos?tab=amigos')}
         >
           <View style={styles.linkAmigosContent}>
             <Feather name="users" size={18} color={theme.accent} style={styles.amigosIcon} />
@@ -313,7 +313,7 @@ export default function PerfilScreen() {
               marginTop: 10,
             },
           ]}
-          onPress={() => router.push('/mis-rutas')}
+          onPress={() => router.push('/(tabs)/rutas')}
         >
           <View style={styles.linkAmigosContent}>
             <Feather name="map" size={18} color={theme.accent} style={styles.amigosIcon} />

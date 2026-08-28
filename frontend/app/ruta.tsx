@@ -145,7 +145,7 @@ export default function RutaCompartidaPreviewScreen() {
           ? 'Esta ruta ya estaba en tus plantillas.'
           : 'Ruta guardada en Mis rutas.'
       )
-      router.replace('/mis-rutas')
+      router.replace('/(tabs)/rutas')
     } catch (e) {
       meshAlert('Error', e instanceof Error ? e.message : 'No se pudo guardar la ruta.')
     } finally {

@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "scripts": {
     "dev": "expo start",
+    "dev:mobile": "expo start --go",
     "dev:tunnel": "expo start --tunnel",
     "start": "expo start",
     "android": "expo run:android",

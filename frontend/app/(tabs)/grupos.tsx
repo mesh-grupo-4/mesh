@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
   RefreshControl,
   Pressable,
 } from 'react-native';
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { resolveBackendUserId } from '@/lib/apiClient';
 import { formatearEnArg } from '@/lib/tiempoArg';
@@ -35,6 +35,10 @@ import {
 } from '@/lib/bulkDelete';
 import { meshAlert, meshConfirmDestructive, meshError, meshSuccess, meshWarning } from '@/lib/meshAlert';
 import { Feather } from '@expo/vector-icons';
+import { SegmentTabs } from '@/components/SegmentTabs';
+import { AmigosTabPanel } from '@/components/tabs/AmigosTabPanel';
+
+type SeccionGruposAmigos = 'grupos' | 'amigos';
 
 function formatearFecha(iso: string): string {
   return formatearEnArg(iso, {
@@ -51,9 +55,16 @@ function getGroupColor(nombre: string): string {
 }
 
 export default function GruposScreen() {
+  const { tab } = useLocalSearchParams<{ tab?: string }>();
   const { backendUserId, backendSyncing } = useAuth();
   const theme = useTheme();
   const selection = useSelectionMode();
+  const [seccion, setSeccion] = useState<SeccionGruposAmigos>(tab === 'amigos' ? 'amigos' : 'grupos');
+
+  useEffect(() => {
+    if (tab === 'amigos') setSeccion('amigos');
+    if (tab === 'grupos') setSeccion('grupos');
+  }, [tab]);
 
   const [grupos, setGrupos] = useState<GrupoListItemApi[]>([]);
   const [invitaciones, setInvitaciones] = useState<InvitacionPendienteApi[]>([]);
@@ -251,11 +262,30 @@ export default function GruposScreen() {
   }
 
   return (
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <TopBar title="Grupos y amigos" bordered={false} />
+      <View style={styles.segmentWrap}>
+        <SegmentTabs
+          tabs={[
+            { key: 'grupos', label: 'Grupos' },
+            { key: 'amigos', label: 'Amigos' },
+          ]}
+          active={seccion}
+          onChange={(key) => {
+            selection.exit();
+            setSeccion(key as SeccionGruposAmigos);
+          }}
+          theme={theme}
+        />
+      </View>
+
+      {seccion === 'amigos' ? (
+        <AmigosTabPanel />
+      ) : (
     <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: theme.background }]}
+      style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <TopBar title="Grupos" bordered={false} />
 
       <ScrollView
         contentContainerStyle={styles.inner}
@@ -456,7 +486,7 @@ export default function GruposScreen() {
       </ScrollView>
 
       {/* Botón flotante FAB para crear grupo (solo visible si no se muestra el formulario) */}
-      {!mostrarFormulario && (
+      {!mostrarFormulario && seccion === 'grupos' && (
         <Pressable
           style={({ pressed }) => [
             styles.fab,
@@ -473,19 +503,29 @@ export default function GruposScreen() {
       )}
 
       <SelectionActionBar
-        visible={selection.active && !mostrarFormulario}
+        visible={selection.active && !mostrarFormulario && seccion === 'grupos'}
         count={selection.count}
         deleting={eliminandoBulk}
         onCancel={selection.exit}
         onDelete={confirmarEliminarSeleccionados}
       />
     </KeyboardAvoidingView>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  flex: {
+    flex: 1,
+  },
+  segmentWrap: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 8,
   },
   inner: {
     padding: 20,

@@ -895,6 +895,7 @@ export class ViajesService {
         estado: true,
         fecha_inicio_real: true,
         fecha_fin_real: true,
+        creador_id: true,
       },
     })
     if (!viaje) {
