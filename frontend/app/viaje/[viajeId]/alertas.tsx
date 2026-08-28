@@ -8,7 +8,7 @@ import { CrearAlertaSheet } from '@/components/live/CrearAlertaSheet'
 import { DEV_USER_ID } from '@/constants/Config'
 import { useAuth } from '@/context/AuthContext'
 import { useAlertas } from '@/hooks/useAlertas'
-import { metaTipoAlerta, type AlertaApi, type TipoAlertaApi } from '@/lib/alertasApi'
+import { mensajeAlertaVisible, metaTipoAlerta, type AlertaApi, type TipoAlertaApi } from '@/lib/alertasApi'
 import { meshAlert } from '@/lib/meshAlert'
 import { formatearEnArg } from '@/lib/tiempoArg'
 import { obtenerViaje, type ViajeDetalleApi } from '@/lib/viajesApi'
@@ -131,6 +131,7 @@ function TarjetaAlerta({
   theme: ReturnType<typeof useTheme>
 }) {
   const meta = metaTipoAlerta(alerta.tipo)
+  const mensaje = mensajeAlertaVisible(alerta.mensaje)
   return (
     <View
       style={[
@@ -152,12 +153,12 @@ function TarjetaAlerta({
         </Text>
       </View>
 
-      {alerta.mensaje ? (
-        <Text style={[styles.mensaje, { color: theme.text }]}>{alerta.mensaje}</Text>
+      {mensaje ? (
+        <Text style={[styles.mensaje, { color: theme.text }]}>{mensaje}</Text>
       ) : null}
 
       <Text
-        style={[styles.autor, { color: theme.textMute }, !alerta.mensaje && styles.autorSinMensaje]}
+        style={[styles.autor, { color: theme.textMute }, !mensaje && styles.autorSinMensaje]}
       >
         {alerta.creada_por_nombre ?? 'Sistema'}
         {alerta.lat != null && alerta.lng != null ? ' · con ubicación' : ''}
