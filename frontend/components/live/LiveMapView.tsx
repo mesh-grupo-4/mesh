@@ -21,6 +21,8 @@ import { motivoParadaLegible } from '@/lib/paradasApi'
 export type LiveMapViewHandle = {
   focusOnCoordinate: (lat: number, lng: number) => void
   fitBoundsToCoords: (coords: [number, number][]) => void
+  /** Recentra sin tocar el zoom — para el modo "seguirme". */
+  panTo: (lat: number, lng: number) => void
 }
 
 type GuiaDestino = {
@@ -31,7 +33,8 @@ type GuiaDestino = {
 
 type Props = {
   routeRemaining: [number, number][] | null
-  breadcrumb: [number, number][] | null
+  /** Traza propia recorrida, cortada en tramos cuando hubo un salto/hueco de señal. */
+  breadcrumb: [number, number][][] | null
   members: MemberLocation[]
   /** Alertas activas con ubicación — p. ej. desvíos detectados por el motor (RN-034). */
   alertasEnMapa?: AlertaApi[]
@@ -40,6 +43,8 @@ type Props = {
   currentUserId: string
   initialCenter: { latitude: number; longitude: number } | null
   mapStyle: MapStyleId
+  /** El usuario arrastró el mapa a mano — señal para pausar el modo "seguirme". */
+  onUserDrag?: () => void
 }
 
 export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMapView(
@@ -53,6 +58,7 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
     currentUserId,
     initialCenter,
     mapStyle,
+    onUserDrag,
   },
   ref
 ) {
@@ -69,6 +75,9 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
       mapRef.current?.fitBounds(
         coords.map(([lat, lng]) => ({ latitude: lat, longitude: lng }))
       )
+    },
+    panTo(lat, lng) {
+      mapRef.current?.panTo({ latitude: lat, longitude: lng })
     },
   }))
 
@@ -143,13 +152,16 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
 
   const polylines = useMemo((): PolylineSpec[] => {
     const list: PolylineSpec[] = []
-    if (breadcrumb && breadcrumb.length > 1) {
-      list.push({
-        coords: breadcrumb,
-        color: capa.routeStrokeColor,
-        width: 4,
-        opacity: 0.55,
-      })
+    if (breadcrumb) {
+      for (const segmento of breadcrumb) {
+        if (segmento.length < 2) continue
+        list.push({
+          coords: segmento,
+          color: capa.routeStrokeColor,
+          width: 4,
+          opacity: 0.55,
+        })
+      }
     }
     if (routeRemaining && routeRemaining.length > 1) {
       list.push({
@@ -187,6 +199,7 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
         tile={capa}
         markers={markers}
         polylines={polylines}
+        onUserDrag={onUserDrag}
       />
       <View
         style={[

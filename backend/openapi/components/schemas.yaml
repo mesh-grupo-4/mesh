@@ -90,6 +90,10 @@ ErrorCode:
     - SHARE_SNAPSHOT_INVALID
     - RUTA_INCOMPLETA
     - ROUTE_COMPUTE_FAILED
+    # Geocoding — proxy a Nominatim/OpenStreetMap (src/modules/geocoding/)
+    - GEOCODING_TIMEOUT
+    - GEOCODING_UPSTREAM_ERROR
+    - GEOCODING_RATE_LIMIT
     # Login de la documentación (src/docs/login.ts) — fuera del contrato de la app
     - INVALID_CREDENTIALS
     - USER_DISABLED
@@ -2524,9 +2528,12 @@ MisMetricas:
 Recorrido:
   type: object
   description: |
-    Traza GPS realmente recorrida por el consultante en un viaje (US2), simplificada
-    con PostGIS (`ST_SimplifyPreserveTopology`) antes de responder.
-  required: [viaje_id, usuario_id, puntos, cantidad_puntos]
+    Traza GPS realmente recorrida por el consultante en un viaje (US2), partida en
+    tramos contiguos y simplificada con PostGIS (`ST_SimplifyPreserveTopology`) antes
+    de responder. Un hueco de señal largo o un salto de posición imposible entre
+    pings consecutivos corta la traza en un tramo nuevo en `segmentos` en vez de
+    conectar los dos puntos con una línea recta que atraviese el mapa.
+  required: [viaje_id, usuario_id, segmentos, cantidad_puntos]
   properties:
     viaje_id:
       type: string
@@ -2534,18 +2541,26 @@ Recorrido:
     usuario_id:
       type: string
       format: uuid
-    puntos:
+    segmentos:
       type: array
-      description: Pares `[lat, lng]` en orden temporal. Vacío si no hubo traza GPS.
+      description: |
+        Tramos de puntos `[lat, lng]` en orden temporal; cada tramo es contiguo en
+        el tiempo y en el espacio. Vacío si no hubo traza GPS.
       items:
         type: array
-        minItems: 2
-        maxItems: 2
+        description: Pares `[lat, lng]` en orden temporal dentro del tramo.
         items:
-          type: number
-      example: [[-31.4201, -64.1888], [-31.4205, -64.1892]]
+          type: array
+          minItems: 2
+          maxItems: 2
+          items:
+            type: number
+      example:
+        - [[-31.4201, -64.1888], [-31.4205, -64.1892]]
+        - [[-31.4310, -64.1950], [-31.4315, -64.1958]]
     cantidad_puntos:
       type: integer
+      description: Suma de puntos en todos los tramos de `segmentos`.
   additionalProperties: false
 
 # ── Paradas voluntarias y solicitudes de parada (src/modules/paradas/) ────────
@@ -2940,4 +2955,47 @@ ImportarChecklistResponse:
       type: array
       items:
         $ref: '#/ChecklistItem'
+  additionalProperties: false
+
+# ── Geocoding ────────────────────────────────────────────────────────────────
+# Proxy del backend hacia Nominatim/OpenStreetMap (src/modules/geocoding/).
+# Nominatim exige un User-Agent identificable y limita a 1 req/seg global; el
+# backend centraliza ambas cosas para que el cliente móvil no le pegue directo.
+
+GeocodingHit:
+  type: object
+  description: |
+    Resultado de una búsqueda de lugares, mapeado desde la respuesta cruda de
+    Nominatim (`display_name` → `nombre`, `lat`/`lon` de string a number).
+  required:
+    - nombre
+    - lat
+    - lng
+  properties:
+    nombre:
+      type: string
+      description: Nombre completo del lugar, tal como lo devuelve Nominatim (`display_name`).
+      example: Córdoba, Argentina
+    lat:
+      type: number
+      format: double
+      example: -31.4201
+    lng:
+      type: number
+      format: double
+      example: -64.1888
+  additionalProperties: false
+
+GeocodingReverseResult:
+  type: object
+  description: Nombre del lugar más cercano a una coordenada.
+  required:
+    - nombre
+  properties:
+    nombre:
+      type: string
+      description: |
+        `display_name` de Nominatim. Si viene vacío, el backend devuelve
+        `Punto en mapa` como fallback.
+      example: Plaza San Martín, Córdoba, Argentina
   additionalProperties: false

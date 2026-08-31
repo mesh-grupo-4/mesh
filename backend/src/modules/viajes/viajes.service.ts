@@ -9,6 +9,7 @@ import {
   computePerfilVelocidad,
   computeTrazaRecorrido,
 } from '../../lib/postgis'
+import { filtrosGpsPorActividad } from '../../lib/gpsFilters'
 import { unirUsuarioAlViaje } from './viajes.membership'
 import type {
   ActualizarViajeInput,
@@ -1159,12 +1160,12 @@ export class ViajesService {
    */
   async obtenerRecorrido(usuarioId: string, viajeId: string) {
     await this.assertPuedeVerViaje(viajeId, usuarioId)
-    const puntos = await computeTrazaRecorrido(this.prisma, viajeId, usuarioId)
+    const segmentos = await computeTrazaRecorrido(this.prisma, viajeId, usuarioId)
     return {
       viaje_id: viajeId,
       usuario_id: usuarioId,
-      puntos,
-      cantidad_puntos: puntos.length,
+      segmentos,
+      cantidad_puntos: segmentos.reduce((total, tramo) => total + tramo.length, 0),
     }
   }
 
@@ -1327,13 +1328,19 @@ export class ViajesService {
     return ids.size
   }
 
-  private async assertPuedeEnviarGps(viajeId: string, usuarioId: string): Promise<void> {
+  /**
+   * Autoriza el envío de GPS y devuelve la fila de viaje ya consultada (con
+   * `tipo_actividad`) para que el caller no tenga que pedirla de nuevo con un
+   * segundo `findUnique` solo para saber los umbrales de filtrado GPS.
+   */
+  private async assertPuedeEnviarGps(viajeId: string, usuarioId: string) {
     const viaje = await this.prisma.viaje.findUnique({
       where: { id: viajeId },
       select: {
         id: true,
         creador_id: true,
         estado: true,
+        tipo_actividad: true,
       },
     })
     if (!viaje) {
@@ -1343,7 +1350,7 @@ export class ViajesService {
       throw new HttpError(409, 'El viaje no admite envío de GPS en este estado', 'INVALID_STATE')
     }
 
-    if (viaje.creador_id === usuarioId) return
+    if (viaje.creador_id === usuarioId) return viaje
 
     const integrante = await this.prisma.viajeIntegrante.findUnique({
       where: {
@@ -1351,9 +1358,39 @@ export class ViajesService {
       },
       select: { estado: true },
     })
-    if (integrante?.estado === 'confirmado') return
+    if (integrante?.estado === 'confirmado') return viaje
 
     throw new HttpError(403, 'Sin acceso a este viaje', 'FORBIDDEN')
+  }
+
+  /** RN-021: precisión mala (`accuracy`/`precision_m` por encima del umbral de la
+   * modalidad) no debe "ensuciar" la posición en vivo que ven los demás — el punto
+   * se sigue guardando en `registro_gps` para el historial, solo se saltea el
+   * upsert+emit de `ubicacion_viva`. */
+  private esGpsPreciso(tipoActividad: string, precision: number | null | undefined): boolean {
+    if (precision == null) return true
+    return precision <= filtrosGpsPorActividad(tipoActividad).precisionMaxM
+  }
+
+  /**
+   * Publica el snapshot en vivo, salvo que el ping sea impreciso Y ya exista una
+   * posición conocida para el usuario (no downgradeamos una posición buena con
+   * una mala). La primera aparición del usuario en el viaje se publica igual
+   * aunque sea imprecisa: sin esto, quedaría invisible para el grupo (y esta
+   * función devolvería `null`, violando el schema `UbicacionVivaFila` del spec
+   * OpenAPI, que no es nullable) hasta que llegara el primer fix preciso.
+   */
+  private async publicarUbicacionViva(
+    tipoActividad: string,
+    args: { viajeId: string; usuarioId: string; lat: number; lng: number; precision: number | null }
+  ) {
+    if (this.esGpsPreciso(tipoActividad, args.precision)) {
+      return this.upsertUbicacionVivaSnapshot(args)
+    }
+    const existente = await this.prisma.ubicacionViva.findUnique({
+      where: { usuario_id: args.usuarioId },
+    })
+    return existente ?? (await this.upsertUbicacionVivaSnapshot(args))
   }
 
   async detalleParaUsuario(usuarioId: string, viajeId: string) {
@@ -1401,7 +1438,10 @@ export class ViajesService {
       timestamp: p.timestamp,
       source: input.source,
     }))
-    await this.prisma.registroGPS.createMany({ data: rows })
+    // RN-038: cero pérdida de GPS. `skipDuplicates` es la red de seguridad ante el
+    // punto que ya llegó por el canal en vivo (@@unique viaje_id+usuario_id+timestamp):
+    // se insertan los que no chocan y se ignoran en silencio los que sí, sin 500.
+    await this.prisma.registroGPS.createMany({ data: rows, skipDuplicates: true })
     for (const row of rows) {
       this.dispatchMotorPing(viajeId, usuarioId, row.lat, row.lng, row.timestamp)
     }
@@ -1419,7 +1459,7 @@ export class ViajesService {
   }
 
   async upsertUbicacionViva(usuarioId: string, viajeId: string, input: UpsertUbicacionVivaInput) {
-    await this.assertPuedeEnviarGps(viajeId, usuarioId)
+    const viaje = await this.assertPuedeEnviarGps(viajeId, usuarioId)
     await this.prisma.registroGPS.create({
       data: {
         viaje_id: viajeId,
@@ -1431,7 +1471,7 @@ export class ViajesService {
         source: 'live',
       },
     })
-    const row = await this.upsertUbicacionVivaSnapshot({
+    const row = await this.publicarUbicacionViva(viaje.tipo_actividad, {
       viajeId,
       usuarioId,
       lat: input.lat,
@@ -1496,7 +1536,7 @@ export class ViajesService {
     }
   ) {
     const { viajeId, lat, lng, accuracy, recordedAt, source } = payload
-    await this.assertPuedeEnviarGps(viajeId, usuarioId)
+    const viaje = await this.assertPuedeEnviarGps(viajeId, usuarioId)
     const ts = new Date(recordedAt)
     await this.prisma.registroGPS.create({
       data: {
@@ -1509,7 +1549,7 @@ export class ViajesService {
         source,
       },
     })
-    await this.upsertUbicacionVivaSnapshot({
+    await this.publicarUbicacionViva(viaje.tipo_actividad, {
       viajeId,
       usuarioId,
       lat,

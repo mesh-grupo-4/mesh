@@ -105,3 +105,38 @@ ChecklistItemId:
     type: string
     format: uuid
   example: 5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f
+
+GeocodingQuery:
+  name: q
+  in: query
+  required: true
+  description: Texto de búsqueda de lugares (dirección, ciudad, punto de interés). Entre 1 y 200 caracteres.
+  schema:
+    type: string
+    minLength: 1
+    maxLength: 200
+  example: Plaza San Martín, Córdoba
+
+Lat:
+  name: lat
+  in: query
+  required: true
+  description: Latitud del punto a geocodificar de forma inversa.
+  schema:
+    type: number
+    format: double
+    minimum: -90
+    maximum: 90
+  example: -31.4201
+
+Lng:
+  name: lng
+  in: query
+  required: true
+  description: Longitud del punto a geocodificar de forma inversa.
+  schema:
+    type: number
+    format: double
+    minimum: -180
+    maximum: 180
+  example: -64.1888

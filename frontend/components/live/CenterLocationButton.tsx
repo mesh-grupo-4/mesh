@@ -6,20 +6,28 @@ type Props = {
   bottomOffset?: number
   /** Posición horizontal: derecha por defecto; izquierda evita solaparse con el selector de mapa. */
   align?: 'left' | 'right'
+  /** true mientras el mapa te sigue automáticamente (modo "seguirme" activo). */
+  siguiendo?: boolean
 }
 
-export function CenterLocationButton({ onPress, bottomOffset = 120, align = 'left' }: Props) {
+export function CenterLocationButton({
+  onPress,
+  bottomOffset = 120,
+  align = 'left',
+  siguiendo = false,
+}: Props) {
   return (
     <Pressable
       style={[
         styles.btn,
         { bottom: bottomOffset },
         align === 'left' ? styles.left : styles.right,
+        siguiendo && styles.btnActivo,
       ]}
       onPress={onPress}
-      accessibilityLabel="Centrar en mi ubicación"
+      accessibilityLabel={siguiendo ? 'Siguiéndote en el mapa' : 'Centrar en mi ubicación'}
     >
-      <Feather name="crosshair" size={22} color="#111827" />
+      <Feather name="crosshair" size={22} color={siguiendo ? '#fff' : '#111827'} />
     </Pressable>
   )
 }
@@ -44,5 +52,8 @@ const styles = StyleSheet.create({
   },
   right: {
     right: 16,
+  },
+  btnActivo: {
+    backgroundColor: '#2563eb',
   },
 })

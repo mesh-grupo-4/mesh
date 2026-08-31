@@ -4,7 +4,7 @@ import { upsertUbicacionViva } from '@/lib/viajesApi'
 import { useEffect } from 'react'
 import { AppState, DeviceEventEmitter } from 'react-native'
 
-import { flushGpsQueue } from '@/lib/tracking/gpsQueue'
+import { dequeueGpsSample, flushGpsQueue } from '@/lib/tracking/gpsQueue'
 
 type LocationTick = {
   viajeId: string
@@ -13,9 +13,12 @@ type LocationTick = {
   lng: number
   accuracy?: number
   recordedAt: string
+  /** Id de la fila en la cola SQLite local, para borrarla si este tick se confirma en vivo. */
+  queueId?: number
 }
 
-async function emitGpsPing(p: LocationTick, userId: string): Promise<void> {
+/** Fallback por socket con ack: solo se considera confirmado si el servidor responde `ok`. */
+async function emitGpsPingConAck(p: LocationTick, userId: string): Promise<boolean> {
   const payload = {
     viajeId: p.viajeId,
     lat: p.lat,
@@ -28,7 +31,32 @@ async function emitGpsPing(p: LocationTick, userId: string): Promise<void> {
   if (!sock?.connected) {
     sock = await connectMeshSocket()
   }
-  sock.emit('viaje:gps_ping', payload)
+  return new Promise<boolean>((resolve) => {
+    sock
+      .timeout(5000)
+      .emit('viaje:gps_ping', payload, (err: unknown, res?: { ok: boolean }) => {
+        resolve(!err && !!res?.ok)
+      })
+  })
+}
+
+/** Envía el tick en vivo (REST, con fallback a socket) y confirma si quedó persistido. */
+async function confirmarEnvioEnVivo(p: LocationTick, userId: string): Promise<boolean> {
+  try {
+    await upsertUbicacionViva(p.viajeId, userId, {
+      lat: p.lat,
+      lng: p.lng,
+      precision: p.accuracy ?? null,
+      recordedAt: p.recordedAt,
+    })
+    return true
+  } catch {
+    try {
+      return await emitGpsPingConAck(p, userId)
+    } catch {
+      return false
+    }
+  }
 }
 
 /**
@@ -43,15 +71,10 @@ export function ViajeRealtimeBridge() {
       const userId = backendUserId?.trim() || p.userId
       if (!userId) return
 
-      void upsertUbicacionViva(p.viajeId, userId, {
-        lat: p.lat,
-        lng: p.lng,
-        precision: p.accuracy ?? null,
-        recordedAt: p.recordedAt,
-      }).catch(() => {
-        void emitGpsPing(p, userId).catch(() => {
-          /* offline: queda en SQLite y flushGpsQueue sincroniza */
-        })
+      void confirmarEnvioEnVivo(p, userId).then((ok) => {
+        // Si no se confirmó (sin red), la fila queda en SQLite y flushGpsQueue la
+        // sincroniza después como offline_sync — sin perder el registro (RN-038).
+        if (ok && p.queueId != null) dequeueGpsSample(p.queueId)
       })
     })
     return () => sub.remove()

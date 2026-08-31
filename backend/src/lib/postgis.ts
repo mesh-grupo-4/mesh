@@ -167,49 +167,98 @@ export async function computePerfilVelocidad(
 const TRAZA_TOLERANCIA_GRADOS = 0.0001
 
 /**
- * Traza GPS recorrida por un usuario en un viaje, como par [lat, lng] ordenado
- * en el tiempo (US2). Se simplifica con ST_SimplifyPreserveTopology en la base
- * para no mandar miles de puntos al mapa: un viaje de 3 h a un ping cada 5 s son
- * ~2160 posiciones, de las que la mayoría no cambia el dibujo de la polilínea.
+ * Traza GPS recorrida por un usuario en un viaje, como tramos de puntos [lat, lng]
+ * ordenados en el tiempo (US2). Cada tramo es contiguo en el tiempo y en el espacio:
+ * igual que `computeMetricasGpsPorUsuario`, un hueco temporal largo (app cerrada o
+ * sin señal, > SEGMENTO_MAX_SEG) o un salto de distancia imposible entre pings
+ * consecutivos (> f.segmentoMaxM) corta la traza en un tramo nuevo en vez de
+ * conectar los dos puntos con una línea recta que atraviesa el mapa.
+ *
+ * Se resuelve con el patrón "gaps and islands": `es_corte` marca el primer punto
+ * de cada tramo y `SUM(es_corte) OVER (...)` acumula un `grupo_id` por tramo. Cada
+ * tramo se simplifica por separado con ST_SimplifyPreserveTopology para no mandar
+ * miles de puntos al mapa: un viaje de 3 h a un ping cada 5 s son ~2160 posiciones,
+ * de las que la mayoría no cambia el dibujo de la polilínea.
  */
 export async function computeTrazaRecorrido(
   prisma: PrismaClient,
   viajeId: string,
   usuarioId: string
-): Promise<[number, number][]> {
+): Promise<[number, number][][]> {
   const f = filtrosGpsPorActividad(await tipoActividadDelViaje(prisma, viajeId))
-  const filas = await prisma.$queryRaw<{ lat: number; lng: number; orden: number }[]>(
+  const filas = await prisma.$queryRaw<
+    { grupo_id: number; lat: number; lng: number; orden: number }[]
+  >(
     Prisma.sql`
       WITH puntos AS (
         SELECT
           lat,
           lng,
-          "timestamp"
+          "timestamp",
+          ST_SetSRID(ST_MakePoint(lng, lat), 4326)::geography AS geog
         FROM registro_gps
         WHERE viaje_id = ${viajeId}::uuid
           AND usuario_id = ${usuarioId}::uuid
           AND (precision_m IS NULL OR precision_m <= ${f.precisionMaxM})
-        ORDER BY "timestamp"
       ),
-      linea AS (
-        SELECT ST_SimplifyPreserveTopology(
-                 ST_MakeLine(ST_SetSRID(ST_MakePoint(lng, lat), 4326) ORDER BY "timestamp"),
-                 ${TRAZA_TOLERANCIA_GRADOS}
-               ) AS geom
+      cortes AS (
+        SELECT
+          lat,
+          lng,
+          "timestamp",
+          CASE
+            WHEN LAG("timestamp") OVER w IS NULL THEN 1
+            WHEN ST_Distance(geog, LAG(geog) OVER w) > ${f.segmentoMaxM} THEN 1
+            WHEN EXTRACT(EPOCH FROM ("timestamp" - LAG("timestamp") OVER w)) > ${SEGMENTO_MAX_SEG} THEN 1
+            ELSE 0
+          END AS es_corte
         FROM puntos
+        WINDOW w AS (ORDER BY "timestamp")
+      ),
+      tramos AS (
+        SELECT
+          lat,
+          lng,
+          "timestamp",
+          SUM(es_corte) OVER (ORDER BY "timestamp") AS grupo_id
+        FROM cortes
+      ),
+      lineas AS (
+        SELECT
+          grupo_id,
+          ST_SimplifyPreserveTopology(
+            ST_MakeLine(ST_SetSRID(ST_MakePoint(lng, lat), 4326) ORDER BY "timestamp"),
+            ${TRAZA_TOLERANCIA_GRADOS}
+          ) AS geom
+        FROM tramos
+        GROUP BY grupo_id
         -- ST_MakeLine necesita dos puntos: con uno solo devuelve NULL y no hay traza.
         HAVING COUNT(*) > 1
       )
       SELECT
-        ST_Y(punto.geom)::float8 AS lat,
-        ST_X(punto.geom)::float8 AS lng,
-        punto.path[1]            AS orden
-      FROM linea, LATERAL ST_DumpPoints(linea.geom) AS punto
-      WHERE linea.geom IS NOT NULL
-      ORDER BY punto.path[1]
+        lineas.grupo_id::int      AS grupo_id,
+        ST_Y(punto.geom)::float8  AS lat,
+        ST_X(punto.geom)::float8  AS lng,
+        punto.path[1]             AS orden
+      FROM lineas, LATERAL ST_DumpPoints(lineas.geom) AS punto
+      WHERE lineas.geom IS NOT NULL
+      ORDER BY lineas.grupo_id, punto.path[1]
     `
   )
-  return filas.map((f) => [f.lat, f.lng])
+
+  const segmentos: [number, number][][] = []
+  let grupoActual: number | null = null
+  let tramoActual: [number, number][] = []
+  for (const fila of filas) {
+    if (grupoActual === null || fila.grupo_id !== grupoActual) {
+      if (tramoActual.length > 0) segmentos.push(tramoActual)
+      tramoActual = []
+      grupoActual = fila.grupo_id
+    }
+    tramoActual.push([fila.lat, fila.lng])
+  }
+  if (tramoActual.length > 0) segmentos.push(tramoActual)
+  return segmentos
 }
 
 export async function computeMetricasGpsPorUsuario(

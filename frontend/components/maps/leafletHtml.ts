@@ -1,5 +1,10 @@
+import { LEAFLET_CSS, LEAFLET_JS } from './vendor/leafletSource'
+
 /**
  * Mapa embebido: Leaflet + teselas OSM/CARTO (sin SDK de Google/Mapbox).
+ * Leaflet mismo se empaqueta localmente (`./vendor/leafletSource.ts`, generado
+ * desde el paquete npm) en vez de cargarse desde unpkg.com: la app se usa en
+ * zonas de mala señal, donde depender de un CDN externo para ver el mapa es frágil.
  * Comunicación RN -> WebView vía `injectJavaScript` llamando a `window.__mesh.*`.
  * Comunicación WebView -> RN vía `ReactNativeWebView.postMessage` (JSON).
  */
@@ -25,8 +30,7 @@ export function buildLeafletHtml({ centerLat, centerLng, zoom, tile, interactive
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>${LEAFLET_CSS}</style>
   <style>
     html, body { margin: 0; padding: 0; height: 100%; background: #e5e7eb; }
     #map { height: 100%; width: 100%; }
@@ -37,6 +41,7 @@ export function buildLeafletHtml({ centerLat, centerLng, zoom, tile, interactive
 </head>
 <body>
   <div id="map"></div>
+  <script>${LEAFLET_JS}</script>
   <script>
     var map = L.map('map', {
       zoomControl: ${interactive},
@@ -132,23 +137,28 @@ export function buildLeafletHtml({ centerLat, centerLng, zoom, tile, interactive
       animateTo: function (lat, lng, zoom) {
         map.setView([lat, lng], zoom == null ? map.getZoom() : zoom, { animate: true });
       },
+      panTo: function (lat, lng) {
+        map.panTo([lat, lng], { animate: true });
+      },
       setUserLocation: function (lat, lng) {
         if (userLocLayer) {
           map.removeLayer(userLocLayer);
           userLocLayer = null;
         }
         if (lat == null || lng == null) return;
+        // Color de acento de la app (igual en claro/oscuro, ver constants/Colors.ts)
+        // en vez del azul genérico de mapas comerciales, que desentonaba con el resto de la UI.
         userLocLayer = L.layerGroup().addTo(map);
         L.circleMarker([lat, lng], {
           radius: 14,
-          fillColor: '#3b82f6',
+          fillColor: '#d76655',
           fillOpacity: 0.18,
           color: 'transparent',
           weight: 0,
         }).addTo(userLocLayer);
         L.circleMarker([lat, lng], {
           radius: 8,
-          fillColor: '#2563eb',
+          fillColor: '#d76655',
           fillOpacity: 1,
           color: '#ffffff',
           weight: 2.5,
@@ -165,6 +175,12 @@ export function buildLeafletHtml({ centerLat, centerLng, zoom, tile, interactive
     map.on('moveend', function () {
       var c = map.getCenter();
       postToNative({ type: 'regionChangeComplete', lat: c.lat, lng: c.lng });
+    });
+
+    // 'dragstart' solo lo dispara un arrastre real del usuario (nunca panTo/
+    // animateTo/setView programáticos): es la señal para pausar el "seguirme".
+    map.on('dragstart', function () {
+      postToNative({ type: 'userDrag' });
     });
 
     postToNative({ type: 'ready' });

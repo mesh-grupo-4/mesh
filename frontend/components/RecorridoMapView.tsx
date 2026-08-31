@@ -9,19 +9,25 @@ import { getMapStyle } from '@/components/route-config/mapStyles'
 /**
  * US2: dibuja la traza GPS realmente recorrida en un viaje finalizado.
  * OpenStreetMap vía Leaflet embebido, igual que el resto de los mapas de la app.
+ *
+ * `segmentos` viene partido en tramos contiguos (un hueco de señal largo o un
+ * salto de posición imposible entre pings corta la traza en un tramo nuevo): cada
+ * tramo se dibuja como su propia polilínea, para no conectar dos tramos con una
+ * línea recta que atraviese el mapa.
  */
 type Props = {
-  puntos: [number, number][]
+  segmentos: [number, number][][]
   cargando?: boolean
   altura?: number
 }
 
 const PADDING_FIT = { top: 40, right: 40, bottom: 40, left: 40 }
 
-export function RecorridoMapView({ puntos, cargando = false, altura = 220 }: Props) {
+export function RecorridoMapView({ segmentos, cargando = false, altura = 220 }: Props) {
   const theme = useTheme()
   const mapRef = useRef<WebMapViewHandle>(null)
   const capa = getMapStyle('standard')
+  const puntos = useMemo(() => segmentos.flat(), [segmentos])
   const hayTraza = puntos.length > 1
 
   useEffect(() => {
@@ -36,6 +42,14 @@ export function RecorridoMapView({ puntos, cargando = false, altura = 220 }: Pro
     }, 350)
     return () => clearTimeout(id)
   }, [puntos, hayTraza])
+
+  const polylines = useMemo(
+    () =>
+      segmentos
+        .filter((tramo) => tramo.length > 1)
+        .map((tramo) => ({ coords: tramo, color: theme.accent, width: 4 })),
+    [segmentos, theme.accent]
+  )
 
   const markers = useMemo<MarkerSpec[]>(() => {
     if (!hayTraza) return []
@@ -92,11 +106,7 @@ export function RecorridoMapView({ puntos, cargando = false, altura = 220 }: Pro
         tile={capa}
         interactive={false}
         markers={markers}
-        polyline={{
-          coords: puntos,
-          color: theme.accent,
-          width: 4,
-        }}
+        polylines={polylines}
       />
     </View>
   )

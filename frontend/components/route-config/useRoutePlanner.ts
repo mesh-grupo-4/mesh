@@ -213,6 +213,15 @@ export function useRoutePlanner({
     [waypointsOrdenados]
   )
 
+  // Vista previa (línea recta punteada) mientras no hay una ruta calculada por
+  // OSRM: sin esto, los pines quedan sueltos sin ningún trazo entre ellos —
+  // tanto mientras se calcula la primera vez como si OSRM falla.
+  const previewLineLatLng = useMemo(() => {
+    if (routeLineLatLng && routeLineLatLng.length > 1) return null
+    if (waypointsConCoords.length < 2) return null
+    return waypointsConCoords.map((w): [number, number] => [w.lat, w.lon])
+  }, [routeLineLatLng, waypointsConCoords])
+
   // Al abrir el mapa sin ruta dibujada, centramos en la posición GPS del usuario.
   useEffect(() => {
     if (!ubicacionActual || centradoInicialEnUsuario || modoSeleccionMapa) return
@@ -494,6 +503,7 @@ export function useRoutePlanner({
     fitRouteCoords,
     centrarEnMiUbicacion,
     routeLineLatLng,
+    previewLineLatLng,
     waypointsConCoords,
     calculando,
     cargandoRuta,

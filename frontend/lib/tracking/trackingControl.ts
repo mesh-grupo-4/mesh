@@ -4,6 +4,7 @@ import { DeviceEventEmitter, Platform } from 'react-native'
 
 import { filtrosGpsPorActividad, velocidadImplicitaKmh } from '@/lib/gpsFilters'
 import { enqueueGpsSample } from '@/lib/tracking/gpsQueue'
+import { TICK_TARGET_MS, trackingConfigPorActividad } from '@/lib/tracking/trackingConfig'
 import {
   clearTrackingContext,
   MESH_LOCATION_TASK,
@@ -24,8 +25,11 @@ export type PermisoResultado = {
 const EN_EXPO_GO = Constants.executionEnvironment === ExecutionEnvironment.StoreClient
 
 let foregroundWatch: Location.LocationSubscription | null = null
+let safetyTicker: ReturnType<typeof setInterval> | null = null
 let tipoActividadActual = 'otro'
 let ultimaMuestra: { lat: number; lng: number; ts: number } | null = null
+/** Último momento en que llegó una actualización nativa (pase o no el filtro de outliers). */
+let ultimaActualizacionNativaAt = 0
 
 function aceptarMuestra(
   lat: number,
@@ -50,11 +54,12 @@ function aceptarMuestra(
 }
 
 function emitLocationSample(viajeId: string, userId: string, loc: Location.LocationObject): void {
+  ultimaActualizacionNativaAt = Date.now()
   const { latitude, longitude, accuracy } = loc.coords
   const ts = loc.timestamp > 0 ? loc.timestamp : Date.now()
   if (!aceptarMuestra(latitude, longitude, accuracy, ts)) return
 
-  enqueueGpsSample({
+  const queueId = enqueueGpsSample({
     viajeId,
     userId,
     lat: latitude,
@@ -69,6 +74,7 @@ function emitLocationSample(viajeId: string, userId: string, loc: Location.Locat
     lng: longitude,
     accuracy: accuracy ?? undefined,
     recordedAt: new Date(ts).toISOString(),
+    queueId,
   })
 }
 
@@ -77,18 +83,46 @@ async function stopForegroundWatch(): Promise<void> {
     foregroundWatch.remove()
     foregroundWatch = null
   }
+  if (safetyTicker) {
+    clearInterval(safetyTicker)
+    safetyTicker = null
+  }
+}
+
+/**
+ * `timeInterval` de `Location.watchPositionAsync` es Android-only: en iOS la
+ * cadencia depende solo de `distanceInterval`, así que detenido o muy lento no
+ * llega ningún tick. Este timer fuerza una lectura si no llegó ninguna
+ * actualización nativa en la ventana objetivo (RN-031), en ambas plataformas.
+ * Solo cubre primer plano: en background no hay forma simple de despertar un
+ * timer de JS de forma confiable en iOS sin trabajo nativo adicional.
+ */
+function startSafetyTicker(viajeId: string, userId: string): void {
+  if (safetyTicker) clearInterval(safetyTicker)
+  safetyTicker = setInterval(() => {
+    if (Date.now() - ultimaActualizacionNativaAt < TICK_TARGET_MS) return
+    const cfg = trackingConfigPorActividad(tipoActividadActual)
+    Location.getCurrentPositionAsync({ accuracy: cfg.accuracy })
+      .then((loc) => emitLocationSample(viajeId, userId, loc))
+      .catch(() => {
+        /* sin señal momentánea: se reintenta en el próximo tick */
+      })
+  }, TICK_TARGET_MS)
 }
 
 async function startForegroundWatch(viajeId: string, userId: string): Promise<void> {
   await stopForegroundWatch()
+  const cfg = trackingConfigPorActividad(tipoActividadActual)
+  ultimaActualizacionNativaAt = Date.now()
   foregroundWatch = await Location.watchPositionAsync(
     {
-      accuracy: Location.Accuracy.High,
-      timeInterval: 5000,
-      distanceInterval: 4,
+      accuracy: cfg.accuracy,
+      timeInterval: TICK_TARGET_MS,
+      distanceInterval: cfg.distanceInterval,
     },
     (loc) => emitLocationSample(viajeId, userId, loc)
   )
+  startSafetyTicker(viajeId, userId)
 }
 
 export async function solicitarPermisosUbicacion(): Promise<PermisoResultado> {
@@ -137,11 +171,12 @@ export async function iniciarTrackingViaje(
     await Location.stopLocationUpdatesAsync(MESH_LOCATION_TASK)
   }
 
+  const cfg = trackingConfigPorActividad(tipoActividad)
   try {
     await Location.startLocationUpdatesAsync(MESH_LOCATION_TASK, {
-      accuracy: Location.Accuracy.High,
-      timeInterval: 5000,
-      distanceInterval: 4,
+      accuracy: cfg.accuracy,
+      timeInterval: TICK_TARGET_MS,
+      distanceInterval: cfg.distanceInterval,
       showsBackgroundLocationIndicator: true,
       ...(Platform.OS === 'android'
         ? {

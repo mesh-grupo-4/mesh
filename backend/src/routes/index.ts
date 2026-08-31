@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { amistadesRouter } from '../modules/amistades/amistades.router'
+import { geocodingRouter } from '../modules/geocoding/geocoding.router'
 import { gruposRouter } from '../modules/grupos/grupos.router'
 import { usuariosRouter } from '../modules/usuarios/usuarios.router'
 import { viajesRouter } from '../modules/viajes/viajes.router'
@@ -25,6 +26,7 @@ router.get('/health', (_req, res) => {
 export const montajes = [
   { prefijo: '/usuarios', router: usuariosRouter },
   { prefijo: '/amistades', router: amistadesRouter },
+  { prefijo: '/geocoding', router: geocodingRouter },
   { prefijo: '/grupos', router: gruposRouter },
   { prefijo: '/viajes', router: viajesRouter },
   { prefijo: '/rutas-compartidas', router: rutasCompartidasRouter },

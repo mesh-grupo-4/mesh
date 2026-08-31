@@ -56,7 +56,7 @@ export default function ViajeResumenScreen() {
   const [loading, setLoading] = useState(true)
   // US2: traza GPS realmente recorrida. Se carga aparte del resumen para que un
   // viaje sin GPS no demore ni rompa el resto de la pantalla.
-  const [recorrido, setRecorrido] = useState<[number, number][]>([])
+  const [recorrido, setRecorrido] = useState<[number, number][][]>([])
   const [cargandoRecorrido, setCargandoRecorrido] = useState(true)
 
   const cargar = useCallback(async () => {
@@ -92,7 +92,7 @@ export default function ViajeResumenScreen() {
     setCargandoRecorrido(true)
     void obtenerRecorrido(viajeId)
       .then((r) => {
-        if (!cancelado) setRecorrido(r.puntos)
+        if (!cancelado) setRecorrido(r.segmentos)
       })
       .catch(() => {
         if (!cancelado) setRecorrido([])
@@ -193,7 +193,7 @@ export default function ViajeResumenScreen() {
           ) : null}
 
           {/* ── Mapa del recorrido realizado (US2) ── */}
-          <RecorridoMapView puntos={recorrido} cargando={cargandoRecorrido} />
+          <RecorridoMapView segmentos={recorrido} cargando={cargandoRecorrido} />
 
           {/* ── El viaje (totales grupales) ── */}
           {totales ? (

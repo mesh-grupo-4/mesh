@@ -49,11 +49,16 @@ export type ViajeFinalizadoApi = {
   mi_tiempo_movimiento_seg: number | null
 }
 
-/** US2: traza GPS realmente recorrida, ya simplificada por el backend. */
+/**
+ * US2: traza GPS realmente recorrida, ya simplificada por el backend. `segmentos`
+ * viene partido en tramos contiguos: un hueco de señal largo o un salto de
+ * posición imposible entre pings empieza un tramo nuevo en vez de conectarse con
+ * una línea recta que atraviese el mapa.
+ */
 export type RecorridoApi = {
   viaje_id: string
   usuario_id: string
-  puntos: [number, number][]
+  segmentos: [number, number][][]
   cantidad_puntos: number
 }
 

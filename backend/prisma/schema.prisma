@@ -319,6 +319,7 @@ model RegistroGPS {
   viaje   Viaje   @relation(fields: [viaje_id], references: [id], onDelete: Cascade)
   usuario Usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
 
+  @@unique([viaje_id, usuario_id, timestamp])
   @@index([viaje_id, timestamp])
   @@index([usuario_id, timestamp])
   @@map("registro_gps")

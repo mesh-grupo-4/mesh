@@ -1,0 +1,140 @@
+# Módulo Geocoding — src/modules/geocoding/
+# Router: geocoding.router.ts · Controller: geocoding.controller.ts · Service: geocoding.service.ts
+#
+# Proxy hacia Nominatim/OpenStreetMap. Existe porque Nominatim exige un
+# User-Agent identificable (su política de uso lo requiere) y en React
+# Native/Android el stack nativo (OkHttp) suele ignorar el header seteado vía
+# fetch(), lo que hacía fallar la búsqueda desde el cliente móvil siempre. El
+# backend también centraliza el límite de la política de uso: máximo 1
+# request/segundo de forma GLOBAL hacia Nominatim, sin importar cuántos
+# usuarios busquen al mismo tiempo.
+
+BuscarLugares:
+  get:
+    operationId: buscarLugares
+    summary: Buscar lugares por texto
+    description: |
+      Geocodifica un texto libre (dirección, ciudad, punto de interés) contra
+      Nominatim, acotado a Argentina, y devuelve hasta 5 resultados.
+
+      El backend antepone el header `User-Agent` que exige la política de uso de
+      Nominatim y aplica un throttle interno de mínimo 1000ms entre requests
+      salientes hacia ese servicio (compartido con `GET /api/geocoding/reverse`).
+    tags:
+      - Geocoding
+    parameters:
+      - $ref: '../components/parameters.yaml#/GeocodingQuery'
+    responses:
+      '200':
+        description: Hasta 5 lugares que coinciden con la búsqueda, puede ser un array vacío.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/GeocodingHit'
+            example:
+              - nombre: Córdoba, Argentina
+                lat: -31.4201
+                lng: -64.1888
+              - nombre: Córdoba Capital, Departamento Capital, Córdoba, Argentina
+                lat: -31.42
+                lng: -64.19
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '429':
+        description: Nominatim respondió con `429 Too Many Requests` (`GEOCODING_RATE_LIMIT`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Demasiadas búsquedas, esperá un momento
+              code: GEOCODING_RATE_LIMIT
+      '502':
+        description: |
+          No se pudo contactar a Nominatim, o respondió con un error distinto de
+          `429` (`GEOCODING_UPSTREAM_ERROR`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: No se pudo contactar el servicio de búsqueda de lugares
+              code: GEOCODING_UPSTREAM_ERROR
+      '504':
+        description: Nominatim no respondió dentro del timeout de 8s (`GEOCODING_TIMEOUT`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: El servicio de búsqueda de lugares no respondió a tiempo
+              code: GEOCODING_TIMEOUT
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+ReverseGeocoding:
+  get:
+    operationId: reverseGeocode
+    summary: Geocodificar una coordenada a un nombre de lugar
+    description: |
+      Devuelve el nombre del lugar más cercano a una coordenada, para mostrar
+      una etiqueta legible cuando el usuario elige un punto directamente en el
+      mapa. Si Nominatim no devuelve un `display_name`, se usa `Punto en mapa`
+      como fallback.
+
+      Nominatim usa el parámetro `lon`; este endpoint expone `lng` por
+      consistencia con el resto del contrato y el backend hace la conversión al
+      armar la request saliente.
+    tags:
+      - Geocoding
+    parameters:
+      - $ref: '../components/parameters.yaml#/Lat'
+      - $ref: '../components/parameters.yaml#/Lng'
+    responses:
+      '200':
+        description: Nombre del lugar más cercano a la coordenada.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/GeocodingReverseResult'
+            example:
+              nombre: Plaza San Martín, Córdoba, Argentina
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '429':
+        description: Nominatim respondió con `429 Too Many Requests` (`GEOCODING_RATE_LIMIT`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Demasiadas búsquedas, esperá un momento
+              code: GEOCODING_RATE_LIMIT
+      '502':
+        description: |
+          No se pudo contactar a Nominatim, o respondió con un error distinto de
+          `429` (`GEOCODING_UPSTREAM_ERROR`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: El servicio de búsqueda de lugares respondió con un error
+              code: GEOCODING_UPSTREAM_ERROR
+      '504':
+        description: Nominatim no respondió dentro del timeout de 8s (`GEOCODING_TIMEOUT`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: El servicio de búsqueda de lugares no respondió a tiempo
+              code: GEOCODING_TIMEOUT
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'

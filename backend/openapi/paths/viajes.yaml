@@ -654,13 +654,17 @@ RecorridoViaje:
     operationId: obtenerRecorrido
     summary: Traza GPS recorrida por el consultante (US2)
     description: |
-      Puntos `[lat, lng]` ordenados en el tiempo, del recorrido realmente hecho en
-      el viaje. Se simplifica con PostGIS (`ST_SimplifyPreserveTopology`) antes de
-      responder: un viaje largo tendría miles de posiciones.
+      Tramos de puntos `[lat, lng]` ordenados en el tiempo, del recorrido realmente
+      hecho en el viaje. Cada tramo (`segmentos[i]`) es contiguo en el tiempo y en el
+      espacio: un hueco de señal largo o un salto de posición imposible entre pings
+      consecutivos empieza un tramo nuevo en vez de conectarse con una línea recta
+      que atraviese el mapa. Cada tramo se simplifica por separado con PostGIS
+      (`ST_SimplifyPreserveTopology`) antes de responder: un viaje largo tendría
+      miles de posiciones.
 
       Lectura laxa: quien salió del viaje igual puede repasar su propio recorrido,
-      y no exige que el viaje esté finalizado. Sin traza GPS responde `puntos: []`,
-      no un error.
+      y no exige que el viaje esté finalizado. Sin traza GPS responde
+      `segmentos: []`, no un error.
     tags:
       - Viajes
     parameters:

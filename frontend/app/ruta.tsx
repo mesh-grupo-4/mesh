@@ -180,7 +180,6 @@ export default function RutaCompartidaPreviewScreen() {
               cameraTarget={null}
               fitRouteCoords={fitCoords}
               mapPickMode={false}
-              calculando={false}
               fitBottomPadding={80}
             />
           </View>

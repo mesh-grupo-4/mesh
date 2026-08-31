@@ -30,6 +30,8 @@ export type EdgePadding = { top: number; right: number; bottom: number; left: nu
 export type WebMapViewHandle = {
   fitBounds: (coords: LatLng[], padding?: EdgePadding, animated?: boolean) => void
   animateTo: (center: LatLng, zoom?: number) => void
+  /** Recentra sin tocar el zoom — para seguir al usuario sin "saltos" de escala. */
+  panTo: (center: LatLng) => void
 }
 
 type Props = {
@@ -44,6 +46,8 @@ type Props = {
   interactive?: boolean
   onReady?: () => void
   onRegionChangeComplete?: (center: LatLng) => void
+  /** El usuario arrastró el mapa a mano (no un panTo/animateTo nuestro) — señal para pausar el "seguirme". */
+  onUserDrag?: () => void
   style?: StyleProp<ViewStyle>
 }
 
@@ -65,6 +69,7 @@ export const WebMapView = forwardRef<WebMapViewHandle, Props>(function WebMapVie
     interactive = true,
     onReady,
     onRegionChangeComplete,
+    onUserDrag,
     style,
   },
   ref
@@ -133,6 +138,10 @@ export const WebMapView = forwardRef<WebMapViewHandle, Props>(function WebMapVie
       if (!ready) return
       run(`window.__mesh.animateTo(${center.latitude}, ${center.longitude}, ${zoom ?? 'null'})`)
     },
+    panTo(center) {
+      if (!ready) return
+      run(`window.__mesh.panTo(${center.latitude}, ${center.longitude})`)
+    },
   }))
 
   return (
@@ -147,6 +156,7 @@ export const WebMapView = forwardRef<WebMapViewHandle, Props>(function WebMapVie
             const msg = JSON.parse(e.nativeEvent.data) as
               | { type: 'ready' }
               | { type: 'regionChangeComplete'; lat: number; lng: number }
+              | { type: 'userDrag' }
             if (msg.type === 'ready') {
               setReady(true)
               onReady?.()
@@ -154,6 +164,10 @@ export const WebMapView = forwardRef<WebMapViewHandle, Props>(function WebMapVie
             }
             if (msg.type === 'regionChangeComplete') {
               onRegionChangeComplete?.({ latitude: msg.lat, longitude: msg.lng })
+              return
+            }
+            if (msg.type === 'userDrag') {
+              onUserDrag?.()
             }
           } catch {
             /* ignorar mensajes malformados */

@@ -46,6 +46,10 @@ export function filtrosGpsPorActividad(tipoActividad: string): FiltrosGps {
   return POR_ACTIVIDAD[tipoActividad] ?? DEFAULTS
 }
 
+/** Hueco largo (app en background o sin señal): no unimos el tramo con una línea recta.
+ * Espejo de `SEGMENTO_MAX_SEG` en `backend/src/lib/postgis.ts`. */
+export const SEGMENTO_MAX_SEG = 120
+
 /** Velocidad implícita entre dos puntos consecutivos (km/h). */
 export function velocidadImplicitaKmh(
   lat1: number,

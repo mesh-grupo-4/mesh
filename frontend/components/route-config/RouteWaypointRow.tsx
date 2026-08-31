@@ -13,10 +13,28 @@ import {
 } from 'react-native'
 
 import { useTheme } from '@/components/MeshUI'
-import { buscarLugares, type NominatimHit } from '@/lib/nominatim'
+import { MeshApiError } from '@/lib/apiClient'
+import { buscarLugares, type LugarHit } from '@/lib/nominatim'
 
 import { StopCategoryPicker } from './StopCategoryPicker'
 import { labelTipoWaypoint, type RouteWaypoint, type StopCategory } from './routeTypes'
+
+/** Traduce la falla real del buscador a algo accionable, en vez de siempre "sin conexión". */
+function mensajeErrorBusqueda(e: unknown): string {
+  if (e instanceof MeshApiError) {
+    if (e.code === 'GEOCODING_TIMEOUT') {
+      return 'El buscador tardó demasiado en responder. Reintentá o probá el mapa.'
+    }
+    if (e.code === 'GEOCODING_RATE_LIMIT') {
+      return 'Demasiadas búsquedas seguidas. Esperá un momento y reintentá.'
+    }
+    if (e.status === 401) {
+      return 'Tu sesión expiró. Volvé a iniciar sesión.'
+    }
+    return 'No se pudo buscar en este momento. Probá seleccionar en el mapa.'
+  }
+  return 'Sin conexión. Probá seleccionar en el mapa.'
+}
 
 type Props = {
   waypoint: RouteWaypoint
@@ -56,7 +74,7 @@ export function RouteWaypointRow({
   const [query, setQuery] = useState(waypoint.name)
   const [debounced, setDebounced] = useState(waypoint.name)
   const [focused, setFocused] = useState(false)
-  const [hits, setHits] = useState<NominatimHit[]>([])
+  const [hits, setHits] = useState<LugarHit[]>([])
   const [buscando, setBuscando] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
   const selectingRef = useRef(false)
@@ -90,10 +108,10 @@ export function RouteWaypointRow({
       try {
         const r = await buscarLugares(debounced)
         if (!cancel) setHits(r)
-      } catch {
+      } catch (e) {
         if (!cancel) {
           setHits([])
-          setSearchError('Sin conexión. Probá seleccionar en el mapa.')
+          setSearchError(mensajeErrorBusqueda(e))
         }
       } finally {
         if (!cancel) setBuscando(false)
@@ -117,17 +135,14 @@ export function RouteWaypointRow({
       ? `Parada ${(stopIndex ?? 0) + 1}`
       : labelTipoWaypoint(waypoint.type)
 
-  const onSelectHit = (item: NominatimHit) => {
-    const lat = Number(item.lat)
-    const lon = Number(item.lon)
-    if (Number.isNaN(lat) || Number.isNaN(lon)) return
-    const name = item.display_name
-    setQuery(name)
+  const onSelectHit = (item: LugarHit) => {
+    if (Number.isNaN(item.lat) || Number.isNaN(item.lng)) return
+    setQuery(item.nombre)
     setHits([])
     setFocused(false)
     inputRef.current?.blur()
     Keyboard.dismiss()
-    onUpdate(waypoint.id, { lat, lon, name })
+    onUpdate(waypoint.id, { lat: item.lat, lon: item.lng, name: item.nombre })
   }
 
   const cerrarSugerencias = () => {
@@ -179,7 +194,7 @@ export function RouteWaypointRow({
             hitSlop={8}
             style={[styles.removeBtn, { backgroundColor: theme.dangerWeak }]}
           >
-            <Text style={[styles.removeTxt, { color: theme.danger }]}>✕</Text>
+            <Ionicons name="close" size={18} color={theme.danger} />
           </Pressable>
         ) : null}
       </View>
@@ -223,7 +238,7 @@ export function RouteWaypointRow({
                 !canMoveUp && styles.reorderBtnOff,
               ]}
             >
-              <Text style={[styles.reorderTxt, { color: theme.text }]}>↑</Text>
+              <Ionicons name="arrow-up" size={16} color={theme.text} />
             </Pressable>
           ) : null}
           {onMoveDown ? (
@@ -236,7 +251,7 @@ export function RouteWaypointRow({
                 !canMoveDown && styles.reorderBtnOff,
               ]}
             >
-              <Text style={[styles.reorderTxt, { color: theme.text }]}>↓</Text>
+              <Ionicons name="arrow-down" size={16} color={theme.text} />
             </Pressable>
           ) : null}
         </View>
@@ -260,7 +275,7 @@ export function RouteWaypointRow({
           ) : (
             hits.map((item, i) => (
               <Pressable
-                key={`${item.lat},${item.lon}-${i}`}
+                key={`${item.lat},${item.lng}-${i}`}
                 style={[styles.hitRow, { borderColor: theme.border }]}
                 onPressIn={() => {
                   selectingRef.current = true
@@ -268,7 +283,7 @@ export function RouteWaypointRow({
                 onPress={() => onSelectHit(item)}
               >
                 <Text style={[styles.hitText, { color: theme.text }]} numberOfLines={2}>
-                  {item.display_name}
+                  {item.nombre}
                 </Text>
               </Pressable>
             ))
@@ -309,10 +324,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  removeTxt: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
   mapPickBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -335,11 +346,12 @@ const styles = StyleSheet.create({
   },
   reorderBtn: {
     paddingHorizontal: 12,
-    paddingVertical: 4,
+    paddingVertical: 6,
     borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   reorderBtnOff: { opacity: 0.35 },
-  reorderTxt: { fontSize: 16, fontWeight: '700' },
   suggestions: {
     marginTop: 4,
     borderWidth: 1,

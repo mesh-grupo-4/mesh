@@ -63,7 +63,7 @@ TaskManager.defineTask(MESH_LOCATION_TASK, async ({ data, error }) => {
     if (!check.ok) continue
     ultimaMuestraTask = check.ultima
 
-    enqueueGpsSample({
+    const queueId = enqueueGpsSample({
       viajeId,
       userId,
       lat: latitude,
@@ -78,6 +78,7 @@ TaskManager.defineTask(MESH_LOCATION_TASK, async ({ data, error }) => {
       lng: longitude,
       accuracy: accuracy ?? undefined,
       recordedAt: new Date(ts).toISOString(),
+      queueId,
     })
   }
 })

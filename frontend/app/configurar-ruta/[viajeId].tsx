@@ -91,6 +91,7 @@ export default function ConfigurarRutaScreen() {
     fitRouteCoords,
     centrarEnMiUbicacion,
     routeLineLatLng,
+    previewLineLatLng,
     waypointsConCoords,
     calculando,
     cargandoRuta,
@@ -142,6 +143,7 @@ export default function ConfigurarRutaScreen() {
         <RouteMapView
           waypoints={waypointsConCoords}
           routeLineLatLng={routeLineLatLng}
+          previewLineLatLng={previewLineLatLng}
           mapStyle={mapStyle}
           initialRegion={regionInicial}
           cameraTarget={cameraTarget}
@@ -149,7 +151,6 @@ export default function ConfigurarRutaScreen() {
           fitRouteCoords={fitRouteCoords}
           mapPickMode={Boolean(modoSeleccionMapa)}
           onRegionChangeComplete={onRegionChangeComplete}
-          calculando={calculando}
           userLocation={ubicacionActual}
         />
 

@@ -49,6 +49,7 @@ import {
   iniciarTrackingViaje,
   solicitarPermisosUbicacion,
 } from '@/lib/tracking/trackingControl'
+import { trackingConfigPorActividad } from '@/lib/tracking/trackingConfig'
 import {
   listarParticipantesViaje,
   obtenerRuta,
@@ -99,6 +100,8 @@ export default function ViajeLiveScreen() {
     null
   )
   const [gpsCenterFailed, setGpsCenterFailed] = useState(false)
+  /** Modo "seguirme": el mapa se recentra solo mientras es true; se pausa si el usuario arrastra a mano. */
+  const [siguiendo, setSiguiendo] = useState(true)
   const [fg, setFg] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
   const [mapStyle, setMapStyle] = useState<MapStyleId>('standard')
@@ -137,6 +140,14 @@ export default function ViajeLiveScreen() {
     if (initialCenter) return { lat: initialCenter.latitude, lng: initialCenter.longitude }
     return null
   }, [memberList, userId, initialCenter])
+
+  // Modo "seguirme": recentra (sin tocar el zoom) cada vez que se actualiza tu
+  // posición, mientras `siguiendo` esté activo. Se pausa solo al arrastrar el
+  // mapa a mano (`onUserDrag`, ver más abajo) y se reactiva con el botón centrar.
+  useEffect(() => {
+    if (!siguiendo || !myPosition) return
+    mapRef.current?.panTo(myPosition.lat, myPosition.lng)
+  }, [siguiendo, myPosition])
 
   const nextStop = useNextStopEta({
     currentPos: myPosition,
@@ -399,7 +410,8 @@ export default function ViajeLiveScreen() {
         await iniciarTrackingViaje(viajeId, userId.trim(), viaje.tipo_actividad)
       }
       try {
-        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High })
+        const cfg = trackingConfigPorActividad(viaje.tipo_actividad)
+        const pos = await Location.getCurrentPositionAsync({ accuracy: cfg.accuracy })
         if (!cancelled) {
           setInitialCenter({ latitude: pos.coords.latitude, longitude: pos.coords.longitude })
         }
@@ -480,13 +492,17 @@ export default function ViajeLiveScreen() {
     }
   }
 
-  /** US1: posición para la parada; si el GPS falla usamos la última conocida. */
+  /** US1: posición para la parada. Reusa `myPosition` (ya mantenida en vivo por el
+   * tracking) en vez de pedir una lectura GPS aislada; solo pide una nueva si
+   * todavía no hay ninguna posición conocida. */
   const posicionActual = async (): Promise<{ lat: number; lng: number } | null> => {
+    if (myPosition) return myPosition
     try {
-      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
+      const cfg = trackingConfigPorActividad(viaje?.tipo_actividad ?? 'otro')
+      const pos = await Location.getCurrentPositionAsync({ accuracy: cfg.accuracy })
       return { lat: pos.coords.latitude, lng: pos.coords.longitude }
     } catch {
-      return myPosition
+      return null
     }
   }
 
@@ -560,6 +576,9 @@ export default function ViajeLiveScreen() {
     void (async () => {
       const activa = await activarSeguirParada()
       if (!activa || !myPosition) return
+      // Encuadre deliberado entre vos y la parada: como un arrastre manual,
+      // pausa el modo "seguirme" para que no se pise con el próximo tick de posición.
+      setSiguiendo(false)
       mapRef.current?.fitBoundsToCoords([
         [myPosition.lat, myPosition.lng],
         [activa.lat, activa.lng],
@@ -629,16 +648,11 @@ export default function ViajeLiveScreen() {
   const bottomCentrar = (altoBotonera || 130) + 12
   const bottomCentrarMapa = bottomCentrar + (incidentePropio ? 168 : 0)
 
+  /** Reactiva el modo "seguirme" y centra ya mismo con la posición que ya tenemos
+   * en memoria — sin pedir una lectura GPS nueva y aislada. */
   const handleCenterOnMe = () => {
-    void (async () => {
-      try {
-        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
-        mapRef.current?.focusOnCoordinate(pos.coords.latitude, pos.coords.longitude)
-      } catch {
-        const me = memberList.find((m) => m.usuarioId === userId)
-        if (me) mapRef.current?.focusOnCoordinate(me.lat, me.lng)
-      }
-    })()
+    setSiguiendo(true)
+    if (myPosition) mapRef.current?.panTo(myPosition.lat, myPosition.lng)
   }
 
   if (!viajeId) {
@@ -673,6 +687,7 @@ export default function ViajeLiveScreen() {
         currentUserId={userId}
         initialCenter={initialCenter}
         mapStyle={mapStyle}
+        onUserDrag={() => setSiguiendo(false)}
       />
 
       <LiveTripHeader
@@ -773,7 +788,11 @@ export default function ViajeLiveScreen() {
         </>
       ) : null}
 
-      <CenterLocationButton onPress={handleCenterOnMe} bottomOffset={bottomCentrarMapa} />
+      <CenterLocationButton
+        onPress={handleCenterOnMe}
+        bottomOffset={bottomCentrarMapa}
+        siguiendo={siguiendo}
+      />
 
       {incidentePropio && paradaActiva ? (
         <EstoyBienBanner

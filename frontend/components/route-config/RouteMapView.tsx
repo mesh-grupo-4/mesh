@@ -1,8 +1,15 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
-import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native'
+import { Platform, StyleSheet, Text, View } from 'react-native'
 
 import { useTheme } from '@/components/MeshUI'
-import { WebMapView, zoomFromLatDelta, type WebMapViewHandle, type MarkerSpec, type LatLng } from '@/components/maps/WebMapView'
+import {
+  WebMapView,
+  zoomFromLatDelta,
+  type WebMapViewHandle,
+  type MarkerSpec,
+  type PolylineSpec,
+  type LatLng,
+} from '@/components/maps/WebMapView'
 import { pinMarkerHtml, PIN_SIZE, PIN_ANCHOR } from '@/components/maps/pinMarker'
 
 import { getMapStyle, type MapStyleId } from './mapStyles'
@@ -22,6 +29,8 @@ export type RouteMapViewHandle = {
 type Props = {
   waypoints: RouteWaypoint[]
   routeLineLatLng: [number, number][] | null
+  /** Línea recta punteada entre waypoints mientras no hay ruta calculada (OSRM aún no respondió o falló). */
+  previewLineLatLng?: [number, number][] | null
   mapStyle: MapStyleId
   initialRegion: {
     latitude: number
@@ -34,10 +43,9 @@ type Props = {
   fitRouteCoords?: { latitude: number; longitude: number }[] | null
   mapPickMode?: boolean
   onRegionChangeComplete?: (region: LatLng) => void
-  calculando?: boolean
   /** Padding inferior al ajustar la ruta (default 280 del editor). */
   fitBottomPadding?: number
-  /** Ubicación GPS actual del usuario (punto azul). */
+  /** Ubicación GPS actual del usuario. */
   userLocation?: { latitude: number; longitude: number } | null
 }
 
@@ -45,6 +53,7 @@ export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function Route
   {
     waypoints,
     routeLineLatLng,
+    previewLineLatLng = null,
     mapStyle,
     initialRegion,
     cameraTarget,
@@ -52,7 +61,6 @@ export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function Route
     fitRouteCoords,
     mapPickMode = false,
     onRegionChangeComplete,
-    calculando = false,
     fitBottomPadding = 280,
     userLocation = null,
   },
@@ -85,6 +93,32 @@ export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function Route
     mapRef.current?.fitBounds(coords, { top: 80, right: 40, bottom: fitBottomPadding, left: 40 }, true)
   }, [fitRouteCoords, routeLineLatLng, mapPickMode, fitBottomPadding])
 
+  const polylines = useMemo((): PolylineSpec[] => {
+    if (mapPickMode) return []
+    if (routeLineLatLng && routeLineLatLng.length > 1) {
+      return [
+        {
+          coords: routeLineLatLng,
+          color: capa.routeStrokeColor,
+          width: ROUTE_POLYLINE_WIDTH,
+          opacity: 0.95,
+        },
+      ]
+    }
+    if (previewLineLatLng && previewLineLatLng.length > 1) {
+      return [
+        {
+          coords: previewLineLatLng,
+          color: capa.routeStrokeColor,
+          width: 3,
+          opacity: 0.55,
+          dashed: true,
+        },
+      ]
+    }
+    return []
+  }, [mapPickMode, routeLineLatLng, previewLineLatLng, capa.routeStrokeColor])
+
   const markers = useMemo<MarkerSpec[]>(() => {
     if (mapPickMode) return []
     return waypoints.filter(waypointTieneCoords).map((w) => ({
@@ -106,21 +140,10 @@ export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function Route
         initialZoom={zoomFromLatDelta(initialRegion.latitudeDelta)}
         tile={capa}
         markers={markers}
-        polyline={
-          routeLineLatLng && routeLineLatLng.length > 1 && !mapPickMode
-            ? { coords: routeLineLatLng, color: theme.accent, width: ROUTE_POLYLINE_WIDTH }
-            : null
-        }
+        polylines={polylines}
         userLocation={userLocation}
         onRegionChangeComplete={onRegionChangeComplete}
       />
-
-      {calculando && !mapPickMode ? (
-        <View style={[styles.loadingOverlay, { backgroundColor: theme.scrim }]} pointerEvents="none">
-          <ActivityIndicator size="large" color={theme.accent} />
-          <Text style={[styles.loadingTxt, { color: theme.text }]}>Calculando ruta…</Text>
-        </View>
-      ) : null}
 
       <View
         style={[
@@ -141,16 +164,6 @@ export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function Route
 })
 
 const styles = StyleSheet.create({
-  loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  loadingTxt: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
   attribution: {
     position: 'absolute',
     left: 8,

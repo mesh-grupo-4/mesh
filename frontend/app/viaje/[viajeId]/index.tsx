@@ -108,7 +108,6 @@ function RutaMapaPreview({ ruta }: { ruta: RutaMapa }) {
         cameraTarget={null}
         fitRouteCoords={fitCoords}
         mapPickMode={false}
-        calculando={false}
       />
     </View>
   )
@@ -623,7 +622,6 @@ export default function ViajeDetalleScreen() {
                     cameraTarget={null}
                     fitRouteCoords={null}
                     mapPickMode={false}
-                    calculando={false}
                   />
                   <View style={styles.noRouteOverlay} pointerEvents="none">
                     <View style={[styles.noRoutePanel, { backgroundColor: theme.surface, borderColor: theme.border }]}>

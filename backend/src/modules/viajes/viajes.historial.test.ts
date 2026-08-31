@@ -110,22 +110,50 @@ describe('US2 — historial de viajes', () => {
 })
 
 describe('US2 — recorrido realizado', () => {
-  it('devuelve la traza del usuario con su cantidad de puntos', async () => {
+  it('devuelve la traza del usuario en un solo tramo con su cantidad de puntos', async () => {
     const m = armarPrisma([], [])
     ;(m.prisma.viaje.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
       creador_id: usuarioId,
       estado: 'finalizado',
     })
     trazaMock.mockResolvedValue([
-      [-31.42, -64.18],
-      [-31.43, -64.19],
+      [
+        [-31.42, -64.18],
+        [-31.43, -64.19],
+      ],
     ])
 
     const recorrido = await new ViajesService(m.prisma).obtenerRecorrido(usuarioId, viajeA)
 
-    expect(recorrido.puntos).toHaveLength(2)
+    expect(recorrido.segmentos).toHaveLength(1)
+    expect(recorrido.segmentos[0]).toHaveLength(2)
     expect(recorrido.cantidad_puntos).toBe(2)
     expect(trazaMock).toHaveBeenCalledWith(m.prisma, viajeA, usuarioId)
+  })
+
+  it('un hueco de señal largo corta la traza en dos tramos en vez de unirlos', async () => {
+    const m = armarPrisma([], [])
+    ;(m.prisma.viaje.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
+      creador_id: usuarioId,
+      estado: 'finalizado',
+    })
+    // Simula lo que devolvería computeTrazaRecorrido cuando el usuario perdió señal
+    // 10-15 minutos: dos tramos en vez de una única línea que salta entre ellos.
+    trazaMock.mockResolvedValue([
+      [
+        [-31.42, -64.18],
+        [-31.421, -64.181],
+      ],
+      [
+        [-31.5, -64.3],
+        [-31.501, -64.301],
+      ],
+    ])
+
+    const recorrido = await new ViajesService(m.prisma).obtenerRecorrido(usuarioId, viajeA)
+
+    expect(recorrido.segmentos).toHaveLength(2)
+    expect(recorrido.cantidad_puntos).toBe(4)
   })
 
   it('un viaje sin GPS devuelve traza vacía en vez de fallar', async () => {
@@ -137,7 +165,7 @@ describe('US2 — recorrido realizado', () => {
     trazaMock.mockResolvedValue([])
 
     const recorrido = await new ViajesService(m.prisma).obtenerRecorrido(usuarioId, viajeA)
-    expect(recorrido.puntos).toEqual([])
+    expect(recorrido.segmentos).toEqual([])
     expect(recorrido.cantidad_puntos).toBe(0)
   })
 

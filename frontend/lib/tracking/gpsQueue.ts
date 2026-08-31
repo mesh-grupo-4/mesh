@@ -33,6 +33,7 @@ function openDb(): SQLiteDatabase {
   return db
 }
 
+/** Devuelve el id de la fila insertada, para poder borrarla puntualmente si el envío en vivo confirma. */
 export function enqueueGpsSample(p: {
   viajeId: string
   userId: string
@@ -40,9 +41,9 @@ export function enqueueGpsSample(p: {
   lng: number
   accuracy: number | null
   ts: number
-}): void {
+}): number {
   const d = openDb()
-  d.runSync(
+  const res = d.runSync(
     'INSERT INTO pending_gps (viaje_id, user_id, lat, lng, accuracy, ts) VALUES (?, ?, ?, ?, ?, ?)',
     p.viajeId,
     p.userId,
@@ -51,6 +52,18 @@ export function enqueueGpsSample(p: {
     p.accuracy,
     p.ts
   )
+  return res.lastInsertRowId
+}
+
+/**
+ * Borra una muestra puntual ya confirmada por el canal en vivo (PUT/socket), para
+ * que `flushGpsQueue` no la reenvíe de nuevo como `offline_sync` y duplique el
+ * punto GPS en el backend. Si el envío en vivo falla, la fila queda intacta y se
+ * sincroniza igual en el próximo flush (RN-038: cero pérdida de registros).
+ */
+export function dequeueGpsSample(id: number): void {
+  const d = openDb()
+  d.runSync('DELETE FROM pending_gps WHERE id = ?', id)
 }
 
 /** Envía lotes `offline_sync` al backend y borra filas confirmadas (RN-038). */
