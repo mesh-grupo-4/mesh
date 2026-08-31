@@ -3,6 +3,7 @@ import { DeviceEventEmitter } from 'react-native'
 
 import { haversineDistanceM } from '@/lib/geo/haversine'
 import { filtrosGpsPorActividad, SEGMENTO_MAX_SEG } from '@/lib/gpsFilters'
+import { obtenerRecorrido } from '@/lib/viajesApi'
 
 type Options = {
   viajeId: string
@@ -34,10 +35,27 @@ export function useBreadcrumbTrail({
   const [segmentos, setSegmentos] = useState<[number, number][][]>([])
   const ultimoRef = useRef<{ lat: number; lng: number; ts: number } | null>(null)
 
+  // Al (re)entrar a un viaje en curso, rehidrata la traza ya recorrida desde el
+  // backend (US2, `/recorrido`): sin esto, salir y volver a entrar a la pantalla
+  // en vivo perdía el dibujo del camino ya hecho hasta que llegara un tick nuevo.
   useEffect(() => {
-    if (!habilitado) return
-    setSegmentos([])
     ultimoRef.current = null
+    if (!habilitado || !viajeId || !userId.trim()) {
+      setSegmentos([])
+      return
+    }
+    let cancelled = false
+    setSegmentos([])
+    void obtenerRecorrido(viajeId, userId.trim())
+      .then((r) => {
+        if (!cancelled) setSegmentos(r.segmentos)
+      })
+      .catch(() => {
+        /* sin conexión: arranca vacío y se completa con los ticks en vivo */
+      })
+    return () => {
+      cancelled = true
+    }
   }, [viajeId, userId, habilitado])
 
   useEffect(() => {

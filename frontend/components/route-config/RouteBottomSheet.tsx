@@ -23,6 +23,7 @@ type Props = {
   distanciaMaxSeparacion: number
   calculando: boolean
   errorRuta: string | null
+  onReintentarCalculo: () => void
   resumenDistancia: string | null
   resumenTiempo: string | null
   confirmarHabilitado: boolean
@@ -49,6 +50,7 @@ export const RouteBottomSheet = forwardRef<RouteBottomSheetHandle, Props>(functi
     distanciaMaxSeparacion,
     calculando,
     errorRuta,
+    onReintentarCalculo,
     resumenDistancia,
     resumenTiempo,
     confirmarHabilitado,
@@ -221,7 +223,14 @@ export const RouteBottomSheet = forwardRef<RouteBottomSheetHandle, Props>(functi
               <Text style={[styles.muted, { color: theme.textDim }]}>Calculando ruta…</Text>
             </View>
           ) : errorRuta ? (
-            <Text style={[styles.errorText, { color: theme.danger }]}>{errorRuta}</Text>
+            <View>
+              <Text style={[styles.errorText, { color: theme.danger }]}>{errorRuta}</Text>
+              <View style={styles.reintentarWrap}>
+                <Btn variant="outline" size="sm" icon="refresh-cw" onPress={onReintentarCalculo}>
+                  Reintentar
+                </Btn>
+              </View>
+            </View>
           ) : resumenDistancia && resumenTiempo ? (
             <>
               <Text style={[styles.resumenStrong, { color: theme.text }]}>
@@ -299,5 +308,6 @@ const styles = StyleSheet.create({
   resumenTxt: { marginTop: 4, fontSize: 15 },
   muted: { fontSize: 14 },
   errorText: { fontSize: 15, fontWeight: '600' },
+  reintentarWrap: { marginTop: 10, alignSelf: 'flex-start' },
   saveBtn: { marginTop: 16 },
 })

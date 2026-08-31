@@ -96,6 +96,7 @@ export default function ConfigurarRutaScreen() {
     calculando,
     cargandoRuta,
     errorRuta,
+    reintentarCalculo,
     resumenDistancia,
     resumenTiempo,
     confirmarHabilitado,
@@ -194,6 +195,7 @@ export default function ConfigurarRutaScreen() {
           distanciaMaxSeparacion={distanciaMaxSeparacion}
           calculando={calculando}
           errorRuta={errorRuta}
+          onReintentarCalculo={reintentarCalculo}
           resumenDistancia={resumenDistancia}
           resumenTiempo={resumenTiempo}
           confirmarHabilitado={confirmarHabilitado}

@@ -48,9 +48,9 @@ function mensajeErrorRuta(e: unknown): string {
   }
   switch (e.kind) {
     case 'network':
-      return 'Sin internet en el dispositivo. El cálculo de ruta usa OpenStreetMap online.'
+      return 'No se pudo contactar al servidor de rutas después de varios intentos. Puede ser tu conexión a internet o que el servidor esté fallando temporalmente: revisá tu internet y volvé a intentar.'
     case 'timeout':
-      return 'El servidor de rutas tardó demasiado en responder. Reintentá.'
+      return 'El servidor de rutas tardó demasiado en responder, algo frecuente en recorridos largos. Reintentá en unos segundos.'
     case 'rate_limit':
       return 'El servidor de rutas está saturado. Esperá unos segundos y reintentá.'
     case 'server':
@@ -121,6 +121,9 @@ export function useRoutePlanner({
   const [routeLineLatLng, setRouteLineLatLng] = useState<[number, number][] | null>(null)
   const [errorRuta, setErrorRuta] = useState<string | null>(null)
   const [calculando, setCalculando] = useState(false)
+  // No forma parte de la key de recálculo: solo sirve para forzar un reintento
+  // manual del mismo pedido cuando el usuario toca "Reintentar" tras una falla.
+  const [reintentoTrigger, setReintentoTrigger] = useState(0)
 
   const [guardando, setGuardando] = useState(false)
 
@@ -328,7 +331,12 @@ export function useRoutePlanner({
     return () => {
       cancel = true
     }
-  }, [rutaKey, movilidad, modoSeleccionMapa, velocidadEsperada])
+  }, [rutaKey, movilidad, modoSeleccionMapa, velocidadEsperada, reintentoTrigger])
+
+  const reintentarCalculo = useCallback(() => {
+    if (!rutaKey || calculando) return
+    setReintentoTrigger((n) => n + 1)
+  }, [rutaKey, calculando])
 
   const actualizarWaypoint = useCallback(
     (
@@ -508,6 +516,7 @@ export function useRoutePlanner({
     calculando,
     cargandoRuta,
     errorRuta,
+    reintentarCalculo,
     resumenDistancia,
     resumenTiempo,
     confirmarHabilitado,

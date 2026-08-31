@@ -1,8 +1,7 @@
 import React from 'react';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Tabs } from 'expo-router';
-import { Platform } from 'react-native';
-import Colors from '@/constants/Colors';
+import { useTheme } from '@/components/MeshUI';
 import { CenterViajesTabButton } from '@/components/CenterViajesTabButton';
 import { MeshTabBar } from '@/components/MeshTabBar';
 
@@ -14,22 +13,25 @@ function TabBarIcon(props: {
 }
 
 export default function TabLayout() {
+  const theme = useTheme();
   return (
     <Tabs
       tabBar={(props) => <MeshTabBar {...props} />}
       screenOptions={{
         headerShown: false,
+        // `height`/`paddingBottom` NO van acá: `MeshTabBar` los calcula sumando
+        // el inset real del dispositivo (barra de navegación de Android, home
+        // indicator de iOS) — un valor fijo dejaba el contenido tapado por los
+        // botones del sistema en equipos con barra de navegación más alta.
         tabBarStyle: {
-          backgroundColor: Colors.dark.background,
+          backgroundColor: theme.background,
           borderTopWidth: 0,
           elevation: 0,
-          height: Platform.OS === 'ios' ? 88 : 64,
-          paddingBottom: Platform.OS === 'ios' ? 24 : 8,
           paddingTop: 8,
           overflow: 'visible',
         },
-        tabBarActiveTintColor: Colors.dark.accent,
-        tabBarInactiveTintColor: Colors.dark.tabIconDefault,
+        tabBarActiveTintColor: theme.accent,
+        tabBarInactiveTintColor: theme.tabIconDefault,
       }}
     >
       <Tabs.Screen

@@ -13,7 +13,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import Colors from '@/constants/Colors';
+import { useTheme } from '@/components/MeshUI';
 
 const HOLD_MS = 280;
 const SLIDE_DISTANCE = 64;
@@ -28,6 +28,7 @@ export function CenterViajesTabButton({
   testID,
 }: BottomTabBarButtonProps) {
   const router = useRouter();
+  const theme = useTheme();
   const focused = accessibilityState?.selected ?? false;
 
   const menuOpen = useSharedValue(0);
@@ -133,12 +134,12 @@ export function CenterViajesTabButton({
       backgroundColor: interpolateColor(
         sel,
         [0, SELECT_THRESHOLD, 1],
-        [Colors.dark.surface, Colors.dark.surface, Colors.dark.accent]
+        [theme.surface, theme.surface, theme.accent]
       ),
       borderColor: interpolateColor(
         sel,
         [0, SELECT_THRESHOLD, 1],
-        [Colors.dark.accentLine, Colors.dark.accentLine, Colors.dark.accent]
+        [theme.accentLine, theme.accentLine, theme.accent]
       ),
       transform: [{ scale: interpolate(sel, [0, 1], [1, 1.06]) }],
     };
@@ -149,12 +150,12 @@ export function CenterViajesTabButton({
       backgroundColor: interpolateColor(
         sel,
         [0, SELECT_THRESHOLD, 1],
-        [Colors.dark.surface, Colors.dark.surface, Colors.dark.accent]
+        [theme.surface, theme.surface, theme.accent]
       ),
       borderColor: interpolateColor(
         sel,
         [0, SELECT_THRESHOLD, 1],
-        [Colors.dark.accentLine, Colors.dark.accentLine, Colors.dark.accent]
+        [theme.accentLine, theme.accentLine, theme.accent]
       ),
       transform: [{ scale: interpolate(sel, [0, 1], [1, 1.06]) }],
     };
@@ -163,14 +164,14 @@ export function CenterViajesTabButton({
     color: interpolateColor(
       activeSide.value === -1 ? slideProgress.value : 0,
       [0, SELECT_THRESHOLD, 1],
-      [Colors.dark.accent, Colors.dark.accent, Colors.dark.onAccent]
+      [theme.accent, theme.accent, theme.onAccent]
     ),
   }));
   const rightTextStyle = useAnimatedStyle(() => ({
     color: interpolateColor(
       activeSide.value === 1 ? slideProgress.value : 0,
       [0, SELECT_THRESHOLD, 1],
-      [Colors.dark.accent, Colors.dark.accent, Colors.dark.onAccent]
+      [theme.accent, theme.accent, theme.onAccent]
     ),
   }));
   const leftIconAccentStyle = useAnimatedStyle(() => ({
@@ -211,28 +212,28 @@ export function CenterViajesTabButton({
         <Animated.View style={[styles.menuStack, menuStyle]} pointerEvents="none">
           <View style={styles.optionsRow}>
             <Animated.View
-              style={[styles.option, { shadowColor: Colors.dark.accent }, leftStyle]}
+              style={[styles.option, { shadowColor: theme.accent }, leftStyle]}
             >
               <View style={styles.optionIconWrap}>
                 <Animated.View style={[styles.optionIconLayer, leftIconAccentStyle]}>
-                  <Feather name="plus" size={15} color={Colors.dark.accent} />
+                  <Feather name="plus" size={15} color={theme.accent} />
                 </Animated.View>
                 <Animated.View style={[styles.optionIconLayer, leftIconOnAccentStyle]}>
-                  <Feather name="plus" size={15} color={Colors.dark.onAccent} />
+                  <Feather name="plus" size={15} color={theme.onAccent} />
                 </Animated.View>
               </View>
               <Animated.Text style={[styles.optionText, leftTextStyle]}>Nuevo viaje</Animated.Text>
             </Animated.View>
 
             <Animated.View
-              style={[styles.option, { shadowColor: Colors.dark.accent }, rightStyle]}
+              style={[styles.option, { shadowColor: theme.accent }, rightStyle]}
             >
               <View style={styles.optionIconWrap}>
                 <Animated.View style={[styles.optionIconLayer, rightIconAccentStyle]}>
-                  <FontAwesome name="qrcode" size={15} color={Colors.dark.accent} />
+                  <FontAwesome name="qrcode" size={15} color={theme.accent} />
                 </Animated.View>
                 <Animated.View style={[styles.optionIconLayer, rightIconOnAccentStyle]}>
-                  <FontAwesome name="qrcode" size={15} color={Colors.dark.onAccent} />
+                  <FontAwesome name="qrcode" size={15} color={theme.onAccent} />
                 </Animated.View>
               </View>
               <Animated.Text style={[styles.optionText, rightTextStyle]}>Escanear QR</Animated.Text>
@@ -240,7 +241,7 @@ export function CenterViajesTabButton({
           </View>
 
           <Animated.Text
-            style={[styles.slideHint, { color: Colors.dark.textMute }, hintSlideStyle]}
+            style={[styles.slideHint, { color: theme.textMute }, hintSlideStyle]}
           >
             Deslizá a una opción
           </Animated.Text>
@@ -249,21 +250,24 @@ export function CenterViajesTabButton({
         <Animated.View
           style={[
             styles.circle,
-            focused ? styles.circleFocused : styles.circleInactive,
+            { shadowColor: theme.accent },
+            focused
+              ? { backgroundColor: theme.accent, borderWidth: 2, borderColor: 'rgba(255, 255, 255, 0.22)' }
+              : { backgroundColor: theme.accentWeak, borderWidth: 2, borderColor: theme.accentLine },
             circleStyle,
           ]}
         >
           <FontAwesome
             name="map"
             size={24}
-            color={focused ? Colors.dark.onAccent : Colors.dark.accent}
+            color={focused ? theme.onAccent : theme.accent}
           />
         </Animated.View>
 
         <Text
           style={[
             styles.label,
-            { color: focused ? Colors.dark.accent : Colors.dark.tabIconDefault },
+            { color: focused ? theme.accent : theme.tabIconDefault },
           ]}
         >
           Viajes
@@ -339,9 +343,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 2,
+    // `shadowColor` (iOS) va inline junto al resto de colores del tema.
     ...Platform.select({
       ios: {
-        shadowColor: Colors.dark.accent,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.45,
         shadowRadius: 8,
@@ -351,16 +355,6 @@ const styles = StyleSheet.create({
       },
       default: {},
     }),
-  },
-  circleFocused: {
-    backgroundColor: Colors.dark.accent,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.22)',
-  },
-  circleInactive: {
-    backgroundColor: Colors.dark.accentWeak,
-    borderWidth: 2,
-    borderColor: Colors.dark.accentLine,
   },
   label: {
     fontSize: 11,
