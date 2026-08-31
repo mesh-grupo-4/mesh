@@ -82,6 +82,8 @@ tags:
     description: Búsqueda de personas, solicitudes de amistad y listado de amigos.
   - name: Geocoding
     description: Búsqueda de lugares y geocodificación inversa vía Nominatim/OpenStreetMap, proxiado por el backend.
+  - name: Routing
+    description: Cálculo de ruta por calles/senderos vía OSRM/Valhalla, proxiado por el backend.
   - name: Grupos
     description: |
       Grupos persistentes, sus integrantes e invitaciones.
@@ -144,6 +146,10 @@ paths:
     $ref: './paths/geocoding.yaml#/BuscarLugares'
   /api/geocoding/reverse:
     $ref: './paths/geocoding.yaml#/ReverseGeocoding'
+
+  # ── Routing ────────────────────────────────────────────────────────────────
+  /api/routing/calcular:
+    $ref: './paths/routing.yaml#/CalcularRuta'
 
   # ── Grupos ─────────────────────────────────────────────────────────────────
   /api/grupos:

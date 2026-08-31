@@ -94,6 +94,11 @@ ErrorCode:
     - GEOCODING_TIMEOUT
     - GEOCODING_UPSTREAM_ERROR
     - GEOCODING_RATE_LIMIT
+    # Routing — proxy a OSRM/Valhalla (src/modules/routing/)
+    - ROUTING_TIMEOUT
+    - ROUTING_UPSTREAM_ERROR
+    - ROUTING_RATE_LIMIT
+    - ROUTING_NO_ROUTE
     # Login de la documentación (src/docs/login.ts) — fuera del contrato de la app
     - INVALID_CREDENTIALS
     - USER_DISABLED
@@ -2998,4 +3003,65 @@ GeocodingReverseResult:
         `display_name` de Nominatim. Si viene vacío, el backend devuelve
         `Punto en mapa` como fallback.
       example: Plaza San Martín, Córdoba, Argentina
+  additionalProperties: false
+
+# ── Routing ──────────────────────────────────────────────────────────────────
+# Proxy del backend hacia OSRM/Valhalla (src/modules/routing/). Ídem Geocoding:
+# el dispositivo móvil no le pega directo a estos hosts porque falla intermitente.
+
+PerfilRuta:
+  type: string
+  enum: [walking, cycling, driving]
+  description: Perfil de movilidad para el cálculo (a pie, bici o auto/moto).
+
+CalcularRutaInput:
+  type: object
+  required:
+    - perfil
+    - puntos
+  properties:
+    perfil:
+      $ref: '#/PerfilRuta'
+    puntos:
+      type: array
+      minItems: 2
+      maxItems: 30
+      description: Waypoints en el orden en que se recorren (origen, paradas, destino).
+      items:
+        type: object
+        required: [lat, lng]
+        properties:
+          lat:
+            type: number
+            format: double
+            minimum: -90
+            maximum: 90
+          lng:
+            type: number
+            format: double
+            minimum: -180
+            maximum: 180
+        additionalProperties: false
+  additionalProperties: false
+
+RutaCalculada:
+  type: object
+  description: Ruta real (no línea recta) entre los waypoints pedidos.
+  required:
+    - linestring
+    - distancia_m
+    - duracion_seg
+  properties:
+    linestring:
+      $ref: '#/GeoJsonLineString'
+    distancia_m:
+      type: number
+      format: double
+      description: Distancia total del trazado, en metros.
+      example: 2728
+    duracion_seg:
+      type: number
+      format: double
+      description: Duración estimada del recorrido, en segundos, según el proveedor.
+      example: 1750
   additionalProperties: false

@@ -1,28 +1,19 @@
-import polyline from '@mapbox/polyline'
-
+import { apiUrl, bearerAuthHeaders } from './apiClient'
 import type { GeoJsonLineString } from './viajesTypes'
 
 export type MobilityProfile = 'walking' | 'cycling' | 'driving'
 
-/** Demo público OSRM — solo para desarrollo/MVP; en producción conviene instancia propia. */
-const OSRM_BASE = 'https://router.project-osrm.org'
-
 /**
- * El demo público tarda más cuanto más larga es la ruta (más nodos a explorar,
- * sobre todo en los perfiles walking/cycling). Un timeout fijo corto hace que
- * rutas largas fallen seguido y, peor, un reset de conexión del lado del
- * servidor por tardar demasiado se reporta como error de "red" (no como
- * timeout), lo cual termina mostrándole al usuario un mensaje de "sin
- * internet" incorrecto. Escalamos el timeout según la distancia en línea
- * recta entre el primer y el último punto.
+ * El cálculo de ruta lo hace el backend (`POST /api/routing/calcular`), no el
+ * dispositivo: React Native en Android (OkHttp) falla de forma intermitente
+ * pegándole directo a los demos públicos de OSRM/Valhalla — mismo problema que
+ * ya se había resuelto para la búsqueda de lugares en `lib/nominatim.ts`. El
+ * backend prueba OSRM y, si no responde, reintenta con Valhalla antes de
+ * devolver el error; acá solo hay un salto de red hacia nuestro propio server.
  */
-const OSRM_TIMEOUT_BASE_MS = 20000
-const OSRM_TIMEOUT_MAX_MS = 45000
-const OSRM_TIMEOUT_MS_POR_KM = 150
-
-/** Fallas transitorias: vale la pena reintentar antes de rendirse. */
-const OSRM_MAX_REINTENTOS = 2
-const OSRM_ESPERA_ENTRE_REINTENTOS_MS = 1500
+const TIMEOUT_BASE_MS = 15000
+const TIMEOUT_MAX_MS = 50000
+const TIMEOUT_MS_POR_KM = 200
 
 function distanciaHaversineKm(
   [lng1, lat1]: [number, number],
@@ -37,13 +28,11 @@ function distanciaHaversineKm(
   return 2 * R * Math.asin(Math.sqrt(a))
 }
 
+/** El backend puede tardar hasta ~40s probando dos proveedores en rutas largas:
+ * el timeout del lado del cliente tiene que darle margen de sobra a eso. */
 function timeoutParaRuta(pointsLngLat: [number, number][]): number {
-  const km = distanciaHaversineKm(pointsLngLat[0], pointsLngLat[pointsLngLat.length - 1])
-  return Math.min(OSRM_TIMEOUT_MAX_MS, OSRM_TIMEOUT_BASE_MS + km * OSRM_TIMEOUT_MS_POR_KM)
-}
-
-function esperar(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+  const km = distanciaHaversineKm(pointsLngLat[0]!, pointsLngLat[pointsLngLat.length - 1]!)
+  return Math.min(TIMEOUT_MAX_MS, TIMEOUT_BASE_MS + km * TIMEOUT_MS_POR_KM)
 }
 
 export type OsrmRouteResult = {
@@ -74,87 +63,23 @@ export class OsrmError extends Error {
   }
 }
 
-type OsrmResponse = {
-  routes?: Array<{
-    distance: number
-    duration: number
-    geometry: string
-  }>
-  code?: string
+type CalcularRutaResponse = {
+  linestring: GeoJsonLineString
+  distancia_m: number
+  duracion_seg: number
 }
 
-/** Un solo intento de pedido a OSRM, sin reintentos. */
-async function intentarCalcularRutaOsrm(
-  profile: MobilityProfile,
-  pointsLngLat: [number, number][],
-  timeoutMs: number
-): Promise<OsrmRouteResult> {
-  const coordStr = pointsLngLat.map(([lng, lat]) => `${lng},${lat}`).join(';')
-  const url = `${OSRM_BASE}/route/v1/${profile}/${coordStr}?overview=full`
-
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
-
-  let res: Response
-  try {
-    res = await fetch(url, { signal: controller.signal })
-  } catch (e) {
-    // `AbortError` = se venció nuestro timeout; cualquier otra falla de fetch puede ser
-    // tanto falta de red del dispositivo como el servidor cortando la conexión por
-    // tardar demasiado en resolver una ruta larga — no asumimos cuál de las dos es.
-    if (e instanceof Error && e.name === 'AbortError') {
-      throw new OsrmError('timeout', `El servidor de rutas no respondió en ${timeoutMs / 1000} s`)
-    }
-    throw new OsrmError('network', 'No se pudo contactar al servidor de rutas')
-  } finally {
-    clearTimeout(timeoutId)
-  }
-
-  if (!res.ok) {
-    if (res.status === 429) {
-      throw new OsrmError('rate_limit', 'Demasiados pedidos al servidor de rutas', res.status)
-    }
-    throw new OsrmError('server', `El servidor de rutas respondió HTTP ${res.status}`, res.status)
-  }
-
-  const json = (await res.json()) as OsrmResponse
-  const route = json.routes?.[0]
-  if (!route?.geometry) {
-    throw new OsrmError('no_route', `Sin ruta transitable (code: ${json.code ?? 'desconocido'})`)
-  }
-
-  const decoded = polyline.decode(route.geometry)
-  if (decoded.length < 2) {
-    throw new OsrmError('no_route', 'La ruta devuelta no tiene suficientes puntos')
-  }
-
-  const coordinates: [number, number][] = decoded.map(([lat, lng]) => [lng, lat])
-  const polylineLatLng: [number, number][] = decoded.map(([lat, lng]) => [lat, lng])
-
-  return {
-    linestring: {
-      type: 'LineString',
-      coordinates,
-    },
-    polylineLatLng,
-    distanceM: route.distance,
-    durationSec: route.duration,
-  }
-}
-
-/** Fallas transitorias del demo público: vale la pena reintentar antes de rendirse. */
-function esReintentable(e: unknown): boolean {
-  return e instanceof OsrmError && (e.kind === 'network' || e.kind === 'timeout' || e.kind === 'server')
+function kindDesdeRespuesta(status: number, code: string | undefined): OsrmErrorKind {
+  if (status === 429 || code === 'ROUTING_RATE_LIMIT') return 'rate_limit'
+  if (status === 422 || code === 'ROUTING_NO_ROUTE') return 'no_route'
+  if (status === 504 || code === 'ROUTING_TIMEOUT') return 'timeout'
+  return 'server'
 }
 
 /**
- * Calcula ruta por calles/senderos entre waypoints en orden (lng,lat para OSRM).
- * Decodifica la polyline encoded con @mapbox/polyline.
- *
- * El timeout escala con la distancia del recorrido y, ante fallas transitorias
- * (red, timeout o error de servidor), reintenta antes de rendirse: el demo
- * público suele fallar así en rutas largas y no significa que el dispositivo
- * esté sin internet.
+ * Calcula ruta por calles/senderos entre waypoints en orden (lng,lat para OSRM,
+ * el mismo orden que usa el resto de este módulo históricamente). Le pega al
+ * backend, que internamente decide qué proveedor usar.
  */
 export async function calcularRutaOsrm(
   profile: MobilityProfile,
@@ -165,20 +90,61 @@ export async function calcularRutaOsrm(
   }
 
   const timeoutMs = timeoutParaRuta(pointsLngLat)
+  const body = JSON.stringify({
+    perfil: profile,
+    puntos: pointsLngLat.map(([lng, lat]) => ({ lat, lng })),
+  })
 
-  let ultimoError: unknown
-  for (let intento = 0; intento <= OSRM_MAX_REINTENTOS; intento++) {
+  const intentar = async (forceRefresh: boolean): Promise<Response> => {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
     try {
-      return await intentarCalcularRutaOsrm(profile, pointsLngLat, timeoutMs)
+      const auth = await bearerAuthHeaders(forceRefresh)
+      return await fetch(apiUrl('/api/routing/calcular'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...auth },
+        body,
+        signal: controller.signal,
+      })
     } catch (e) {
-      ultimoError = e
-      if (!esReintentable(e) || intento === OSRM_MAX_REINTENTOS) {
-        throw e
+      // `AbortError` = se venció nuestro timeout esperando al backend; cualquier
+      // otra falla acá es que el dispositivo no llega a NUESTRO servidor (no a
+      // OSRM/Valhalla, eso ya lo intentó el backend antes de responder).
+      if (e instanceof Error && e.name === 'AbortError') {
+        throw new OsrmError('timeout', `El servidor no respondió en ${timeoutMs / 1000} s`)
       }
-      await esperar(OSRM_ESPERA_ENTRE_REINTENTOS_MS)
+      throw new OsrmError('network', 'No se pudo contactar al servidor')
+    } finally {
+      clearTimeout(timeoutId)
     }
   }
-  throw ultimoError
+
+  // Mismo patrón de reintento por token vencido que `meshFetchAuthed`, pero con
+  // el timeout propio de este endpoint (puede tardar bastante más que el resto
+  // de la API porque el backend intenta dos proveedores externos).
+  let res = await intentar(false)
+  if (res.status === 401) res = await intentar(true)
+
+  if (!res.ok) {
+    const errorBody = (await res.json().catch(() => null)) as { error?: string; code?: string } | null
+    throw new OsrmError(
+      kindDesdeRespuesta(res.status, errorBody?.code),
+      errorBody?.error ?? `El servidor de rutas respondió HTTP ${res.status}`,
+      res.status
+    )
+  }
+
+  const data = (await res.json()) as CalcularRutaResponse
+  const polylineLatLng: [number, number][] = data.linestring.coordinates.map(
+    ([lng, lat]): [number, number] => [lat, lng]
+  )
+
+  return {
+    linestring: data.linestring,
+    polylineLatLng,
+    distanceM: data.distancia_m,
+    durationSec: data.duracion_seg,
+  }
 }
 
 /** Mapea tipo de actividad del viaje al perfil OSRM más cercano. */

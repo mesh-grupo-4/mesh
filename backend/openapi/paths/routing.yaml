@@ -1,0 +1,93 @@
+# Módulo Routing — src/modules/routing/
+# Router: routing.router.ts · Controller: routing.controller.ts · Service: routing.service.ts
+#
+# Proxy hacia OSRM/Valhalla (routers públicos basados en OpenStreetMap). Existe
+# porque React Native en Android (OkHttp) falla de forma intermitente al pegarle
+# directo a estos hosts desde el dispositivo — el mismo problema que ya se
+# resolvió para Nominatim en el módulo Geocoding. El backend prueba primero el
+# demo de OSRM y, si no responde, reintenta con Valhalla (infraestructura
+# distinta) antes de rendirse.
+
+CalcularRuta:
+  post:
+    operationId: calcularRuta
+    summary: Calcular ruta por calles/senderos entre waypoints
+    description: |
+      Calcula el trazado real (no línea recta) entre 2 o más puntos, en el orden
+      dado, para el perfil de movilidad indicado. Internamente prueba primero el
+      demo público de OSRM y, si falla de forma transitoria (timeout o error de
+      upstream), reintenta con Valhalla antes de devolver el error.
+    tags:
+      - Routing
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/CalcularRutaInput'
+          example:
+            perfil: walking
+            puntos:
+              - lat: -31.4201
+                lng: -64.1888
+              - lat: -31.41
+                lng: -64.175
+    responses:
+      '200':
+        description: Ruta calculada.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/RutaCalculada'
+            example:
+              linestring:
+                type: LineString
+                coordinates:
+                  - [-64.1888, -31.4201]
+                  - [-64.175, -31.41]
+              distancia_m: 2728
+              duracion_seg: 1750
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '422':
+        description: Ningún proveedor encontró una ruta transitable entre esos puntos (`ROUTING_NO_ROUTE`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: No hay una ruta transitable entre esos puntos
+              code: ROUTING_NO_ROUTE
+      '429':
+        description: Los proveedores de rutas respondieron `429 Too Many Requests` (`ROUTING_RATE_LIMIT`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Demasiados pedidos de ruta, esperá un momento
+              code: ROUTING_RATE_LIMIT
+      '502':
+        description: |
+          No se pudo contactar a ningún proveedor de rutas, o respondieron con un
+          error distinto de `429` (`ROUTING_UPSTREAM_ERROR`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: El servicio de rutas respondió con un error
+              code: ROUTING_UPSTREAM_ERROR
+      '504':
+        description: Ningún proveedor respondió dentro del timeout (`ROUTING_TIMEOUT`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: El servicio de rutas no respondió a tiempo
+              code: ROUTING_TIMEOUT
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'

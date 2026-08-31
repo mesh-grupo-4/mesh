@@ -48,9 +48,9 @@ function mensajeErrorRuta(e: unknown): string {
   }
   switch (e.kind) {
     case 'network':
-      return 'No se pudo contactar al servidor de rutas después de varios intentos. Puede ser tu conexión a internet o que el servidor esté fallando temporalmente: revisá tu internet y volvé a intentar.'
+      return 'No se pudo contactar al servidor. Revisá tu conexión a internet y volvé a intentar.'
     case 'timeout':
-      return 'El servidor de rutas tardó demasiado en responder, algo frecuente en recorridos largos. Reintentá en unos segundos.'
+      return 'El servidor tardó demasiado en calcular la ruta, algo frecuente en recorridos largos. Reintentá en unos segundos.'
     case 'rate_limit':
       return 'El servidor de rutas está saturado. Esperá unos segundos y reintentá.'
     case 'server':
