@@ -8,11 +8,13 @@ const viajeId = '44444444-4444-4444-4444-444444444444'
 
 function createMockPrisma() {
   const viajeFindUnique = vi.fn()
+  const viajeUpdate = vi.fn().mockResolvedValue({})
   const viajeIntegranteFindUnique = vi.fn()
   const viajeIntegranteCreate = vi.fn()
   const viajeIntegranteUpdate = vi.fn()
   const transaction = vi.fn(async (fn: (tx: unknown) => unknown) =>
     fn({
+      viaje: { update: viajeUpdate },
       viajeIntegrante: {
         findUnique: viajeIntegranteFindUnique,
         create: viajeIntegranteCreate,
@@ -34,12 +36,15 @@ function createMockPrisma() {
   return {
     prisma: prisma as unknown as PrismaClient,
     viajeFindUnique,
+    viajeUpdate,
     viajeIntegranteFindUnique,
     viajeIntegranteCreate,
     viajeIntegranteUpdate,
     transaction,
   }
 }
+
+const creadorId = '11111111-1111-1111-1111-111111111111'
 
 describe('ViajesService.unirsePorQr', () => {
   beforeEach(() => {
@@ -53,6 +58,8 @@ describe('ViajesService.unirsePorQr', () => {
     viajeFindUnique.mockResolvedValue({
       id: viajeId,
       estado: 'planificado',
+      es_grupal: true,
+      creador_id: creadorId,
     })
     viajeIntegranteFindUnique.mockResolvedValue(null)
     viajeIntegranteCreate.mockResolvedValue({})
@@ -78,6 +85,8 @@ describe('ViajesService.unirsePorQr', () => {
     viajeFindUnique.mockResolvedValue({
       id: viajeId,
       estado: 'planificado',
+      es_grupal: true,
+      creador_id: creadorId,
     })
     viajeIntegranteFindUnique.mockResolvedValue({ estado: 'confirmado' })
 
@@ -95,6 +104,8 @@ describe('ViajesService.unirsePorQr', () => {
     viajeFindUnique.mockResolvedValue({
       id: viajeId,
       estado: 'planificado',
+      es_grupal: true,
+      creador_id: creadorId,
     })
     viajeIntegranteFindUnique.mockResolvedValue({ estado: 'pendiente' })
     viajeIntegranteUpdate.mockResolvedValue({})
@@ -104,6 +115,46 @@ describe('ViajesService.unirsePorQr', () => {
 
     expect(result).toEqual({ viajeId, yaEraParticipante: false })
     expect(viajeIntegranteUpdate).toHaveBeenCalled()
+  })
+
+  it('promueve a grupal si alguien se suma por QR a un viaje creado como individual', async () => {
+    const { prisma, viajeFindUnique, viajeUpdate, viajeIntegranteFindUnique, viajeIntegranteCreate } =
+      createMockPrisma()
+
+    viajeFindUnique.mockResolvedValue({
+      id: viajeId,
+      estado: 'planificado',
+      es_grupal: false,
+      creador_id: creadorId,
+    })
+    viajeIntegranteFindUnique.mockResolvedValue(null)
+    viajeIntegranteCreate.mockResolvedValue({})
+
+    const service = new ViajesService(prisma)
+    const result = await service.unirsePorQr(usuarioId, viajeId)
+
+    expect(result).toEqual({ viajeId, yaEraParticipante: false })
+    expect(viajeUpdate).toHaveBeenCalledWith({
+      where: { id: viajeId },
+      data: { es_grupal: true, alerta_incidente_habilitada: true },
+    })
+  })
+
+  it('no promueve a grupal si el propio creador escanea su QR', async () => {
+    const { prisma, viajeFindUnique, viajeUpdate, viajeIntegranteFindUnique } = createMockPrisma()
+
+    viajeFindUnique.mockResolvedValue({
+      id: viajeId,
+      estado: 'planificado',
+      es_grupal: false,
+      creador_id: creadorId,
+    })
+    viajeIntegranteFindUnique.mockResolvedValue({ estado: 'confirmado' })
+
+    const service = new ViajesService(prisma)
+    await service.unirsePorQr(creadorId, viajeId)
+
+    expect(viajeUpdate).not.toHaveBeenCalled()
   })
 
   it('lanza 410 con mensaje RN-015 si el viaje ya comenzó', async () => {

@@ -397,6 +397,8 @@ export class ViajesService {
       select: {
         id: true,
         estado: true,
+        es_grupal: true,
+        creador_id: true,
       },
     })
 
@@ -409,7 +411,19 @@ export class ViajesService {
     }
 
     const result = await this.prisma.$transaction(async (tx) => {
-      return unirUsuarioAlViaje(tx, viajeId, usuarioId, 'qr')
+      const membresia = await unirUsuarioAlViaje(tx, viajeId, usuarioId, 'qr')
+      // El líder puede compartir el QR de un viaje creado como "individual"
+      // (RN-016 no lo impide). Si alguien realmente se suma, el viaje pasa a
+      // ser grupal de hecho: si no promovemos `es_grupal`, RN-035 (atraso),
+      // RN-036 (detención sospechosa) y "pedir parada" (US2) quedan
+      // deshabilitados sin que el líder tenga forma de corregirlo.
+      if (!viaje.es_grupal && usuarioId !== viaje.creador_id) {
+        await tx.viaje.update({
+          where: { id: viajeId },
+          data: { es_grupal: true, alerta_incidente_habilitada: true },
+        })
+      }
+      return membresia
     })
 
     return { viajeId, yaEraParticipante: result.yaEraParticipante }
