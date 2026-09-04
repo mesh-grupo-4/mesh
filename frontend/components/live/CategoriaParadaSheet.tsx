@@ -5,18 +5,29 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useTheme } from '@/components/MeshUI'
 import { DragToDismiss } from '@/components/DragToDismiss'
+import { tamanoOutdoor } from '@/constants/Typography'
+import { uiConfigPorActividad } from '@/lib/activityUi'
 import { CATEGORIAS_PARADA, type CategoriaParadaApi } from '@/lib/paradasApi'
+import type { TipoActividadApi } from '@/lib/viajesApi'
 
 /** Selector de categoría al registrar una parada voluntaria (RN-022). */
 type Props = {
   visible: boolean
   onSeleccionar: (categoria: CategoriaParadaApi) => void
   onCancelar: () => void
+  tipoActividad?: TipoActividadApi
 }
 
-export function CategoriaParadaSheet({ visible, onSeleccionar, onCancelar }: Props) {
-  const theme = useTheme()
+export function CategoriaParadaSheet({
+  visible,
+  onSeleccionar,
+  onCancelar,
+  tipoActividad = 'otro',
+}: Props) {
+  const { altoContraste, escalaBotones } = uiConfigPorActividad(tipoActividad)
+  const theme = useTheme(altoContraste)
   const insets = useSafeAreaInsets()
+  const alturaOpcion = Math.round(58 * escalaBotones)
 
   const accidente = CATEGORIAS_PARADA.find((c) => c.id === 'accidente')
   const resto = CATEGORIAS_PARADA.filter((c) => c.id !== 'accidente')
@@ -38,7 +49,7 @@ export function CategoriaParadaSheet({ visible, onSeleccionar, onCancelar }: Pro
           <View style={[styles.asa, { backgroundColor: theme.borderStrong }]} />
 
           <Text style={[styles.titulo, { color: theme.text }]}>¿Por qué parás?</Text>
-          <Text style={[styles.subtitulo, { color: theme.textDim }]}>
+          <Text style={[styles.subtitulo, { color: theme.textDim, fontSize: tamanoOutdoor(13.5) }]}>
             Se le avisa al grupo con el motivo.
           </Text>
 
@@ -46,7 +57,7 @@ export function CategoriaParadaSheet({ visible, onSeleccionar, onCancelar }: Pro
             <Pressable
               style={({ pressed }) => [
                 styles.accidente,
-                { backgroundColor: theme.danger },
+                { backgroundColor: theme.danger, minHeight: Math.round(66 * escalaBotones) },
                 pressed && styles.presionado,
               ]}
               onPress={() => onSeleccionar(accidente.id)}
@@ -58,7 +69,9 @@ export function CategoriaParadaSheet({ visible, onSeleccionar, onCancelar }: Pro
               </View>
               <View style={styles.accidenteTxtWrap}>
                 <Text style={styles.accidenteTitulo}>Accidente</Text>
-                <Text style={styles.accidenteSub}>Avisa a todo el grupo al instante</Text>
+                <Text style={[styles.accidenteSub, { fontSize: tamanoOutdoor(12.5) }]}>
+                  Avisa a todo el grupo al instante
+                </Text>
               </View>
               <Feather name="chevron-right" size={22} color="rgba(255,255,255,0.9)" />
             </Pressable>
@@ -70,7 +83,7 @@ export function CategoriaParadaSheet({ visible, onSeleccionar, onCancelar }: Pro
                 key={c.id}
                 style={({ pressed }) => [
                   styles.opcion,
-                  { backgroundColor: theme.surface2, borderColor: theme.border },
+                  { backgroundColor: theme.surface2, borderColor: theme.border, minHeight: alturaOpcion },
                   pressed && [styles.presionado, { borderColor: theme.accentLine }],
                 ]}
                 onPress={() => onSeleccionar(c.id)}
@@ -80,7 +93,10 @@ export function CategoriaParadaSheet({ visible, onSeleccionar, onCancelar }: Pro
                 <View style={[styles.opcionEmojiWrap, { backgroundColor: theme.surface }]}>
                   <Text style={styles.emoji}>{c.emoji}</Text>
                 </View>
-                <Text style={[styles.opcionTxt, { color: theme.text }]} numberOfLines={2}>
+                <Text
+                  style={[styles.opcionTxt, { color: theme.text, fontSize: tamanoOutdoor(14.5) }]}
+                  numberOfLines={2}
+                >
                   {c.label}
                 </Text>
               </Pressable>

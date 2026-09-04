@@ -1,6 +1,9 @@
 import { Feather } from '@expo/vector-icons'
 import { Pressable, StyleSheet } from 'react-native'
 
+import { uiConfigPorActividad } from '@/lib/activityUi'
+import type { TipoActividadApi } from '@/lib/viajesApi'
+
 type Props = {
   onPress: () => void
   bottomOffset?: number
@@ -8,6 +11,7 @@ type Props = {
   align?: 'left' | 'right'
   /** true mientras el mapa te sigue automáticamente (modo "seguirme" activo). */
   siguiendo?: boolean
+  tipoActividad?: TipoActividadApi
 }
 
 export function CenterLocationButton({
@@ -15,19 +19,23 @@ export function CenterLocationButton({
   bottomOffset = 120,
   align = 'left',
   siguiendo = false,
+  tipoActividad = 'otro',
 }: Props) {
+  const { escalaBotones } = uiConfigPorActividad(tipoActividad)
+  const tam = Math.round(48 * escalaBotones)
+
   return (
     <Pressable
       style={[
         styles.btn,
-        { bottom: bottomOffset },
+        { bottom: bottomOffset, width: tam, height: tam, borderRadius: tam / 2 },
         align === 'left' ? styles.left : styles.right,
         siguiendo && styles.btnActivo,
       ]}
       onPress={onPress}
       accessibilityLabel={siguiendo ? 'Siguiéndote en el mapa' : 'Centrar en mi ubicación'}
     >
-      <Feather name="crosshair" size={22} color={siguiendo ? '#fff' : '#111827'} />
+      <Feather name="crosshair" size={Math.round(22 * escalaBotones)} color={siguiendo ? '#fff' : '#111827'} />
     </Pressable>
   )
 }
@@ -35,9 +43,6 @@ export function CenterLocationButton({
 const styles = StyleSheet.create({
   btn: {
     position: 'absolute',
-    width: 48,
-    height: 48,
-    borderRadius: 24,
     backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',

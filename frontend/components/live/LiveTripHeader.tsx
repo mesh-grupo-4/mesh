@@ -6,7 +6,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { AvatarFallback } from '@/components/AvatarFallback'
 import { useTheme } from '@/components/MeshUI'
+import { tamanoOutdoor } from '@/constants/Typography'
+import { uiConfigPorActividad } from '@/lib/activityUi'
 import { formatDistanceShort, formatEtaLabel, type NextStopInfo } from '@/lib/geo/nextStop'
+import type { TipoActividadApi } from '@/lib/viajesApi'
 
 import { LiveMembersBar, type LiveMember } from './LiveMembersBar'
 
@@ -19,6 +22,7 @@ type Props = {
   onBack: () => void
   /** Para que el mapa esconda sus controles flotantes mientras el panel está abierto. */
   onExpandedChange?: (expanded: boolean) => void
+  tipoActividad?: TipoActividadApi
 }
 
 const MAX_AVATARES_COMPACTOS = 4
@@ -31,8 +35,11 @@ export function LiveTripHeader({
   currentUserId,
   onBack,
   onExpandedChange,
+  tipoActividad = 'otro',
 }: Props) {
-  const theme = useTheme()
+  const { altoContraste, escalaBotones } = uiConfigPorActividad(tipoActividad)
+  const theme = useTheme(altoContraste)
+  const backBtnSize = Math.round(40 * escalaBotones)
   const insets = useSafeAreaInsets()
   const [expandido, setExpandido] = useState(false)
   const [showEta, setShowEta] = useState(false)
@@ -92,11 +99,17 @@ export function LiveTripHeader({
             }}
             style={({ pressed }) => [
               styles.backBtn,
-              { backgroundColor: pressed ? theme.surface2 : theme.surface, borderColor: theme.border },
+              {
+                width: backBtnSize,
+                height: backBtnSize,
+                borderRadius: backBtnSize / 2,
+                backgroundColor: pressed ? theme.surface2 : theme.surface,
+                borderColor: theme.border,
+              },
             ]}
             accessibilityLabel="Volver"
           >
-            <Feather name="arrow-left" size={20} color={theme.text} />
+            <Feather name="arrow-left" size={Math.round(20 * escalaBotones)} color={theme.text} />
           </Pressable>
 
           <View style={styles.titleCenter}>
@@ -114,7 +127,7 @@ export function LiveTripHeader({
                 key="eta-compact"
                 entering={FadeIn.duration(200)}
                 exiting={FadeOut.duration(150)}
-                style={[styles.subTitle, { color: theme.textDim }]}
+                style={[styles.subTitle, { color: theme.textDim, fontSize: tamanoOutdoor(12) }]}
                 numberOfLines={1}
               >
                 {lineaCompacta}
@@ -191,7 +204,10 @@ export function LiveTripHeader({
             entering={FadeIn.duration(220)}
             style={[styles.expandedBlock, { borderTopColor: theme.border }]}
           >
-            <Text style={[styles.etaExpanded, { color: theme.textDim }]} numberOfLines={2}>
+            <Text
+              style={[styles.etaExpanded, { color: theme.textDim, fontSize: tamanoOutdoor(13) }]}
+              numberOfLines={2}
+            >
               {etaLine}
             </Text>
             {members.length > 0 ? (
@@ -231,9 +247,6 @@ const styles = StyleSheet.create({
     minHeight: 40,
   },
   backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',

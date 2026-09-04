@@ -1,5 +1,8 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native'
 
+import { uiConfigPorActividad } from '@/lib/activityUi'
+import type { TipoActividadApi } from '@/lib/viajesApi'
+
 /** Acceso al historial de alertas desde el mapa, con contador.
  *  Al líder le suma el botón de crear, para no obligarlo a entrar al historial. */
 type Props = {
@@ -8,20 +11,28 @@ type Props = {
   onPress: () => void
   /** Solo se pasa cuando quien mira puede crear alertas (líder, viaje en curso). */
   onCrear?: () => void
+  tipoActividad?: TipoActividadApi
 }
 
-export function AlertasButton({ cantidad, topOffset, onPress, onCrear }: Props) {
+export function AlertasButton({ cantidad, topOffset, onPress, onCrear, tipoActividad = 'otro' }: Props) {
+  const { escalaBotones } = uiConfigPorActividad(tipoActividad)
+  const tam = Math.round(46 * escalaBotones)
+
   return (
     <>
       <Pressable
-        style={({ pressed }) => [styles.boton, { top: topOffset }, pressed && styles.presionado]}
+        style={({ pressed }) => [
+          styles.boton,
+          { top: topOffset, width: tam, height: tam, borderRadius: tam / 2 },
+          pressed && styles.presionado,
+        ]}
         onPress={onPress}
         accessibilityRole="button"
         accessibilityLabel={
           cantidad > 0 ? `Ver alertas del viaje, ${cantidad} en total` : 'Ver alertas del viaje'
         }
       >
-        <Text style={styles.icono}>🔔</Text>
+        <Text style={[styles.icono, { fontSize: Math.round(20 * escalaBotones) }]}>🔔</Text>
         {cantidad > 0 ? (
           <View style={styles.contador}>
             <Text style={styles.contadorTxt}>{cantidad > 99 ? '99+' : cantidad}</Text>
@@ -34,7 +45,7 @@ export function AlertasButton({ cantidad, topOffset, onPress, onCrear }: Props) 
           style={({ pressed }) => [
             styles.boton,
             styles.crear,
-            { top: topOffset + 54 },
+            { top: topOffset + tam + 8, width: tam, height: tam, borderRadius: tam / 2 },
             pressed && styles.presionado,
           ]}
           onPress={onCrear}
@@ -52,9 +63,6 @@ const styles = StyleSheet.create({
   boton: {
     position: 'absolute',
     left: 12,
-    width: 46,
-    height: 46,
-    borderRadius: 23,
     backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',

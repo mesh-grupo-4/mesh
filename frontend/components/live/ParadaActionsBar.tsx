@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react'
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
 
 import { useTheme } from '@/components/MeshUI'
+import { uiConfigPorActividad } from '@/lib/activityUi'
+import type { TipoActividadApi } from '@/lib/viajesApi'
 
 /** Botonera de paradas del viaje en curso (US1–US3).
  *
@@ -23,6 +25,7 @@ type Props = {
   onRetomar: () => void
   onEstoyBien?: () => void
   onSolicitar: () => void
+  tipoActividad?: TipoActividadApi
 }
 
 function transcurrido(desde: string): string {
@@ -46,8 +49,11 @@ export function ParadaActionsBar({
   onRetomar,
   onEstoyBien,
   onSolicitar,
+  tipoActividad = 'otro',
 }: Props) {
-  const theme = useTheme()
+  const { altoContraste, escalaBotones } = uiConfigPorActividad(tipoActividad)
+  const theme = useTheme(altoContraste)
+  const alturaBoton = Math.round(58 * escalaBotones)
   const [, forzarRender] = useState(0)
 
   // Cronómetro de la parada en curso.
@@ -65,6 +71,7 @@ export function ParadaActionsBar({
         <Pressable
           style={({ pressed }) => [
             styles.boton,
+            { minHeight: alturaBoton },
             esIncidenteDetectado ? styles.estoyBien : styles.retomar,
             pressed && styles.presionado,
             ocupado && styles.deshabilitado,
@@ -96,6 +103,7 @@ export function ParadaActionsBar({
       <Pressable
         style={({ pressed }) => [
           styles.boton,
+          { minHeight: alturaBoton },
           styles.detenerse,
           pressed && styles.presionado,
           ocupado && styles.deshabilitado,
@@ -113,6 +121,7 @@ export function ParadaActionsBar({
         <Pressable
           style={({ pressed }) => [
             styles.boton,
+            { minHeight: alturaBoton },
             styles.solicitar,
             solicitudPendiente && styles.solicitarPendiente,
             pressed && styles.presionado,

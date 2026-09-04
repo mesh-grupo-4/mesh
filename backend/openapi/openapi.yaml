@@ -109,6 +109,11 @@ tags:
       Checklist de preparativos pre-ruta (RN-026). Es personal: cada integrante tiene
       el suyo dentro del viaje, con ítems sugeridos según la actividad, ítems base que
       define el creador y los que agrega cada uno. Reutilizable entre viajes.
+  - name: Gastos
+    description: |
+      Gastos compartidos del viaje, prorrateados entre quienes elige cada integrante
+      al registrarlos. El balance final —quién le debe a quién— se calcula al
+      finalizar el viaje.
   - name: Documentación
     description: |
       Herramientas de esta página, no del contrato que consume la app: el spec crudo y
@@ -262,6 +267,14 @@ paths:
     $ref: './paths/checklist.yaml#/ImportarChecklist'
   /api/viajes/{viajeId}/checklist/{itemId}:
     $ref: './paths/checklist.yaml#/ChecklistItemPorId'
+
+  # ── Gastos compartidos y liquidación ─────────────────────────────────────────
+  /api/viajes/{viajeId}/gastos:
+    $ref: './paths/gastos.yaml#/GastosColeccion'
+  /api/viajes/{viajeId}/gastos/balance:
+    $ref: './paths/gastos.yaml#/BalanceGastosRecurso'
+  /api/viajes/{viajeId}/gastos/{gastoId}:
+    $ref: './paths/gastos.yaml#/GastoPorId'
 
   # ── Herramientas de la documentación ─────────────────────────────────────────
   /api/docs.json:

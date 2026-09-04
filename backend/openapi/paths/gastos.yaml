@@ -1,0 +1,352 @@
+# Módulo Gastos — src/modules/gastos/
+# Router: montado sobre viajesRouter (gastos.router.ts) · Controller: gastos.controller.ts
+#
+# Gastos compartidos del viaje y su liquidación. Cualquier integrante confirmado
+# (o el creador) puede registrar un gasto mientras el viaje está `planificado` o
+# `en_curso`, eligiendo explícitamente entre quiénes se prorratea —no es un split
+# fijo para todo el viaje—. Solo quien lo registró puede editarlo o borrarlo.
+#
+# El balance —quién le debe a quién— se calcula on-demand a partir de todos los
+# gastos, y solo está disponible una vez que el viaje está `finalizado`: antes de
+# eso responde 409 INVALID_STATE.
+#
+# Ver gastos y el balance está habilitado también para quien ya `salió` del viaje
+# (pudo haber compartido gastos antes de irse), no solo para confirmados.
+
+GastosColeccion:
+  get:
+    operationId: listarGastos
+    summary: Listar los gastos compartidos del viaje
+    description: |
+      Devuelve todos los gastos del viaje, más recientes primero. Cada uno trae
+      `monto_por_persona` ya calculado y `puede_editar` según quien consulta
+      (RN-030: solo el autor edita o borra).
+    tags:
+      - Gastos
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '200':
+        description: Gastos del viaje.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/Gasto'
+            example:
+              - id: 6d7e8f90-ab1c-4d2e-9f3a-4b5c6d7e8f90
+                viaje_id: 3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d
+                usuario_id: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d
+                usuario_nombre: Lucía Gómez
+                monto: 8500
+                descripcion: Nafta para las motos
+                participantes:
+                  - usuario_id: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d
+                    nombre: Lucía Gómez
+                  - usuario_id: 5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f
+                    nombre: Ana Pérez
+                monto_por_persona: 4250
+                puede_editar: true
+                created_at: '2026-08-21T14:00:00.000Z'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: No participa del viaje (`FORBIDDEN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Sin acceso a este viaje
+              code: FORBIDDEN
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+  post:
+    operationId: registrarGasto
+    summary: Registrar un gasto compartido
+    description: |
+      Registra un gasto pagado por quien consulta, prorrateado entre
+      `participantesIds` (cada id debe ser el creador del viaje o alguien que
+      llegó a estar `confirmado`, incluye a quien después salió).
+    tags:
+      - Gastos
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/CrearGastoRequest'
+          example:
+            monto: 8500
+            descripcion: Nafta para las motos
+            participantesIds:
+              - 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d
+              - 5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f
+    responses:
+      '201':
+        description: Gasto registrado.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Gasto'
+      '400':
+        description: |
+          Entrada inválida (`VALIDATION_ERROR`), o alguno de `participantesIds`
+          no forma parte del viaje (`PARTICIPANTE_INVALIDO`).
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '../components/schemas.yaml#/ValidationError'
+                - $ref: '../components/schemas.yaml#/Error'
+            examples:
+              validacion:
+                summary: Validación Zod fallida
+                value:
+                  error: Validación fallida
+                  code: VALIDATION_ERROR
+                  details:
+                    formErrors: []
+                    fieldErrors:
+                      monto:
+                        - Number must be greater than 0
+              participanteInvalido:
+                value:
+                  error: Uno de los participantes elegidos no forma parte del viaje
+                  code: PARTICIPANTE_INVALIDO
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: No participa del viaje (`FORBIDDEN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Sin acceso a este viaje
+              code: FORBIDDEN
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '409':
+        description: El viaje ya finalizó (`INVALID_STATE`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: El viaje ya finalizó
+              code: INVALID_STATE
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+GastoPorId:
+  patch:
+    operationId: actualizarGasto
+    summary: Editar un gasto propio
+    description: Solo quien registró el gasto puede editarlo, y solo mientras el viaje no finalizó.
+    tags:
+      - Gastos
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+      - $ref: '../components/parameters.yaml#/GastoId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/ActualizarGastoRequest'
+          example:
+            monto: 9000
+    responses:
+      '200':
+        description: Gasto actualizado.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Gasto'
+      '400':
+        description: |
+          Entrada inválida (`VALIDATION_ERROR`), o alguno de `participantesIds`
+          no forma parte del viaje (`PARTICIPANTE_INVALIDO`).
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '../components/schemas.yaml#/ValidationError'
+                - $ref: '../components/schemas.yaml#/Error'
+            examples:
+              validacion:
+                summary: Validación Zod fallida
+                value:
+                  error: Validación fallida
+                  code: VALIDATION_ERROR
+                  details:
+                    formErrors:
+                      - Nada para actualizar
+                    fieldErrors: {}
+              participanteInvalido:
+                value:
+                  error: Uno de los participantes elegidos no forma parte del viaje
+                  code: PARTICIPANTE_INVALIDO
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: El gasto es de otro integrante (`FORBIDDEN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Solo podés editar tus propios gastos
+              code: FORBIDDEN
+      '404':
+        description: |
+          El viaje no existe (`VIAJE_NOT_FOUND`), o el gasto no existe o es de
+          otro viaje (`GASTO_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            examples:
+              viaje:
+                value:
+                  error: Viaje no encontrado
+                  code: VIAJE_NOT_FOUND
+              gasto:
+                value:
+                  error: Gasto no encontrado
+                  code: GASTO_NOT_FOUND
+      '409':
+        description: El viaje ya finalizó (`INVALID_STATE`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: El viaje ya finalizó
+              code: INVALID_STATE
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+  delete:
+    operationId: eliminarGasto
+    summary: Borrar un gasto propio
+    description: Solo quien registró el gasto puede borrarlo, y solo mientras el viaje no finalizó.
+    tags:
+      - Gastos
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+      - $ref: '../components/parameters.yaml#/GastoId'
+    responses:
+      '204':
+        description: Gasto eliminado. Sin cuerpo.
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: El gasto es de otro integrante (`FORBIDDEN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Solo podés eliminar tus propios gastos
+              code: FORBIDDEN
+      '404':
+        description: |
+          El viaje no existe (`VIAJE_NOT_FOUND`), o el gasto no existe o es de
+          otro viaje (`GASTO_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            examples:
+              viaje:
+                value:
+                  error: Viaje no encontrado
+                  code: VIAJE_NOT_FOUND
+              gasto:
+                value:
+                  error: Gasto no encontrado
+                  code: GASTO_NOT_FOUND
+      '409':
+        description: El viaje ya finalizó (`INVALID_STATE`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: El viaje ya finalizó
+              code: INVALID_STATE
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+BalanceGastosRecurso:
+  get:
+    operationId: obtenerBalanceGastos
+    summary: Consultar el balance del viaje (quién le debe a quién)
+    description: |
+      Liquidación calculada on-demand a partir de todos los gastos cargados,
+      con el mínimo de transferencias necesarias para saldar cuentas (algoritmo
+      "settle up": empareja el mayor deudor con el mayor acreedor).
+
+      Solo disponible una vez que el viaje está `finalizado`, momento en el que
+      los gastos ya no se pueden editar ni borrar.
+    tags:
+      - Gastos
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '200':
+        description: Balance del viaje.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/BalanceGastos'
+            example:
+              por_persona:
+                - usuario_id: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d
+                  nombre: Lucía Gómez
+                  pagado: 8500
+                  debe: 4250
+                  saldo: 4250
+                - usuario_id: 5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f
+                  nombre: Ana Pérez
+                  pagado: 0
+                  debe: 4250
+                  saldo: -4250
+              transacciones:
+                - de_id: 5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f
+                  de_nombre: Ana Pérez
+                  para_id: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d
+                  para_nombre: Lucía Gómez
+                  monto: 4250
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: No participa del viaje (`FORBIDDEN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Sin acceso a este viaje
+              code: FORBIDDEN
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '409':
+        description: El viaje todavía no finalizó (`INVALID_STATE`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: El balance se genera cuando el viaje finaliza
+              code: INVALID_STATE
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'

@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as Location from 'expo-location'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
+import { StatusBar } from 'expo-status-bar'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
@@ -26,7 +27,9 @@ import type { LiveMember } from '@/components/live/LiveMembersBar'
 import { LiveTripHeader } from '@/components/live/LiveTripHeader'
 import { MapStylePicker } from '@/components/route-config/MapStylePicker'
 import type { MapStyleId } from '@/components/route-config/mapStyles'
+import { useTheme } from '@/components/MeshUI'
 import { DEV_USER_ID, API_BASE_URL } from '@/constants/Config'
+import { tamanoOutdoor } from '@/constants/Typography'
 import { useAuth } from '@/context/AuthContext'
 import { useBreadcrumbTrail } from '@/hooks/useBreadcrumbTrail'
 import { useLiveLocations } from '@/hooks/useLiveLocations'
@@ -35,8 +38,10 @@ import { useAlertas } from '@/hooks/useAlertas'
 import { useParadas } from '@/hooks/useParadas'
 import { useNextStopEta } from '@/hooks/useNextStopEta'
 import { useTripMetrics } from '@/hooks/useTripMetrics'
+import { uiConfigPorActividad } from '@/lib/activityUi'
 import type { RouteStop } from '@/lib/geo/nextStop'
 import { dividirRutaPorAvance } from '@/lib/geo/routeProgress'
+import { useHapticaAlEntrar } from '@/lib/haptics'
 import { nombreCompleto } from '@/lib/nombres'
 import type { TipoAlertaApi } from '@/lib/alertasApi'
 import type { CategoriaParadaApi } from '@/lib/paradasApi'
@@ -188,6 +193,12 @@ export default function ViajeLiveScreen() {
 
   const esLider = viaje != null && userId === viaje.creador_id
 
+  // RN-052: interfaz adaptativa por actividad (pantalla completa/alto contraste en
+  // moto, botones grandes, háptica prioritaria en trekking/running).
+  const tipoActividad = (viaje?.tipo_actividad ?? 'otro') as TipoActividadApi
+  const uiConfig = uiConfigPorActividad(tipoActividad)
+  const theme = useTheme(uiConfig.altoContraste)
+
   // Solo tiene sentido pedirle una parada al líder si hay líder distinto de uno
   // mismo y el viaje es grupal: en una salida individual no hay a quién pedirle.
   const puedeSolicitarParada = viaje != null && viaje.es_grupal && !esLider
@@ -214,7 +225,7 @@ export default function ViajeLiveScreen() {
     userId,
     esLider,
     habilitado: viaje?.estado === 'en_curso',
-    tipoActividad: (viaje?.tipo_actividad ?? 'otro') as TipoActividadApi,
+    tipoActividad,
     myPosition,
   })
 
@@ -245,7 +256,7 @@ export default function ViajeLiveScreen() {
     viajeId: viajeId ?? '',
     userId,
     habilitado: Boolean(viajeId && userId.trim()),
-    tipoActividad: (viaje?.tipo_actividad ?? 'otro') as TipoActividadApi,
+    tipoActividad,
     myPosition,
   })
 
@@ -645,6 +656,12 @@ export default function ViajeLiveScreen() {
   // Sin medir, el botón de centrar quedaba debajo de la botonera al aparecer
   // la fila de paradas.
   const incidentePropio = paradaActiva?.tipo === 'incidente_detectado'
+
+  // Trekking/running priorizan la vibración sobre mirar la pantalla (RN-052).
+  useHapticaAlEntrar(Boolean(alertaEntrante), tipoActividad, 'alerta')
+  useHapticaAlEntrar(Boolean(paradaEntrante), tipoActividad, 'alerta')
+  useHapticaAlEntrar(Boolean(llegada), tipoActividad, 'exito')
+  useHapticaAlEntrar(incidentePropio, tipoActividad, 'alerta')
   const bottomCentrar = (altoBotonera || 130) + 12
   const bottomCentrarMapa = bottomCentrar + (incidentePropio ? 168 : 0)
 
@@ -674,8 +691,9 @@ export default function ViajeLiveScreen() {
   }
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: theme.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
+      <StatusBar hidden={uiConfig.pantallaCompleta} />
       <LiveMapView
         ref={mapRef}
         routeRemaining={routeRemaining}
@@ -698,6 +716,7 @@ export default function ViajeLiveScreen() {
         currentUserId={userId}
         onBack={() => router.back()}
         onExpandedChange={setHeaderExpandido}
+        tipoActividad={tipoActividad}
       />
 
       {/* Pila de banners: se apilan solos y su alto real corre a los botones
@@ -708,24 +727,24 @@ export default function ViajeLiveScreen() {
         onLayout={(e) => setAltoBanners(e.nativeEvent.layout.height)}
       >
         {fg === false ? (
-          <View style={styles.warnBanner}>
-            <Text style={styles.warnTxt}>
+          <View style={[styles.warnBanner, { backgroundColor: theme.dangerWeak }]}>
+            <Text style={[styles.warnTxt, { color: theme.danger, fontSize: tamanoOutdoor(13) }]}>
               Ubicación desconocida: tu posición no se compartirá hasta que otorgues permisos.
             </Text>
           </View>
         ) : null}
 
         {!realtimeOk && isSupabaseConfigured() ? (
-          <View style={styles.infoBanner}>
-            <Text style={styles.infoTxt}>
+          <View style={[styles.infoBanner, { backgroundColor: theme.accentWeak }]}>
+            <Text style={[styles.infoTxt, { color: theme.text, fontSize: tamanoOutdoor(12) }]}>
               Realtime Supabase desconectado; usamos WebSocket y refresco cada 15 s.
             </Text>
           </View>
         ) : null}
 
         {__DEV__ && Platform.OS === 'ios' && API_BASE_URL.includes('localhost') ? (
-          <View style={styles.infoBanner}>
-            <Text style={styles.infoTxt}>
+          <View style={[styles.infoBanner, { backgroundColor: theme.accentWeak }]}>
+            <Text style={[styles.infoTxt, { color: theme.text, fontSize: tamanoOutdoor(12) }]}>
               iOS no puede usar localhost. Agregá EXPO_PUBLIC_API_URL=http://IP_PC:3000 en .env
             </Text>
           </View>
@@ -782,6 +801,7 @@ export default function ViajeLiveScreen() {
             topOffset={topFlotantes + 14}
             onPress={irAAlertas}
             onCrear={puedeCrearAlertas ? () => setComponiendoAlerta(true) : undefined}
+            tipoActividad={tipoActividad}
           />
 
           <MapStylePicker value={mapStyle} onChange={setMapStyle} topAbsolute={topFlotantes + 14} light />
@@ -792,6 +812,7 @@ export default function ViajeLiveScreen() {
         onPress={handleCenterOnMe}
         bottomOffset={bottomCentrarMapa}
         siguiendo={siguiendo}
+        tipoActividad={tipoActividad}
       />
 
       {incidentePropio && paradaActiva ? (
@@ -821,12 +842,14 @@ export default function ViajeLiveScreen() {
         onFinalizar={confirmarFinalizar}
         onSalir={confirmarSalir}
         onHeightChange={setAltoBotonera}
+        tipoActividad={tipoActividad}
       />
 
       <CategoriaParadaSheet
         visible={eligiendoCategoria}
         onSeleccionar={handleCategoriaElegida}
         onCancelar={() => setEligiendoCategoria(false)}
+        tipoActividad={tipoActividad}
       />
 
       <CrearAlertaSheet
@@ -843,7 +866,6 @@ export default function ViajeLiveScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#f3f4f6',
   },
   center: {
     flex: 1,
@@ -863,21 +885,17 @@ const styles = StyleSheet.create({
     zIndex: 30,
   },
   warnBanner: {
-    backgroundColor: '#fef3c7',
     padding: 10,
     borderRadius: 10,
   },
   warnTxt: {
-    color: '#92400e',
     fontSize: 13,
   },
   infoBanner: {
-    backgroundColor: '#dbeafe',
     padding: 8,
     borderRadius: 8,
   },
   infoTxt: {
-    color: '#1e40af',
     fontSize: 12,
   },
 })

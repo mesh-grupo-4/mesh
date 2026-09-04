@@ -154,6 +154,8 @@ model Usuario {
   solicitudes_resueltas  SolicitudParada[] @relation("SolicitudParadaResolutor")
   alertas_creadas        Alerta[]          @relation("AlertaAutor")
   checklist_items        ChecklistItem[]
+  gastos_registrados     Gasto[]             @relation("GastoAutor")
+  gastos_participados    GastoParticipante[] @relation("GastoParticipante")
 
   @@map("usuario")
 }
@@ -254,6 +256,7 @@ model Viaje {
   solicitudes_parada SolicitudParada[]
   alertas            Alerta[]
   checklist_items    ChecklistItem[]
+  gastos             Gasto[]
 
   @@index([creador_id])
   @@map("viaje")
@@ -550,4 +553,35 @@ model ChecklistItem {
   @@index([viaje_id, usuario_id, orden])
   @@index([origen_item_id])
   @@map("checklist_item")
+}
+
+/// Gasto compartido cargado por un integrante durante el viaje (US: liquidación
+/// grupal). Se prorratea entre quienes elige quien lo registra, no entre todo el
+/// viaje: por eso `GastoParticipante` guarda la lista por gasto, no un split fijo.
+model Gasto {
+  id          String   @id @default(uuid()) @db.Uuid
+  viaje_id    String   @map("viaje_id") @db.Uuid
+  usuario_id  String   @map("usuario_id") @db.Uuid
+  monto       Float
+  descripcion String   @db.VarChar(140)
+  created_at  DateTime @default(now()) @map("created_at")
+
+  viaje         Viaje               @relation(fields: [viaje_id], references: [id], onDelete: Cascade)
+  usuario       Usuario             @relation("GastoAutor", fields: [usuario_id], references: [id], onDelete: Cascade)
+  participantes GastoParticipante[]
+
+  @@index([viaje_id, created_at])
+  @@map("gasto")
+}
+
+/// A quién se le prorratea un gasto en particular (elegido al registrarlo).
+model GastoParticipante {
+  gasto_id   String @map("gasto_id") @db.Uuid
+  usuario_id String @map("usuario_id") @db.Uuid
+
+  gasto   Gasto   @relation(fields: [gasto_id], references: [id], onDelete: Cascade)
+  usuario Usuario @relation("GastoParticipante", fields: [usuario_id], references: [id], onDelete: Cascade)
+
+  @@id([gasto_id, usuario_id])
+  @@map("gasto_participante")
 }

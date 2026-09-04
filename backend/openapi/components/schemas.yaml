@@ -84,6 +84,9 @@ ErrorCode:
     # Checklist de preparativos (RN-026)
     - ITEM_OBLIGATORIO
     - MISMO_VIAJE
+    # Gastos compartidos
+    - PARTICIPANTE_INVALIDO
+    - GASTO_NOT_FOUND
     # Links de ruta compartida (RN-085–088)
     - QR_EXPIRED
     - SHARE_REVOKED
@@ -2960,6 +2963,179 @@ ImportarChecklistResponse:
       type: array
       items:
         $ref: '#/ChecklistItem'
+  additionalProperties: false
+
+# ── Gastos compartidos y liquidación (src/modules/gastos/) ──────────────────────
+
+CrearGastoRequest:
+  type: object
+  required: [monto, descripcion, participantesIds]
+  properties:
+    monto:
+      type: number
+      format: double
+      minimum: 0
+      exclusiveMinimum: true
+      example: 8500
+    descripcion:
+      type: string
+      minLength: 1
+      maxLength: 140
+      example: Nafta para las motos
+    participantesIds:
+      type: array
+      minItems: 1
+      description: |
+        Entre quiénes se prorratea este gasto en particular (elegidos al
+        registrarlo, no un split fijo para todo el viaje). Cada id debe ser el
+        creador del viaje o un integrante que llegó a estar `confirmado`
+        (incluye a quien después salió).
+      items:
+        type: string
+        format: uuid
+  additionalProperties: false
+
+ActualizarGastoRequest:
+  type: object
+  description: Todos los campos son opcionales, pero debe venir al menos uno.
+  properties:
+    monto:
+      type: number
+      format: double
+      minimum: 0
+      exclusiveMinimum: true
+    descripcion:
+      type: string
+      minLength: 1
+      maxLength: 140
+    participantesIds:
+      type: array
+      minItems: 1
+      items:
+        type: string
+        format: uuid
+  additionalProperties: false
+
+GastoParticipanteRef:
+  type: object
+  required: [usuario_id, nombre]
+  properties:
+    usuario_id:
+      type: string
+      format: uuid
+    nombre:
+      type: string
+
+Gasto:
+  type: object
+  description: |
+    Gasto compartido registrado por un integrante. `usuario_id` es quien lo
+    cargó y lo pagó; `participantes` es la lista —elegida al registrarlo— entre
+    quienes se prorratea `monto` (ver `monto_por_persona`).
+  required:
+    - id
+    - viaje_id
+    - usuario_id
+    - usuario_nombre
+    - monto
+    - descripcion
+    - participantes
+    - monto_por_persona
+    - puede_editar
+    - created_at
+  properties:
+    id:
+      type: string
+      format: uuid
+    viaje_id:
+      type: string
+      format: uuid
+    usuario_id:
+      type: string
+      format: uuid
+    usuario_nombre:
+      type: string
+    monto:
+      type: number
+      format: double
+    descripcion:
+      type: string
+    participantes:
+      type: array
+      items:
+        $ref: '#/GastoParticipanteRef'
+    monto_por_persona:
+      type: number
+      format: double
+      description: '`monto` dividido entre `participantes.length`, redondeado a centavos.'
+    puede_editar:
+      type: boolean
+      description: 'true si quien consulta es `usuario_id` (RN-030: solo el autor edita/borra).'
+    created_at:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+SaldoIntegranteGasto:
+  type: object
+  required: [usuario_id, nombre, pagado, debe, saldo]
+  properties:
+    usuario_id:
+      type: string
+      format: uuid
+    nombre:
+      type: string
+    pagado:
+      type: number
+      format: double
+      description: Suma de los gastos que esta persona registró y pagó.
+    debe:
+      type: number
+      format: double
+      description: Suma de su parte prorrateada en todos los gastos del viaje.
+    saldo:
+      type: number
+      format: double
+      description: '`pagado - debe`. Positivo: le deben. Negativo: debe.'
+
+TransaccionLiquidacion:
+  type: object
+  description: Una transferencia sugerida para saldar cuentas, ya minimizada.
+  required: [de_id, de_nombre, para_id, para_nombre, monto]
+  properties:
+    de_id:
+      type: string
+      format: uuid
+    de_nombre:
+      type: string
+    para_id:
+      type: string
+      format: uuid
+    para_nombre:
+      type: string
+    monto:
+      type: number
+      format: double
+
+BalanceGastos:
+  type: object
+  description: |
+    Liquidación del viaje, calculada on-demand a partir de todos los gastos
+    cargados (no hay nada persistido aparte). Solo disponible una vez que el
+    viaje está `finalizado`.
+  required: [por_persona, transacciones]
+  properties:
+    por_persona:
+      type: array
+      items:
+        $ref: '#/SaldoIntegranteGasto'
+    transacciones:
+      type: array
+      description: |
+        Cantidad mínima de transferencias para saldar todas las cuentas
+        (algoritmo "settle up": empareja el mayor deudor con el mayor acreedor).
+      items:
+        $ref: '#/TransaccionLiquidacion'
   additionalProperties: false
 
 # ── Geocoding ────────────────────────────────────────────────────────────────

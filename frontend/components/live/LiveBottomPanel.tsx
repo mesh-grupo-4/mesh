@@ -4,6 +4,9 @@ import { LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useTheme } from '@/components/MeshUI'
+import { tamanoOutdoor } from '@/constants/Typography'
+import { uiConfigPorActividad } from '@/lib/activityUi'
+import type { TipoActividadApi } from '@/lib/viajesApi'
 
 import { ParadaActionsBar } from './ParadaActionsBar'
 import { TripMetricsPanel } from './TripMetricsPanel'
@@ -28,6 +31,7 @@ type Props = {
   onFinalizar: () => void
   onSalir: () => void
   onHeightChange?: (height: number) => void
+  tipoActividad?: TipoActividadApi
 }
 
 export function LiveBottomPanel({
@@ -48,8 +52,11 @@ export function LiveBottomPanel({
   onFinalizar,
   onSalir,
   onHeightChange,
+  tipoActividad = 'otro',
 }: Props) {
-  const theme = useTheme()
+  const { altoContraste, escalaBotones } = uiConfigPorActividad(tipoActividad)
+  const theme = useTheme(altoContraste)
+  const endBarMinHeight = Math.round(48 * escalaBotones)
   const insets = useSafeAreaInsets()
   const [metricsHeight, setMetricsHeight] = useState(88)
   const [actionsHeight, setActionsHeight] = useState(120)
@@ -119,6 +126,7 @@ export function LiveBottomPanel({
               onRetomar={onRetomar}
               onEstoyBien={onEstoyBien}
               onSolicitar={onSolicitar}
+              tipoActividad={tipoActividad}
             />
           ) : null}
 
@@ -126,6 +134,7 @@ export function LiveBottomPanel({
             style={({ pressed }) => [
               styles.endBar,
               {
+                minHeight: endBarMinHeight,
                 borderTopColor: esLider ? theme.dangerWeak : theme.border,
                 backgroundColor: esLider ? theme.dangerWeak : theme.surface2,
               },
@@ -140,7 +149,7 @@ export function LiveBottomPanel({
             <Text
               style={[
                 styles.endBarText,
-                { color: esLider ? theme.danger : theme.textDim },
+                { color: esLider ? theme.danger : theme.textDim, fontSize: tamanoOutdoor(15 * escalaBotones) },
               ]}
             >
               {accion ? 'Procesando...' : esLider ? 'Finalizar viaje' : 'Salir del viaje'}

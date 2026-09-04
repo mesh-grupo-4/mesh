@@ -24,9 +24,11 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Colors from '@/constants/Colors';
 
-// Hook auxiliar para acceder al tema activo
-export function useTheme() {
+// Hook auxiliar para acceder al tema activo.
+// `altoContraste` fuerza la paleta de alto contraste (RN-052, modo moto) sin importar light/dark.
+export function useTheme(altoContraste = false) {
   const scheme = useColorScheme() ?? 'dark';
+  if (altoContraste) return Colors.highContrast;
   return Colors[scheme];
 }
 
@@ -64,7 +66,7 @@ interface BtnProps {
   children: React.ReactNode;
   onPress?: () => void;
   variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'danger-outline';
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg' | 'xl';
   block?: boolean;
   disabled?: boolean;
   loading?: boolean;
@@ -167,6 +169,9 @@ export function Btn({
         return { paddingVertical: 8, paddingHorizontal: 14, fontSize: 13.5 };
       case 'lg':
         return { paddingVertical: 16, paddingHorizontal: 22, fontSize: 16.5 };
+      // Botones principales en modo moto (RN-052: una sola mano, con guantes).
+      case 'xl':
+        return { paddingVertical: 22, paddingHorizontal: 28, fontSize: 20 };
       case 'md':
       default:
         return { paddingVertical: 13, paddingHorizontal: 18, fontSize: 15 };

@@ -7,6 +7,7 @@ import { rutasCompartirHandlers } from '../rutas-compartidas/rutas-compartidas.r
 import { paradasHandlers } from '../paradas/paradas.router'
 import { alertasHandlers } from '../alertas/alertas.router'
 import { checklistHandlers } from '../checklist/checklist.router'
+import { gastosHandlers } from '../gastos/gastos.router'
 
 const service = new ViajesService(prisma)
 const c = crearViajesController(service)
@@ -67,3 +68,10 @@ viajesRouter.post('/:viajeId/checklist', ...checklistHandlers.agregar)
 viajesRouter.post('/:viajeId/checklist/importar', ...checklistHandlers.importar)
 viajesRouter.patch('/:viajeId/checklist/:itemId', ...checklistHandlers.actualizar)
 viajesRouter.delete('/:viajeId/checklist/:itemId', ...checklistHandlers.eliminar)
+
+// Gastos compartidos y liquidación del viaje.
+viajesRouter.get('/:viajeId/gastos', ...gastosHandlers.listar)
+viajesRouter.post('/:viajeId/gastos', ...gastosHandlers.registrar)
+viajesRouter.get('/:viajeId/gastos/balance', ...gastosHandlers.balance)
+viajesRouter.patch('/:viajeId/gastos/:gastoId', ...gastosHandlers.actualizar)
+viajesRouter.delete('/:viajeId/gastos/:gastoId', ...gastosHandlers.eliminar)

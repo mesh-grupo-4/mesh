@@ -106,6 +106,16 @@ ChecklistItemId:
     format: uuid
   example: 5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f
 
+GastoId:
+  name: gastoId
+  in: path
+  required: true
+  description: UUID del gasto compartido del viaje.
+  schema:
+    type: string
+    format: uuid
+  example: 6d7e8f90-ab1c-4d2e-9f3a-4b5c6d7e8f90
+
 GeocodingQuery:
   name: q
   in: query

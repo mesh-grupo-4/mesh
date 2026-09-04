@@ -940,7 +940,11 @@ export default function ViajeDetalleScreen() {
               const puedeChecklist =
                 viaje.estado !== 'finalizado' &&
                 (esLider || viaje.mi_participacion?.estado === 'confirmado')
-              if (!puedeInvitar && !puedeChecklist) return null
+              const puedeGastos =
+                viaje.es_grupal &&
+                viaje.estado !== 'finalizado' &&
+                (esLider || viaje.mi_participacion?.estado === 'confirmado')
+              if (!puedeInvitar && !puedeChecklist && !puedeGastos) return null
               return (
                 <View style={styles.preTripActions}>
                   {puedeInvitar && (
@@ -967,6 +971,19 @@ export default function ViajeDetalleScreen() {
                       }
                     >
                       Checklist de preparativos
+                    </Btn>
+                  )}
+                  {puedeGastos && (
+                    <Btn
+                      variant="secondary"
+                      block
+                      size="sm"
+                      icon="dollar-sign"
+                      onPress={() =>
+                        router.push({ pathname: '/viaje/[viajeId]/gastos', params: { viajeId } })
+                      }
+                    >
+                      Gastos compartidos
                     </Btn>
                   )}
                 </View>
@@ -1047,6 +1064,18 @@ export default function ViajeDetalleScreen() {
                 >
                   Ver resumen del recorrido
                 </Btn>
+                {viaje.es_grupal && (
+                  <Btn
+                    variant="ghost"
+                    block
+                    icon="dollar-sign"
+                    onPress={() =>
+                      router.push({ pathname: '/viaje/[viajeId]/gastos', params: { viajeId } })
+                    }
+                  >
+                    Ver balance de gastos
+                  </Btn>
+                )}
                 <Btn
                   variant="ghost"
                   block
