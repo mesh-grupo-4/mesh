@@ -5,3 +5,7 @@ dist/
 
 # Spec OpenAPI bundleado (artefacto generado por `npm run docs:bundle`)
 src/docs/openapi.bundled.json
+
+# Credenciales del simulador de GPS (backend/scripts/simulate-trip.ts)
+.env.simulation
+scripts/.cache/

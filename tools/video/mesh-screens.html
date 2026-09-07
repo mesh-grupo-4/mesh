@@ -1,0 +1,2088 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mesh — Simulador de pantallas</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Space+Mono:wght@400;700&display=block">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<style>
+/* ══════════════════════════════════════════════════════════════════════════
+   TOKENS — copiados de frontend/constants/Colors.ts (rama `dark`, que es la
+   unica que la app usa: app/_layout.tsx monta <ThemeProvider value={DarkTheme}>)
+   ══════════════════════════════════════════════════════════════════════════ */
+:root{
+  --bg:#0f0f0f;          --bg-elev:#151515;
+  --surface:#1c1c1c;     --surface2:#242424;    --surface3:#2c2c2c;
+  --text:#f4f2f0;        --text-dim:#9a948f;    --text-mute:#6a6560;
+  --border:#2e2e2e;      --border-strong:#3a3a3a;
+  --accent:#d76655;      --accent-weak:rgba(215,102,85,.18);
+  --accent-line:rgba(215,102,85,.40);           --on-accent:#ffffff;
+  --danger:#ff5a4d;      --danger-weak:rgba(255,90,77,.16);
+  --good:#4fb477;        --warn:#e8a838;
+  --scrim:rgba(0,0,0,.55);
+  --shadow:0 8px 24px rgba(0,0,0,.45);
+  --shadow-sm:0 2px 8px rgba(0,0,0,.35);
+
+  /* Naranja de marca: color plano de assets/images/mesh-logo.png */
+  --brand:#fe3a0f;
+
+  /* Estados del marcador de integrante — components/live/memberMarker.ts */
+  --ring-me:#15803d; --ring-stop:#f59e0b; --ring-incident:#dc2626;
+
+  /* Colores de alerta — lib/alertasApi.ts */
+  --al-parada:#f59e0b; --al-combustible:#0ea5e9; --al-desvio:#8b5cf6;
+  --al-atraso:#ea580c; --al-peligro:#dc2626;     --al-info:#6b7280;
+
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --mono:'Space Mono',ui-monospace,Menlo,monospace;
+
+  --w:393px; --h:852px;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:#08080a; color:var(--text);
+  font-family:var(--font); -webkit-font-smoothing:antialiased;
+  overflow:hidden; display:flex; align-items:center; justify-content:center;
+}
+body.frame-phone{
+  background:
+    radial-gradient(90% 70% at 50% 0%, rgba(254,58,15,.16) 0%, transparent 62%),
+    linear-gradient(180deg,#141110 0%,#0a0908 100%);
+}
+
+/* ── Escenario: la pantalla escalada y centrada ────────────────────────── */
+#stage{
+  position:relative;
+  width:var(--w); height:var(--h);
+  transform-origin:center center;
+  will-change:transform;
+}
+#phone{
+  position:absolute; inset:0;
+  border-radius:0; overflow:hidden;
+  background:var(--bg);
+}
+body.frame-phone #phone{
+  inset:-14px;
+  padding:14px;
+  border-radius:62px;
+  background:linear-gradient(155deg,#3a3633 0%,#171512 42%,#2b2724 100%);
+  box-shadow:0 0 0 1.5px #4a4441, 0 42px 90px rgba(0,0,0,.72), 0 6px 18px rgba(0,0,0,.5);
+}
+body.frame-phone #screen{border-radius:48px}
+
+#screen{
+  position:relative;
+  width:var(--w); height:var(--h);
+  overflow:hidden;
+  background:var(--bg);
+  isolation:isolate;
+}
+
+/* ── Barra de estado iOS simulada ──────────────────────────────────────── */
+#statusbar{
+  position:absolute; top:0; left:0; right:0; height:54px; z-index:900;
+  /* El contenido que scrollea pasa por debajo: sin este respaldo el reloj
+     se mezcla con las tarjetas. */
+  background:linear-gradient(180deg,var(--bg) 0 76%,rgba(15,15,15,0));
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px 30px 0; pointer-events:none;
+  font-size:15px; font-weight:600; letter-spacing:.1px; color:#fff;
+}
+#statusbar .sb-right{display:flex; align-items:center; gap:6px}
+#notch{
+  position:absolute; top:11px; left:50%; transform:translateX(-50%);
+  width:118px; height:34px; border-radius:20px; background:#000; z-index:901;
+  pointer-events:none;
+}
+body.frame-clean #notch{display:none}
+
+/* ── Capa de pantallas ─────────────────────────────────────────────────── */
+#screens{position:absolute; inset:0; z-index:10}
+.screen{
+  position:absolute; inset:0;
+  background:var(--bg);
+  opacity:0; visibility:hidden;
+  will-change:transform,opacity;
+}
+.screen.on{opacity:1; visibility:visible}
+/* Transicion tipo push (S5) */
+.screen.push-in{animation:pushIn .42s cubic-bezier(.22,.9,.28,1) both}
+.screen.push-out{animation:pushOut .42s cubic-bezier(.22,.9,.28,1) both}
+@keyframes pushIn{from{transform:translate3d(38px,0,0);opacity:0}to{transform:none;opacity:1}}
+@keyframes pushOut{from{transform:none;opacity:1}to{transform:translate3d(-24px,0,0);opacity:0}}
+
+/* ── Indicador de tap ──────────────────────────────────────────────────── */
+#tap{
+  position:absolute; z-index:880; width:64px; height:64px; margin:-32px 0 0 -32px;
+  border-radius:50%; pointer-events:none; opacity:0;
+  background:rgba(255,255,255,.20);
+  border:1.5px solid rgba(255,255,255,.55);
+  will-change:transform,opacity;
+}
+#tap.fire{animation:tapPress .62s cubic-bezier(.2,.8,.3,1) both}
+#tap::after{
+  content:''; position:absolute; inset:-4px; border-radius:50%;
+  border:2px solid rgba(255,255,255,.5);
+  opacity:0;
+}
+#tap.fire::after{animation:tapRipple .62s cubic-bezier(.15,.7,.3,1) both}
+@keyframes tapPress{
+  0%{opacity:0;transform:scale(.35)}
+  22%{opacity:1;transform:scale(.72)}
+  55%{opacity:.92;transform:scale(.82)}
+  100%{opacity:0;transform:scale(1.05)}
+}
+@keyframes tapRipple{
+  0%{opacity:.85;transform:scale(.6)}
+  100%{opacity:0;transform:scale(2.3)}
+}
+</style>
+
+<style>
+/* ══════════════════════════════════════════════════════════════════════════
+   COMPONENTES — espejo de frontend/components/MeshUI.tsx
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* TopBar: MeshUI.tsx -> styles.topBar */
+.topbar{
+  display:flex; align-items:center; gap:12px;
+  padding:62px 16px 12px; min-height:56px;
+}
+.topbar .back{
+  width:40px; height:40px; border-radius:20px; flex:none;
+  border:1px solid var(--border); background:var(--surface);
+  display:flex; align-items:center; justify-content:center;
+}
+.topbar .tb-title{font-size:19px; font-weight:700; letter-spacing:-.2px; color:var(--text)}
+.topbar .tb-sub{font-size:13px; margin-top:2px; color:var(--text-dim)}
+
+/* Btn: radio 12; sm 8/14+13.5 · md 13/18+15 · lg 16/22+16.5 */
+.btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  border-radius:12px; border:0; font-family:inherit; font-weight:700;
+  padding:13px 18px; font-size:15px; line-height:1.15;
+  background:var(--accent); color:var(--on-accent);
+}
+.btn.lg{padding:16px 22px; font-size:16.5px}
+.btn.sm{padding:8px 14px; font-size:13.5px}
+.btn.block{display:flex; width:100%}
+.btn.secondary{background:var(--surface); color:var(--text); border:1px solid var(--border-strong)}
+.btn.outline{background:transparent; color:var(--accent); border:1.5px solid var(--accent-line)}
+.btn.ghost{background:transparent; color:var(--text-dim)}
+.btn.danger{background:var(--danger); color:#fff}
+
+/* Field: radio 10, borde 1.2 */
+.field{width:100%}
+.field .lbl{font-size:13px; font-weight:600; color:var(--text-dim); margin-bottom:6px}
+.field .box{
+  display:flex; align-items:center; gap:10px;
+  border:1.2px solid var(--border); border-radius:10px;
+  background:var(--surface); padding:0 14px;
+}
+.field .box.focus{border-color:var(--accent)}
+.field .box .val{flex:1; padding:14px 0; font-size:15.5px; color:var(--text)}
+.field .box .ph{color:var(--text-mute)}
+
+/* Badge: radio 999, 11px SpaceMono uppercase */
+.badge{
+  display:inline-flex; align-items:center; gap:6px;
+  padding:5px 11px; border-radius:999px;
+  font-family:var(--mono); font-size:11px; font-weight:700;
+  letter-spacing:.2px; text-transform:uppercase;
+  background:var(--surface2); color:var(--text-dim);
+}
+.badge.accent{background:var(--accent-weak); color:var(--accent)}
+.badge.live{background:var(--danger-weak); color:var(--danger)}
+.badge.good{background:rgba(79,180,119,.15); color:var(--good)}
+.badge.warning{background:rgba(232,168,56,.15); color:var(--warn)}
+.badge .dot{width:6px; height:6px; border-radius:3px; background:currentColor; flex:none}
+.badge .pulse{position:relative; width:8px; height:8px; display:grid; place-items:center; flex:none}
+.badge .pulse i{position:absolute; width:8px; height:8px; border-radius:4px; background:currentColor;
+  animation:pulseRing 1.6s linear infinite; will-change:transform,opacity}
+.badge .pulse b{width:6px; height:6px; border-radius:3px; background:currentColor}
+@keyframes pulseRing{0%{transform:scale(1);opacity:.7}50%{transform:scale(1.6);opacity:0}100%{transform:scale(1);opacity:.7}}
+
+/* Chip: radio 999, 9/14 */
+.chip{
+  display:inline-flex; align-items:center; gap:6px;
+  padding:9px 14px; border-radius:999px; font-size:13.5px; font-weight:600;
+  border:1px solid var(--border); background:var(--surface); color:var(--text-dim);
+}
+.chip.on{background:var(--accent-weak); border-color:var(--accent-line); color:var(--accent); font-weight:700}
+.chiprow{display:flex; flex-wrap:wrap; gap:8px}
+
+/* Avatar: AvatarFallback.tsx — circulo con iniciales, peso 700, 38% del alto */
+.av{
+  border-radius:50%; display:grid; place-items:center; flex:none;
+  color:#fff; font-weight:700; line-height:1;
+}
+.av.ring{box-shadow:0 0 0 2.5px var(--accent)}
+
+/* Card / StatCard */
+.card{background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:18px}
+.statcard{
+  flex:1; min-width:0; padding:12px; border-radius:12px;
+  border:1.2px solid var(--border); background:var(--surface);
+}
+.statcard .sc-val{font-size:16px; font-weight:700; color:var(--text); margin-top:4px}
+.statcard .sc-lbl{font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.2px;
+  color:var(--text-dim); margin-top:2px}
+.statrow{display:flex; gap:10px}
+
+.eyebrow{
+  font-family:var(--mono); font-size:11px; font-weight:700;
+  letter-spacing:1.2px; color:var(--text-dim);
+}
+
+/* Logo real: la M de assets/images/mesh-logo.png, redibujada como SVG */
+.meshmark{display:block}
+
+/* ── Mapas Leaflet ─────────────────────────────────────────────────────── */
+/* z-index + isolation: sin esto los panes de Leaflet (z-index 400) tapan
+   el TopBar, el bottom sheet y los toasts, que viven en z-index 12-40. */
+.mapwrap{position:absolute; inset:0; z-index:0; isolation:isolate}
+.lf{width:100%; height:100%; background:#101010}
+.leaflet-container{background:#101010; font-family:var(--font)}
+.leaflet-control-attribution,.leaflet-control-zoom{display:none !important}
+/* Modo oscuro de teselas: mismo filtro que components/maps/leafletHtml.ts */
+.leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.92) contrast(.92) saturate(.85)}
+.mesh-marker{background:transparent; border:0}
+/* Atribucion OSM — la app la dibuja en components/live/LiveMapView.tsx */
+.osm-attr{
+  position:absolute; left:8px; bottom:8px; z-index:5;
+  background:rgba(17,17,17,.82); color:#8f8a85;
+  padding:2px 6px; border-radius:4px; font-size:9.5px; letter-spacing:.1px;
+  pointer-events:none; white-space:nowrap;
+}
+.leaflet-marker-icon{will-change:transform}
+.leaflet-fade-anim .leaflet-tile{transition:none !important}
+
+/* Marcador de integrante — replica components/live/memberMarker.ts (caja 48, avatar 36, anillo 3) */
+.mk{width:48px; height:48px; display:grid; place-items:center; position:relative}
+.mk .ring{
+  width:42px; height:42px; border-radius:50%; display:grid; place-items:center;
+  border:3px solid transparent; box-sizing:border-box;
+  transition:border-color .45s ease, transform .45s cubic-bezier(.2,.9,.3,1);
+  will-change:transform;
+}
+.mk .face{
+  width:36px; height:36px; border-radius:50%; display:grid; place-items:center;
+  color:#fff; font-weight:700; font-size:14px; letter-spacing:-.2px;
+  box-shadow:0 2px 6px rgba(0,0,0,.5);
+}
+.mk[data-state="late"] .ring{border-color:var(--ring-stop); transform:scale(1.1)}
+.mk[data-state="off"]  .ring{border-color:var(--ring-incident); transform:scale(1.16)}
+.mk[data-state="me"]   .ring{border-color:var(--ring-me)}
+.mk .flag{
+  position:absolute; right:0; bottom:0; width:17px; height:17px; border-radius:50%;
+  display:grid; place-items:center; border:1.5px solid #fff;
+  font-size:9px; font-weight:900; color:#fff; line-height:1;
+  opacity:0; transform:scale(.4); transition:opacity .3s ease, transform .3s cubic-bezier(.2,1.4,.4,1);
+}
+.mk[data-state="late"] .flag{opacity:1; transform:none; background:var(--ring-stop)}
+.mk[data-state="off"]  .flag{opacity:1; transform:none; background:var(--ring-incident)}
+
+/* Pin de waypoint — replica components/maps/pinMarker.ts (25x41, ancla abajo) */
+.pin{width:25px; height:41px; position:relative}
+.pin i{
+  position:absolute; left:50%; top:50%; width:25px; height:25px;
+  margin:-12.5px 0 0 -12.5px; border-radius:50% 50% 50% 0;
+  transform:rotate(-45deg); border:2px solid #fff;
+  box-shadow:0 1px 4px rgba(0,0,0,.45);
+}
+.pin.pop{animation:pinPop .5s cubic-bezier(.2,1.5,.4,1) both}
+@keyframes pinPop{0%{opacity:0;transform:translate3d(0,-14px,0) scale(.5)}100%{opacity:1;transform:none}}
+</style>
+
+<style>
+/* ══════════════════════════════════════════════════════════════════════════
+   PANTALLAS
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Login ─────────────────────────────────────────────────────────────── */
+#s-login{padding:0 24px; display:flex; flex-direction:column; justify-content:center}
+#s-login .lg-mark{margin-bottom:22px}
+#s-login h1{font-size:32px; font-weight:700; letter-spacing:-.8px}
+#s-login .sub{font-size:15px; color:var(--text-dim); margin:6px 0 28px}
+#s-login .form{display:flex; flex-direction:column; gap:14px}
+#s-login .forgot{align-self:flex-end; margin-top:-4px}
+#s-login .foot{display:flex; align-items:center; justify-content:center; margin-top:40px;
+  font-size:13.5px; color:var(--text-dim)}
+
+/* ── Perfil ────────────────────────────────────────────────────────────── */
+#s-perfil .p-head{display:flex; flex-direction:column; align-items:center; gap:12px; padding:8px 20px 20px}
+#s-perfil .p-name{font-size:24px; font-weight:700; letter-spacing:-.5px}
+#s-perfil .p-mail{font-size:14px; color:var(--text-dim)}
+#s-perfil .p-body{padding:0 20px; display:flex; flex-direction:column; gap:16px}
+#s-perfil .p-stats{display:flex; border:1px solid var(--border); border-radius:16px;
+  background:var(--surface); padding:16px 0; overflow:hidden}
+#s-perfil .p-stat{flex:1; text-align:center}
+#s-perfil .p-stat + .p-stat{border-left:1px solid var(--border)}
+#s-perfil .p-stat b{display:block; font-family:var(--mono); font-size:22px; font-weight:700}
+#s-perfil .p-stat span{display:block; font-family:var(--mono); font-size:11px; font-weight:700;
+  letter-spacing:.8px; text-transform:uppercase; color:var(--text-mute); margin-top:4px}
+#s-perfil .p-row{display:flex; align-items:center; gap:12px; padding:14px 16px;
+  border:1px solid var(--border); border-radius:12px; background:var(--surface)}
+#s-perfil .p-row .t{flex:1; font-size:15px; font-weight:600}
+
+/* ── Grupos ────────────────────────────────────────────────────────────── */
+#s-grupos .g-list{padding:4px 20px; display:flex; flex-direction:column; gap:11px}
+#s-grupos .g-card{
+  display:flex; align-items:center; gap:12px; padding:16px;
+  border:1.2px solid var(--border); border-radius:14px; background:var(--surface);
+}
+#s-grupos .g-info{flex:1; min-width:0}
+#s-grupos .g-name{font-size:16px; font-weight:700; letter-spacing:-.2px}
+#s-grupos .g-meta{font-size:13px; color:var(--text-dim); margin-top:3px}
+#s-grupos .g-stack{display:flex}
+#s-grupos .g-stack .av{box-shadow:0 0 0 2px var(--surface)}
+#s-grupos .g-stack .av + .av{margin-left:-10px}
+
+/* ── Configurar ruta (S1) ──────────────────────────────────────────────── */
+/* La app envuelve el TopBar en una View con backgroundColor: theme.background
+   (app/configurar-ruta/[viajeId].tsx), no en un degradado sobre el mapa. */
+#s-ruta .rc-head{position:absolute; top:0; left:0; right:0; z-index:12; background:var(--bg)}
+#s-ruta .rc-head::after{content:""; position:absolute; left:0; right:0; top:100%; height:18px;
+  background:linear-gradient(180deg,var(--bg),rgba(15,15,15,0))}
+#s-ruta .rc-style{
+  position:absolute; right:12px; top:138px; z-index:12;
+  width:44px; height:44px; border-radius:22px;
+  border:1px solid var(--border); background:var(--surface);
+  display:grid; place-items:center; box-shadow:var(--shadow-sm);
+}
+/* Bottom sheet: snap points ['18%','48%','88%'] de RouteBottomSheet.tsx */
+#s-ruta .sheet{
+  position:absolute; left:0; right:0; bottom:0; z-index:14;
+  height:88%; border-radius:18px 18px 0 0;
+  background:var(--surface); border-top:1px solid var(--border);
+  box-shadow:0 -10px 34px rgba(0,0,0,.55);
+  transform:translate3d(0,calc(100% - 409px),0);
+  transition:transform .55s cubic-bezier(.22,.9,.28,1);
+  will-change:transform;
+}
+#s-ruta .sheet[data-snap="min"]{transform:translate3d(0,calc(100% - 154px),0)}
+/* 36 px menos que el 88% de la app: deja el TopBar visible en camara. */
+#s-ruta .sheet[data-snap="max"]{transform:translate3d(0,36px,0)}
+#s-ruta .handle{width:40px; height:4px; border-radius:2px; background:var(--text-mute);
+  margin:10px auto 6px}
+#s-ruta .sheet{overflow:hidden}
+#s-ruta .sh-body{padding:4px 16px 16px; will-change:transform}
+#s-ruta h2{font-size:20px; font-weight:700; letter-spacing:-.3px}
+#s-ruta .sh-sub{font-size:14px; color:var(--text-dim); margin-bottom:12px}
+#s-ruta .actbanner{
+  display:flex; gap:12px; padding:12px; border-radius:12px; margin-bottom:12px;
+  background:var(--accent-weak); border:1px solid var(--accent-line);
+}
+#s-ruta .acttile{width:40px; height:40px; border-radius:13px; flex:none;
+  background:var(--accent-weak); display:grid; place-items:center}
+#s-ruta .actbanner .t{font-size:16px; font-weight:700}
+#s-ruta .actbanner .p{font-size:14px; color:var(--text-dim); margin-top:2px}
+#s-ruta .actbanner .h{font-size:13px; color:var(--text-mute); margin-top:4px; line-height:18px}
+
+/* Timeline de waypoints — RouteTimelineConnector.tsx: punto 10px + linea 2px */
+#s-ruta .wp{display:flex; gap:10px; align-items:stretch}
+#s-ruta .wp.hidden{display:none}
+#s-ruta .wp.enter{animation:wpIn .45s cubic-bezier(.2,.9,.3,1) both}
+@keyframes wpIn{from{opacity:0;transform:translate3d(0,-8px,0)}to{opacity:1;transform:none}}
+#s-ruta .conn{width:20px; display:flex; flex-direction:column; align-items:center; padding-top:14px}
+#s-ruta .conn .d{width:10px; height:10px; border-radius:5px; flex:none}
+#s-ruta .conn .l{flex:1; width:2px; min-height:24px; margin:4px 0; background:var(--border-strong)}
+#s-ruta .wpb{flex:1; margin-bottom:4px}
+#s-ruta .wpb .lbl{font-size:12px; font-weight:600; color:var(--text-dim); margin-bottom:4px}
+#s-ruta .wpb .inp{
+  border:1.2px solid var(--border); border-radius:10px; background:var(--surface2);
+  padding:12px; font-size:16px; color:var(--text);
+}
+#s-ruta .addstop{margin:8px 0 8px 30px}
+#s-ruta .resumen{margin-top:12px; padding:12px; border-radius:10px;
+  border:1px solid var(--border); background:var(--surface2)}
+#s-ruta .resumen .a{font-size:17px; font-weight:700}
+#s-ruta .resumen .b{font-size:15px; color:var(--text-dim); margin-top:4px}
+#s-ruta .savebtn{margin-top:16px}
+
+/* Selector de horario (no existe en la app: extendido desde los tokens) */
+#s-ruta .timepick{
+  position:absolute; left:0; right:0; bottom:0; z-index:20;
+  background:var(--surface); border-top:1px solid var(--border);
+  border-radius:18px 18px 0 0; padding:18px 20px 26px;
+  box-shadow:0 -12px 40px rgba(0,0,0,.6);
+  transform:translate3d(0,100%,0); transition:transform .45s cubic-bezier(.22,.9,.28,1);
+  will-change:transform;
+}
+#s-ruta .timepick.up{transform:none}
+#s-ruta .tp-title{font-size:18px; font-weight:800; margin-bottom:2px}
+#s-ruta .tp-sub{font-size:13px; color:var(--text-dim); margin-bottom:14px}
+#s-ruta .wheels{display:flex; gap:10px; height:132px; border-radius:14px;
+  background:var(--surface2); border:1px solid var(--border); overflow:hidden; position:relative}
+#s-ruta .wheels::after{content:''; position:absolute; left:8px; right:8px; top:50%;
+  height:38px; margin-top:-19px; border-radius:9px; background:var(--accent-weak); pointer-events:none}
+#s-ruta .wheel{flex:1; position:relative; overflow:hidden}
+#s-ruta .wheel ul{position:absolute; left:0; right:0; top:47px; list-style:none;
+  transition:transform .7s cubic-bezier(.2,.85,.25,1); will-change:transform}
+#s-ruta .wheel li{height:38px; display:grid; place-items:center; font-size:19px;
+  font-weight:700; color:var(--text-mute); font-family:var(--mono)}
+#s-ruta .wheel li.sel{color:var(--text)}
+#s-ruta .tp-actions{display:flex; gap:10px; margin-top:16px}
+#s-ruta .scrim{position:absolute; inset:0; z-index:18; background:var(--scrim);
+  opacity:0; transition:opacity .4s ease; pointer-events:none}
+#s-ruta .scrim.on{opacity:1}
+</style>
+
+<style>
+/* ── Invitacion / QR (S1 segunda mitad) ────────────────────────────────── */
+#s-invitar{display:flex; flex-direction:column}
+#s-invitar .iv-body{padding:6px 24px 0; display:flex; flex-direction:column; align-items:center}
+#s-invitar .check{
+  width:56px; height:56px; border-radius:28px; background:var(--accent-weak);
+  display:grid; place-items:center; margin-bottom:14px;
+}
+#s-invitar h1{font-size:24px; font-weight:800; letter-spacing:-.4px}
+#s-invitar .iv-sub{font-size:14.5px; color:var(--text-dim); text-align:center;
+  line-height:21px; margin:8px 0 18px}
+#s-invitar .qrbox{
+  padding:14px; border-radius:18px; background:#fff; box-shadow:var(--shadow);
+}
+#s-invitar .qrbox svg{display:block}
+#s-invitar .iv-code{margin-top:14px}
+#s-invitar .joined{width:100%; margin-top:18px; display:flex; flex-direction:column; gap:8px}
+#s-invitar .jhead{display:flex; align-items:center; justify-content:space-between}
+#s-invitar .jcount{font-size:13px; font-weight:700; color:var(--accent); font-family:var(--mono)}
+#s-invitar .jrow{
+  display:flex; align-items:center; gap:10px; padding:10px 12px;
+  border:1.2px solid var(--border); border-radius:12px; background:var(--surface);
+  opacity:0; transform:translate3d(0,10px,0); will-change:transform,opacity;
+}
+#s-invitar .jrow.in{animation:joinIn .5s cubic-bezier(.2,.9,.3,1) both}
+@keyframes joinIn{
+  0%{opacity:0;transform:translate3d(0,14px,0) scale(.96)}
+  60%{opacity:1;transform:translate3d(0,-2px,0) scale(1.01)}
+  100%{opacity:1;transform:none}
+}
+#s-invitar .jrow .n{flex:1; font-size:14.5px; font-weight:600}
+#s-invitar .jrow .s{font-size:12px; font-weight:700; color:var(--good); font-family:var(--mono)}
+
+/* ── Mapa en vivo (S2 / S3) ────────────────────────────────────────────── */
+/* La app usa aca una paleta clara hardcodeada (#f3f4f6 / #fff / #4338ca).
+   Para el video se unifico con la paleta Mesh oscura. Ver README. */
+#s-live .lv-head{
+  position:absolute; top:60px; left:12px; right:12px; z-index:30;
+  border-radius:14px; border:1.2px solid var(--border); background:var(--surface);
+  padding:8px 10px; box-shadow:var(--shadow-sm);
+}
+#s-live .lv-top{display:flex; align-items:center; gap:8px}
+#s-live .lv-back{width:38px; height:38px; border-radius:10px; flex:none;
+  border:1.2px solid var(--border); background:var(--surface); display:grid; place-items:center}
+#s-live .lv-mid{flex:1; min-height:36px; display:flex; flex-direction:column;
+  align-items:center; justify-content:center}
+#s-live .lv-name{font-size:15px; font-weight:800; letter-spacing:-.2px; text-align:center}
+#s-live .lv-eta{font-size:12.5px; font-weight:600; color:var(--text-dim); margin-top:2px}
+#s-live .lv-chev{width:28px; display:grid; place-items:center; flex:none}
+#s-live .lv-avatars{display:flex; gap:6px; margin-top:8px; align-items:center}
+#s-live .lv-avatars .av{transition:box-shadow .4s ease, transform .4s cubic-bezier(.2,.9,.3,1)}
+#s-live .lv-avatars .av[data-state="late"]{box-shadow:0 0 0 2px var(--ring-stop); transform:scale(1.08)}
+#s-live .lv-avatars .av[data-state="off"]{box-shadow:0 0 0 2px var(--ring-incident); transform:scale(1.12)}
+#s-live .lv-count{margin-left:auto; display:flex; align-items:center; gap:4px;
+  padding:6px 10px; border-radius:10px; border:1px solid var(--border);
+  background:var(--surface2); font-size:13px; font-weight:700; color:var(--text-dim)}
+
+/* Chips de estado del grupo (no existen en la app: extendidos desde los tokens) */
+#s-live .lv-chips{
+  position:absolute; top:172px; left:12px; right:12px; z-index:28;
+  display:flex; gap:6px; flex-wrap:nowrap;
+}
+#s-live .lv-chips .chip{
+  padding:6px 10px; font-size:11.5px; white-space:nowrap; gap:5px; background:rgba(28,28,28,.92);
+  border-color:var(--border); backdrop-filter:blur(6px);
+  transition:background .4s ease, border-color .4s ease, color .4s ease;
+}
+#s-live .lv-chips .chip[data-tone="good"]{color:var(--good); border-color:rgba(79,180,119,.45)}
+#s-live .lv-chips .chip[data-tone="warn"]{color:var(--warn); border-color:rgba(232,168,56,.5)}
+#s-live .lv-chips .chip[data-tone="bad"]{color:var(--danger); border-color:rgba(255,90,77,.5)}
+
+/* Botones flotantes: 46px (alertas) / 44px (estilo) */
+#s-live .fab{
+  position:absolute; left:12px; z-index:30; width:46px; height:46px; border-radius:23px;
+  background:var(--surface); border:1px solid var(--border);
+  display:grid; place-items:center; box-shadow:var(--shadow-sm);
+}
+#s-live .fab .cnt{
+  position:absolute; top:-3px; right:-3px; min-width:20px; height:20px; padding:0 5px;
+  border-radius:10px; background:var(--danger); border:2px solid var(--surface);
+  display:grid; place-items:center; color:#fff; font-size:11px; font-weight:800;
+  opacity:0; transform:scale(.4); transition:opacity .3s, transform .3s cubic-bezier(.2,1.5,.4,1);
+}
+#s-live .fab .cnt.on{opacity:1; transform:none}
+#s-live .fab-style{position:absolute; right:12px; z-index:30; width:44px; height:44px;
+  border-radius:22px; background:var(--surface); border:1px solid var(--border);
+  display:grid; place-items:center; box-shadow:var(--shadow-sm)}
+
+/* Toast de alerta — AlertaBanner.tsx (radio 14, borde 1.5 del color del tipo) */
+#s-live .toasts{position:absolute; top:212px; left:12px; right:12px; z-index:34;
+  display:flex; flex-direction:column; gap:8px; pointer-events:none}
+.toast{
+  display:flex; gap:12px; align-items:flex-start;
+  background:var(--surface); border:1.5px solid var(--al-peligro);
+  border-radius:14px; padding:13px 14px; box-shadow:var(--shadow);
+  opacity:0; transform:translate3d(0,-18px,0) scale(.97); will-change:transform,opacity;
+}
+.toast.in{animation:toastIn .5s cubic-bezier(.2,.95,.3,1) both}
+.toast.out{animation:toastOut .4s cubic-bezier(.4,0,.7,.2) both}
+@keyframes toastIn{
+  0%{opacity:0;transform:translate3d(0,-22px,0) scale(.95)}
+  62%{opacity:1;transform:translate3d(0,3px,0) scale(1.008)}
+  100%{opacity:1;transform:none}
+}
+@keyframes toastOut{to{opacity:0;transform:translate3d(0,-14px,0) scale(.97)}}
+.toast .ic{width:30px; height:30px; border-radius:15px; flex:none; display:grid;
+  place-items:center; font-size:15px; line-height:1}
+.toast .tt{font-size:14.5px; font-weight:800; letter-spacing:-.1px}
+.toast .tm{font-size:14px; color:var(--text-dim); margin-top:3px; line-height:19px}
+.toast .ta{font-size:12px; color:var(--text-mute); margin-top:5px; font-family:var(--mono)}
+
+/* Panel de alertas (S3 seg. 9) */
+#s-live .alpanel{
+  position:absolute; left:0; right:0; bottom:0; z-index:40;
+  background:var(--surface); border-top:1px solid var(--border);
+  border-radius:18px 18px 0 0; padding:0 0 26px;
+  box-shadow:0 -14px 44px rgba(0,0,0,.65);
+  transform:translate3d(0,100%,0); transition:transform .55s cubic-bezier(.22,.9,.28,1);
+  will-change:transform;
+}
+#s-live .alpanel.up{transform:none}
+#s-live .alpanel .handle{width:40px; height:4px; border-radius:2px;
+  background:var(--text-mute); margin:10px auto 8px}
+#s-live .alpanel .ap-head{display:flex; align-items:center; gap:8px; padding:2px 20px 12px}
+#s-live .alpanel .ap-title{font-size:18px; font-weight:800; flex:1}
+#s-live .alpanel .ap-list{padding:0 16px; display:flex; flex-direction:column; gap:10px}
+/* Tarjeta de alerta — alertas.tsx: radio 14, borde-izq 4px del color del tipo */
+.alcard{
+  border:1px solid var(--border); border-left-width:4px; border-radius:14px;
+  background:var(--surface2); padding:13px 14px;
+}
+.alcard .hd{display:flex; align-items:center; gap:8px}
+.alcard .em{font-size:16px; line-height:1}
+.alcard .tp{flex:1; font-size:14px; font-weight:800}
+.alcard .hr{font-size:12.5px; color:var(--text-mute); font-family:var(--mono)}
+.alcard .ms{margin-top:8px; font-size:15px; line-height:21px; color:var(--text)}
+.alcard .au{margin-top:8px; font-size:12.5px; color:var(--text-mute)}
+
+/* Panel inferior de metricas — TripMetricsPanel.tsx (valores 22px, tabular-nums) */
+#s-live .lv-metrics{
+  position:absolute; left:0; right:0; bottom:0; z-index:26;
+  display:flex; align-items:center; background:var(--surface);
+  border-top:1px solid var(--border); padding:16px 20px 30px;
+}
+#s-live .lv-metric{flex:1; text-align:center}
+#s-live .lv-metric .l{font-size:12px; font-weight:600; color:var(--text-dim)}
+#s-live .lv-metric .v{margin-top:4px; font-size:22px; font-weight:800;
+  font-variant-numeric:tabular-nums; letter-spacing:-.4px}
+#s-live .lv-div{width:1px; height:40px; background:var(--border)}
+</style>
+
+<style>
+/* ── Cierre / metricas (S4) ────────────────────────────────────────────── */
+#s-cierre{overflow:hidden}
+#s-cierre .cz-scroll{
+  position:absolute; top:0; left:0; right:0;
+  will-change:transform; /* el scroll se anima por transform, nunca por scrollTop */
+}
+#s-cierre .cz-pad{padding:0 20px 40px; display:flex; flex-direction:column; gap:12px}
+#s-cierre .cz-hero{display:flex; gap:12px; align-items:center; margin-bottom:2px}
+#s-cierre .acttile{width:46px; height:46px; border-radius:15px; flex:none;
+  background:var(--accent-weak); display:grid; place-items:center}
+#s-cierre .cz-name{font-size:19px; font-weight:700; letter-spacing:-.3px}
+#s-cierre .cz-map .osm-attr{font-size:8.5px; left:6px; bottom:6px}
+#s-cierre .cz-map{
+  height:200px; border-radius:14px; overflow:hidden; position:relative;
+  background:var(--surface2); border:1px solid var(--border);
+  opacity:0; transform:translate3d(0,16px,0) scale(.985); will-change:transform,opacity;
+}
+#s-cierre .cz-map.in{animation:mapIn .75s cubic-bezier(.2,.9,.28,1) both}
+@keyframes mapIn{to{opacity:1;transform:none}}
+#s-cierre .sec{font-size:16px; font-weight:700; margin-top:6px}
+#s-cierre .statcard .sc-val{font-size:18px; font-variant-numeric:tabular-nums}
+
+/* Ranking */
+#s-cierre .rk{display:flex; align-items:center; gap:10px; padding:10px 12px;
+  border:1.2px solid var(--border); border-radius:12px; background:var(--surface)}
+#s-cierre .rk.me{border-color:var(--accent-line)}
+#s-cierre .rk .pos{width:28px; font-size:13px; font-weight:700; color:var(--text-mute);
+  font-family:var(--mono)}
+#s-cierre .rk .nm{flex:1; font-size:14px; font-weight:600}
+#s-cierre .rk .vl{font-size:13px; color:var(--text-dim); font-variant-numeric:tabular-nums}
+#s-cierre .hero{border:1.2px solid var(--accent-line); border-radius:16px; padding:20px;
+  background:var(--surface); display:flex; flex-direction:column; align-items:center; gap:10px}
+#s-cierre .hero .hn{font-size:18px; font-weight:800}
+#s-cierre .hero .hv{font-size:22px; font-weight:800; color:var(--accent);
+  font-variant-numeric:tabular-nums}
+
+/* Tarjetas tipo Wrapped (no existen en la app: extendidas desde los tokens) */
+#s-cierre .wrapped{display:flex; gap:10px; overflow:hidden}
+#s-cierre .wcard{
+  flex:1; min-width:0; border-radius:18px; padding:16px; min-height:158px;
+  display:flex; flex-direction:column; justify-content:space-between;
+  border:1px solid var(--border); position:relative; overflow:hidden;
+}
+#s-cierre .wcard::before{
+  content:''; position:absolute; inset:0;
+  background:radial-gradient(120% 90% at 12% 0%, var(--wc) 0%, transparent 68%);
+  opacity:.24;
+}
+#s-cierre .wcard .wk{position:relative; font-family:var(--mono); font-size:10.5px;
+  font-weight:700; letter-spacing:1.1px; text-transform:uppercase; color:var(--text-dim)}
+#s-cierre .wcard .wv{position:relative; font-size:30px; font-weight:800; letter-spacing:-1.2px;
+  font-variant-numeric:tabular-nums; line-height:1}
+#s-cierre .wcard .wl{position:relative; font-size:13px; color:var(--text-dim); line-height:17px}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   CHROME DE GRABACION — nada de esto se ve con ?record=1
+   ══════════════════════════════════════════════════════════════════════════ */
+#controls{
+  position:fixed; top:0; right:0; bottom:0; width:280px; z-index:9000;
+  background:#111214; border-left:1px solid #232529; color:#d8d6d3;
+  display:flex; flex-direction:column; font-size:13px;
+  box-shadow:-20px 0 50px rgba(0,0,0,.5);
+}
+body.recording #controls{display:none}
+body.recording, body.recording *{cursor:none}
+#controls h3{font-family:var(--mono); font-size:11px; letter-spacing:1.4px;
+  text-transform:uppercase; color:#6f7378; padding:16px 16px 10px}
+#scenelist{flex:1; overflow:auto; padding:0 10px}
+#scenelist button{
+  display:block; width:100%; text-align:left; margin-bottom:6px; padding:10px 12px;
+  border-radius:10px; border:1px solid #232529; background:#17181b; color:#d8d6d3;
+  font-family:inherit; font-size:13px; cursor:pointer;
+}
+#scenelist button:hover{background:#1d1f23}
+#scenelist button.on{border-color:var(--accent); background:rgba(215,102,85,.13); color:#fff}
+#scenelist button i{display:block; font-style:normal; font-size:11px; color:#6f7378; margin-top:3px}
+#transport{border-top:1px solid #232529; padding:12px 16px 16px}
+#transport .row{display:flex; align-items:center; gap:10px; margin-bottom:10px}
+#playpause{
+  width:38px; height:38px; border-radius:19px; border:0; background:var(--accent);
+  color:#fff; font-size:15px; cursor:pointer; flex:none;
+}
+#tcode{font-family:var(--mono); font-size:15px; font-variant-numeric:tabular-nums; flex:1}
+#tcode em{color:#6f7378; font-style:normal}
+#scrub{width:100%; accent-color:var(--accent)}
+#transport .keys{font-size:11px; color:#6f7378; line-height:17px; margin-top:8px}
+#transport .keys b{color:#9aa0a6; font-weight:600}
+#transport .links{display:flex; gap:6px; margin-top:10px; flex-wrap:wrap}
+#transport .links a{
+  font-size:11px; padding:5px 9px; border-radius:7px; text-decoration:none;
+  background:#17181b; border:1px solid #232529; color:#9aa0a6;
+}
+#transport .links a:hover{border-color:var(--accent); color:#fff}
+
+/* Cuenta regresiva de ?record=1 */
+#countdown{
+  position:fixed; inset:0; z-index:9500; display:none;
+  align-items:center; justify-content:center; background:#08080a;
+}
+#countdown.on{display:flex}
+#countdown .n{
+  font-family:var(--mono); font-size:120px; font-weight:700; color:var(--brand);
+  line-height:1; will-change:transform,opacity;
+}
+#countdown .n.tick{animation:cdTick 1s cubic-bezier(.2,.8,.3,1) both}
+@keyframes cdTick{
+  0%{opacity:0;transform:scale(1.35)}
+  18%{opacity:1;transform:scale(1)}
+  76%{opacity:1;transform:scale(.98)}
+  100%{opacity:0;transform:scale(.9)}
+}
+#countdown .lbl{position:absolute; bottom:16%; font-family:var(--mono); font-size:12px;
+  letter-spacing:2px; text-transform:uppercase; color:#4a4d52}
+
+/* Aviso mientras cargan las fuentes: nunca grabar un frame con fallback */
+#booting{
+  position:fixed; inset:0; z-index:9600; background:#08080a;
+  display:grid; place-items:center; color:#3d4045;
+  font-family:var(--mono); font-size:12px; letter-spacing:2px; text-transform:uppercase;
+}
+#booting.gone{display:none}
+</style>
+</head>
+<body>
+
+<div id="booting">cargando tipografias</div>
+
+<div id="countdown"><div class="n"></div><div class="lbl">grabacion</div></div>
+
+<div id="stage">
+  <div id="phone">
+    <div id="screen">
+
+      <div id="notch"></div>
+      <div id="statusbar">
+        <span>9:41</span>
+        <span class="sb-right">
+          <!-- senal completa -->
+          <svg width="18" height="12" viewBox="0 0 18 12" fill="#fff" aria-hidden="true">
+            <rect x="0"  y="8"   width="3" height="4"   rx="1"></rect>
+            <rect x="4.7" y="5.6" width="3" height="6.4" rx="1"></rect>
+            <rect x="9.4" y="3"   width="3" height="9"   rx="1"></rect>
+            <rect x="14.1" y="0"  width="3" height="12"  rx="1"></rect>
+          </svg>
+          <!-- wifi lleno -->
+          <svg width="17" height="12" viewBox="0 0 17 12" fill="none" stroke="#fff"
+               stroke-width="1.9" stroke-linecap="round" aria-hidden="true">
+            <path d="M1.2 3.6A11.4 11.4 0 0 1 15.8 3.6"></path>
+            <path d="M4.1 6.7A7.2 7.2 0 0 1 12.9 6.7"></path>
+            <path d="M6.9 9.6A3.2 3.2 0 0 1 10.1 9.6"></path>
+          </svg>
+          <!-- bateria 100% -->
+          <svg width="27" height="13" viewBox="0 0 27 13" aria-hidden="true">
+            <rect x=".6" y=".6" width="23" height="11.8" rx="3.6" fill="none"
+                  stroke="#fff" stroke-opacity=".45" stroke-width="1.1"></rect>
+            <rect x="2.2" y="2.2" width="19.8" height="8.6" rx="2.3" fill="#fff"></rect>
+            <path d="M25.1 4.6v3.8a2.1 2.1 0 0 0 0-3.8Z" fill="#fff" fill-opacity=".5"></path>
+          </svg>
+        </span>
+      </div>
+
+      <div id="screens">
+
+        <!-- ═══════════ LOGIN ═══════════ -->
+        <section class="screen" id="s-login">
+          <div class="lg-mark" data-logo="52"></div>
+          <h1>Hola de nuevo</h1>
+          <p class="sub">Ingresa para ver tus grupos y viajes.</p>
+          <div class="form">
+            <div class="field">
+              <div class="lbl">Email</div>
+              <div class="box"><span data-icon="mail" data-size="18" data-color="var(--text-mute)"></span>
+                <span class="val">joaquin@mesh.app</span></div>
+            </div>
+            <div class="field">
+              <div class="lbl">Contrasena</div>
+              <div class="box focus"><span data-icon="lock" data-size="18" data-color="var(--accent)"></span>
+                <span class="val">&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;</span></div>
+            </div>
+            <div class="btn ghost sm forgot">&iquest;Olvidaste tu contrasena?</div>
+            <div class="btn lg block">Ingresar</div>
+          </div>
+          <div class="foot">&iquest;No tenes cuenta?&nbsp;<span class="btn ghost sm"
+            style="color:var(--accent);padding:0 4px">Registrate</span></div>
+        </section>
+
+        <!-- ═══════════ PERFIL ═══════════ -->
+        <section class="screen" id="s-perfil">
+          <div class="topbar"><div class="tb-title">Perfil</div></div>
+          <div class="p-head">
+            <div class="av ring" style="width:76px;height:76px;font-size:29px;background:#4a9eff">JP</div>
+            <div style="text-align:center">
+              <div class="p-name">Joaquin Penafort</div>
+              <div class="p-mail">joaquin@mesh.app</div>
+            </div>
+            <span class="badge accent"><span data-icon="activity" data-size="12"></span>Running</span>
+          </div>
+          <div class="p-body">
+            <div class="eyebrow">TU ACTIVIDAD</div>
+            <div class="p-stats">
+              <div class="p-stat"><b>128</b><span>Km</span></div>
+              <div class="p-stat"><b>24</b><span>Viajes</span></div>
+              <div class="p-stat"><b>19h</b><span>En ruta</span></div>
+            </div>
+            <div class="eyebrow">CUENTA</div>
+            <div class="p-row"><span data-icon="users" data-size="18" data-color="var(--accent)"></span>
+              <span class="t">Mis amigos</span>
+              <span data-icon="chevron-right" data-size="18" data-color="var(--text-mute)"></span></div>
+            <div class="p-row"><span data-icon="map" data-size="18" data-color="var(--accent)"></span>
+              <span class="t">Mis rutas guardadas</span>
+              <span data-icon="chevron-right" data-size="18" data-color="var(--text-mute)"></span></div>
+            <div class="p-row"><span data-icon="bell" data-size="18" data-color="var(--accent)"></span>
+              <span class="t">Notificaciones</span>
+              <span data-icon="chevron-right" data-size="18" data-color="var(--text-mute)"></span></div>
+          </div>
+        </section>
+
+        <!-- ═══════════ GRUPOS ═══════════ -->
+        <section class="screen" id="s-grupos">
+          <div class="topbar"><div style="flex:1">
+            <div class="tb-title">Grupos</div>
+            <div class="tb-sub">3 grupos activos</div>
+          </div></div>
+          <div style="padding:0 20px 12px" class="eyebrow">TUS GRUPOS</div>
+          <div class="g-list"></div>
+        </section>
+
+        <!-- ═══════════ CONFIGURAR RUTA (S1) ═══════════ -->
+        <section class="screen" id="s-ruta">
+          <div class="mapwrap"><div class="lf" id="map-ruta"></div><div class="osm-attr">&copy; OpenStreetMap contributors</div></div>
+
+          <div class="rc-head">
+            <div class="topbar">
+              <div class="back"><span data-icon="arrow-left" data-size="20" data-color="var(--text)"></span></div>
+              <div style="flex:1">
+                <div class="tb-title">Ruta y paradas</div>
+                <div class="tb-sub">Defini origen, paradas y destino</div>
+              </div>
+            </div>
+          </div>
+          <div class="rc-style"><span data-icon="map" data-size="20" data-color="var(--text)"></span></div>
+
+          <div class="scrim"></div>
+
+          <div class="sheet" data-snap="mid">
+            <div class="handle"></div>
+            <div class="sh-body">
+              <h2>Planifica tu ruta</h2>
+              <div class="sh-sub">Origen, paradas y destino</div>
+
+              <div class="actbanner">
+                <div class="acttile"><span data-icon="run" data-size="21" data-color="var(--accent)"></span></div>
+                <div style="flex:1;min-width:0">
+                  <div class="t">Running</div>
+                  <div class="p">15 km/h &middot; alerta a 100 m de separacion</div>
+                  <div class="h">La ruta se calcula a pie segun la actividad elegida.</div>
+                </div>
+              </div>
+
+              <div class="wp" data-wp="origen">
+                <div class="conn"><div class="d" style="background:var(--good)"></div><div class="l"></div></div>
+                <div class="wpb"><div class="lbl">Origen</div>
+                  <div class="inp">Parque Sarmiento &mdash; ingreso</div></div>
+              </div>
+
+              <div class="wp hidden" data-wp="p1">
+                <div class="conn"><div class="d" style="background:var(--accent)"></div><div class="l"></div></div>
+                <div class="wpb"><div class="lbl">Parada 1</div>
+                  <div class="inp">Lago del Parque</div></div>
+              </div>
+
+              <div class="wp hidden" data-wp="p2">
+                <div class="conn"><div class="d" style="background:var(--accent)"></div><div class="l"></div></div>
+                <div class="wpb"><div class="lbl">Parada 2</div>
+                  <div class="inp">Bv. Chacabuco</div></div>
+              </div>
+
+              <div class="addstop"><div class="btn outline sm">
+                <span data-icon="plus" data-size="15.5"></span>Agregar parada</div></div>
+
+              <div class="wp" data-wp="destino">
+                <div class="conn"><div class="d" style="background:var(--danger)"></div></div>
+                <div class="wpb"><div class="lbl">Destino</div>
+                  <div class="inp">Plaza Espana</div></div>
+              </div>
+
+              <div class="wp" data-wp="hora" style="margin-top:4px">
+                <div class="conn"><div class="d" style="background:var(--text-mute)"></div></div>
+                <div class="wpb"><div class="lbl">Salida programada</div>
+                  <div class="inp" data-hora>Sab 6 sep &middot; 09:00</div></div>
+              </div>
+
+              <div class="resumen">
+                <div class="a" data-res-a>Definí origen y destino para ver el resumen.</div>
+                <div class="b" data-res-b style="display:none"></div>
+              </div>
+
+              <div class="btn lg block savebtn"><span data-icon="check" data-size="18.5"></span>Guardar ruta</div>
+            </div>
+          </div>
+
+          <div class="timepick">
+            <div class="tp-title">Hora de salida</div>
+            <div class="tp-sub">Hora de Argentina (UTC&minus;3)</div>
+            <div class="wheels">
+              <div class="wheel" data-wheel="dia"><ul></ul></div>
+              <div class="wheel" data-wheel="hora"><ul></ul></div>
+              <div class="wheel" data-wheel="min"><ul></ul></div>
+            </div>
+            <div class="tp-actions">
+              <div class="btn secondary block">Cancelar</div>
+              <div class="btn block">Confirmar</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ═══════════ INVITAR / QR (S1 segunda mitad) ═══════════ -->
+        <section class="screen" id="s-invitar">
+          <div class="topbar">
+            <div class="back"><span data-icon="arrow-left" data-size="20" data-color="var(--text)"></span></div>
+            <div class="tb-title">Invitar al viaje</div>
+          </div>
+          <div class="iv-body">
+            <div class="check"><span data-icon="check" data-size="28" data-color="var(--accent)"></span></div>
+            <h1>&iexcl;Viaje listo!</h1>
+            <p class="iv-sub">Que escaneen este QR con la camara o desde la<br>app de Mesh para sumarse a la salida.</p>
+            <div class="qrbox"><svg id="qr" width="182" height="182" viewBox="0 0 29 29"
+                 shape-rendering="crispEdges"></svg></div>
+            <div class="iv-code"><span class="badge">MESH&middot;VIAJE&middot;7F2A</span></div>
+
+            <div class="joined">
+              <div class="jhead">
+                <span class="eyebrow">SE SUMARON</span>
+                <span class="jcount" data-jcount>1 / 6</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ═══════════ MAPA EN VIVO (S2 / S3) ═══════════ -->
+        <section class="screen" id="s-live">
+          <div class="mapwrap"><div class="lf" id="map-live"></div><div class="osm-attr">&copy; OpenStreetMap contributors</div></div>
+
+          <div class="lv-head">
+            <div class="lv-top">
+              <div class="lv-back"><span data-icon="arrow-left" data-size="20" data-color="var(--text)"></span></div>
+              <div class="lv-mid">
+                <div class="lv-name">Trote del sabado</div>
+                <div class="lv-eta" data-eta>Prox. parada: Lago del Parque &middot; 8 min (1,3 km)</div>
+              </div>
+              <div class="lv-chev"><span data-icon="chevron-down" data-size="18" data-color="var(--text-mute)"></span></div>
+            </div>
+            <div class="lv-avatars"></div>
+          </div>
+
+          <div class="lv-chips">
+            <span class="chip" data-chip="bloque" data-tone="good">
+              <span data-icon="users" data-size="13"></span><b data-chip-txt>6 en el pelot&oacute;n</b></span>
+            <span class="chip" data-chip="sep" data-tone="good">
+              <span data-icon="minimize-2" data-size="13"></span><b data-chip-txt>Separaci&oacute;n 40 m</b></span>
+            <span class="chip" data-chip="gps" data-tone="good">
+              <span data-icon="wifi" data-size="13"></span><b data-chip-txt>GPS 5 s</b></span>
+          </div>
+
+          <div class="fab" style="top:246px">
+            <span data-icon="bell" data-size="20" data-color="var(--text)"></span>
+            <span class="cnt" data-alert-count>0</span>
+          </div>
+          <div class="fab-style" style="top:246px"><span data-icon="map" data-size="20" data-color="var(--text)"></span></div>
+
+          <div class="toasts"></div>
+
+          <div class="lv-metrics">
+            <div class="lv-metric"><div class="l">Tiempo transcurrido</div><div class="v" data-elapsed>00:00</div></div>
+            <div class="lv-div"></div>
+            <div class="lv-metric"><div class="l">Distancia recorrida</div><div class="v" data-dist>0,00 km</div></div>
+          </div>
+
+          <div class="alpanel">
+            <div class="handle"></div>
+            <div class="ap-head">
+              <span data-icon="bell" data-size="19" data-color="var(--accent)"></span>
+              <span class="ap-title">Alertas del viaje</span>
+              <span class="badge live"><span class="dot"></span><span data-ap-count>2 activas</span></span>
+            </div>
+            <div class="ap-list"></div>
+          </div>
+        </section>
+
+        <!-- ═══════════ CIERRE / METRICAS (S4) ═══════════ -->
+        <section class="screen" id="s-cierre">
+          <div class="cz-scroll">
+            <div class="topbar">
+              <div class="back"><span data-icon="arrow-left" data-size="20" data-color="var(--text)"></span></div>
+              <div style="flex:1">
+                <div class="tb-title">Resumen del viaje</div>
+                <div class="tb-sub">Trote del sabado</div>
+              </div>
+            </div>
+            <div class="cz-pad">
+              <div class="cz-hero">
+                <div class="acttile"><span data-icon="run" data-size="24" data-color="var(--accent)"></span></div>
+                <div style="flex:1;min-width:0">
+                  <div class="cz-name">Trote del sabado</div>
+                  <div style="margin-top:6px"><span class="badge">Finalizado</span></div>
+                </div>
+              </div>
+
+              <div class="cz-map"><div class="lf" id="map-cierre"></div><div class="osm-attr">&copy; OpenStreetMap contributors</div></div>
+
+              <div class="sec">El viaje</div>
+              <div class="statrow">
+                <div class="statcard">
+                  <span data-icon="activity" data-size="18" data-color="var(--accent)"></span>
+                  <div class="sc-val" data-count="5.33" data-suffix=" km" data-dec="2">0,00 km</div>
+                  <div class="sc-lbl">Distancia</div></div>
+                <div class="statcard">
+                  <span data-icon="clock" data-size="18" data-color="var(--accent)"></span>
+                  <div class="sc-val" data-count="34" data-suffix="m" data-dec="0">0m</div>
+                  <div class="sc-lbl">Duracion</div></div>
+                <div class="statcard">
+                  <span data-icon="watch" data-size="18" data-color="var(--accent)"></span>
+                  <div class="sc-val" data-count-pace="378">0:00 /km</div>
+                  <div class="sc-lbl">Ritmo prom.</div></div>
+              </div>
+              <div class="statrow">
+                <div class="statcard">
+                  <span data-icon="pause-circle" data-size="18" data-color="var(--accent)"></span>
+                  <div class="sc-val" data-count="5" data-suffix="m" data-dec="0">0m</div>
+                  <div class="sc-lbl">Detenido</div></div>
+                <div class="statcard">
+                  <span data-icon="map-pin" data-size="18" data-color="var(--accent)"></span>
+                  <div class="sc-val" data-count="2" data-suffix="" data-dec="0">0</div>
+                  <div class="sc-lbl">Paradas</div></div>
+                <div class="statcard">
+                  <span data-icon="users" data-size="18" data-color="var(--accent)"></span>
+                  <div class="sc-val" data-count="6" data-suffix="" data-dec="0">0</div>
+                  <div class="sc-lbl">Integrantes</div></div>
+              </div>
+
+              <div class="sec">El grupo</div>
+              <div class="chiprow" style="margin-bottom:2px">
+                <span class="chip on">Distancia</span>
+                <span class="chip">Ritmo</span>
+                <span class="chip">En movimiento</span>
+              </div>
+              <div class="ranking"></div>
+
+              <div class="sec">Tu recap</div>
+              <div class="wrapped">
+                <div class="wcard" style="--wc:#d76655;background:var(--surface)">
+                  <div class="wk">Tu mejor km</div>
+                  <div><div class="wv" data-count="4" data-suffix="" data-dec="0">0</div>
+                    <div class="wl">Km 4 &mdash; 5:41 /km,<br>tu tramo mas rapido</div></div>
+                </div>
+                <div class="wcard" style="--wc:#4a9eff;background:var(--surface)">
+                  <div class="wk">Constancia</div>
+                  <div><div class="wv" data-count="12" data-suffix="" data-dec="0">0</div>
+                    <div class="wl">Salidas con el grupo<br>en lo que va del ano</div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+      </div><!-- /screens -->
+
+      <div id="tap"></div>
+    </div><!-- /screen -->
+  </div><!-- /phone -->
+</div><!-- /stage -->
+
+<aside id="controls">
+  <h3>Escenas</h3>
+  <div id="scenelist"></div>
+  <div id="transport">
+    <div class="row">
+      <button id="playpause">&#9654;</button>
+      <div id="tcode">0.00<em> / 0.00 s</em></div>
+    </div>
+    <input id="scrub" type="range" min="0" max="1000" value="0" step="1">
+    <div class="links">
+      <a href="?record=1" id="lnk-rec">grabar</a>
+      <a href="?frame=phone" id="lnk-phone">marco</a>
+      <a href="?frame=clean" id="lnk-clean">limpio</a>
+      <a href="?loop=1" id="lnk-loop">loop</a>
+    </div>
+    <div class="keys" id="escala" style="margin-top:8px;font-family:var(--mono);color:#5a5e63"></div>
+    <div class="keys">
+      <b>espacio</b> play/pausa &middot; <b>&larr; &rarr;</b> escena<br>
+      <b>R</b> reiniciar &middot; <b>&uarr; &darr;</b> saltar 1 s
+    </div>
+  </div>
+</aside>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════════════
+   MESH — SIMULADOR DE PANTALLAS PARA VIDEO
+   Un solo archivo, sin build. Unica dependencia externa: Leaflet (CDN) para
+   las teselas reales de OpenStreetMap.
+
+   Fidelidad: tokens, radios, tamanos y textos salen de frontend/. Ver README.
+   Determinismo: todo el estado visible es una funcion pura del tiempo simulado.
+   ══════════════════════════════════════════════════════════════════════════ */
+'use strict';
+
+/* Logo real: trazado desde frontend/assets/images/mesh-logo.png (color plano #fe3a0f). */
+const LOGO_PATH = 'M75.34 3.89L72.13 4.56L69.26 5.57L66.05 7.26L64.70 8.45L64.36 8.45L63.85 9.12L63.51 9.12L59.46 13.51L59.46 13.85L58.11 15.54L57.60 16.89L57.26 17.06L55.74 20.44L54.39 25.00L53.55 30.74L53.55 69.43L53.38 71.45L53.04 71.96L52.03 72.47L51.01 72.47L49.66 71.28L49.66 34.46L48.99 27.36L47.30 21.28L45.27 16.89L44.93 16.72L44.76 16.05L44.43 15.88L44.26 15.20L43.41 14.36L43.07 13.51L39.86 9.97L39.53 9.97L38.68 8.95L38.34 8.95L38.01 8.45L37.67 8.45L35.98 7.09L32.94 5.57L29.56 4.56L24.16 4.05L21.79 4.22L18.07 5.07L14.36 6.76L14.19 7.09L12.50 7.94L10.47 9.80L10.14 9.80L7.77 12.16L7.77 12.50L6.25 14.02L6.25 14.36L4.56 16.55L4.39 17.23L4.05 17.40L1.35 23.65L0.17 29.56L0.00 35.98L0.00 76.35L0.51 76.86L1.69 76.86L2.53 76.01L5.57 74.32L9.97 73.14L12.50 73.14L14.36 73.48L17.23 74.49L21.11 76.69L22.30 76.69L22.64 76.35L22.64 33.78L23.48 32.60L24.32 32.26L25.17 32.43L26.01 33.11L26.35 33.78L26.35 71.96L26.86 75.68L27.70 78.72L28.89 81.42L29.22 81.59L30.24 83.61L31.42 84.80L31.42 85.14L34.80 88.18L38.68 90.37L41.39 91.39L45.10 92.23L48.14 92.57L53.04 92.57L56.42 92.23L61.15 91.22L63.51 90.37L66.55 88.85L66.72 88.51L68.58 87.50L69.09 86.82L69.43 86.82L72.13 83.95L74.66 79.56L76.01 75.17L76.52 71.79L76.35 34.12L76.52 33.28L77.20 32.43L79.22 32.43L79.90 33.45L80.24 64.53L81.08 64.70L82.77 63.51L86.49 61.99L88.34 61.66L90.71 61.66L94.09 62.50L97.13 64.19L99.49 66.39L100.17 66.05L100.17 32.77L99.83 27.36L98.65 21.62L97.47 18.24L95.61 14.53L95.27 14.36L94.26 12.50L93.75 12.16L93.75 11.82L93.07 11.32L93.07 10.98L90.54 8.45L90.20 8.45L89.70 7.77L89.36 7.77L88.01 6.59L85.81 5.41L83.61 4.56L80.41 3.89ZM87.50 63.68L83.78 65.03L80.74 67.74L79.39 70.10L78.72 72.30L78.72 76.35L79.22 78.21L80.24 80.24L82.09 82.43L84.97 84.29L88.51 85.14L90.37 85.14L92.91 84.63L95.78 83.11L97.64 81.42L97.64 81.08L98.82 79.73L100.00 76.52L100.00 72.30L99.49 70.44L98.48 68.41L95.95 65.71L95.61 65.71L94.93 65.03L91.22 63.68ZM90.37 69.43L92.74 70.61L93.58 71.62L94.26 73.31L94.26 75.51L93.75 76.86L92.40 78.38L90.54 79.22L88.18 79.22L86.82 78.72L85.47 77.53L84.46 75.34L84.46 73.31L85.14 71.62L86.99 69.93L88.51 69.43ZM88.51 71.79L87.84 72.13L86.82 73.48L86.82 75.34L87.67 76.52L88.85 77.03L89.86 77.03L91.05 76.52L91.89 75.34L91.89 73.31L90.71 71.96L90.20 71.79ZM10.64 74.66L7.77 75.34L4.90 77.03L2.36 79.90L1.01 83.61L1.01 87.50L1.52 89.36L2.87 91.89L4.39 93.58L4.73 93.58L6.25 94.93L8.11 95.78L10.64 96.28L14.70 95.95L17.06 94.93L18.41 93.75L18.75 93.75L20.44 91.89L21.62 89.86L22.47 86.15L21.96 82.09L20.27 78.89L17.23 76.18L15.54 75.34L12.67 74.66ZM12.50 80.57L14.36 81.25L15.88 82.77L16.55 84.46L16.55 86.66L16.05 88.01L14.70 89.53L13.85 90.03L11.82 90.54L10.47 90.37L8.61 89.53L7.43 88.18L6.76 86.49L6.76 84.46L7.43 82.77L9.29 81.08L10.81 80.57ZM10.81 82.94L10.14 83.28L9.12 84.63L9.12 86.49L9.97 87.67L11.15 88.18L12.16 88.18L13.34 87.67L14.19 86.49L14.19 84.46L13.18 83.28L12.50 82.94Z';
+
+/* Ruta real de Cordoba: OSRM perfil walking, simplificada a 104 vertices.
+   Parque Sarmiento -> Lago -> Bv. Chacabuco -> Plaza Espana. 5,335 km. */
+const ROUTE = [[-31.42649,-64.18045],[-31.42766,-64.18295],[-31.42816,-64.18411],[-31.4282,-64.18426],[-31.4282,-64.1844],[-31.42819,-64.18446],[-31.42811,-64.1846],[-31.42805,-64.18482],[-31.42806,-64.18498],[-31.42811,-64.18516],[-31.42822,-64.18533],[-31.42838,-64.18545],[-31.42858,-64.18549],[-31.42872,-64.18547],[-31.42883,-64.18556],[-31.4289,-64.18565],[-31.42938,-64.18666],[-31.43178,-64.18766],[-31.43272,-64.18803],[-31.43354,-64.18838],[-31.43359,-64.18843],[-31.4336,-64.18846],[-31.4329,-64.19074],[-31.43295,-64.19099],[-31.43307,-64.19118],[-31.43325,-64.19123],[-31.43337,-64.1912],[-31.43351,-64.19112],[-31.4336,-64.19095],[-31.43362,-64.19087],[-31.43361,-64.19073],[-31.43345,-64.19015],[-31.43342,-64.18987],[-31.43342,-64.1896],[-31.43348,-64.18925],[-31.43353,-64.18908],[-31.4337,-64.18906],[-31.43389,-64.18897],[-31.43396,-64.18889],[-31.43406,-64.18876],[-31.43414,-64.18855],[-31.43419,-64.18827],[-31.43419,-64.1881],[-31.43414,-64.18784],[-31.43415,-64.18775],[-31.43422,-64.18766],[-31.43433,-64.18759],[-31.43649,-64.18832],[-31.43837,-64.18892],[-31.43844,-64.18891],[-31.43905,-64.18641],[-31.43919,-64.18609],[-31.43917,-64.18601],[-31.4391,-64.18595],[-31.43904,-64.18594],[-31.43899,-64.18597],[-31.4389,-64.18598],[-31.43874,-64.18593],[-31.43925,-64.18394],[-31.43983,-64.18255],[-31.43982,-64.18235],[-31.43971,-64.18219],[-31.43968,-64.18211],[-31.43978,-64.18176],[-31.43822,-64.18111],[-31.43791,-64.18108],[-31.43764,-64.18108],[-31.43752,-64.18111],[-31.43737,-64.18115],[-31.43721,-64.18123],[-31.43323,-64.18335],[-31.43306,-64.18342],[-31.43272,-64.18349],[-31.43262,-64.18349],[-31.43246,-64.18356],[-31.4321,-64.18392],[-31.43199,-64.18401],[-31.43175,-64.18414],[-31.4315,-64.18423],[-31.43116,-64.18425],[-31.431,-64.18422],[-31.43071,-64.18403],[-31.43052,-64.18386],[-31.43051,-64.18358],[-31.43055,-64.1833],[-31.43086,-64.18164],[-31.43071,-64.18159],[-31.43053,-64.18149],[-31.43015,-64.18117],[-31.43008,-64.18115],[-31.43011,-64.18104],[-31.43007,-64.18097],[-31.43066,-64.17777],[-31.43051,-64.17768],[-31.43018,-64.17721],[-31.42998,-64.17701],[-31.42965,-64.17673],[-31.42962,-64.17657],[-31.42963,-64.17588],[-31.42967,-64.17556],[-31.42975,-64.17524],[-31.42999,-64.17473],[-31.43015,-64.17448],[-31.43024,-64.17438]];
+</script>
+
+<script>
+'use strict';
+
+/* ── Iconos Feather (MIT) — la familia dominante del repo: 126 usos ────── */
+const ICONS = {
+  'mail':'<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><path d="M22 6l-10 7L2 6"/>',
+  'lock':'<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  'arrow-left':'<path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/>',
+  'arrow-right':'<path d="M5 12h14"/><path d="M12 5l7 7-7 7"/>',
+  'chevron-down':'<path d="M6 9l6 6 6-6"/>',
+  'chevron-right':'<path d="M9 18l6-6-6-6"/>',
+  'check':'<path d="M20 6L9 17l-5-5"/>',
+  'plus':'<path d="M12 5v14"/><path d="M5 12h14"/>',
+  'x':'<path d="M18 6L6 18"/><path d="M6 6l12 12"/>',
+  'map':'<path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4-7 4z"/><path d="M8 2v16"/><path d="M16 6v16"/>',
+  'map-pin':'<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>',
+  'users':'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  'bell':'<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
+  'activity':'<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+  'clock':'<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+  'watch':'<circle cx="12" cy="12" r="7"/><path d="M12 9v3l1.5 1.5"/><path d="M16.51 17.35l-.35 3.83a2 2 0 0 1-2 1.82H9.83a2 2 0 0 1-2-1.82l-.35-3.83m.01-10.7l.35-3.83A2 2 0 0 1 9.83 1h4.35a2 2 0 0 1 2 1.82l.35 3.83"/>',
+  'pause-circle':'<circle cx="12" cy="12" r="10"/><path d="M10 15V9"/><path d="M14 15V9"/>',
+  'minimize-2':'<path d="M4 14h6v6"/><path d="M20 10h-6V4"/><path d="M14 10l7-7"/><path d="M3 21l7-7"/>',
+  'wifi':'<path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><path d="M12 20h.01"/>',
+  'alert-triangle':'<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  /* Corredor: la app usa FontAwesome5 "running"; aca va un glifo equivalente de una linea. */
+  'run':'<circle cx="15.2" cy="4.1" r="2.1" fill="currentColor" stroke="none"/><path d="M13.4 8.2L9.6 10.5l1.7 3.6 1.1 6.6"/><path d="M11.3 14.1l-3.6 2.1-1.9 3.9"/><path d="M13.4 8.2l3.5 1.4 1.6 3.3 2.7.7"/><path d="M9.6 10.5L5.9 9.7"/>'
+};
+
+function iconSvg(name, size, color){
+  const body = ICONS[name] || '';
+  return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 24 24" fill="none" '+
+    'stroke="'+(color||'currentColor')+'" stroke-width="2" stroke-linecap="round" '+
+    'stroke-linejoin="round" style="display:block;flex:none">'+body+'</svg>';
+}
+function logoSvg(size, color){
+  return '<svg class="meshmark" width="'+size+'" height="'+(size*0.96)+'" viewBox="0 0 101 97" '+
+    'fill="'+(color||'var(--brand)')+'" fill-rule="evenodd"><path d="'+LOGO_PATH+'"/></svg>';
+}
+
+/* ── Los seis integrantes reales ──────────────────────────────────────────
+   Colores tomados de la paleta de AvatarFallback.tsx, pero asignados a mano:
+   el hash real colisiona (Pedro/Joaquin comparten #6bcb77 y Gonzalo/Manuel
+   #748ffc), y en S3 hay que poder distinguir a Gonzalo de un vistazo. */
+const MEMBERS = [
+  { id:'bc', nombre:'Bautista Casoria', ini:'BC', color:'#ff6b6b' },
+  { id:'gf', nombre:'Gonzalo Ferraro',  ini:'GF', color:'#748ffc' },
+  { id:'pg', nombre:'Pedro Gabrielli',  ini:'PG', color:'#6bcb77' },
+  { id:'fg', nombre:'Franco Giorda',    ini:'FG', color:'#ff922b' },
+  { id:'jp', nombre:'Joaquin Penafort', ini:'JP', color:'#4a9eff', me:true },
+  { id:'mv', nombre:'Manuel Viale',     ini:'MV', color:'#c77dff' }
+];
+
+/* Postas de la ruta (indices calculados sobre ROUTE). */
+const POSTAS = [
+  { idx:38, km:1.80, nombre:'Lago del Parque',  cat:'descanso'  },
+  { idx:69, km:3.48, nombre:'Bv. Chacabuco',    cat:'sanitario' }
+];
+
+/* ── Geometria de la polilinea ─────────────────────────────────────────── */
+const R_T = 6371000, rad = d => d*Math.PI/180, deg = r => r*180/Math.PI;
+function metros(a,b){
+  const dLat=rad(b[0]-a[0]), dLng=rad(b[1]-a[1]);
+  const h=Math.sin(dLat/2)**2 + Math.cos(rad(a[0]))*Math.cos(rad(b[0]))*Math.sin(dLng/2)**2;
+  return R_T*2*Math.atan2(Math.sqrt(h),Math.sqrt(1-h));
+}
+const CUM=[0];
+for(let i=1;i<ROUTE.length;i++) CUM.push(CUM[i-1]+metros(ROUTE[i-1],ROUTE[i]));
+const LARGO_M = CUM[CUM.length-1];
+
+/** Punto + rumbo a `d` metros del origen. Pura. */
+function puntoEn(d){
+  const x = Math.max(0, Math.min(d, LARGO_M));
+  let lo=0, hi=CUM.length-1;
+  while(lo < hi-1){ const mid=(lo+hi)>>1; if(CUM[mid]<=x) lo=mid; else hi=mid; }
+  const a=ROUTE[lo], b=ROUTE[lo+1]||ROUTE[lo];
+  const tr=CUM[lo+1]-CUM[lo], f= tr>0 ? (x-CUM[lo])/tr : 0;
+  const dLng=rad(b[1]-a[1]);
+  const y=Math.sin(dLng)*Math.cos(rad(b[0]));
+  const xx=Math.cos(rad(a[0]))*Math.sin(rad(b[0]))-Math.sin(rad(a[0]))*Math.cos(rad(b[0]))*Math.cos(dLng);
+  return { lat:a[0]+(b[0]-a[0])*f, lng:a[1]+(b[1]-a[1])*f, brg:(deg(Math.atan2(y,xx))+360)%360 };
+}
+/** Desplaza un punto `m` metros en un rumbo dado. */
+function desplazar(p, m, brg){
+  if(!m) return p;
+  const br=rad(brg);
+  return { lat: p.lat + deg((m*Math.cos(br))/R_T),
+           lng: p.lng + deg((m*Math.sin(br))/(R_T*Math.cos(rad(p.lat)))) };
+}
+
+/* ── Utilidades deterministas ──────────────────────────────────────────── */
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+const lerp=(a,b,t)=>a+(b-a)*t;
+/** Rampa 0..1 entre t0 y t1 con easing suave. */
+function ramp(t,t0,t1,ease){
+  if(t1<=t0) return t>=t1?1:0;
+  const u=clamp((t-t0)/(t1-t0),0,1);
+  return ease===false ? u : u*u*(3-2*u);
+}
+const easeOut = u => 1-Math.pow(1-u,3);
+/** Ruido pseudoaleatorio reproducible: mismo (i,k) -> mismo valor, siempre. */
+function hash01(i,k){
+  let h = Math.imul(i^0x9e3779b9, 0x85ebca6b) ^ Math.imul(k+0x165667b1, 0xc2b2ae35);
+  h ^= h>>>15; h = Math.imul(h,0x2545f491); h ^= h>>>13;
+  return ((h>>>0)%100000)/100000;
+}
+/** Ruido continuo en el tiempo: interpola entre muestras enteras. */
+function noise(i,t,hz){
+  const s=t*(hz||0.55), k=Math.floor(s), f=s-k, e=f*f*(3-2*f);
+  return lerp(hash01(i,k), hash01(i,k+1), e)*2-1;
+}
+function fmtKm(m){ return (m/1000).toFixed(2).replace('.',',')+' km'; }
+function fmtMs(seg){
+  const s=Math.max(0,Math.round(seg));
+  return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+}
+function fmtPace(segPorKm){
+  const m=Math.floor(segPorKm/60), s=Math.round(segPorKm%60);
+  return m+':'+String(s).padStart(2,'0')+' /km';
+}
+</script>
+
+<script>
+'use strict';
+/* ══════════════════════════════════════════════════════════════════════════
+   SCENES — el guion. Editable a mano: cambiar `t`, `dur` y `hasta` retoca el
+   timing sin tocar una linea de logica. Todos los tiempos van en SEGUNDOS.
+
+   Forma de una accion:
+     { t, a:'nombre', ...args }            evento puntual (activo desde t)
+     { t, hasta, a:'nombre', ... }         activo solo en [t, hasta)
+     { t, dur, a:'nombre', ... }           tween: el handler recibe p de 0 a 1
+   ══════════════════════════════════════════════════════════════════════════ */
+const SCENES = [
+
+{ id:'planificar', nombre:'S1 - Planificar la salida', dur:11, pantalla:'s-ruta',
+  acciones:[
+    // El mapa entra lejos y baja al punto de partida...
+    { t:0.0, dur:2.2, a:'mapa', mapa:'ruta',
+      desde:{ lat:-31.4332, lng:-64.1828, zoom:12.6 },
+      hasta:{ lat:-31.4265, lng:-64.1805, zoom:15.8 } },
+    // ...y mientras se traza la ruta, se abre para mostrarla entera.
+    { t:2.2, dur:2.6, a:'mapa', mapa:'ruta',
+      desde:{ lat:-31.4265, lng:-64.1805, zoom:15.8 },
+      hasta:{ lat:-31.4332, lng:-64.1828, zoom:13.7 } },
+    { t:2.0, dur:2.6, a:'trazo', mapa:'ruta' },
+
+    { t:4.55, a:'tap', x:150, y:352 },
+    { t:4.75, a:'posta', n:0 },
+    { t:5.45, a:'tap', x:243, y:404 },
+    { t:5.65, a:'posta', n:1 },
+    { t:5.9,  a:'resumen' },
+    // El sheet sube a tope para que la fila de horario quede a la vista.
+    { t:5.95, a:'snap', snap:'max' },
+    { t:6.05, dur:0.55, a:'hoja', desde:0, hasta:330 },
+
+    { t:6.75, a:'tap', x:200, y:364 },
+    { t:6.9,  hasta:8.45, a:'clase', sel:'#s-ruta .timepick', clase:'up' },
+    { t:6.9,  hasta:8.45, a:'clase', sel:'#s-ruta .scrim',    clase:'on'  },
+    { t:7.3,  a:'ruedas' },
+    { t:8.3,  a:'tap', x:295, y:803 },
+    { t:8.45, a:'hora' },
+
+    // Corte al panel de invitacion.
+    { t:8.8, a:'pantalla', pantalla:'s-invitar' },
+    { t:9.25, a:'unirse', n:0 },
+    { t:9.85, a:'unirse', n:1 },
+    { t:10.4, a:'unirse', n:2 }
+  ]},
+
+{ id:'mapa-vivo', nombre:'S2 - Mapa en vivo', dur:11, pantalla:'s-live',
+  acciones:[
+    { t:0, dur:11, a:'vivo', desdeM:1200, ritmoM:110, desdeSeg:510, ritmoSeg:22 }
+  ]},
+
+{ id:'alertas', nombre:'S3 - Alertas automaticas', dur:12, pantalla:'s-live',
+  acciones:[
+    // Continua exactamente donde termino S2.
+    { t:0, dur:12, a:'vivo', desdeM:2410, ritmoM:105, desdeSeg:752, ritmoSeg:22,
+      atraso:{ i:1, t0:2.0, t1:7.5, metros:210 },
+      desvio:{ i:3, t0:6.0, t1:9.5, metros:145 } },
+
+    { t:2.6, a:'estado', i:1, estado:'late' },
+    { t:2.6, a:'chip', chip:'sep', tono:'warn', txt:'Separacion 130 m' },
+    { t:2.8, hasta:8.6, a:'toast', id:'atraso', tipo:'atraso',
+      titulo:'Atraso', mensaje:'Gonzalo Ferraro va ~180 m atras del grupo',
+      autor:'Alerta automatica' },
+    { t:2.8, a:'contador', n:1 },
+
+    { t:6.4, a:'estado', i:3, estado:'off' },
+    { t:6.4, a:'chip', chip:'bloque', tono:'bad', txt:'5 en el peloton' },
+    { t:6.6, hasta:9.2, a:'toast', id:'desvio', tipo:'desvio',
+      titulo:'Desvio', mensaje:'Franco Giorda se desvio ~140 m de la ruta',
+      autor:'Alerta automatica' },
+    { t:6.6, a:'contador', n:2 },
+
+    { t:8.9,  a:'tap', x:35, y:269 },
+    { t:9.15, a:'clase', sel:'#s-live .alpanel', clase:'up' }
+  ]},
+
+{ id:'cierre', nombre:'S4 - Cierre y metricas', dur:10, pantalla:'s-cierre',
+  acciones:[
+    { t:0.35, a:'clase', sel:'#s-cierre .cz-map', clase:'in' },
+    { t:0.5,  a:'trazoFinal' },
+    { t:0.9,  dur:1.9, a:'contadores' },
+    { t:3.3,  dur:1.7, a:'scroll', desde:0,   hasta:390 },
+    { t:5.9,  dur:1.6, a:'scroll', desde:390, hasta:663 }
+  ]},
+
+{ id:'recorrido-rapido', nombre:'S5 - Recorrido rapido', dur:8, pantalla:'s-login',
+  acciones:[
+    { t:0.0, a:'pantalla', pantalla:'s-login',   push:true },
+    { t:1.5, a:'pantalla', pantalla:'s-perfil',  push:true },
+    { t:3.0, a:'pantalla', pantalla:'s-grupos',  push:true },
+    { t:4.5, a:'pantalla', pantalla:'s-ruta',    push:true },
+    { t:4.5, a:'mapa', mapa:'ruta', desde:{ lat:-31.4332, lng:-64.1828, zoom:13.7 },
+                                    hasta:{ lat:-31.4332, lng:-64.1828, zoom:13.7 } },
+    { t:4.5, dur:0.01, a:'trazo', mapa:'ruta' },
+    { t:4.6, a:'posta', n:0 }, { t:4.6, a:'posta', n:1 }, { t:4.6, a:'resumen' },
+    { t:6.0, a:'pantalla', pantalla:'s-live',    push:true },
+    { t:6.0, dur:2.0, a:'vivo', desdeM:2100, ritmoM:95, desdeSeg:690, ritmoSeg:22 }
+  ]}
+
+];
+</script>
+
+<script>
+'use strict';
+/* ══════════════════════════════════════════════════════════════════════════
+   HIDRATACION DEL DOM
+   ══════════════════════════════════════════════════════════════════════════ */
+const $  = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+
+function avatarHtml(m, size, extra){
+  const f = Math.round(size*0.38);
+  return '<div class="av'+(extra||'')+'" style="width:'+size+'px;height:'+size+'px;'+
+    'font-size:'+f+'px;background:'+m.color+'">'+m.ini+'</div>';
+}
+
+function hidratar(){
+  $$('[data-icon]').forEach(el=>{
+    el.innerHTML = iconSvg(el.dataset.icon, parseFloat(el.dataset.size||'18'), el.dataset.color);
+    el.style.display='inline-flex';
+  });
+  $$('[data-logo]').forEach(el=>{ el.innerHTML = logoSvg(parseFloat(el.dataset.logo)); });
+
+  // Grupos
+  const grupos = [
+    { n:'Los del sabado',   m:'6 integrantes - Running',  ids:[0,1,2,3,4,5] },
+    { n:'Ruta 34',          m:'4 integrantes - Moto',     ids:[0,3,4,5] },
+    { n:'Sierras Chicas',   m:'5 integrantes - Bici',     ids:[1,2,3,4,5] }
+  ];
+  $('#s-grupos .g-list').innerHTML = grupos.map(g=>
+    '<div class="g-card">'+
+      '<div class="acttile" style="width:44px;height:44px;border-radius:14px;background:var(--accent-weak);display:grid;place-items:center">'+
+        iconSvg('users',20,'var(--accent)')+'</div>'+
+      '<div class="g-info"><div class="g-name">'+g.n+'</div><div class="g-meta">'+g.m+'</div></div>'+
+      '<div class="g-stack">'+g.ids.slice(0,3).map(i=>avatarHtml(MEMBERS[i],30)).join('')+'</div>'+
+    '</div>').join('');
+
+  // Avatares del header en vivo
+  $('#s-live .lv-avatars').innerHTML =
+    MEMBERS.map((m,i)=>avatarHtml(m,32,'" data-av="'+i+(m.me?'" data-me="1':''))).join('') +
+    '<span class="lv-count">'+iconSvg('users',15,'currentColor')+'<b data-lv-count>6</b></span>';
+
+  // Filas de "se sumaron" (S1): el lider ya esta; entran tres.
+  const orden=[4,0,2,3];
+  $('#s-invitar .joined').insertAdjacentHTML('beforeend', orden.map((mi,k)=>{
+    const m=MEMBERS[mi];
+    return '<div class="jrow" data-join="'+k+'"'+(k===0?' style="opacity:1;transform:none"':'')+'>'+
+      avatarHtml(m,30)+'<span class="n">'+m.nombre+(k===0?' (lider)':'')+'</span>'+
+      '<span class="s">'+(k===0?'CREADOR':'SE UNIO')+'</span></div>';
+  }).join(''));
+
+  // Ranking del cierre (S4) — RN-070 no aplica: running si tiene ranking.
+  const rank=[
+    {i:2,v:'5,33 km'},{i:4,v:'5,33 km'},{i:0,v:'5,31 km'},
+    {i:5,v:'5,30 km'},{i:3,v:'5,28 km'},{i:1,v:'5,12 km'}
+  ];
+  $('#s-cierre .ranking').innerHTML =
+    '<div class="hero" style="margin-bottom:10px">'+
+      '<span class="badge accent">Mas kilometros</span>'+
+      avatarHtml(MEMBERS[2],56)+
+      '<div class="hn">'+MEMBERS[2].nombre+'</div><div class="hv">5,33 km</div></div>'+
+    rank.slice(1).map((r,k)=>{
+      const m=MEMBERS[r.i];
+      return '<div class="rk'+(m.me?' me':'')+'" style="margin-bottom:8px">'+
+        '<span class="pos">#'+(k+2)+'</span>'+avatarHtml(m,36)+
+        '<span class="nm">'+m.nombre+(m.me?'  -  Vos':'')+'</span>'+
+        '<span class="vl">'+r.v+'</span></div>';
+    }).join('');
+
+  // Ruedas del selector de horario
+  const ruedas={
+    dia:['Jue 4 sep','Vie 5 sep','Sab 6 sep','Dom 7 sep','Lun 8 sep'],
+    hora:['06','07','08','09','10'],
+    min:['00','15','30','45']
+  };
+  Object.keys(ruedas).forEach(k=>{
+    $('#s-ruta .wheel[data-wheel="'+k+'"] ul').innerHTML =
+      ruedas[k].map(v=>'<li>'+v+'</li>').join('');
+  });
+
+  setRuedas(RUEDAS_INICIO);
+  qrDecorativo();
+}
+
+/* Indice seleccionado por rueda: [dia, hora, minuto].
+   La fila visible es la que cae en la banda de seleccion (li de 38px, ul en top:47). */
+const RUEDA_H = 38;
+const RUEDAS_INICIO = [2, 3, 0];   // Sab 6 sep - 09:00
+const RUEDAS_FINAL  = [2, 2, 2];   // Sab 6 sep - 08:30
+function setRuedas(idx){
+  $$('#s-ruta .wheel ul').forEach((u,i)=>{
+    u.style.transform = 'translate3d(0,'+(-idx[i]*RUEDA_H)+'px,0)';
+    Array.from(u.children).forEach((li,k)=>li.classList.toggle('sel', k===idx[i]));
+  });
+}
+
+/* QR decorativo y determinista (patrones de deteccion + trama con seed fija).
+   No es escaneable: es un elemento grafico para el video. Ver README. */
+function qrDecorativo(){
+  const N=29, mods=[];
+  const finder=(ox,oy)=>{
+    for(let y=0;y<7;y++)for(let x=0;x<7;x++){
+      const b=(x===0||x===6||y===0||y===6)||(x>=2&&x<=4&&y>=2&&y<=4);
+      if(b) mods.push([ox+x,oy+y]);
+    }
+  };
+  finder(0,0); finder(N-7,0); finder(0,N-7);
+  const ocupado=(x,y)=>
+    (x<9&&y<9)||(x>N-10&&y<9)||(x<9&&y>N-10)||
+    (x>=N-9&&x<=N-5&&y>=N-9&&y<=N-5);
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    if(ocupado(x,y)) continue;
+    if(hash01(x*73+y, y*31+x) > 0.52) mods.push([x,y]);
+  }
+  // Marca de alineacion abajo a la derecha
+  for(let y=0;y<5;y++)for(let x=0;x<5;x++){
+    const b=(x===0||x===4||y===0||y===4)||(x===2&&y===2);
+    if(b) mods.push([N-9+x, N-9+y]);
+  }
+  $('#qr').innerHTML = '<rect width="29" height="29" fill="#fff"/>' +
+    mods.map(([x,y])=>'<rect x="'+x+'" y="'+y+'" width="1" height="1" fill="#0f0f0f"/>').join('');
+}
+</script>
+
+<script>
+'use strict';
+/* ══════════════════════════════════════════════════════════════════════════
+   MAPAS — Leaflet + teselas reales de OpenStreetMap.
+   Toda la animacion la maneja el reloj virtual: las transiciones propias de
+   Leaflet quedan apagadas porque dependen del reloj de pared y romperian el
+   determinismo (dos grabaciones no saldrian identicas).
+   ══════════════════════════════════════════════════════════════════════════ */
+const TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+const MAPAS = {};
+
+function crearMapa(id, centro, zoom){
+  if(MAPAS[id]) return MAPAS[id];
+  const map = L.map('map-'+id, {
+    zoomControl:false, attributionControl:false,
+    dragging:false, touchZoom:false, doubleClickZoom:false, scrollWheelZoom:false,
+    boxZoom:false, keyboard:false, inertia:false,
+    zoomSnap:0, zoomDelta:0, zoomAnimation:false, fadeAnimation:false,
+    markerZoomAnimation:false, preferCanvas:false
+  }).setView(centro, zoom);
+  L.tileLayer(TILE_URL, { maxZoom:19, keepBuffer:4, updateWhenZooming:false }).addTo(map);
+  MAPAS[id] = { map, capas:{}, centro, zoom };
+  return MAPAS[id];
+}
+
+function verView(id, lat, lng, zoom){
+  const M = MAPAS[id]; if(!M) return;
+  if(Math.abs(M.centro[0]-lat)<1e-7 && Math.abs(M.centro[1]-lng)<1e-7 &&
+     Math.abs(M.zoom-zoom)<1e-4) return;
+  M.centro=[lat,lng]; M.zoom=zoom;
+  M.map.setView([lat,lng], zoom, { animate:false });
+}
+
+/** Polilinea de la ruta con dibujado progresivo por stroke-dashoffset
+    (no toca layout: solo una propiedad de pintado sobre el path SVG). */
+function polilinea(id, color, peso){
+  const M = MAPAS[id];
+  if(M.capas.ruta) return M.capas.ruta;
+  const pl = L.polyline(ROUTE, { color, weight:peso, opacity:.95,
+    lineCap:'round', lineJoin:'round' }).addTo(M.map);
+  M.capas.ruta = pl;
+  return pl;
+}
+function trazoProgreso(id, p){
+  const M = MAPAS[id]; if(!M || !M.capas.ruta) return;
+  const path = M.capas.ruta._path; if(!path) return;
+  if(M.largoPath == null){ try{ M.largoPath = path.getTotalLength(); }catch(e){ M.largoPath = 0; } }
+  const L0 = M.largoPath;
+  if(!L0) return;
+  path.style.strokeDasharray = L0;
+  path.style.strokeDashoffset = L0 * (1 - clamp(p,0,1));
+}
+
+function marcadorMiembro(m, estado){
+  const st = estado || (m.me ? 'me' : 'base');
+  return L.divIcon({ className:'mesh-marker', iconSize:[48,48], iconAnchor:[24,24],
+    html:'<div class="mk" data-state="'+st+'">'+
+      '<div class="ring"><div class="face" style="background:'+m.color+'">'+m.ini+'</div></div>'+
+      '<div class="flag">'+(st==='off'?'!':'II')+'</div></div>' });
+}
+function marcadorPin(color){
+  return L.divIcon({ className:'mesh-marker', iconSize:[25,41], iconAnchor:[12,41],
+    html:'<div class="pin pop"><i style="background:'+color+'"></i></div>' });
+}
+
+/* Instancias */
+function mapaRuta(){
+  const M = crearMapa('ruta', [-31.4332,-64.1828], 12.6);
+  if(!M.capas.ruta){
+    polilinea('ruta', getComputedStyle(document.documentElement)
+      .getPropertyValue('--accent').trim() || '#d76655', 5);
+    trazoProgreso('ruta', 0);
+    M.capas.origen  = L.marker(ROUTE[0], { icon:marcadorPin('#4fb477') }).addTo(M.map);
+    M.capas.destino = L.marker(ROUTE[ROUTE.length-1], { icon:marcadorPin('#ff5a4d') }).addTo(M.map);
+    M.capas.postas = [];
+  }
+  return M;
+}
+function mapaLive(){
+  const M = crearMapa('live', [ROUTE[20][0], ROUTE[20][1]], 16);
+  if(!M.capas.ruta){
+    polilinea('live', '#60a5fa', 5);
+    trazoProgreso('live', 1);
+    M.capas.miembros = MEMBERS.map(m =>
+      L.marker(ROUTE[0], { icon:marcadorMiembro(m), zIndexOffset: m.me?1000:0 }).addTo(M.map));
+  }
+  return M;
+}
+function mapaCierre(){
+  const M = crearMapa('cierre', [-31.4332,-64.1828], 13.2);
+  if(!M.capas.ruta){
+    polilinea('cierre', getComputedStyle(document.documentElement)
+      .getPropertyValue('--accent').trim() || '#d76655', 4);
+    trazoProgreso('cierre', 0);
+    L.marker(ROUTE[0], { icon:marcadorPin('#4fb477') }).addTo(M.map);
+    L.marker(ROUTE[ROUTE.length-1], { icon:marcadorPin('#ff5a4d') }).addTo(M.map);
+  }
+  return M;
+}
+</script>
+
+<script>
+'use strict';
+/* ══════════════════════════════════════════════════════════════════════════
+   MODELO — computar(escena, t) es una FUNCION PURA: mismo t, mismo estado.
+   Es lo que hace que dos grabaciones de la misma escena salgan identicas.
+   ══════════════════════════════════════════════════════════════════════════ */
+const CHIPS_BASE = {
+  bloque:{ tono:'good', txt:'6 en el peloton' },
+  sep:   { tono:'good', txt:'Separacion 40 m' },
+  gps:   { tono:'good', txt:'GPS 5 s' }
+};
+
+function computar(scene, tl){
+  const st = {
+    pantalla:scene.pantalla, pushDesde:-99,
+    clases:{}, postas:0, resumen:false, hora:false, ruedas:false, unidos:0, snap:'mid', hoja:0,
+    toasts:[], estados:{}, chips:JSON.parse(JSON.stringify(CHIPS_BASE)), contador:0,
+    mapa:null, trazo:null, vivo:null, trazoFinal:false, contadores:0, scroll:0, tap:null
+  };
+
+  scene.acciones.forEach((a, idx)=>{
+    const tween = a.dur != null;
+    if(tween){ if(tl < a.t) return; }
+    else if(!(tl >= a.t && (a.hasta == null || tl < a.hasta))) return;
+    const p  = tween ? clamp((tl-a.t)/a.dur, 0, 1) : 0;
+    const dt = tl - a.t;
+
+    switch(a.a){
+      case 'pantalla':
+        st.pantalla = a.pantalla;
+        if(a.push) st.pushDesde = a.t;
+        break;
+      case 'clase':
+        st.clases[a.sel+'|'+a.clase] = true;
+        break;
+      case 'mapa': {
+        const e = ramp(p,0,1);
+        st.mapa = { mapa:a.mapa,
+          lat:lerp(a.desde.lat,a.hasta.lat,e),
+          lng:lerp(a.desde.lng,a.hasta.lng,e),
+          zoom:lerp(a.desde.zoom,a.hasta.zoom,e) };
+        break;
+      }
+      case 'trazo':   st.trazo = { mapa:a.mapa, p:easeOut(p) }; break;
+      case 'posta':   st.postas = Math.max(st.postas, a.n+1); break;
+      case 'resumen': st.resumen = true; break;
+      case 'snap':    st.snap = a.snap; break;
+      case 'hoja':    st.hoja = lerp(a.desde, a.hasta, ramp(p,0,1)); break;
+      case 'ruedas':  st.ruedas = true; break;
+      case 'hora':    st.hora = true; break;
+      case 'unirse':  st.unidos = Math.max(st.unidos, a.n+1); break;
+      case 'estado':  st.estados[a.i] = a.estado; break;
+      case 'chip':    st.chips[a.chip] = { tono:a.tono, txt:a.txt }; break;
+      case 'contador':st.contador = Math.max(st.contador, a.n); break;
+      case 'toast':   st.toasts.push(a); break;
+      case 'tap':     if(dt < 0.62) st.tap = { x:a.x, y:a.y, key:idx }; break;
+      case 'trazoFinal':  st.trazoFinal = true; break;
+      case 'contadores':  st.contadores = easeOut(p); break;
+      case 'scroll':      st.scroll = lerp(a.desde, a.hasta, ramp(p,0,1)); break;
+      case 'vivo':        st.vivo = Object.assign({}, a, { t:dt }); break;
+    }
+  });
+  return st;
+}
+
+/** Posicion de un integrante: avance base + dispersion del peloton + desvios. */
+function posMiembro(v, i){
+  let m = v.desdeM + v.ritmoM * v.t;
+  // Dispersion longitudinal del peloton (~275 m de punta a punta) mas deriva
+  // suave: a zoom 16 son unos 2 m/px, asi los seis marcadores no se solapan.
+  m += (i - 2.5) * 55 + noise(i, v.t, 0.5) * 18;
+  let lateral = noise(i + 40, v.t, 0.35) * 7;          // ancho de la traza, reproducible
+  if(v.atraso && v.atraso.i === i) m -= v.atraso.metros * ramp(v.t, v.atraso.t0, v.atraso.t1);
+  if(v.desvio && v.desvio.i === i) lateral = v.desvio.metros * ramp(v.t, v.desvio.t0, v.desvio.t1);
+  const p = puntoEn(m);
+  return lateral ? desplazar(p, lateral, (p.brg + 90) % 360) : p;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   RENDER — aplica el estado al DOM por diferencia contra el frame anterior,
+   asi las transiciones CSS no se reinician en cada cuadro.
+   ══════════════════════════════════════════════════════════════════════════ */
+let prev = null;
+
+function hardReset(){
+  prev = null;
+  $$('.screen').forEach(s=>s.classList.remove('on','push-in','push-out'));
+  $$('#s-ruta .wp.hidden, #s-ruta .wp').forEach(w=>w.classList.remove('enter'));
+  ['#s-ruta .timepick|up','#s-ruta .scrim|on','#s-live .alpanel|up','#s-cierre .cz-map|in']
+    .forEach(k=>{ const [s,c]=k.split('|'); const el=$(s); if(el) el.classList.remove(c); });
+  $$('#s-ruta .wp[data-wp="p1"], #s-ruta .wp[data-wp="p2"]').forEach(w=>w.classList.add('hidden'));
+  $$('#s-invitar .jrow').forEach((r,i)=>{ if(i>0) r.classList.remove('in'); });
+  setRuedas(RUEDAS_INICIO);
+  const sh=$('#s-ruta .sheet'); if(sh) sh.dataset.snap='mid';
+  const shb=$('#s-ruta .sh-body'); if(shb) shb.style.transform='';
+  $('#s-live .toasts').innerHTML='';
+  $('#s-live .ap-list').innerHTML='';
+  $('#s-live .fab .cnt').classList.remove('on');
+  $('#s-cierre .cz-scroll').style.transform='';
+  $('#tap').classList.remove('fire');
+  const Mr = MAPAS.ruta;
+  if(Mr){ (Mr.capas.postas||[]).forEach(m=>Mr.map.removeLayer(m)); Mr.capas.postas=[]; trazoProgreso('ruta',0); }
+  if(MAPAS.cierre) trazoProgreso('cierre',0);
+  $$('#s-live .lv-avatars .av').forEach(a=>a.removeAttribute('data-state'));
+}
+
+function render(st){
+  const p = prev || {};
+
+  /* Pantalla activa */
+  if(p.pantalla !== st.pantalla){
+    $$('.screen').forEach(s=>{
+      const on = s.id === st.pantalla;
+      s.classList.toggle('on', on);
+      s.classList.remove('push-in','push-out');
+    });
+    if(st.pushDesde > -99){
+      const el = $('#'+st.pantalla);
+      el.classList.remove('push-in'); void el.offsetWidth; el.classList.add('push-in');
+    }
+    const M = MAPAS[st.pantalla==='s-ruta'?'ruta':st.pantalla==='s-live'?'live':
+                    st.pantalla==='s-cierre'?'cierre':null];
+    if(M) requestAnimationFrame(()=>M.map.invalidateSize(false));
+  }
+
+  /* Clases declarativas */
+  for(const k in st.clases){
+    if(!p.clases || !p.clases[k]){ const [s,c]=k.split('|'); const el=$(s); if(el) el.classList.add(c); }
+  }
+  if(p.clases) for(const k in p.clases){
+    if(!st.clases[k]){ const [s,c]=k.split('|'); const el=$(s); if(el) el.classList.remove(c); }
+  }
+
+  /* Mapa: centro y zoom */
+  if(st.mapa) verView(st.mapa.mapa, st.mapa.lat, st.mapa.lng, st.mapa.zoom);
+  if(st.trazo) trazoProgreso(st.trazo.mapa, st.trazo.p);
+  if(st.trazoFinal && !p.trazoFinal){
+    trazoProgreso('cierre', 1);
+    const M = MAPAS.cierre;
+    if(M) requestAnimationFrame(()=>{
+      M.map.invalidateSize(false);
+      M.map.fitBounds(L.latLngBounds(ROUTE), { padding:[26,26], animate:false });
+    });
+  }
+
+  /* Postas (S1) */
+  if(p.postas !== st.postas){
+    const M = mapaRuta();
+    for(let n=0; n<2; n++){
+      const fila = $('#s-ruta .wp[data-wp="p'+(n+1)+'"]');
+      const vis = n < st.postas;
+      fila.classList.toggle('hidden', !vis);
+      if(vis && !(p.postas > n)){ fila.classList.remove('enter'); void fila.offsetWidth; fila.classList.add('enter'); }
+    }
+    (M.capas.postas||[]).forEach(m=>M.map.removeLayer(m));
+    M.capas.postas = [];
+    for(let n=0; n<st.postas; n++){
+      M.capas.postas.push(
+        L.marker(ROUTE[POSTAS[n].idx], { icon:marcadorPin('#d76655') }).addTo(M.map));
+    }
+  }
+  if(p.resumen !== st.resumen){
+    const a=$('#s-ruta [data-res-a]'), b=$('#s-ruta [data-res-b]');
+    if(st.resumen){ a.textContent='Distancia: 5,33 km'; b.textContent='Tiempo estimado: 34 min';
+      b.style.display=''; } else { a.textContent='Defini origen y destino para ver el resumen.';
+      b.style.display='none'; }
+  }
+  if(p.snap !== st.snap){ $('#s-ruta .sheet').dataset.snap = st.snap; }
+  if(p.hoja !== st.hoja){ $('#s-ruta .sh-body').style.transform='translate3d(0,'+(-st.hoja).toFixed(1)+'px,0)'; }
+  if(p.ruedas !== st.ruedas) setRuedas(st.ruedas ? RUEDAS_FINAL : RUEDAS_INICIO);
+  if(p.hora !== st.hora){
+    $('#s-ruta [data-hora]').textContent = st.hora ? 'Sab 6 sep - 08:30' : 'Sab 6 sep - 09:00';
+  }
+
+  /* Se van uniendo (S1) */
+  if(p.unidos !== st.unidos){
+    $$('#s-invitar .jrow').forEach((r,i)=>{
+      if(i===0) return;
+      const vis = i <= st.unidos;
+      r.classList.toggle('in', vis);
+    });
+    $('#s-invitar [data-jcount]').textContent = (1+st.unidos)+' / 6';
+  }
+
+  renderVivo(st, p);
+  renderCierre(st, p);
+  renderTap(st, p);
+  prev = st;
+}
+</script>
+
+<script>
+'use strict';
+/* ══════════════════════════════════════════════════════════════════════════
+   RENDER — mapa en vivo (S2 / S3)
+   ══════════════════════════════════════════════════════════════════════════ */
+const META_ALERTA = {
+  atraso:      { emoji:'\u{1F422}', color:'var(--al-atraso)',      label:'Atraso' },
+  desvio:      { emoji:'↗',    color:'var(--al-desvio)',      label:'Desvio' },
+  peligro:     { emoji:'⚠',    color:'var(--al-peligro)',     label:'Peligro' },
+  parada:      { emoji:'⏸',    color:'var(--al-parada)',      label:'Parada' },
+  combustible: { emoji:'⛽',    color:'var(--al-combustible)', label:'Combustible' },
+  informacion: { emoji:'ℹ',    color:'var(--al-info)',        label:'Informacion' }
+};
+
+function renderVivo(st, p){
+  const v = st.vivo;
+
+  /* Estados de los marcadores y de los avatares del header */
+  const estadoDe = i => st.estados[i] || (MEMBERS[i].me ? 'me' : 'base');
+  if(JSON.stringify(st.estados) !== JSON.stringify(p.estados || {})){
+    MEMBERS.forEach((m,i)=>{
+      const e = estadoDe(i);
+      const M = MAPAS.live;
+      if(M && M.capas.miembros){
+        const el = M.capas.miembros[i].getElement();
+        const mk = el && el.querySelector('.mk');
+        if(mk){ mk.dataset.state = e; const f = mk.querySelector('.flag');
+          if(f) f.textContent = e==='off' ? '!' : 'II'; }
+      }
+      const av = $('#s-live .lv-avatars .av[data-av="'+i+'"]');
+      if(av){ if(e==='late'||e==='off') av.dataset.state = e; else av.removeAttribute('data-state'); }
+    });
+  }
+
+  /* Chips de estado del grupo */
+  if(JSON.stringify(st.chips) !== JSON.stringify(p.chips || {})){
+    for(const k in st.chips){
+      const el = $('#s-live .chip[data-chip="'+k+'"]');
+      if(!el) continue;
+      el.dataset.tone = st.chips[k].tono;
+      el.querySelector('[data-chip-txt]').textContent = st.chips[k].txt;
+    }
+  }
+
+  /* Toasts de alerta */
+  const ids = st.toasts.map(t=>t.id).join(',');
+  if(ids !== (p.toasts||[]).map(t=>t.id).join(',')){
+    const cont = $('#s-live .toasts');
+    const vivos = new Set(st.toasts.map(t=>t.id));
+    Array.from(cont.children).forEach(el=>{
+      if(!vivos.has(el.dataset.id)){
+        el.classList.remove('in'); el.classList.add('out');
+        setTimeout(()=>{ if(el.parentNode && !el.classList.contains('in')) el.remove(); }, 420);
+      }
+    });
+    st.toasts.forEach(t=>{
+      if(cont.querySelector('[data-id="'+t.id+'"]')) return;
+      const meta = META_ALERTA[t.tipo] || META_ALERTA.peligro;
+      const el = document.createElement('div');
+      el.className = 'toast'; el.dataset.id = t.id;
+      el.style.borderColor = meta.color;
+      el.innerHTML =
+        '<div style="flex:1;min-width:0">'+
+          '<div class="tt" style="color:'+meta.color+'">'+meta.emoji+' '+t.titulo+'</div>'+
+          '<div class="tm">'+t.mensaje+'</div>'+
+          '<div class="ta">'+t.autor+'</div></div>'+
+        '<div style="padding-left:10px;padding-top:2px;color:var(--text-mute)">'+
+          iconSvg('x',15,'currentColor')+'</div>';
+      cont.appendChild(el);
+      void el.offsetWidth; el.classList.add('in');
+    });
+  }
+
+  /* Contador del boton de alertas + lista del panel */
+  if(p.contador !== st.contador){
+    const c = $('#s-live .fab .cnt');
+    c.textContent = st.contador;
+    c.classList.toggle('on', st.contador > 0);
+    $('#s-live [data-ap-count]').textContent = st.contador + (st.contador===1?' activa':' activas');
+    const filas = [
+      { tipo:'desvio', msg:'Franco Giorda se desvio ~140 m de la ruta', hr:'09:12' },
+      { tipo:'atraso', msg:'Gonzalo Ferraro va ~180 m atras del grupo', hr:'09:08' }
+    ].slice(st.contador === 2 ? 0 : 1, 2);
+    $('#s-live .ap-list').innerHTML = (st.contador === 0 ? '' : filas.map(f=>{
+      const meta = META_ALERTA[f.tipo];
+      return '<div class="alcard" style="border-left-color:'+meta.color+'">'+
+        '<div class="hd"><span class="em">'+meta.emoji+'</span>'+
+        '<span class="tp" style="color:'+meta.color+'">'+meta.label+'</span>'+
+        '<span class="hr">'+f.hr+'</span></div>'+
+        '<div class="ms">'+f.msg+'</div>'+
+        '<div class="au">Sistema - con ubicacion</div></div>';
+    }).join(''));
+  }
+
+  if(!v) return;
+
+  /* Posiciones de los seis integrantes */
+  const M = MAPAS.live;
+  if(M && M.capas.miembros){
+    MEMBERS.forEach((m,i)=>{
+      const q = posMiembro(v, i);
+      M.capas.miembros[i].setLatLng([q.lat, q.lng]);
+    });
+    /* El mapa sigue al peloton con retardo para que se note el avance, y con el
+       centro corrido 120 px hacia el norte: asi el grupo cae en el tercio inferior
+       y los toasts de alerta (que bajan desde arriba) nunca lo tapan. */
+    const c  = puntoEn(v.desdeM + v.ritmoM * v.t - 90);
+    const pt = M.map.project([c.lat, c.lng], 16);
+    pt.y -= 120;
+    const cc = M.map.unproject(pt, 16);
+    verView('live', cc.lat, cc.lng, 16);
+  }
+
+  /* Header y panel de metricas */
+  const recorridoM = v.desdeM + v.ritmoM * v.t;
+  $('#s-live [data-dist]').textContent    = fmtKm(recorridoM);
+  $('#s-live [data-elapsed]').textContent = fmtMs(v.desdeSeg + v.ritmoSeg * v.t);
+
+  const sig = POSTAS.find(x => x.km*1000 > recorridoM);
+  $('#s-live [data-eta]').textContent = sig
+    ? 'Prox. parada: '+sig.nombre+' - '+Math.max(1,Math.round((sig.km*1000-recorridoM)/165))+
+      ' min ('+((sig.km*1000-recorridoM)/1000).toFixed(1).replace('.',',')+' km)'
+    : 'Prox. parada: Plaza Espana - llegando';
+  const enMapa = 6 - Object.values(st.estados).filter(e=>e==='off').length;
+  $('#s-live [data-lv-count]').textContent = enMapa;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   RENDER — cierre (S4) y tap
+   ══════════════════════════════════════════════════════════════════════════ */
+function renderCierre(st, p){
+  if(p.contadores !== st.contadores){
+    const k = st.contadores;
+    $$('#s-cierre [data-count]').forEach(el=>{
+      const fin = parseFloat(el.dataset.count), dec = parseInt(el.dataset.dec||'0',10);
+      const val = (fin*k).toFixed(dec).replace('.',',');
+      el.textContent = val + (el.dataset.suffix||'');
+    });
+    const pc = $('#s-cierre [data-count-pace]');
+    if(pc) pc.textContent = fmtPace(parseFloat(pc.dataset.countPace) * (k || 0.0001));
+  }
+  if(p.scroll !== st.scroll){
+    $('#s-cierre .cz-scroll').style.transform = 'translate3d(0,'+(-st.scroll).toFixed(2)+'px,0)';
+  }
+}
+
+function renderTap(st, p){
+  const el = $('#tap');
+  const k  = st.tap ? st.tap.key : null;
+  const pk = p.tap ? p.tap.key : null;
+  if(k === pk) return;
+  if(k == null){ el.classList.remove('fire'); return; }
+  el.style.left = st.tap.x + 'px';
+  el.style.top  = st.tap.y + 'px';
+  el.classList.remove('fire'); void el.offsetWidth; el.classList.add('fire');
+}
+</script>
+
+<script>
+'use strict';
+/* ══════════════════════════════════════════════════════════════════════════
+   RELOJ VIRTUAL, VIEWPORT Y CONTROLES
+   ══════════════════════════════════════════════════════════════════════════ */
+const Q = new URLSearchParams(location.search);
+const OPTS = {
+  scene : Q.get('scene'),
+  frame : Q.get('frame') === 'phone' ? 'phone' : 'clean',
+  record: Q.get('record') === '1',
+  loop  : Q.get('loop')   === '1',
+  scale : Q.get('scale') ? parseFloat(Q.get('scale')) : null,
+  rt    : Q.get('rt') === '1'          // reloj de pared en vez de paso fijo
+};
+
+/* Paso fijo: el frame N siempre cae en t = N/60. Es lo que garantiza que dos
+   grabaciones de la misma escena sean identicas cuadro a cuadro. Con ?rt=1 se
+   usa el reloj de pared (util para previsualizar, no para grabar). */
+const TICK = 1/60;
+
+let escena = SCENES.find(s => s.id === OPTS.scene) || SCENES[0];
+let t = 0, playing = false, last = null, saltados = 0;
+
+function cargarEscena(sc, autoplay){
+  escena = sc; t = 0; saltados = 0; last = null;
+  hardReset();
+  precalentar(sc);
+  render(computar(escena, 0));
+  playing = !!autoplay;
+  pintarLista();
+}
+
+/** Crea el mapa que la escena necesita y lo deja con las teselas pedidas. */
+function precalentar(sc){
+  const usaRuta   = sc.pantalla === 's-ruta'   || sc.acciones.some(a=>a.mapa==='ruta');
+  const usaLive   = sc.pantalla === 's-live'   || sc.acciones.some(a=>a.a==='vivo');
+  const usaCierre = sc.pantalla === 's-cierre' || sc.acciones.some(a=>a.a==='trazoFinal');
+  if(usaRuta)   mapaRuta();
+  if(usaLive)   mapaLive();
+  if(usaCierre) mapaCierre();
+  Object.values(MAPAS).forEach(M => requestAnimationFrame(()=>M.map.invalidateSize(false)));
+}
+
+function bucle(now){
+  if(playing){
+    if(OPTS.rt){
+      const dt = last == null ? 0 : Math.min((now - last)/1000, 0.1);
+      t += dt;
+    } else {
+      if(last != null && now - last > 24) saltados++;   // aviso de cuadros perdidos
+      t += TICK;
+    }
+    if(t >= escena.dur){
+      if(OPTS.loop){ t = 0; hardReset(); }
+      else { t = escena.dur; playing = false; }
+    }
+  }
+  last = now;
+  render(computar(escena, t));
+  pintarTransport();
+  requestAnimationFrame(bucle);
+}
+
+/* ── Viewport ──────────────────────────────────────────────────────────── */
+function ajustarEscala(){
+  const W = 393, H = 852;
+  const DPR = window.devicePixelRatio || 1;
+  const objetivo = 3 / DPR;                      // 3x logicos en pixeles reales
+  let s;
+  if(OPTS.scale != null){
+    s = OPTS.scale;
+  } else if(OPTS.record){
+    s = objetivo;
+  } else {
+    const w = window.innerWidth  - (OPTS.record ? 0 : 300) - 48;
+    const h = window.innerHeight - 48;
+    s = Math.min(objetivo, w/W, h/H);
+  }
+  $('#stage').style.transform = 'scale('+s.toFixed(4)+')';
+  document.body.style.paddingRight = OPTS.record ? '0' : '280px';
+  const lbl = $('#escala');
+  if(lbl) lbl.textContent = 'render '+(s*DPR).toFixed(2)+'x  (css '+s.toFixed(2)+' @ dpr '+DPR+')';
+}
+window.addEventListener('resize', ajustarEscala);
+
+/* ── Panel de control ──────────────────────────────────────────────────── */
+function pintarLista(){
+  $('#scenelist').innerHTML = SCENES.map(s =>
+    '<button data-id="'+s.id+'"'+(s.id===escena.id?' class="on"':'')+'>'+
+      s.nombre+'<i>'+s.id+' - '+s.dur+' s</i></button>').join('');
+  $$('#scenelist button').forEach(b=>{
+    b.onclick = () => cargarEscena(SCENES.find(s=>s.id===b.dataset.id), true);
+  });
+}
+function pintarTransport(){
+  $('#tcode').innerHTML = t.toFixed(2)+'<em> / '+escena.dur.toFixed(2)+' s'+
+    (saltados ? '  -  '+saltados+' cuadros perdidos' : '')+'</em>';
+  $('#playpause').innerHTML = playing ? '&#10073;&#10073;' : '&#9654;';
+  const sc = $('#scrub');
+  if(document.activeElement !== sc) sc.value = Math.round(t/escena.dur*1000);
+}
+
+/* ── Cuenta regresiva de grabacion ─────────────────────────────────────── */
+function cuentaRegresiva(){
+  return new Promise(res=>{
+    const box = $('#countdown'), n = box.querySelector('.n');
+    box.classList.add('on');
+    let k = 3;
+    const paso = () => {
+      if(k === 0){ box.classList.remove('on'); res(); return; }
+      n.textContent = k;
+      n.classList.remove('tick'); void n.offsetWidth; n.classList.add('tick');
+      k--; setTimeout(paso, 1000);
+    };
+    paso();
+  });
+}
+
+/* ── Teclado ───────────────────────────────────────────────────────────── */
+document.addEventListener('keydown', e=>{
+  if(e.target.tagName === 'INPUT' && e.key !== ' ') return;
+  const i = SCENES.indexOf(escena);
+  switch(e.key){
+    case ' ': e.preventDefault(); playing = !playing; break;
+    case 'ArrowRight': e.preventDefault();
+      cargarEscena(SCENES[(i+1) % SCENES.length], playing); break;
+    case 'ArrowLeft': e.preventDefault();
+      cargarEscena(SCENES[(i-1+SCENES.length) % SCENES.length], playing); break;
+    case 'ArrowUp':   e.preventDefault(); buscar(Math.min(escena.dur, t+1)); break;
+    case 'ArrowDown': e.preventDefault(); buscar(Math.max(0, t-1)); break;
+    case 'r': case 'R': e.preventDefault(); hardReset(); t = 0; playing = true; break;
+  }
+});
+function buscar(nuevo){
+  if(nuevo < t) hardReset();          // hacia atras: limpiamos y recomponemos
+  t = nuevo;
+  render(computar(escena, t));
+}
+
+/* ── Arranque ──────────────────────────────────────────────────────────── */
+async function boot(){
+  document.body.classList.add('frame-'+OPTS.frame);
+  if(OPTS.record) document.body.classList.add('recording');
+
+  hidratar();
+  ajustarEscala();
+
+  // Nunca grabar un cuadro con la tipografia de reserva.
+  try{
+    await document.fonts.load('700 16px Inter');
+    await document.fonts.load('700 16px "Space Mono"');
+    await document.fonts.ready;
+  }catch(e){ /* sin Font Loading API: seguimos igual */ }
+
+  $('#booting').classList.add('gone');
+  pintarLista();
+  cargarEscena(escena, false);
+
+  // Deja que las teselas del primer encuadre lleguen antes de arrancar.
+  await new Promise(r => setTimeout(r, OPTS.record ? 1200 : 300));
+
+  $('#playpause').onclick = () => { playing = !playing; };
+  $('#scrub').oninput = e => { playing = false; buscar(e.target.value/1000*escena.dur); };
+  ['rec','phone','clean','loop'].forEach(k=>{
+    const a = $('#lnk-'+k); if(!a) return;
+    const q = new URLSearchParams(location.search);
+    if(k === 'rec')   q.set('record','1');
+    if(k === 'phone') q.set('frame','phone');
+    if(k === 'clean') q.set('frame','clean');
+    if(k === 'loop')  q.set('loop', q.get('loop')==='1' ? '0' : '1');
+    q.set('scene', escena.id);
+    a.href = '?'+q.toString();
+  });
+
+  if(OPTS.record) await cuentaRegresiva();
+  hardReset(); t = 0; last = null; playing = true;
+  requestAnimationFrame(bucle);
+}
+
+if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+else boot();
+</script>
+
+</body>
+</html>

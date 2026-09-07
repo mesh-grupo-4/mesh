@@ -1,0 +1,50 @@
+{
+  "nombre": "Trote 5 km - Parque Sarmiento",
+  "actividad": "trote",
+  "esGrupal": true,
+  "velocidadBaseKmh": 10.5,
+  "origen": {
+    "lat": -31.42639,
+    "lng": -64.18052,
+    "nombre": "Ingreso Parque Sarmiento"
+  },
+  "waypoints": [
+    { "lat": -31.43188, "lng": -64.18762, "nombre": "Lago del parque" },
+    { "lat": -31.43705, "lng": -64.18119, "nombre": "Zoo" }
+  ],
+  "destino": {
+    "lat": -31.43012,
+    "lng": -64.17421,
+    "nombre": "Plaza Espana"
+  },
+  "paradas": [
+    {
+      "atKm": 1.8,
+      "duracionSegundos": 120,
+      "motivo": "Hidratacion en el lago",
+      "categoria": "descanso"
+    },
+    {
+      "atKm": 3.6,
+      "duracionSegundos": 180,
+      "motivo": "Elongacion y bano",
+      "categoria": "sanitario"
+    }
+  ],
+  "participantes": [
+    {
+      "nombre": "Ana (lider)",
+      "userId": "REEMPLAZAR_UID_FIREBASE_1",
+      "comportamiento": "normal"
+    },
+    {
+      "nombre": "Beto",
+      "userId": "REEMPLAZAR_UID_FIREBASE_2",
+      "comportamiento": {
+        "tipo": "atrasado",
+        "factorVelocidad": 0.65,
+        "progresivo": true
+      }
+    }
+  ]
+}
