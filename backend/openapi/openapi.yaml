@@ -259,6 +259,8 @@ paths:
   # ── Alertas ──────────────────────────────────────────────────────────────────
   /api/viajes/{viajeId}/alertas:
     $ref: './paths/alertas.yaml#/AlertasColeccion'
+  /api/viajes/{viajeId}/alertas/{alertaId}:
+    $ref: './paths/alertas.yaml#/AlertaItem'
 
   # ── Checklist de preparativos ────────────────────────────────────────────────
   /api/viajes/{viajeId}/checklist:

@@ -48,14 +48,33 @@ function armarPrisma(
   ])
   const alertaCreate = vi.fn().mockResolvedValue(alertaCreada)
   const alertaFindMany = vi.fn().mockResolvedValue([alertaCreada])
+  const alertaFindFirst = vi.fn().mockResolvedValue({ estado: 'activa' })
+  const alertaUpdate = vi.fn().mockImplementation(async ({ data }: { data: { estado: string } }) => ({
+    ...alertaCreada,
+    estado: data.estado,
+    resolved_at: null,
+  }))
 
   const prisma = {
     viaje: { findUnique: viajeFindUnique },
     viajeIntegrante: { findUnique: integranteFindUnique, findMany: integranteFindMany },
-    alerta: { create: alertaCreate, findMany: alertaFindMany },
+    alerta: {
+      create: alertaCreate,
+      findMany: alertaFindMany,
+      findFirst: alertaFindFirst,
+      update: alertaUpdate,
+    },
   } as unknown as PrismaClient
 
-  return { prisma, viajeFindUnique, integranteFindUnique, alertaCreate, alertaFindMany }
+  return {
+    prisma,
+    viajeFindUnique,
+    integranteFindUnique,
+    alertaCreate,
+    alertaFindMany,
+    alertaFindFirst,
+    alertaUpdate,
+  }
 }
 
 beforeEach(() => {
@@ -228,5 +247,82 @@ describe('US1 — historial de alertas', () => {
     await expect(
       new AlertasService(m.prisma).listar('99999999-9999-9999-9999-999999999999', viajeId)
     ).rejects.toMatchObject({ status: 403 })
+  })
+})
+
+describe('RN-042 — gestión de estado por el líder', () => {
+  it('el líder pausa una alerta activa y la sala recibe viaje:alerta_actualizada', async () => {
+    const m = armarPrisma()
+    const service = new AlertasService(m.prisma)
+
+    const out = await service.cambiarEstado(liderId, viajeId, alertaId, { estado: 'pausada' })
+
+    expect(out.estado).toBe('pausada')
+    expect(m.alertaUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { estado: 'pausada', resolved_at: null } })
+    )
+    expect(emit).toHaveBeenCalledWith(
+      'viaje:alerta_actualizada',
+      expect.objectContaining({ viajeId, alertaId, estado: 'pausada', resolvedAt: null })
+    )
+  })
+
+  it('pausada → activa vuelve a habilitarla', async () => {
+    const m = armarPrisma()
+    m.alertaFindFirst.mockResolvedValue({ estado: 'pausada' })
+    const service = new AlertasService(m.prisma)
+
+    const out = await service.cambiarEstado(liderId, viajeId, alertaId, { estado: 'activa' })
+
+    expect(out.estado).toBe('activa')
+  })
+
+  it('cancelar o resolver deja registrada la fecha de cierre', async () => {
+    const m = armarPrisma()
+    const service = new AlertasService(m.prisma)
+
+    await service.cambiarEstado(liderId, viajeId, alertaId, { estado: 'cancelada' })
+
+    const args = m.alertaUpdate.mock.calls[0]![0] as { data: { resolved_at: Date | null } }
+    expect(args.data.resolved_at).toBeInstanceOf(Date)
+  })
+
+  it('rechaza transiciones inválidas (resuelta → activa)', async () => {
+    const m = armarPrisma()
+    m.alertaFindFirst.mockResolvedValue({ estado: 'resuelta' })
+    const service = new AlertasService(m.prisma)
+
+    await expect(
+      service.cambiarEstado(liderId, viajeId, alertaId, { estado: 'activa' })
+    ).rejects.toMatchObject({ status: 409, code: 'INVALID_TRANSITION' })
+    expect(m.alertaUpdate).not.toHaveBeenCalled()
+  })
+
+  it('RN-030: un integrante no puede gestionar alertas', async () => {
+    const m = armarPrisma('en_curso', { alertasSoloLider: false })
+    const service = new AlertasService(m.prisma)
+
+    await expect(
+      service.cambiarEstado(integranteId, viajeId, alertaId, { estado: 'pausada' })
+    ).rejects.toMatchObject({ status: 403, code: 'FORBIDDEN' })
+  })
+
+  it('solo con el viaje en curso', async () => {
+    const m = armarPrisma('finalizado')
+    const service = new AlertasService(m.prisma)
+
+    await expect(
+      service.cambiarEstado(liderId, viajeId, alertaId, { estado: 'pausada' })
+    ).rejects.toMatchObject({ status: 409, code: 'INVALID_STATE' })
+  })
+
+  it('404 si la alerta no pertenece al viaje', async () => {
+    const m = armarPrisma()
+    m.alertaFindFirst.mockResolvedValue(null)
+    const service = new AlertasService(m.prisma)
+
+    await expect(
+      service.cambiarEstado(liderId, viajeId, alertaId, { estado: 'pausada' })
+    ).rejects.toMatchObject({ status: 404, code: 'ALERTA_NOT_FOUND' })
   })
 })

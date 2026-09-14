@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DeviceEventEmitter } from 'react-native'
 
-import { connectMeshSocket } from '@/lib/meshSocket'
+import { connectMeshSocket, joinViajeRoom, onMeshSocketConnect } from '@/lib/meshSocket'
 import type { EstadoIntegranteApi } from '@/lib/paradasApi'
 import { getSupabase, isSupabaseConfigured } from '@/lib/supabase'
 import { listarUbicacionesVivas, type UbicacionVivaSnapshotApi } from '@/lib/viajesApi'
@@ -252,12 +252,16 @@ export function useLiveLocations({ viajeId, userId, nameByUserId = {}, selfSeed 
 
     void (async () => {
       try {
-        const sock = await connectMeshSocket()
-        sock.emit('join_viaje', { viajeId }, (res?: { ok: boolean; error?: string }) => {
+        joinViajeRoom(viajeId, (res) => {
           if (__DEV__ && res && !res.ok) {
             console.warn(`[useLiveLocations] join_viaje rechazado: ${res.error}`)
           }
         })
+        const sock = await connectMeshSocket()
+
+        // Tras una reconexión, lo que pasó mientras tanto no llegó por socket:
+        // el snapshot REST vuelve a poner a todos donde están (RN-032).
+        const offReconnect = onMeshSocketConnect(() => void loadSnapshot())
 
         const onUbi = (payload: {
           viajeId: string
@@ -290,13 +294,28 @@ export function useLiveLocations({ viajeId, userId, nameByUserId = {}, selfSeed 
           aplicarEstado(payload.usuarioId, 'en_movimiento', null)
         }
 
+        // Quien sale del viaje deja de compartir ubicación: su marcador se va
+        // ya mismo, no cuando venza como "sin señal".
+        const onSalio = (payload: { viajeId: string; usuarioId: string }) => {
+          if (payload.viajeId !== viajeId) return
+          setMembers((prev) => {
+            if (!prev[payload.usuarioId]) return prev
+            const copy = { ...prev }
+            delete copy[payload.usuarioId]
+            return copy
+          })
+        }
+
         sock.on('viaje:ubicacion', onUbi)
         sock.on('viaje:parada_iniciada', onParadaIniciada)
         sock.on('viaje:parada_finalizada', onParadaFinalizada)
+        sock.on('viaje:participante_salio', onSalio)
         socketCleanup = () => {
+          offReconnect()
           sock.off('viaje:ubicacion', onUbi)
           sock.off('viaje:parada_iniciada', onParadaIniciada)
           sock.off('viaje:parada_finalizada', onParadaFinalizada)
+          sock.off('viaje:participante_salio', onSalio)
         }
       } catch {
         /* socket opcional si REST/Realtime funcionan */
@@ -350,7 +369,7 @@ export function useLiveLocations({ viajeId, userId, nameByUserId = {}, selfSeed 
       socketCleanup?.()
       supabaseCleanup?.()
     }
-  }, [viajeId, userId, mergeMember, aplicarEstado])
+  }, [viajeId, userId, mergeMember, aplicarEstado, loadSnapshot])
 
   useEffect(() => {
     setMembers((prev) => {

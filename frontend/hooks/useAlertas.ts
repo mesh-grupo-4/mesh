@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { DeviceEventEmitter } from 'react-native'
 
-import { connectMeshSocket } from '@/lib/meshSocket'
+import { connectMeshSocket, onMeshSocketConnect } from '@/lib/meshSocket'
 import { meshWarning } from '@/lib/meshAlert'
 import { calcularGuiaHastaDestino } from '@/lib/osrmGuia'
 import {
+  cambiarEstadoAlerta,
   crearAlerta,
   listarAlertas,
   usuarioAfectadoDesdeMensaje,
@@ -41,14 +42,22 @@ function agregarSinDuplicar(prev: AlertaApi[], alerta: AlertaApi): AlertaApi[] {
   return [alerta, ...prev]
 }
 
+/**
+ * Qué alertas merecen banner: las de otros integrantes y las del motor de
+ * eventos (desvío, atraso, posible incidente), que antes solo llegaban por push.
+ * El afectado por un posible incidente no la ve acá: ya tiene el banner "Estoy bien".
+ */
 function esAlertaParaBanner(alerta: AlertaApi, userId: string | undefined, vistas: Set<string>): boolean {
+  if (vistas.has(alerta.id)) return false
+  if (alerta.estado !== 'activa') return false
   const esMia = userId != null && alerta.creada_por_id === userId
+  if (esMia) return false
   const afectadoYo =
     userId != null &&
     alerta.origen === 'sistema' &&
     alerta.tipo === 'peligro' &&
     usuarioAfectadoDesdeMensaje(alerta.mensaje) === userId
-  return !esMia && !afectadoYo && !vistas.has(alerta.id) && alerta.origen !== 'sistema'
+  return !afectadoYo
 }
 
 export function useAlertas({
@@ -108,15 +117,39 @@ export function useAlertas({
             })
           }
         }
+        // RN-042 y auto-resolución del motor: el historial y el mapa reflejan el
+        // estado nuevo, y el banner se cierra si la alerta ya no está activa.
+        const onActualizada = (p: {
+          viajeId: string
+          alertaId: string
+          estado: AlertaApi['estado']
+        }) => {
+          if (p.viajeId !== viajeId) return
+          setAlertas((prev) =>
+            prev.map((a) => (a.id === p.alertaId ? { ...a, estado: p.estado } : a))
+          )
+          if (p.estado !== 'activa') {
+            setAlertasEntrantes((prev) => prev.filter((a) => a.id !== p.alertaId))
+            setSeguirAlerta((prev) => (prev?.alertaId === p.alertaId ? null : prev))
+          }
+        }
+
+        const offReconnect = onMeshSocketConnect(() => void refrescar())
+
         sock.on('viaje:alerta', onAlerta)
-        cleanup = () => sock.off('viaje:alerta', onAlerta)
+        sock.on('viaje:alerta_actualizada', onActualizada)
+        cleanup = () => {
+          offReconnect()
+          sock.off('viaje:alerta', onAlerta)
+          sock.off('viaje:alerta_actualizada', onActualizada)
+        }
       } catch {
         /* sin socket queda el refresco manual */
       }
     })()
 
     return () => cleanup?.()
-  }, [viajeId, habilitado])
+  }, [viajeId, habilitado, refrescar])
 
   useEffect(() => {
     if (!viajeId || !habilitado) return
@@ -156,6 +189,16 @@ export function useAlertas({
       } finally {
         setEnviando(false)
       }
+    },
+    [viajeId]
+  )
+
+  /** RN-042: solo el líder; el backend valida rol, estado del viaje y transición. */
+  const cambiarEstado = useCallback(
+    async (alertaId: string, estado: AlertaApi['estado']) => {
+      const alerta = await cambiarEstadoAlerta(viajeId, alertaId, estado)
+      setAlertas((prev) => prev.map((a) => (a.id === alerta.id ? alerta : a)))
+      return alerta
     },
     [viajeId]
   )
@@ -206,6 +249,7 @@ export function useAlertas({
     enviando,
     calculandoSeguir,
     publicar,
+    cambiarEstado,
     refrescar,
     ignorarAlertaEntrante,
     activarSeguirAlerta,

@@ -13,7 +13,7 @@ import { AppState, Platform, Vibration } from 'react-native'
 
 import { TripStartedModal } from '@/components/TripStartedModal'
 import { useAuth } from '@/context/AuthContext'
-import { connectMeshSocket } from '@/lib/meshSocket'
+import { connectMeshSocket, joinViajeRoom } from '@/lib/meshSocket'
 import { iniciarTrackingViaje, solicitarPermisosUbicacion } from '@/lib/tracking/trackingControl'
 import { subscribeTripChannel, type TripStartedPayload } from '@/lib/tripBroadcast'
 import { isSupabaseConfigured } from '@/lib/supabase'
@@ -150,10 +150,8 @@ export function TripRealtimeProvider({ children }: { children: ReactNode }) {
       }
 
       try {
+        for (const viajeId of viajeIds) joinViajeRoom(viajeId)
         const sock = await connectMeshSocket()
-        for (const viajeId of viajeIds) {
-          sock.emit('join_viaje', { viajeId })
-        }
         attachSocketListener(sock)
       } catch (e) {
         console.warn('[TripRealtime] Socket.io no conectó:', e)
@@ -259,8 +257,8 @@ export function TripRealtimeProvider({ children }: { children: ReactNode }) {
         await iniciarTrackingViaje(viajeId, backendUserId)
       }
 
-      const sock = await connectMeshSocket()
-      sock.emit('join_viaje', { viajeId })
+      joinViajeRoom(viajeId)
+      await connectMeshSocket()
 
       setPendingTrip(null)
       router.push({ pathname: '/viaje/[viajeId]/live', params: { viajeId } })

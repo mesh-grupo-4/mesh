@@ -46,8 +46,9 @@ import { nombreCompleto } from '@/lib/nombres'
 import type { TipoAlertaApi } from '@/lib/alertasApi'
 import type { CategoriaParadaApi } from '@/lib/paradasApi'
 import { motivoParadaLegible } from '@/lib/paradasApi'
+import { waypointTieneCoords } from '@/components/route-config/routeTypes'
 import { linestringToLatLng, waypointsFromRutaDetalle } from '@/lib/routePayload'
-import { connectMeshSocket } from '@/lib/meshSocket'
+import { connectMeshSocket, joinViajeRoom } from '@/lib/meshSocket'
 import { isSupabaseConfigured } from '@/lib/supabase'
 import {
   detenerTrackingViaje,
@@ -341,21 +342,24 @@ export default function ViajeLiveScreen() {
         if (ruta?.linestring) {
           setRouteLine(linestringToLatLng(ruta.linestring))
           const h = waypointsFromRutaDetalle(ruta)
-          const stops: RouteStop[] = [
-            { lat: h.origen.lat, lng: h.origen.lon, name: h.origen.name || 'Origen', type: 'ORIGIN' },
-            ...h.paradas.map((p) => ({
-              lat: p.lat,
-              lng: p.lon,
-              name: p.name || 'Parada',
-              type: 'STOP' as const,
-            })),
-            {
+          // Un waypoint sin coordenadas (parada sin geocodificar) no puede ser
+          // "próxima parada": metía NaN en el ETA y en la detección de llegada.
+          const stops: RouteStop[] = []
+          if (waypointTieneCoords(h.origen)) {
+            stops.push({ lat: h.origen.lat, lng: h.origen.lon, name: h.origen.name || 'Origen', type: 'ORIGIN' })
+          }
+          for (const p of h.paradas) {
+            if (!waypointTieneCoords(p)) continue
+            stops.push({ lat: p.lat, lng: p.lon, name: p.name || 'Parada', type: 'STOP' })
+          }
+          if (waypointTieneCoords(h.destino)) {
+            stops.push({
               lat: h.destino.lat,
               lng: h.destino.lon,
               name: h.destino.name || 'Destino',
               type: 'DESTINATION',
-            },
-          ]
+            })
+          }
           setRouteStops(stops)
         } else {
           setRouteStops([])
@@ -376,8 +380,8 @@ export default function ViajeLiveScreen() {
     let cleanup: (() => void) | undefined
 
     void (async () => {
+      joinViajeRoom(viajeId)
       const sock = await connectMeshSocket()
-      sock.emit('join_viaje', { viajeId })
 
       const onFin = (payload: { viajeId: string }) => {
         if (payload.viajeId !== viajeId) return

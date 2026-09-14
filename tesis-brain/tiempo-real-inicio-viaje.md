@@ -40,6 +40,20 @@
 
 **Receptor:** `useLiveLocations` carga snapshot REST + suscripción `postgres_changes` en tabla `ubicacion_viva`.
 
+**Socket único y reconexión:** `lib/meshSocket.ts` mantiene **un** socket para toda la app con reintentos sin
+límite (un túnel puede durar más que 8 intentos). Las salas `viaje:<id>` no sobreviven a una reconexión, así
+que el módulo recuerda las pedidas (`joinViajeRoom`) y las re-suscribe en cada `connect`; los hooks del mapa,
+alertas y paradas refrescan por REST en ese mismo `connect` (`onMeshSocketConnect`) para cubrir lo perdido.
+
+**Sincronización offline (RN-038):** el flush de la cola SQLite solo manda filas de más de 20 s (las más nuevas
+todavía pueden estar en vuelo por el canal en vivo). El backend ordena el lote por `timestamp`, publica la
+posición más nueva **solo si es posterior a la última ya conocida** del integrante (el marcador no retrocede)
+y pasa al motor de eventos únicamente esa posición.
+
+**Motor de eventos:** una sola instancia por proceso (`obtenerMotorEventos`), compartida por REST y sockets:
+guarda en memoria la detención y el último progreso en ruta por integrante. Atraso se calcula con el progreso
+propio (PostGIS) contra el de los demás cacheado 30 s, no recomputando a todo el grupo en cada ping (RN-033).
+
 **Refresco de respaldo (RN-032):** además de Realtime y Socket.io, el hook repolea `GET /ubicaciones-vivas`.
 El período es **adaptativo**: 15 s con Realtime suscripto y **8 s** cuando el canal reporta `CHANNEL_ERROR` /
 `TIMED_OUT`. Así el peor caso queda bajo los 10 s de latencia máxima, aun con Realtime y socket caídos.
@@ -81,6 +95,11 @@ cubre los viajes cerrados antes de esta feature.
 
 `POST /salir` es **salida blanda**: `estado = 'salido'` + `fecha_salida`, sin borrar la fila. El viaje sigue
 en curso para el resto. Solo el creador puede cerrarlo para todos (RN-030).
+
+Tanto `finalizar` como `salir` (con el viaje en curso) **cierran la situación en vivo**: paradas abiertas con
+`fin`, alertas `activa`/`pausada` resueltas (una `viaje:alerta_actualizada` por cada una) y filas de
+`ubicacion_viva` borradas. `GET /ubicaciones-vivas` además filtra por creador + confirmados, así quien salió no
+reaparece en el mapa al refrescar.
 
 ## Fuera de alcance (este ticket)
 

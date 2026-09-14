@@ -321,12 +321,24 @@ describe('RN-036 — confirmar estoy bien', () => {
       fin,
       usuario,
     })
-    m.prisma.alerta = { updateMany: vi.fn().mockResolvedValue({ count: 1 }) } as never
+    const alertaUpdateMany = vi.fn().mockResolvedValue({ count: 1 })
+    m.prisma.alerta = {
+      findMany: vi.fn().mockResolvedValue([{ id: 'alerta-incidente' }]),
+      updateMany: alertaUpdateMany,
+    } as never
 
     const parada = await new ParadasService(m.prisma).confirmarEstoyBien(integranteId, viajeId)
 
     expect(parada.fin).toBe(fin.toISOString())
     expect(eventos()).toContain('viaje:parada_finalizada')
+    expect(alertaUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: { in: ['alerta-incidente'] } } })
+    )
+    const actualizada = emit.mock.calls.find((c) => c[0] === 'viaje:alerta_actualizada')?.[1] as {
+      alertaId: string
+      estado: string
+    }
+    expect(actualizada).toMatchObject({ alertaId: 'alerta-incidente', estado: 'resuelta' })
     vi.useRealTimers()
   })
 

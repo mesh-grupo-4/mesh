@@ -50,10 +50,12 @@ ErrorCode:
     - ROUTE_NOT_FOUND
     - SHARE_NOT_FOUND
     - SOLICITUD_NOT_FOUND
+    - ALERTA_NOT_FOUND
     - ITEM_NOT_FOUND
     - VIAJE_ORIGEN_NOT_FOUND
     # Conflictos de estado
     - INVALID_STATE
+    - INVALID_TRANSITION
     - TRIP_NOT_FINISHED
     - TRIP_NOT_PLANNED
     - INDIVIDUAL_TRIP
@@ -2743,11 +2745,29 @@ CrearAlertaRequest:
       nullable: true
   additionalProperties: false
 
+EstadoAlerta:
+  type: string
+  description: |
+    Estado de la alerta (RN-042). Transiciones válidas:
+    `activa → pausada | cancelada | resuelta` y `pausada → activa | cancelada`.
+  enum: [activa, pausada, cancelada, resuelta]
+
+CambiarEstadoAlertaRequest:
+  type: object
+  required: [estado]
+  properties:
+    estado:
+      $ref: '#/EstadoAlerta'
+  additionalProperties: false
+
 Alerta:
   type: object
   description: |
     Alerta enviada al grupo durante el viaje (RN-040/041). Todas nacen en estado
-    `activa`; la gestión de pausar/cancelar/resolver es de otra US.
+    `activa`. El líder puede pausarla, reactivarla, cancelarla o resolverla a mano
+    (RN-042); las del motor de eventos (`origen: sistema`) se resuelven solas cuando
+    el integrante vuelve a la ruta, alcanza al grupo o confirma que está bien, y
+    todas las abiertas se resuelven al finalizar el viaje.
   required: [id, viaje_id, tipo, origen, estado, created_at]
   properties:
     id:
@@ -2779,8 +2799,7 @@ Alerta:
       type: number
       nullable: true
     estado:
-      type: string
-      enum: [activa, pausada, cancelada, resuelta]
+      $ref: '#/EstadoAlerta'
     created_at:
       type: string
       format: date-time

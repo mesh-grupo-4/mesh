@@ -61,6 +61,7 @@ viajesRouter.post(
 // Alertas del viaje (US1, RN-040 / RN-041).
 viajesRouter.get('/:viajeId/alertas', ...alertasHandlers.listar)
 viajesRouter.post('/:viajeId/alertas', ...alertasHandlers.crear)
+viajesRouter.patch('/:viajeId/alertas/:alertaId', ...alertasHandlers.cambiarEstado)
 
 // Checklist de preparativos pre-ruta (SCRUM-22, RN-026).
 viajesRouter.get('/:viajeId/checklist', ...checklistHandlers.listar)

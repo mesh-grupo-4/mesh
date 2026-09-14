@@ -20,10 +20,16 @@ import type {
   UpsertUbicacionVivaInput,
 } from './viajes.schemas'
 import { parametrosPorActividad } from './activityDefaults'
-import { minutosIncidenteEfectivo } from '../motor-eventos/motorEventos.config'
+import {
+  minutosIncidenteEfectivo,
+  prefijoAlertaAfectado,
+} from '../motor-eventos/motorEventos.config'
 import { aplicarPuestosRanking } from './ranking'
 import { RutasCompartidasService } from '../rutas-compartidas/rutas-compartidas.service'
-import { MotorEventosService } from '../motor-eventos/motorEventos.service'
+import {
+  obtenerMotorEventos,
+  type MotorEventosService,
+} from '../motor-eventos/motorEventos.service'
 
 export class ViajesService {
   private readonly rutasCompartidas: RutasCompartidasService
@@ -31,7 +37,8 @@ export class ViajesService {
 
   constructor(private readonly prisma: PrismaClient) {
     this.rutasCompartidas = new RutasCompartidasService(prisma)
-    this.motor = new MotorEventosService(prisma)
+    // Compartido entre el router REST y los sockets: el motor guarda estado en memoria.
+    this.motor = obtenerMotorEventos(prisma)
   }
 
   async crearViaje(creadorId: string, input: CreateViajeInput) {
@@ -817,16 +824,62 @@ export class ViajesService {
       throw new HttpError(403, 'No sos participante confirmado de este viaje', 'NOT_PARTICIPANT')
     }
 
+    const ahora = new Date()
     await this.prisma.viajeIntegrante.update({
       where: { viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId } },
-      data: { estado: 'salido', fecha_salida: new Date() },
+      data: { estado: 'salido', fecha_salida: ahora },
     })
 
     if (viaje.estado === 'en_curso') {
+      // Quien se va deja de figurar en el mapa: sin esto su última posición seguía
+      // apareciendo en cada refresco por REST, y su parada abierta o su alerta de
+      // desvío/atraso quedaban "vivas" sin nadie que pudiera cerrarlas.
+      await this.cerrarSituacionEnVivo(viajeId, ahora, usuarioId)
+      this.motor.limpiarIntegrante(viajeId, usuarioId)
       getIo().to(`viaje:${viajeId}`).emit('viaje:participante_salio', { viajeId, usuarioId })
     }
 
     return { viaje_id: viajeId, accion: 'salido' as const }
+  }
+
+  /**
+   * Cierra lo que no tiene sentido fuera de un viaje en curso: paradas abiertas,
+   * alertas activas y posiciones vivas. Sin `usuarioId` aplica a todo el viaje
+   * (finalizar); con él, solo a ese integrante (salir).
+   */
+  private async cerrarSituacionEnVivo(viajeId: string, fin: Date, usuarioId?: string) {
+    const porUsuario = usuarioId ? { usuario_id: usuarioId } : {}
+    await this.prisma.parada.updateMany({
+      where: { viaje_id: viajeId, fin: null, ...porUsuario },
+      data: { fin },
+    })
+
+    const alertasAbiertas = await this.prisma.alerta.findMany({
+      where: {
+        viaje_id: viajeId,
+        estado: { in: ['activa', 'pausada'] },
+        ...(usuarioId
+          ? { origen: 'sistema', mensaje: { startsWith: prefijoAlertaAfectado(usuarioId) } }
+          : {}),
+      },
+      select: { id: true },
+    })
+    if (alertasAbiertas.length > 0) {
+      await this.prisma.alerta.updateMany({
+        where: { id: { in: alertasAbiertas.map((a) => a.id) } },
+        data: { estado: 'resuelta', resolved_at: fin },
+      })
+      for (const a of alertasAbiertas) {
+        getIo().to(`viaje:${viajeId}`).emit('viaje:alerta_actualizada', {
+          viajeId,
+          alertaId: a.id,
+          estado: 'resuelta' as const,
+          resolvedAt: fin.toISOString(),
+        })
+      }
+    }
+
+    await this.prisma.ubicacionViva.deleteMany({ where: { viaje_id: viajeId, ...porUsuario } })
   }
 
   async finalizar(creadorId: string, viajeId: string) {
@@ -862,6 +915,16 @@ export class ViajesService {
       estado: actualizado.estado,
       fechaFinReal: actualizado.fecha_fin_real?.toISOString() ?? null,
     })
+
+    // Paradas abiertas, alertas activas y posiciones vivas no sobreviven al cierre:
+    // sin esto quedaban integrantes "detenidos" para siempre y alertas activas
+    // en un viaje que ya terminó.
+    try {
+      await this.cerrarSituacionEnVivo(viajeId, fechaFin)
+    } catch (err) {
+      console.error('[finalizar] No se pudo cerrar la situación en vivo:', err)
+    }
+    this.motor.limpiarViaje(viajeId)
 
     // Agregar cientos de miles de filas GPS puede tardar; si falla, el viaje ya
     // quedó cerrado igual y el GET /resumen lo recalcula (backfill perezoso).
@@ -1396,7 +1459,15 @@ export class ViajesService {
    */
   private async publicarUbicacionViva(
     tipoActividad: string,
-    args: { viajeId: string; usuarioId: string; lat: number; lng: number; precision: number | null }
+    args: {
+      viajeId: string
+      usuarioId: string
+      lat: number
+      lng: number
+      precision: number | null
+      recordedAt: Date
+      source: 'live' | 'offline_sync'
+    }
   ) {
     if (this.esGpsPreciso(tipoActividad, args.precision)) {
       return this.upsertUbicacionVivaSnapshot(args)
@@ -1442,32 +1513,55 @@ export class ViajesService {
   }
 
   async ingresarPosiciones(usuarioId: string, viajeId: string, input: PostPosicionesInput) {
-    await this.assertPuedeEnviarGps(viajeId, usuarioId)
-    const rows = input.posiciones.map((p) => ({
-      viaje_id: viajeId,
-      usuario_id: usuarioId,
-      lat: p.lat,
-      lng: p.lng,
-      precision_m: p.precision ?? null,
-      timestamp: p.timestamp,
-      source: input.source,
-    }))
+    const viaje = await this.assertPuedeEnviarGps(viajeId, usuarioId)
+    // El lote llega en el orden en que se encoló en el dispositivo, no
+    // necesariamente cronológico: ordenar acá es lo que garantiza que "la última"
+    // sea de verdad la más nueva (RN-038: no romper la secuencia temporal).
+    const rows = [...input.posiciones]
+      .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
+      .map((p) => ({
+        viaje_id: viajeId,
+        usuario_id: usuarioId,
+        lat: p.lat,
+        lng: p.lng,
+        precision_m: p.precision ?? null,
+        timestamp: p.timestamp,
+        source: input.source,
+      }))
+
+    // Antes de insertar: qué es lo más nuevo que ya sabíamos de este integrante.
+    // Un lote offline suele ser más viejo que los pings en vivo que ya llegaron
+    // tras reconectar; si se publicara igual, el marcador saltaría hacia atrás.
+    const ultimoConocido = await this.prisma.registroGPS.findFirst({
+      where: { viaje_id: viajeId, usuario_id: usuarioId },
+      orderBy: { timestamp: 'desc' },
+      select: { timestamp: true },
+    })
+
     // RN-038: cero pérdida de GPS. `skipDuplicates` es la red de seguridad ante el
     // punto que ya llegó por el canal en vivo (@@unique viaje_id+usuario_id+timestamp):
     // se insertan los que no chocan y se ignoran en silencio los que sí, sin 500.
     await this.prisma.registroGPS.createMany({ data: rows, skipDuplicates: true })
-    for (const row of rows) {
-      this.dispatchMotorPing(viajeId, usuarioId, row.lat, row.lng, row.timestamp)
-    }
+
     const last = rows[rows.length - 1]
-    if (last) {
-      await this.upsertUbicacionVivaSnapshot({
+    const esMasNuevo =
+      last != null &&
+      (ultimoConocido == null || last.timestamp.getTime() > ultimoConocido.timestamp.getTime())
+
+    if (last && esMasNuevo) {
+      await this.publicarUbicacionViva(viaje.tipo_actividad, {
         viajeId,
         usuarioId,
         lat: last.lat,
         lng: last.lng,
         precision: last.precision_m,
+        recordedAt: last.timestamp,
+        source: input.source,
       })
+      // El motor evalúa solo la posición más nueva: pasarle las 2000 filas de un
+      // lote disparaba miles de consultas PostGIS en paralelo y mezclaba el
+      // estado de detención con puntos viejos.
+      this.dispatchMotorPing(viajeId, usuarioId, last.lat, last.lng, last.timestamp)
     }
     return { insertados: rows.length }
   }
@@ -1491,6 +1585,8 @@ export class ViajesService {
       lat: input.lat,
       lng: input.lng,
       precision: input.precision ?? null,
+      recordedAt: input.recordedAt,
+      source: 'live',
     })
     this.dispatchMotorPing(viajeId, usuarioId, input.lat, input.lng, input.recordedAt)
     return row
@@ -1498,7 +1594,7 @@ export class ViajesService {
 
   async listarUbicacionesVivas(usuarioId: string, viajeId: string) {
     await this.assertPuedeVerEnVivo(viajeId, usuarioId)
-    const [rows, paradasAbiertas] = await Promise.all([
+    const [filas, paradasAbiertas, viaje] = await Promise.all([
       this.prisma.ubicacionViva.findMany({
         where: { viaje_id: viajeId },
         include: {
@@ -1512,7 +1608,20 @@ export class ViajesService {
         where: { viaje_id: viajeId, fin: null },
         select: { usuario_id: true, inicio: true, categoria: true, tipo: true },
       }),
+      this.prisma.viaje.findUnique({
+        where: { id: viajeId },
+        select: {
+          creador_id: true,
+          integrantes: { where: { estado: 'confirmado' }, select: { usuario_id: true } },
+        },
+      }),
     ])
+
+    // Solo quienes siguen en el viaje: el creador y los confirmados. Quien salió
+    // ya no comparte ubicación y no tiene que reaparecer en el mapa del grupo.
+    const activos = new Set(viaje?.integrantes.map((i) => i.usuario_id) ?? [])
+    if (viaje) activos.add(viaje.creador_id)
+    const rows = viaje ? filas.filter((r) => activos.has(r.usuario_id)) : filas
 
     const paradaPorUsuario = new Map(paradasAbiertas.map((p) => [p.usuario_id, p]))
 
@@ -1569,6 +1678,8 @@ export class ViajesService {
       lat,
       lng,
       precision: accuracy ?? null,
+      recordedAt: ts,
+      source,
     })
     this.dispatchMotorPing(viajeId, usuarioId, lat, lng, ts)
   }
@@ -1591,7 +1702,8 @@ export class ViajesService {
     lat: number,
     lng: number,
     precision: number | null,
-    recordedAt: Date
+    recordedAt: Date,
+    source: 'live' | 'offline_sync'
   ) {
     getIo().to(`viaje:${viajeId}`).emit('viaje:ubicacion', {
       viajeId,
@@ -1600,7 +1712,7 @@ export class ViajesService {
       lng,
       precision,
       recordedAt: recordedAt.toISOString(),
-      source: 'live',
+      source,
     })
   }
 
@@ -1610,6 +1722,8 @@ export class ViajesService {
     lat: number
     lng: number
     precision: number | null
+    recordedAt: Date
+    source: 'live' | 'offline_sync'
   }) {
     const row = await this.prisma.ubicacionViva.upsert({
       where: { usuario_id: input.usuarioId },
@@ -1633,7 +1747,8 @@ export class ViajesService {
       input.lat,
       input.lng,
       input.precision,
-      row.updated_at
+      input.recordedAt,
+      input.source
     )
     return row
   }

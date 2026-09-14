@@ -1,5 +1,5 @@
 import type { Request, RequestHandler, Response } from 'express'
-import { crearAlertaSchema } from './alertas.schemas'
+import { alertaIdParamSchema, cambiarEstadoAlertaSchema, crearAlertaSchema } from './alertas.schemas'
 import type { AlertasService } from './alertas.service'
 
 function asyncHandler(fn: (req: Request, res: Response) => Promise<void>): RequestHandler {
@@ -19,6 +19,13 @@ export function crearAlertasController(service: AlertasService) {
     listar: asyncHandler(async (req, res) => {
       const alertas = await service.listar(req.userId!, req.params.viajeId as string)
       res.json(alertas)
+    }),
+
+    cambiarEstado: asyncHandler(async (req, res) => {
+      const { viajeId, alertaId } = alertaIdParamSchema.parse(req.params)
+      const body = cambiarEstadoAlertaSchema.parse(req.body)
+      const alerta = await service.cambiarEstado(req.userId!, viajeId, alertaId, body)
+      res.json(alerta)
     }),
   }
 }

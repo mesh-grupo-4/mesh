@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { DeviceEventEmitter } from 'react-native'
 
-import { connectMeshSocket } from '@/lib/meshSocket'
+import { connectMeshSocket, onMeshSocketConnect } from '@/lib/meshSocket'
 import { meshWarning } from '@/lib/meshAlert'
 import { calcularRutaOsrm, perfilOsrmDesdeActividad } from '@/lib/osrm'
 import type { TipoActividadApi } from '@/lib/viajesApi'
@@ -245,11 +245,16 @@ export function useParadas({
           )
         }
 
+        // Lo que pasó durante una caída del socket (solicitudes, resoluciones,
+        // un incidente detectado sobre uno mismo) se recupera por REST al reconectar.
+        const offReconnect = onMeshSocketConnect(() => void refrescar())
+
         sock.on('viaje:solicitud_parada', onSolicitud)
         sock.on('viaje:solicitud_parada_resuelta', onResuelta)
         sock.on('viaje:parada_iniciada', onParadaIniciada)
         sock.on('viaje:parada_finalizada', onParadaFinalizada)
         cleanup = () => {
+          offReconnect()
           sock.off('viaje:solicitud_parada', onSolicitud)
           sock.off('viaje:solicitud_parada_resuelta', onResuelta)
           sock.off('viaje:parada_iniciada', onParadaIniciada)
@@ -261,7 +266,7 @@ export function useParadas({
     })()
 
     return () => cleanup?.()
-  }, [viajeId, habilitado, esLider])
+  }, [viajeId, habilitado, esLider, refrescar])
 
   // --------------------------------------------------------------- acciones
 
