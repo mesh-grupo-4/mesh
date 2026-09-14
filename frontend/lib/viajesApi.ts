@@ -96,7 +96,7 @@ export async function crearViaje(
     tipoActividad: TipoActividadApi
     fechaProgramada: Date
     rutaPlantillaId?: string | null
-  },
+  } & ParametrosViajeInput,
   userId: string,
   baseUrl: string = API_BASE_URL
 ): Promise<ViajeCreadoApi> {
@@ -113,6 +113,10 @@ export async function crearViaje(
       tipoActividad: input.tipoActividad,
       fechaProgramada: input.fechaProgramada.toISOString(),
       rutaPlantillaId: input.rutaPlantillaId ?? undefined,
+      // RN-025: solo viajan si el líder los tocó; si no, el backend aplica los defaults.
+      velocidadEsperada: input.velocidadEsperada,
+      distanciaMaxSeparacion: input.distanciaMaxSeparacion,
+      toleranciaAtrasoMin: input.toleranciaAtrasoMin ?? undefined,
     }),
   })
   return parseJson<ViajeCreadoApi>(res)
@@ -223,6 +227,9 @@ export type ViajeDetalleApi = {
   tipo_actividad: string
   velocidad_esperada: number
   distancia_max_separacion: number
+  /** RN-025: null = default por actividad. */
+  tolerancia_atraso_min: number | null
+  tolerancia_atraso_min_efectivo: number
   alerta_incidente_habilitada: boolean
   alerta_incidente_minutos: number | null
   alerta_incidente_minutos_efectivo: number
@@ -255,6 +262,17 @@ export type ViajeActualizadoApi = {
   alerta_incidente_minutos: number | null
   alerta_incidente_minutos_efectivo: number
   alertas_solo_lider: boolean
+  velocidad_esperada: number
+  distancia_max_separacion: number
+  tolerancia_atraso_min: number | null
+  tolerancia_atraso_min_efectivo: number
+}
+
+/** RN-025: parámetros del grupo que el líder puede ajustar. */
+export type ParametrosViajeInput = {
+  velocidadEsperada?: number
+  distanciaMaxSeparacion?: number
+  toleranciaAtrasoMin?: number | null
 }
 
 export async function actualizarFechaViaje(
@@ -274,10 +292,13 @@ export async function actualizarViaje(
     alertaIncidenteHabilitada?: boolean
     alertaIncidenteMinutos?: number | null
     alertasSoloLider?: boolean
-  },
+  } & ParametrosViajeInput,
   baseUrl: string = API_BASE_URL
 ): Promise<ViajeActualizadoApi> {
   const body: Record<string, unknown> = {}
+  if (input.velocidadEsperada != null) body.velocidadEsperada = input.velocidadEsperada
+  if (input.distanciaMaxSeparacion != null) body.distanciaMaxSeparacion = input.distanciaMaxSeparacion
+  if (input.toleranciaAtrasoMin !== undefined) body.toleranciaAtrasoMin = input.toleranciaAtrasoMin
   if (input.fechaProgramada != null) {
     body.fechaProgramada = input.fechaProgramada.toISOString()
   }

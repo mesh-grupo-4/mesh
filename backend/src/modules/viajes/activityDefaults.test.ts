@@ -6,6 +6,7 @@ describe('parametrosPorActividad', () => {
     expect(parametrosPorActividad('moto')).toEqual({
       velocidadEsperada: 120,
       distanciaMaxSeparacion: 1000,
+      toleranciaAtrasoMin: 10,
     })
   })
 
@@ -13,6 +14,7 @@ describe('parametrosPorActividad', () => {
     expect(parametrosPorActividad('bici')).toEqual({
       velocidadEsperada: 35,
       distanciaMaxSeparacion: 300,
+      toleranciaAtrasoMin: 5,
     })
   })
 
@@ -20,6 +22,7 @@ describe('parametrosPorActividad', () => {
     expect(parametrosPorActividad('running')).toEqual({
       velocidadEsperada: 15,
       distanciaMaxSeparacion: 100,
+      toleranciaAtrasoMin: 3,
     })
   })
 
@@ -27,6 +30,7 @@ describe('parametrosPorActividad', () => {
     expect(parametrosPorActividad('trekking')).toEqual({
       velocidadEsperada: 5,
       distanciaMaxSeparacion: 50,
+      toleranciaAtrasoMin: 3,
     })
   })
 
@@ -34,6 +38,7 @@ describe('parametrosPorActividad', () => {
     expect(parametrosPorActividad('otro')).toEqual({
       velocidadEsperada: 20,
       distanciaMaxSeparacion: 200,
+      toleranciaAtrasoMin: 5,
     })
   })
 })

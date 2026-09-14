@@ -19,7 +19,7 @@ import type {
   ResponderInvitacionViajeInput,
   UpsertUbicacionVivaInput,
 } from './viajes.schemas'
-import { parametrosPorActividad } from './activityDefaults'
+import { parametrosPorActividad, toleranciaAtrasoEfectiva } from './activityDefaults'
 import {
   minutosIncidenteEfectivo,
   prefijoAlertaAfectado,
@@ -138,8 +138,10 @@ export class ViajesService {
           nombre: input.nombre,
           es_grupal: input.esGrupal,
           tipo_actividad: tipoActividad,
-          velocidad_esperada: params.velocidadEsperada,
-          distancia_max_separacion: params.distanciaMaxSeparacion,
+          // RN-025: el líder puede ajustar los parámetros; si no, defaults de la actividad (RN-021).
+          velocidad_esperada: input.velocidadEsperada ?? params.velocidadEsperada,
+          distancia_max_separacion: input.distanciaMaxSeparacion ?? params.distanciaMaxSeparacion,
+          tolerancia_atraso_min: input.toleranciaAtrasoMin ?? null,
           fecha_programada: input.fechaProgramada,
           alerta_incidente_habilitada: input.esGrupal,
         },
@@ -691,7 +693,18 @@ export class ViajesService {
       alerta_incidente_habilitada?: boolean
       alerta_incidente_minutos?: number | null
       alertas_solo_lider?: boolean
+      velocidad_esperada?: number
+      distancia_max_separacion?: number
+      tolerancia_atraso_min?: number | null
     } = {}
+
+    // RN-025: parámetros del grupo. Editables en planificado y en curso: el motor
+    // relee el viaje en cada ping, así que un ajuste en vivo aplica al instante.
+    if (input.velocidadEsperada != null) data.velocidad_esperada = input.velocidadEsperada
+    if (input.distanciaMaxSeparacion != null) {
+      data.distancia_max_separacion = input.distanciaMaxSeparacion
+    }
+    if (input.toleranciaAtrasoMin !== undefined) data.tolerancia_atraso_min = input.toleranciaAtrasoMin
 
     if (input.fechaProgramada != null) {
       if (viaje.estado !== 'planificado') {
@@ -746,6 +759,13 @@ export class ViajesService {
         actualizado.alerta_incidente_minutos
       ),
       alertas_solo_lider: actualizado.alertas_solo_lider,
+      velocidad_esperada: actualizado.velocidad_esperada,
+      distancia_max_separacion: actualizado.distancia_max_separacion,
+      tolerancia_atraso_min: actualizado.tolerancia_atraso_min,
+      tolerancia_atraso_min_efectivo: toleranciaAtrasoEfectiva(
+        actualizado.tipo_actividad,
+        actualizado.tolerancia_atraso_min
+      ),
     }
   }
 
@@ -1507,6 +1527,10 @@ export class ViajesService {
       alerta_incidente_minutos_efectivo: minutosIncidenteEfectivo(
         resto.tipo_actividad,
         resto.alerta_incidente_minutos
+      ),
+      tolerancia_atraso_min_efectivo: toleranciaAtrasoEfectiva(
+        resto.tipo_actividad,
+        resto.tolerancia_atraso_min
       ),
       mi_participacion: miParticipacion,
     }

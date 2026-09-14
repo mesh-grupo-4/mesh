@@ -33,6 +33,7 @@ import {
   actualizarFechaViaje,
   actualizarViaje,
   listarParticipantesViaje,
+  type ParametrosViajeInput,
   type ViajeDetalleApi,
   type ViajeParticipanteApi,
 } from '@/lib/viajesApi'
@@ -45,6 +46,8 @@ import { waypointsFromRutaDetalle } from '@/lib/routePayload'
 import { ajustarSiQuedoEnPasado, esFechaFutura } from '@/lib/fechaProgramada'
 import { aCamposArg, ahoraEnCamposArg, desdeCamposArg, formatearEnArg } from '@/lib/tiempoArg'
 import { RouteMapView } from '@/components/route-config/RouteMapView'
+import { ClimaViajeCard } from '@/components/ClimaViajeCard'
+import { ParametrosGrupoCard } from '@/components/ParametrosGrupoCard'
 import {
   REGION_FALLBACK,
   waypointTieneCoords,
@@ -142,6 +145,7 @@ export default function ViajeDetalleScreen() {
   const [fechaEdit, setFechaEdit] = useState<Date>(() => new Date())
   const [guardandoFecha, setGuardandoFecha] = useState(false)
   const [guardandoAlertaConfig, setGuardandoAlertaConfig] = useState(false)
+  const [guardandoParametros, setGuardandoParametros] = useState(false)
   const [alertaConfigAbierta, setAlertaConfigAbierta] = useState(false)
   const [participantesAbierto, setParticipantesAbierto] = useState(false)
 
@@ -306,6 +310,35 @@ export default function ViajeDetalleScreen() {
       }
     },
     [viajeId, userId, puedeConfigurarAlertas]
+  )
+
+  // RN-025 / RN-030: el líder ajusta los parámetros mientras el viaje no esté finalizado.
+  const puedeEditarParametros = esLider && viaje?.estado !== 'finalizado'
+
+  const guardarParametros = useCallback(
+    async (input: ParametrosViajeInput) => {
+      if (!viajeId || !userId || !puedeEditarParametros) return
+      setGuardandoParametros(true)
+      try {
+        const actualizado = await actualizarViaje(viajeId, userId, input)
+        setViaje((prev) =>
+          prev
+            ? {
+                ...prev,
+                velocidad_esperada: actualizado.velocidad_esperada,
+                distancia_max_separacion: actualizado.distancia_max_separacion,
+                tolerancia_atraso_min: actualizado.tolerancia_atraso_min,
+                tolerancia_atraso_min_efectivo: actualizado.tolerancia_atraso_min_efectivo,
+              }
+            : prev
+        )
+      } catch (e) {
+        meshAlert('Error', e instanceof Error ? e.message : 'No se pudieron guardar los parámetros')
+      } finally {
+        setGuardandoParametros(false)
+      }
+    },
+    [viajeId, userId, puedeEditarParametros]
   )
 
   const abrirPicker = (mode: 'date' | 'time') => {
@@ -638,6 +671,13 @@ export default function ViajeDetalleScreen() {
               )}
             </Pressable>
 
+            {/* SCRUM-27: pronóstico sobre la ruta antes de salir (y durante). */}
+            <ClimaViajeCard
+              viajeId={viajeId}
+              habilitado={viaje.estado !== 'finalizado'}
+              claveRefresco={`${viaje.fecha_programada}:${viaje.ruta?.id ?? ''}:${rutaMapa?.waypoints.length ?? 0}`}
+            />
+
             {/* Stats row */}
             <View style={styles.statsRow}>
               <View style={[styles.statCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
@@ -695,6 +735,13 @@ export default function ViajeDetalleScreen() {
 
             {(puedeConfigurarAlertas || viaje.es_grupal) && (
             <View style={styles.collapsibleGroup}>
+            {/* SCRUM-26: parámetros del grupo (RN-025). */}
+            <ParametrosGrupoCard
+              viaje={viaje}
+              editable={puedeEditarParametros}
+              guardando={guardandoParametros}
+              onGuardar={(input) => void guardarParametros(input)}
+            />
             {puedeConfigurarAlertas && viaje ? (
               <View style={[styles.alertConfigCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                 <Pressable

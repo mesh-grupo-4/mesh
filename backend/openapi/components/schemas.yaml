@@ -104,6 +104,8 @@ ErrorCode:
     - ROUTING_UPSTREAM_ERROR
     - ROUTING_RATE_LIMIT
     - ROUTING_NO_ROUTE
+    - CLIMA_TIMEOUT
+    - CLIMA_UPSTREAM_ERROR
     # Login de la documentación (src/docs/login.ts) — fuera del contrato de la app
     - INVALID_CREDENTIALS
     - USER_DISABLED
@@ -1280,9 +1282,9 @@ EstadoParticipacion:
 Viaje:
   type: object
   description: |
-    Viaje tal como lo persiste la base. `velocidad_esperada` y
-    `distancia_max_separacion` **las asigna el backend** según la actividad (RN-021);
-    el cliente no las envía.
+    Viaje tal como lo persiste la base. `velocidad_esperada`,
+    `distancia_max_separacion` y `tolerancia_atraso_min` nacen con los defaults de
+    la actividad (RN-021) y el líder puede ajustarlos al crear o con `PATCH` (RN-025).
   required:
     - id
     - creador_id
@@ -1291,6 +1293,7 @@ Viaje:
     - tipo_actividad
     - velocidad_esperada
     - distancia_max_separacion
+    - tolerancia_atraso_min
     - alerta_incidente_habilitada
     - alerta_incidente_minutos
     - alerta_incidente_minutos_efectivo
@@ -1331,6 +1334,22 @@ Viaje:
         Separación máxima tolerada en metros antes de generar una alerta (RN-021):
         moto 1000 · bici 300 · running 100 · trekking 50 · otro 200.
       example: 300
+    tolerancia_atraso_min:
+      type: integer
+      nullable: true
+      minimum: 1
+      maximum: 60
+      description: |
+        RN-025 / RN-035: minutos de atraso tolerados respecto del bloque principal
+        antes de alertar. `null` usa el default por actividad
+        (trekking 3 · running 3 · bici 5 · moto 10 · otro 5).
+      example: null
+    tolerancia_atraso_min_efectivo:
+      type: integer
+      minimum: 1
+      maximum: 60
+      description: Tolerancia resuelta que usa el motor (custom o por actividad).
+      example: 5
     alerta_incidente_habilitada:
       type: boolean
       description: |
@@ -1541,6 +1560,7 @@ ViajeDetalle:
         - creador
         - ruta
         - mi_participacion
+        - tolerancia_atraso_min_efectivo
       properties:
         creador:
           type: object
@@ -1597,8 +1617,10 @@ ViajeDetalle:
 CrearViajeRequest:
   type: object
   description: |
-    Alta de un viaje. La actividad determina `velocidad_esperada` y
-    `distancia_max_separacion`, que asigna el backend (RN-021).
+    Alta de un viaje. La actividad determina los defaults de `velocidad_esperada`,
+    `distancia_max_separacion` y tolerancia de atraso (RN-021); el líder puede
+    enviar `velocidadEsperada`, `distanciaMaxSeparacion` y `toleranciaAtrasoMin`
+    para ajustarlos (RN-025).
 
     Si se envía `rutaPlantillaId`, la ruta se precarga desde esa plantilla y
     **`tipoActividad` se sobrescribe** con el de la plantilla.
@@ -1647,6 +1669,24 @@ CrearViajeRequest:
       format: uuid
       nullable: true
       description: Plantilla propia desde la que precargar la ruta (RN-084).
+    velocidadEsperada:
+      type: number
+      minimum: 1
+      maximum: 300
+      description: Velocidad promedio esperada en km/h (RN-025). Omitido = default de la actividad.
+      example: 40
+    distanciaMaxSeparacion:
+      type: integer
+      minimum: 10
+      maximum: 20000
+      description: Separación máxima del grupo en metros (RN-025). Omitido = default de la actividad.
+      example: 400
+    toleranciaAtrasoMin:
+      type: integer
+      minimum: 1
+      maximum: 60
+      description: Tolerancia de atraso en minutos (RN-025). Omitido = default de la actividad.
+      example: 6
   additionalProperties: false
 
 ActualizarViajeRequest:
@@ -1654,9 +1694,29 @@ ActualizarViajeRequest:
   description: |
     Campos editables del viaje por el líder (RN-030).
     Enviá al menos uno. La fecha solo se puede cambiar en estado `planificado`;
-    la configuración de alertas de incidente aplica en `planificado` y `en_curso`.
+    la configuración de alertas de incidente y los parámetros del grupo (RN-025)
+    aplican en `planificado` y `en_curso`.
   minProperties: 1
   properties:
+    velocidadEsperada:
+      type: number
+      minimum: 1
+      maximum: 300
+      description: Velocidad promedio esperada en km/h (RN-025).
+      example: 40
+    distanciaMaxSeparacion:
+      type: integer
+      minimum: 10
+      maximum: 20000
+      description: Separación máxima del grupo en metros (RN-025).
+      example: 400
+    toleranciaAtrasoMin:
+      type: integer
+      nullable: true
+      minimum: 1
+      maximum: 60
+      description: Tolerancia de atraso en minutos; `null` restaura el default por actividad (RN-025).
+      example: 6
     fechaProgramada:
       type: string
       format: date-time
@@ -1689,6 +1749,10 @@ ViajeReprogramado:
     - alerta_incidente_minutos
     - alerta_incidente_minutos_efectivo
     - alertas_solo_lider
+    - velocidad_esperada
+    - distancia_max_separacion
+    - tolerancia_atraso_min
+    - tolerancia_atraso_min_efectivo
   properties:
     id:
       type: string
@@ -1707,6 +1771,15 @@ ViajeReprogramado:
       type: integer
     alertas_solo_lider:
       type: boolean
+    velocidad_esperada:
+      type: number
+    distancia_max_separacion:
+      type: integer
+    tolerancia_atraso_min:
+      type: integer
+      nullable: true
+    tolerancia_atraso_min_efectivo:
+      type: integer
   additionalProperties: false
 
 ViajeEliminado:
@@ -2803,6 +2876,124 @@ Alerta:
     created_at:
       type: string
       format: date-time
+  additionalProperties: false
+
+# ── Clima sobre la ruta (src/modules/clima/) ──────────────────────────────────
+
+PuntoClima:
+  type: object
+  description: Pronóstico en un punto de la ruta, para la hora estimada de paso.
+  required:
+    - nombre
+    - lat
+    - lng
+    - hora
+    - temperatura_c
+    - prob_precipitacion_pct
+    - precipitacion_mm
+    - viento_kmh
+    - rafagas_kmh
+    - codigo_tiempo
+    - descripcion
+    - lluvia
+    - viento_fuerte
+  properties:
+    nombre:
+      type: string
+      description: Origen, nombre de la parada, `Tramo N` o Destino.
+    lat:
+      type: number
+    lng:
+      type: number
+    hora:
+      type: string
+      format: date-time
+      description: Instante UTC del pronóstico leído (hora estimada de paso por el punto).
+    temperatura_c:
+      type: number
+      nullable: true
+    prob_precipitacion_pct:
+      type: number
+      nullable: true
+    precipitacion_mm:
+      type: number
+      nullable: true
+    viento_kmh:
+      type: number
+      nullable: true
+    rafagas_kmh:
+      type: number
+      nullable: true
+    codigo_tiempo:
+      type: integer
+      nullable: true
+      description: Código WMO de Open-Meteo.
+    descripcion:
+      type: string
+      description: Traducción del código WMO (Despejado, Lluvia, Tormenta, …).
+    lluvia:
+      type: boolean
+    viento_fuerte:
+      type: boolean
+  additionalProperties: false
+
+AlertaClima:
+  type: object
+  required: [tipo, mensaje, puntos]
+  properties:
+    tipo:
+      type: string
+      enum: [lluvia, viento_fuerte]
+    mensaje:
+      type: string
+    puntos:
+      type: array
+      items:
+        type: string
+      description: Nombres de los puntos afectados.
+  additionalProperties: false
+
+ClimaViaje:
+  type: object
+  required:
+    - disponible
+    - motivo
+    - fuente
+    - consultado_en
+    - inicio_previsto
+    - puntos
+    - alertas
+    - resumen
+  properties:
+    disponible:
+      type: boolean
+      description: '`false` si no hay pronóstico; ver `motivo`.'
+    motivo:
+      type: string
+      nullable: true
+      enum: [SIN_RUTA, FUERA_DE_HORIZONTE, VIAJE_FINALIZADO, null]
+    fuente:
+      type: string
+      enum: [open-meteo]
+    consultado_en:
+      type: string
+      format: date-time
+    inicio_previsto:
+      type: string
+      format: date-time
+      nullable: true
+      description: Instante desde el que se leyó el pronóstico (fecha programada o ahora si ya empezó).
+    puntos:
+      type: array
+      items:
+        $ref: '#/PuntoClima'
+    alertas:
+      type: array
+      items:
+        $ref: '#/AlertaClima'
+    resumen:
+      type: string
+      description: Frase lista para mostrar en la pantalla de inicio del viaje.
   additionalProperties: false
 
 # ── Login de la documentación (src/docs/login.ts) ──────────────────────────────

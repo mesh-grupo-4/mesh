@@ -104,6 +104,10 @@ tags:
     description: Pedidos de un integrante para que el líder autorice una parada (RN-044).
   - name: Alertas
     description: Alertas que el líder envía al grupo durante el viaje (RN-040/041/043).
+  - name: Clima
+    description: |
+      Pronóstico meteorológico sobre la ruta planificada, vía Open-Meteo (RN-108).
+      Alerta lluvia y viento fuerte antes de iniciar la actividad.
   - name: Checklist
     description: |
       Checklist de preparativos pre-ruta (RN-026). Es personal: cada integrante tiene
@@ -261,6 +265,10 @@ paths:
     $ref: './paths/alertas.yaml#/AlertasColeccion'
   /api/viajes/{viajeId}/alertas/{alertaId}:
     $ref: './paths/alertas.yaml#/AlertaItem'
+
+  # ── Clima ────────────────────────────────────────────────────────────────────
+  /api/viajes/{viajeId}/clima:
+    $ref: './paths/clima.yaml#/ClimaViaje'
 
   # ── Checklist de preparativos ────────────────────────────────────────────────
   /api/viajes/{viajeId}/checklist:

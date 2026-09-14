@@ -76,7 +76,7 @@ A diferencia de soluciones existentes (Strava, Garmin, Google Maps, Life360) que
 | RN-022 | Las categorías de parada son: **accidente**, **combustible**, **descanso**, **gastronomía**, **punto de control**, **sanitario**, **otro**. `accidente` solo aplica a paradas voluntarias del viaje en vivo (se muestra destacada en el selector "¿por qué parás?") y además genera una alerta de peligro para todo el grupo. Las paradas planificadas de la ruta no usan `accidente`. |
 | RN-023 | La estimación de tiempos depende del tipo de actividad seleccionado y la distancia, más el tiempo configurable de cada parada. |
 | RN-024 | Las rutas se trazan sobre OpenStreetMap; las paradas son reordenables. |
-| RN-025 | Los parámetros configurables por el líder son: velocidad promedio esperada, distancia máxima de separación del grupo y tiempo de tolerancia de atraso. |
+| RN-025 | Los parámetros configurables por el líder son: velocidad promedio esperada (1–300 km/h), distancia máxima de separación del grupo (10–20 000 m) y tiempo de tolerancia de atraso (1–60 min). Nacen con los defaults de la actividad (RN-021) y se ajustan al crear (`POST /api/viajes`) o después con `PATCH /api/viajes/{id}` mientras el viaje no esté finalizado; un cambio en curso aplica al próximo ping del motor. `tolerancia_atraso_min = NULL` significa "default de la actividad". |
 | RN-026 | El checklist de preparativos es **personal**: cada integrante tiene el suyo dentro del viaje, con su propio estado de completado. El sistema **sugiere** ítems según el `tipo_actividad` la primera vez que el integrante lo abre (`origen: sugerido`, borrables). Cada uno puede **agregar** ítems propios (`origen: personal`). El **creador del viaje** puede definir ítems **base para todo el grupo** (`origen: lider`, RN-030): se copian al checklist de cada integrante confirmado, que los marca pero no los edita ni los borra; si el creador los renombra o borra, el cambio se propaga. Los checklists son **reutilizables**: se pueden importar los ítems propios de otro viaje del que se participó, sin duplicar los que ya están. El checklist se edita en `planificado` y `en_curso`; en `finalizado` queda de solo lectura. |
 
 ### 2.4 Reglas de Ejecución en Tiempo Real
@@ -216,6 +216,7 @@ Si el PO prefiere un criterio más conservador, la alternativa es devolver
 |---|---|
 | RN-105 | **Toda fecha y hora del sistema se expresa en la zona horaria de Argentina (UTC-3)**, sin importar la zona configurada en el dispositivo o en el servidor. Aplica a la fecha programada de un viaje, horas de inicio y fin, marcas de tiempo de GPS, alertas e historial. Argentina no aplica horario de verano desde 2009, por lo que el offset es fijo. |
 | RN-106 | El **almacenamiento y el transporte** siguen usando instantes absolutos en **UTC** (ISO 8601, `timestamptz` en PostgreSQL). La conversión a UTC-3 ocurre únicamente en los bordes: al presentar una fecha al usuario y al interpretar lo que el usuario elige en un selector de fecha/hora. Nunca se guardan horas "locales" sin zona. |
+| RN-108 | **Alertas meteorológicas previas (SCRUM-27):** antes de iniciar, la pantalla del viaje muestra el pronóstico sobre la ruta planificada (origen, paradas, tramos intermedios y destino, hasta 8 puntos) para la hora estimada de paso por cada uno, y alerta si hay **lluvia** (probabilidad ≥ 50 %, precipitación ≥ 0,5 mm o código WMO de lluvia/tormenta) o **viento fuerte** (≥ 35 km/h o ráfagas ≥ 55 km/h). Proveedor: Open-Meteo (gratuito, sin API key, política de costo cero como OSM). Horizonte: 15 días; sin ruta o con el viaje finalizado no hay pronóstico. Endpoint `GET /api/viajes/{id}/clima`, cacheado 15 min. |
 | RN-107 | La **fecha programada de un viaje debe ser futura** respecto del instante actual. Se valida en frontend (bloqueo del selector y del botón de crear) y en backend (schema Zod + servicio, error `FECHA_PASADA`). Ver RN-028. |
 
 #### Implementación de RN-105
@@ -751,13 +752,13 @@ Valores por defecto asignados al crear el viaje (RN-021, SCRUM-25). Unidades: ve
 |---|---|---|---|---|---|
 | Velocidad máxima esperada (`velocidad_esperada`) | 120 km/h | 35 km/h | 15 km/h | 5 km/h | 20 km/h |
 | Distancia máx. separación grupo (`distancia_max_separacion`) | 1000 m (1 km) | 300 m | 100 m | 50 m | 200 m |
-| Tolerancia de atraso | Mayor | Media | Menor | Menor | Media |
+| Tolerancia de atraso (`tolerancia_atraso_min`, RN-025) | 10 min | 5 min | 3 min | 3 min | 5 min |
 | Interfaz | Pantalla completa, alto contraste, botones grandes | Estándar outdoor | Háptica + visual | Háptica + visual | Estándar outdoor |
 | Ranking competitivo | **PROHIBIDO** | Sí | Sí | Sí | Sí |
 | Tabla de posiciones global | **EXCLUIDA** | Sí | Sí | Sí | Sí |
 | Perfil OSRM (cálculo de ruta) | `driving` | `cycling` | `walking` | `walking` | `walking` |
 
-Implementación: el backend aplica estos defaults en `POST /api/viajes` según `tipo_actividad`. El frontend muestra preview al crear y resumen read-only al configurar la ruta.
+Implementación: el backend aplica estos defaults en `POST /api/viajes` según `tipo_actividad`; el líder puede sobreescribir los tres parámetros al crear o con `PATCH` (RN-025, SCRUM-26). La tolerancia vive en `motorEventos.config.ts` y `activityDefaults.ts` la reexpone, así el motor y la API leen la misma tabla.
 
 > **Nota crítica**: La exclusión de moto de rankings y tablas competitivas es una decisión de seguridad vial irrevocable. Nunca se debe incentivar la competencia de velocidad en motocicletas.
 

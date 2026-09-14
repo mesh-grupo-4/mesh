@@ -1,0 +1,107 @@
+# Módulo Clima — src/modules/clima/
+# Router: montado sobre viajesRouter (clima.router.ts) · Controller: clima.controller.ts
+#
+# Pronóstico meteorológico sobre la ruta planificada (SCRUM-27, RN-108), vía
+# Open-Meteo (gratuito, sin API key). Se consulta en la pantalla previa al inicio
+# del viaje y alerta si hay lluvia o viento fuerte en algún punto del recorrido.
+
+ClimaViaje:
+  get:
+    operationId: obtenerClimaViaje
+    summary: Pronóstico meteorológico sobre la ruta del viaje (RN-108)
+    description: |
+      Muestrea la ruta planificada (origen, paradas, tramos intermedios y destino,
+      hasta 8 puntos) y devuelve el pronóstico horario de cada uno para la hora en
+      que el grupo pasaría por ahí, según `fecha_programada` y el tiempo estimado
+      de la ruta. Con el viaje `en_curso` usa la hora actual.
+
+      Marca `lluvia` (probabilidad ≥ 50 %, precipitación ≥ 0,5 mm o código WMO de
+      lluvia/tormenta) y `viento_fuerte` (viento ≥ 35 km/h o ráfagas ≥ 55 km/h) por
+      punto, y resume en `alertas`. Si no hay ruta, el viaje terminó o la salida
+      está a más de 15 días, responde `disponible: false` con el `motivo`.
+      El resultado se cachea 15 minutos por viaje.
+    tags:
+      - Clima
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '200':
+        description: Pronóstico sobre la ruta (o no disponible, con motivo).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ClimaViaje'
+            example:
+              disponible: true
+              motivo: null
+              fuente: open-meteo
+              consultado_en: '2026-09-14T15:00:00.000Z'
+              inicio_previsto: '2026-09-15T12:00:00.000Z'
+              puntos:
+                - nombre: Córdoba
+                  lat: -31.4201
+                  lng: -64.1888
+                  hora: '2026-09-15T12:00:00.000Z'
+                  temperatura_c: 18.4
+                  prob_precipitacion_pct: 65
+                  precipitacion_mm: 1.2
+                  viento_kmh: 22
+                  rafagas_kmh: 38
+                  codigo_tiempo: 61
+                  descripcion: Lluvia
+                  lluvia: true
+                  viento_fuerte: false
+                - nombre: Villa Carlos Paz
+                  lat: -31.4241
+                  lng: -64.4978
+                  hora: '2026-09-15T13:10:00.000Z'
+                  temperatura_c: 16.9
+                  prob_precipitacion_pct: 20
+                  precipitacion_mm: 0
+                  viento_kmh: 41
+                  rafagas_kmh: 63
+                  codigo_tiempo: 2
+                  descripcion: Parcialmente nublado
+                  lluvia: false
+                  viento_fuerte: true
+              alertas:
+                - tipo: lluvia
+                  mensaje: Se espera lluvia en Córdoba.
+                  puntos: [Córdoba]
+                - tipo: viento_fuerte
+                  mensaje: Viento fuerte (hasta 63 km/h) en Villa Carlos Paz.
+                  puntos: [Villa Carlos Paz]
+              resumen: Lluvia y Viento fuerte en la ruta · 17–18 °C.
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: No participa del viaje (`FORBIDDEN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Sin acceso a este viaje
+              code: FORBIDDEN
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '502':
+        description: El servicio meteorológico falló (`CLIMA_UPSTREAM_ERROR`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: No se pudo consultar el servicio meteorológico
+              code: CLIMA_UPSTREAM_ERROR
+      '504':
+        description: El servicio meteorológico no respondió a tiempo (`CLIMA_TIMEOUT`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: El servicio meteorológico no respondió a tiempo
+              code: CLIMA_TIMEOUT
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
