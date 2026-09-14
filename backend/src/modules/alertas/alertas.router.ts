@@ -10,4 +10,5 @@ const c = crearAlertasController(service)
 export const alertasHandlers = {
   crear: [requireUser, c.crear] as const,
   listar: [requireUser, c.listar] as const,
+  cambiarEstado: [requireUser, c.cambiarEstado] as const,
 }

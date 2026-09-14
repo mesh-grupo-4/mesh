@@ -41,8 +41,26 @@ type EstadoDetencion = {
   quietoDesde: Date
 }
 
-/** Ubicaciones vivas más viejas que esto no entran al cálculo del bloque principal. */
-const UBICACION_VIVA_MAX_EDAD_MS = 30_000
+type ProgresoCacheado = {
+  lat: number
+  lng: number
+  progresoM: number
+  /** Reloj del servidor al momento del ping, para descartar posiciones viejas. */
+  at: number
+}
+
+/** Alertas del sistema abiertas para el integrante, leídas una vez por ping. */
+type AlertaSistemaActiva = { id: string; tipo: string }
+
+/** Progresos más viejos que esto no entran al cálculo del bloque principal. */
+const PROGRESO_MAX_EDAD_MS = 30_000
+
+/**
+ * Histéresis de auto-resolución: la alerta de desvío/atraso se cierra sola recién
+ * cuando el integrante vuelve por debajo de esta fracción del umbral. Sin esto,
+ * quien va justo en el borde generaría alertas nuevas en cada ping.
+ */
+const FACTOR_RESOLUCION = 0.5
 
 function nombreDe(u: { nombre: string; apellido: string | null }): string {
   return [u.nombre, u.apellido].filter(Boolean).join(' ').trim() || 'Un integrante'
@@ -51,10 +69,19 @@ function nombreDe(u: { nombre: string; apellido: string | null }): string {
 /**
  * Motor de eventos autónomo (RN-034, RN-035, RN-036): evalúa cada ping GPS y genera
  * alertas del sistema + paradas de incidente detectado cuando corresponde.
+ *
+ * Guarda estado en memoria por integrante (detención y progreso en ruta), así que
+ * debe existir UNA sola instancia por proceso: usar `obtenerMotorEventos(prisma)`.
  */
 export class MotorEventosService {
   /** Estado en memoria de detención por integrante y viaje. */
   private readonly detencionPorClave = new Map<string, EstadoDetencion>()
+  /**
+   * Último progreso en ruta por integrante. Evita recalcular con PostGIS el
+   * progreso de TODO el grupo en cada ping (N² consultas por ciclo, RN-033):
+   * cada ping calcula solo el propio y lee el de los demás de acá.
+   */
+  private readonly progresoPorClave = new Map<string, ProgresoCacheado>()
 
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -86,39 +113,106 @@ export class MotorEventosService {
 
     const tieneParadaVoluntaria = paradaAbierta != null
 
-    await Promise.all([
-      this.evaluarDesvio(input, viaje.distancia_max_separacion),
-      this.evaluarDetencionSospechosa(input, viaje, tieneParadaVoluntaria),
-      this.evaluarAtraso(input, viaje, tieneParadaVoluntaria),
+    const [activas, ruta] = await Promise.all([
+      this.prisma.alerta.findMany({
+        where: {
+          viaje_id: input.viajeId,
+          origen: 'sistema',
+          estado: 'activa',
+          mensaje: { startsWith: prefijoAlertaAfectado(input.usuarioId) },
+        },
+        select: { id: true, tipo: true },
+      }),
+      this.prisma.ruta.findUnique({
+        where: { viaje_id: input.viajeId },
+        select: { linestring_geojson: true },
+      }),
     ])
+    const linestring = (ruta?.linestring_geojson as unknown as GeoJsonLineString | null) ?? null
+
+    await Promise.all([
+      this.evaluarDesvio(input, viaje, linestring, tieneParadaVoluntaria, activas),
+      this.evaluarDetencionSospechosa(input, viaje, tieneParadaVoluntaria),
+      this.evaluarAtraso(input, viaje, linestring, tieneParadaVoluntaria, activas),
+    ])
+  }
+
+  /** Olvida el estado en memoria de todos los integrantes de un viaje (al finalizar). */
+  limpiarViaje(viajeId: string): void {
+    const prefijo = `${viajeId}:`
+    for (const key of this.detencionPorClave.keys()) {
+      if (key.startsWith(prefijo)) this.detencionPorClave.delete(key)
+    }
+    for (const key of this.progresoPorClave.keys()) {
+      if (key.startsWith(prefijo)) this.progresoPorClave.delete(key)
+    }
+  }
+
+  /** Olvida el estado en memoria de un integrante (cuando sale del viaje). */
+  limpiarIntegrante(viajeId: string, usuarioId: string): void {
+    const key = this.clave(viajeId, usuarioId)
+    this.detencionPorClave.delete(key)
+    this.progresoPorClave.delete(key)
+  }
+
+  /**
+   * Marca como resueltas las alertas del sistema abiertas de un integrante y avisa
+   * a la sala. Lo usa el propio motor (volvió a la ruta / alcanzó al grupo) y los
+   * flujos que cierran la situación desde afuera (confirmar "estoy bien", salir).
+   */
+  async resolverAlertasSistemaDe(
+    viajeId: string,
+    usuarioId: string,
+    tipos?: ('desvio' | 'peligro' | 'atraso')[]
+  ): Promise<void> {
+    const abiertas = await this.prisma.alerta.findMany({
+      where: {
+        viaje_id: viajeId,
+        origen: 'sistema',
+        estado: 'activa',
+        mensaje: { startsWith: prefijoAlertaAfectado(usuarioId) },
+        ...(tipos ? { tipo: { in: tipos } } : {}),
+      },
+      select: { id: true },
+    })
+    if (abiertas.length === 0) return
+    await this.resolverAlertas(
+      viajeId,
+      abiertas.map((a) => a.id)
+    )
   }
 
   private clave(viajeId: string, usuarioId: string): string {
     return `${viajeId}:${usuarioId}`
   }
 
-  private async evaluarDesvio(input: PingInput, umbralDesvioM: number): Promise<void> {
-    const ruta = await this.prisma.ruta.findUnique({
-      where: { viaje_id: input.viajeId },
-      select: { linestring_geojson: true },
-    })
-    if (!ruta?.linestring_geojson) return
+  private async evaluarDesvio(
+    input: PingInput,
+    viaje: ViajeMotor,
+    linestring: GeoJsonLineString | null,
+    tieneParadaVoluntaria: boolean,
+    activas: AlertaSistemaActiva[]
+  ): Promise<void> {
+    if (!linestring) return
 
-    const linestring = ruta.linestring_geojson as unknown as GeoJsonLineString
-    const distM = await computeDistanciaPuntoARutaM(
-      this.prisma,
-      input.lat,
-      input.lng,
-      linestring
-    )
-    if (distM == null || distM <= umbralDesvioM) return
+    const umbralDesvioM = viaje.distancia_max_separacion
+    const distM = await computeDistanciaPuntoARutaM(this.prisma, input.lat, input.lng, linestring)
+    if (distM == null) return
 
-    const usuario = await this.prisma.usuario.findUnique({
-      where: { id: input.usuarioId },
-      select: { nombre: true, apellido: true },
-    })
-    const nombre = usuario ? nombreDe(usuario) : 'Un integrante'
+    const activa = activas.find((a) => a.tipo === 'desvio')
+    if (activa) {
+      // Volvió a la ruta: la alerta se cierra sola y habilita detectar el próximo desvío.
+      if (distM <= umbralDesvioM * FACTOR_RESOLUCION) {
+        await this.resolverAlertas(input.viajeId, [activa.id])
+      }
+      return
+    }
 
+    // Una parada voluntaria fuera del trazado (estación de servicio, mirador) no es un desvío.
+    if (tieneParadaVoluntaria) return
+    if (distM <= umbralDesvioM) return
+
+    const nombre = await this.nombreUsuario(input.usuarioId)
     await this.crearAlertaSistema({
       viajeId: input.viajeId,
       usuarioAfectadoId: input.usuarioId,
@@ -164,6 +258,9 @@ export class MotorEventosService {
       return
     }
 
+    // Un ping más viejo que el ancla (lote offline desordenado) no aporta nada.
+    if (input.timestamp.getTime() < prev.quietoDesde.getTime()) return
+
     const movimientoM = distanciaMetros(prev.anchorLat, prev.anchorLng, input.lat, input.lng)
     if (movimientoM > umbrales.radioDetenidoM) {
       this.detencionPorClave.set(key, {
@@ -178,11 +275,7 @@ export class MotorEventosService {
     const umbralMs = detencionMinutos * 60 * 1000
     if (quietoMs < umbralMs) return
 
-    const usuario = await this.prisma.usuario.findUnique({
-      where: { id: input.usuarioId },
-      select: { nombre: true, apellido: true },
-    })
-    const nombre = usuario ? nombreDe(usuario) : 'Un integrante'
+    const nombre = await this.nombreUsuario(input.usuarioId)
 
     const parada = await this.prisma.parada.create({
       data: {
@@ -224,63 +317,63 @@ export class MotorEventosService {
   private async evaluarAtraso(
     input: PingInput,
     viaje: ViajeMotor,
-    tieneParadaVoluntaria: boolean
+    linestring: GeoJsonLineString | null,
+    tieneParadaVoluntaria: boolean,
+    activas: AlertaSistemaActiva[]
   ): Promise<void> {
-    if (!viaje.es_grupal || tieneParadaVoluntaria) return
+    if (!viaje.es_grupal || !linestring) return
 
-    const ruta = await this.prisma.ruta.findUnique({
-      where: { viaje_id: input.viajeId },
-      select: { linestring_geojson: true },
-    })
-    if (!ruta?.linestring_geojson) return
+    const progresoM = await computeProgresoEnRutaM(this.prisma, input.lat, input.lng, linestring)
+    if (progresoM == null) return
 
-    const linestring = ruta.linestring_geojson as unknown as GeoJsonLineString
-    const staleCutoff = new Date(Date.now() - UBICACION_VIVA_MAX_EDAD_MS)
-    const ubicaciones = await this.prisma.ubicacionViva.findMany({
-      where: { viaje_id: input.viajeId, updated_at: { gte: staleCutoff } },
-      select: { usuario_id: true, lat: true, lng: true },
+    const ahora = Date.now()
+    this.progresoPorClave.set(this.clave(input.viajeId, input.usuarioId), {
+      lat: input.lat,
+      lng: input.lng,
+      progresoM,
+      at: ahora,
     })
 
-    const posPorUsuario = new Map<string, { lat: number; lng: number }>()
-    for (const u of ubicaciones) {
-      posPorUsuario.set(u.usuario_id, { lat: u.lat, lng: u.lng })
-    }
-    posPorUsuario.set(input.usuarioId, { lat: input.lat, lng: input.lng })
+    if (tieneParadaVoluntaria) return
 
-    if (posPorUsuario.size < 2) return
-
+    const prefijo = `${input.viajeId}:`
     const miembros: MiembroEnRuta[] = []
-    for (const [usuarioId, pos] of posPorUsuario) {
-      const progresoM = await computeProgresoEnRutaM(
-        this.prisma,
-        pos.lat,
-        pos.lng,
-        linestring
-      )
-      if (progresoM == null) return
-      miembros.push({ usuarioId, lat: pos.lat, lng: pos.lng, progresoM })
+    for (const [key, p] of this.progresoPorClave) {
+      if (!key.startsWith(prefijo)) continue
+      if (ahora - p.at > PROGRESO_MAX_EDAD_MS) {
+        this.progresoPorClave.delete(key)
+        continue
+      }
+      miembros.push({
+        usuarioId: key.slice(prefijo.length),
+        lat: p.lat,
+        lng: p.lng,
+        progresoM: p.progresoM,
+      })
     }
+    if (miembros.length < 2) return
 
     const bloque = identificarBloquePrincipal(miembros, viaje.distancia_max_separacion)
     if (!bloque) return
-
-    const yo = miembros.find((m) => m.usuarioId === input.usuarioId)
-    if (!yo) return
 
     const umbrales = umbralesMotorPorActividad(viaje.tipo_actividad)
     const umbralM = toleranciaAtrasoMetros(
       viaje.velocidad_esperada,
       umbrales.toleranciaAtrasoMinutos
     )
-    const atrasoM = atrasoMetros(bloque.progresoReferenciaM, yo.progresoM)
+    const atrasoM = atrasoMetros(bloque.progresoReferenciaM, progresoM)
+
+    const activa = activas.find((a) => a.tipo === 'atraso')
+    if (activa) {
+      // Alcanzó al grupo: se cierra sola.
+      if (atrasoM <= umbralM * FACTOR_RESOLUCION) {
+        await this.resolverAlertas(input.viajeId, [activa.id])
+      }
+      return
+    }
     if (atrasoM <= umbralM) return
 
-    const usuario = await this.prisma.usuario.findUnique({
-      where: { id: input.usuarioId },
-      select: { nombre: true, apellido: true },
-    })
-    const nombre = usuario ? nombreDe(usuario) : 'Un integrante'
-
+    const nombre = await this.nombreUsuario(input.usuarioId)
     await this.crearAlertaSistema({
       viajeId: input.viajeId,
       usuarioAfectadoId: input.usuarioId,
@@ -293,6 +386,31 @@ export class MotorEventosService {
     })
   }
 
+  private async nombreUsuario(usuarioId: string): Promise<string> {
+    const usuario = await this.prisma.usuario.findUnique({
+      where: { id: usuarioId },
+      select: { nombre: true, apellido: true },
+    })
+    return usuario ? nombreDe(usuario) : 'Un integrante'
+  }
+
+  private async resolverAlertas(viajeId: string, ids: string[]): Promise<void> {
+    if (ids.length === 0) return
+    const resolvedAt = new Date()
+    await this.prisma.alerta.updateMany({
+      where: { id: { in: ids }, estado: 'activa' },
+      data: { estado: 'resuelta', resolved_at: resolvedAt },
+    })
+    for (const alertaId of ids) {
+      this.emitir(viajeId, 'viaje:alerta_actualizada', {
+        viajeId,
+        alertaId,
+        estado: 'resuelta' as const,
+        resolvedAt: resolvedAt.toISOString(),
+      })
+    }
+  }
+
   private async crearAlertaSistema(input: {
     viajeId: string
     usuarioAfectadoId: string
@@ -303,6 +421,8 @@ export class MotorEventosService {
     tituloPush: string
     notificarSoloLider?: boolean
   }): Promise<void> {
+    // Red de seguridad ante pings concurrentes del mismo integrante: una sola
+    // alerta activa por tipo y afectado.
     const duplicada = await this.prisma.alerta.findFirst({
       where: {
         viaje_id: input.viajeId,
@@ -374,19 +494,16 @@ export class MotorEventosService {
       if (!viaje) return
 
       const destinos = new Map<string, string>()
+      const tokenLider = viaje.creador?.push_token ?? null
 
-      if (soloLider) {
-        if (viaje.creador.push_token && viaje.creador_id !== autorExcluidoId) {
-          destinos.set(viaje.creador_id, viaje.creador.push_token)
-        }
-      } else {
+      if (tokenLider && viaje.creador_id !== autorExcluidoId) {
+        destinos.set(viaje.creador_id, tokenLider)
+      }
+      if (!soloLider) {
         const integrantes = await this.prisma.viajeIntegrante.findMany({
           where: { viaje_id: viajeId, estado: 'confirmado' },
           select: { usuario: { select: { id: true, push_token: true } } },
         })
-        if (viaje.creador.push_token && viaje.creador_id !== autorExcluidoId) {
-          destinos.set(viaje.creador_id, viaje.creador.push_token)
-        }
         for (const i of integrantes) {
           if (i.usuario.id !== autorExcluidoId && i.usuario.push_token) {
             destinos.set(i.usuario.id, i.usuario.push_token)
@@ -411,4 +528,21 @@ export class MotorEventosService {
       console.warn('[motor-eventos] push falló:', e)
     }
   }
+}
+
+const motores = new WeakMap<PrismaClient, MotorEventosService>()
+
+/**
+ * Una instancia por cliente Prisma. El router REST y los sockets construyen cada
+ * uno su `ViajesService`; sin esto había dos motores con estados de detención
+ * separados y el contador de "posible incidente" se repartía entre ambos según
+ * por qué canal llegara cada ping.
+ */
+export function obtenerMotorEventos(prisma: PrismaClient): MotorEventosService {
+  let motor = motores.get(prisma)
+  if (!motor) {
+    motor = new MotorEventosService(prisma)
+    motores.set(prisma, motor)
+  }
+  return motor
 }

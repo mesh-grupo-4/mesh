@@ -8,7 +8,16 @@ import { CrearAlertaSheet } from '@/components/live/CrearAlertaSheet'
 import { DEV_USER_ID } from '@/constants/Config'
 import { useAuth } from '@/context/AuthContext'
 import { useAlertas } from '@/hooks/useAlertas'
-import { mensajeAlertaVisible, metaTipoAlerta, type AlertaApi, type TipoAlertaApi } from '@/lib/alertasApi'
+import {
+  ACCION_ESTADO_ALERTA,
+  ETIQUETA_ESTADO_ALERTA,
+  TRANSICIONES_ALERTA,
+  mensajeAlertaVisible,
+  metaTipoAlerta,
+  type AlertaApi,
+  type EstadoAlertaApi,
+  type TipoAlertaApi,
+} from '@/lib/alertasApi'
 import { meshAlert } from '@/lib/meshAlert'
 import { formatearEnArg } from '@/lib/tiempoArg'
 import { obtenerViaje, type ViajeDetalleApi } from '@/lib/viajesApi'
@@ -30,7 +39,7 @@ export default function AlertasViajeScreen() {
   const [viaje, setViaje] = useState<ViajeDetalleApi | null>(null)
   const [componiendo, setComponiendo] = useState(false)
 
-  const { alertas, cargando, enviando, publicar, refrescar } = useAlertas({
+  const { alertas, cargando, enviando, publicar, cambiarEstado, refrescar } = useAlertas({
     viajeId: viajeId ?? '',
     userId,
     habilitado: Boolean(viajeId && userId.trim()),
@@ -47,6 +56,20 @@ export default function AlertasViajeScreen() {
   const puedeCrear =
     viaje?.estado === 'en_curso' &&
     (esLider || (viaje?.alertas_solo_lider ?? true) === false)
+  // RN-042: pausar / cancelar / resolver es del líder, con el viaje en curso.
+  const puedeGestionar = esLider && viaje?.estado === 'en_curso'
+
+  const handleCambiarEstado = useCallback(
+    (alertaId: string, estado: EstadoAlertaApi) => {
+      void cambiarEstado(alertaId, estado).catch((e: unknown) => {
+        meshAlert(
+          'No se pudo actualizar la alerta',
+          e instanceof Error ? e.message : 'Intentá de nuevo en unos segundos.'
+        )
+      })
+    },
+    [cambiarEstado]
+  )
 
   const centroMapaAlerta = useMemo(
     () => ({ latitude: -31.4167, longitude: -64.1833 }),
@@ -115,7 +138,13 @@ export default function AlertasViajeScreen() {
         ) : null}
 
         {alertas.map((a) => (
-          <TarjetaAlerta key={a.id} alerta={a} theme={theme} />
+          <TarjetaAlerta
+            key={a.id}
+            alerta={a}
+            theme={theme}
+            gestionable={puedeGestionar}
+            onCambiarEstado={handleCambiarEstado}
+          />
         ))}
       </ScrollView>
 
@@ -139,12 +168,18 @@ export default function AlertasViajeScreen() {
 function TarjetaAlerta({
   alerta,
   theme,
+  gestionable,
+  onCambiarEstado,
 }: {
   alerta: AlertaApi
   theme: ReturnType<typeof useTheme>
+  gestionable: boolean
+  onCambiarEstado: (alertaId: string, estado: EstadoAlertaApi) => void
 }) {
   const meta = metaTipoAlerta(alerta.tipo)
   const mensaje = mensajeAlertaVisible(alerta.mensaje)
+  const cerrada = alerta.estado === 'cancelada' || alerta.estado === 'resuelta'
+  const transiciones = gestionable ? TRANSICIONES_ALERTA[alerta.estado] : []
   return (
     <View
       style={[
@@ -155,6 +190,16 @@ function TarjetaAlerta({
       <View style={styles.tarjetaHeader}>
         <Text style={styles.emoji}>{meta.emoji}</Text>
         <Text style={[styles.tipo, { color: meta.color }]}>{meta.label}</Text>
+        {alerta.estado !== 'activa' ? (
+          <Text
+            style={[
+              styles.estado,
+              { color: cerrada ? theme.textMute : theme.accent, borderColor: theme.border },
+            ]}
+          >
+            {ETIQUETA_ESTADO_ALERTA[alerta.estado]}
+          </Text>
+        ) : null}
         <Text style={[styles.hora, { color: theme.textMute }]}>
           {/* RN-105: toda hora visible va en hora argentina. */}
           {formatearEnArg(alerta.created_at, {
@@ -176,6 +221,21 @@ function TarjetaAlerta({
         {alerta.creada_por_nombre ?? 'Sistema'}
         {alerta.lat != null && alerta.lng != null ? ' · con ubicación' : ''}
       </Text>
+
+      {transiciones.length > 0 ? (
+        <View style={styles.acciones}>
+          {transiciones.map((estado) => (
+            <Btn
+              key={estado}
+              size="sm"
+              variant={estado === 'cancelada' ? 'danger-outline' : 'outline'}
+              onPress={() => onCambiarEstado(alerta.id, estado)}
+            >
+              {ACCION_ESTADO_ALERTA[estado]}
+            </Btn>
+          ))}
+        </View>
+      ) : null}
     </View>
   )
 }
@@ -238,6 +298,20 @@ const styles = StyleSheet.create({
   },
   hora: {
     fontSize: 13,
+  },
+  estado: {
+    fontSize: 12,
+    fontWeight: '700',
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  acciones: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
   },
   mensaje: {
     marginTop: 8,

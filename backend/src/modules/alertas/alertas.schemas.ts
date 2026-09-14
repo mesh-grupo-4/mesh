@@ -18,5 +18,19 @@ export const crearAlertaSchema = z.object({
   lng: z.number().min(-180).max(180).optional(),
 })
 
+/** RN-042: estados a los que el líder puede llevar una alerta a mano. */
+export const estadoAlertaSchema = z.enum(['activa', 'pausada', 'cancelada', 'resuelta'])
+
+export const cambiarEstadoAlertaSchema = z.object({
+  estado: estadoAlertaSchema,
+})
+
+export const alertaIdParamSchema = z.object({
+  viajeId: z.string().uuid(),
+  alertaId: z.string().uuid(),
+})
+
 export type CrearAlertaInput = z.infer<typeof crearAlertaSchema>
+export type CambiarEstadoAlertaInput = z.infer<typeof cambiarEstadoAlertaSchema>
 export type TipoAlerta = z.infer<typeof tipoAlertaSchema>
+export type EstadoAlerta = z.infer<typeof estadoAlertaSchema>

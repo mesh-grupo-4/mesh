@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PrismaClient } from '@prisma/client'
-import { MotorEventosService } from './motorEventos.service'
+import { MotorEventosService, obtenerMotorEventos } from './motorEventos.service'
 
 const viajeId = '11111111-1111-1111-1111-111111111111'
 const usuarioId = '33333333-3333-3333-3333-333333333333'
@@ -58,6 +58,8 @@ function armarPrisma(overrides: Record<string, unknown> = {}) {
   const rutaFindUnique = vi.fn().mockResolvedValue({ linestring_geojson: linestring })
   const usuarioFindUnique = vi.fn().mockResolvedValue({ nombre: 'Ana', apellido: 'Pérez' })
   const alertaFindFirst = vi.fn().mockResolvedValue(null)
+  const alertaFindMany = vi.fn().mockResolvedValue([])
+  const alertaUpdateMany = vi.fn().mockResolvedValue({ count: 1 })
   const alertaCreate = vi.fn().mockResolvedValue({
     id: alertaId,
     viaje_id: viajeId,
@@ -78,7 +80,12 @@ function armarPrisma(overrides: Record<string, unknown> = {}) {
     parada: { findFirst: paradaFindFirst, create: paradaCreate },
     ruta: { findUnique: rutaFindUnique },
     usuario: { findUnique: usuarioFindUnique },
-    alerta: { findFirst: alertaFindFirst, create: alertaCreate },
+    alerta: {
+      findFirst: alertaFindFirst,
+      findMany: alertaFindMany,
+      updateMany: alertaUpdateMany,
+      create: alertaCreate,
+    },
     viajeIntegrante: { findMany: integranteFindMany },
     ubicacionViva: { findMany: ubicacionFindMany },
     ...overrides,
@@ -91,15 +98,17 @@ function armarPrisma(overrides: Record<string, unknown> = {}) {
     paradaCreate,
     rutaFindUnique,
     alertaFindFirst,
+    alertaFindMany,
+    alertaUpdateMany,
     alertaCreate,
     ubicacionFindMany,
   }
 }
 
-function ping(ts: string, lat = -31.42, lng = -64.18) {
+function ping(ts: string, lat = -31.42, lng = -64.18, quien = usuarioId) {
   return {
     viajeId,
-    usuarioId,
+    usuarioId: quien,
     lat,
     lng,
     timestamp: new Date(ts),
@@ -155,12 +164,64 @@ describe('MotorEventosService — desvío (RN-034)', () => {
   it('no duplica alertas activas del mismo integrante', async () => {
     const m = armarPrisma()
     computeDistanciaPuntoARutaM.mockResolvedValue(150)
-    m.alertaFindFirst.mockResolvedValue({ id: alertaId })
+    m.alertaFindMany.mockResolvedValue([{ id: alertaId, tipo: 'desvio' }])
     const service = new MotorEventosService(m.prisma)
 
     await service.procesarPing(ping('2026-08-21T14:00:00.000Z'))
 
     expect(m.alertaCreate).not.toHaveBeenCalled()
+    expect(m.alertaUpdateMany).not.toHaveBeenCalled()
+  })
+
+  it('resuelve sola la alerta de desvío cuando el integrante vuelve a la ruta', async () => {
+    const m = armarPrisma()
+    computeDistanciaPuntoARutaM.mockResolvedValue(20) // umbral 80 · histéresis 0.5 → 40
+    m.alertaFindMany.mockResolvedValue([{ id: alertaId, tipo: 'desvio' }])
+    const service = new MotorEventosService(m.prisma)
+
+    await service.procesarPing(ping('2026-08-21T14:00:00.000Z'))
+
+    expect(m.alertaUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: { in: [alertaId] }, estado: 'activa' },
+        data: expect.objectContaining({ estado: 'resuelta' }),
+      })
+    )
+    const actualizada = emit.mock.calls.find((c) => c[0] === 'viaje:alerta_actualizada')?.[1] as {
+      alertaId: string
+      estado: string
+    }
+    expect(actualizada).toMatchObject({ alertaId, estado: 'resuelta' })
+    expect(m.alertaCreate).not.toHaveBeenCalled()
+  })
+
+  it('histéresis: cerca del borde del umbral no resuelve ni duplica', async () => {
+    const m = armarPrisma()
+    computeDistanciaPuntoARutaM.mockResolvedValue(60)
+    m.alertaFindMany.mockResolvedValue([{ id: alertaId, tipo: 'desvio' }])
+    const service = new MotorEventosService(m.prisma)
+
+    await service.procesarPing(ping('2026-08-21T14:00:00.000Z'))
+
+    expect(m.alertaUpdateMany).not.toHaveBeenCalled()
+    expect(m.alertaCreate).not.toHaveBeenCalled()
+  })
+
+  it('una parada voluntaria fuera del trazado no es un desvío', async () => {
+    const m = armarPrisma()
+    m.paradaFindFirst.mockResolvedValue({ id: paradaId, tipo: 'voluntaria' })
+    computeDistanciaPuntoARutaM.mockResolvedValue(200)
+    const service = new MotorEventosService(m.prisma)
+
+    await service.procesarPing(ping('2026-08-21T14:00:00.000Z'))
+
+    expect(m.alertaCreate).not.toHaveBeenCalled()
+  })
+
+  it('obtenerMotorEventos devuelve una única instancia por cliente Prisma', () => {
+    const m = armarPrisma()
+    expect(obtenerMotorEventos(m.prisma)).toBe(obtenerMotorEventos(m.prisma))
+    expect(obtenerMotorEventos(m.prisma)).not.toBe(obtenerMotorEventos(armarPrisma().prisma))
   })
 })
 
@@ -294,13 +355,15 @@ describe('MotorEventosService — atraso (RN-035)', () => {
 
   it('crea alerta de atraso cuando queda atrás del bloque principal', async () => {
     const m = armarPrisma()
-    m.ubicacionFindMany.mockResolvedValue([
-      { usuario_id: liderId, lat: -31.41, lng: -64.18 },
-      { usuario_id: otroId, lat: -31.4101, lng: -64.1801 },
-    ])
     const service = new MotorEventosService(m.prisma)
 
-    await service.procesarPing(ping('2026-08-21T14:00:00.000Z', -31.45, -64.19))
+    // El progreso de los demás sale de sus propios pings (caché en memoria),
+    // no de recalcular con PostGIS a todo el grupo en cada ping.
+    await service.procesarPing(ping('2026-08-21T14:00:00.000Z', -31.41, -64.18, liderId))
+    await service.procesarPing(ping('2026-08-21T14:00:01.000Z', -31.4101, -64.1801, otroId))
+    expect(m.alertaCreate).not.toHaveBeenCalled()
+
+    await service.procesarPing(ping('2026-08-21T14:00:02.000Z', -31.45, -64.19))
 
     expect(m.alertaCreate).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -315,14 +378,42 @@ describe('MotorEventosService — atraso (RN-035)', () => {
 
   it('no alerta si hay parada voluntaria abierta', async () => {
     const m = armarPrisma()
-    m.paradaFindFirst.mockResolvedValue({ id: paradaId, tipo: 'voluntaria' })
-    m.ubicacionFindMany.mockResolvedValue([
-      { usuario_id: liderId, lat: -31.41, lng: -64.18 },
-    ])
     const service = new MotorEventosService(m.prisma)
+    await service.procesarPing(ping('2026-08-21T14:00:00.000Z', -31.41, -64.18, liderId))
+    await service.procesarPing(ping('2026-08-21T14:00:01.000Z', -31.4101, -64.1801, otroId))
 
-    await service.procesarPing(ping('2026-08-21T14:00:00.000Z', -31.45, -64.19))
+    m.paradaFindFirst.mockResolvedValue({ id: paradaId, tipo: 'voluntaria' })
+    await service.procesarPing(ping('2026-08-21T14:00:02.000Z', -31.45, -64.19))
 
+    expect(m.alertaCreate).not.toHaveBeenCalled()
+  })
+
+  it('resuelve sola la alerta de atraso cuando alcanza al grupo', async () => {
+    const m = armarPrisma()
+    const service = new MotorEventosService(m.prisma)
+    await service.procesarPing(ping('2026-08-21T14:00:00.000Z', -31.41, -64.18, liderId))
+    await service.procesarPing(ping('2026-08-21T14:00:01.000Z', -31.4101, -64.1801, otroId))
+
+    m.alertaFindMany.mockResolvedValue([{ id: alertaId, tipo: 'atraso' }])
+    // Progreso 480 vs referencia 490: atraso 10 m, muy por debajo de 250 m · 0.5.
+    await service.procesarPing(ping('2026-08-21T14:00:02.000Z', -31.4101, -64.1801))
+
+    expect(m.alertaUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: { in: [alertaId] }, estado: 'activa' } })
+    )
+    expect(eventos()).toContain('viaje:alerta_actualizada')
+  })
+
+  it('limpiarViaje olvida el progreso cacheado del grupo', async () => {
+    const m = armarPrisma()
+    const service = new MotorEventosService(m.prisma)
+    await service.procesarPing(ping('2026-08-21T14:00:00.000Z', -31.41, -64.18, liderId))
+    await service.procesarPing(ping('2026-08-21T14:00:01.000Z', -31.4101, -64.1801, otroId))
+
+    service.limpiarViaje(viajeId)
+    await service.procesarPing(ping('2026-08-21T14:00:02.000Z', -31.45, -64.19))
+
+    // Sin los demás en caché no hay bloque principal contra el cual comparar.
     expect(m.alertaCreate).not.toHaveBeenCalled()
   })
 })
