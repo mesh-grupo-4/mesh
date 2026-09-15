@@ -30,6 +30,13 @@ enum EstadoViaje {
   finalizado
 }
 
+/// RN-065: modo del viaje. `competitivo` queda reservado para E07 (leaderboard, RN-071).
+enum ModoViaje {
+  recreativo
+  competitivo
+  entrenamiento
+}
+
 enum CategoriaParada {
   accidente
   combustible
@@ -229,6 +236,8 @@ model Viaje {
   nombre                   String?
   es_grupal                Boolean       @map("es_grupal")
   tipo_actividad           TipoActividad @map("tipo_actividad")
+  /// RN-065: entrenamiento habilita métricas de sesión (splits, ritmo, evolución).
+  modo                     ModoViaje     @default(recreativo)
   velocidad_esperada       Float         @map("velocidad_esperada")
   distancia_max_separacion Int           @map("distancia_max_separacion")
   /// RN-025: minutos de tolerancia de atraso respecto del bloque principal; null = default por actividad.

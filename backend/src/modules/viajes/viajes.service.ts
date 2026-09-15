@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client'
+import type { Prisma, TipoActividad as TipoActividadEnum } from '@prisma/client'
 import type { PrismaClient } from '@prisma/client'
 import { getIo } from '../../realtime/ioRegistry'
 import { HttpError } from '../../lib/httpError'
@@ -7,6 +7,7 @@ import {
   computeLineStringLengthMeters,
   computeMetricasGpsPorUsuario,
   computePerfilVelocidad,
+  computeSplitsPorKm,
   computeTrazaRecorrido,
 } from '../../lib/postgis'
 import { filtrosGpsPorActividad } from '../../lib/gpsFilters'
@@ -138,6 +139,7 @@ export class ViajesService {
           nombre: input.nombre,
           es_grupal: input.esGrupal,
           tipo_actividad: tipoActividad,
+          modo: input.modo ?? 'recreativo',
           // RN-025: el líder puede ajustar los parámetros; si no, defaults de la actividad (RN-021).
           velocidad_esperada: input.velocidadEsperada ?? params.velocidadEsperada,
           distancia_max_separacion: input.distanciaMaxSeparacion ?? params.distanciaMaxSeparacion,
@@ -230,6 +232,7 @@ export class ViajesService {
         nombre: true,
         es_grupal: true,
         tipo_actividad: true,
+        modo: true,
         velocidad_esperada: true,
         distancia_max_separacion: true,
         fecha_programada: true,
@@ -248,6 +251,7 @@ export class ViajesService {
       nombre: v.nombre,
       es_grupal: v.es_grupal,
       tipo_actividad: v.tipo_actividad,
+      modo: v.modo,
       velocidad_esperada: v.velocidad_esperada,
       distancia_max_separacion: v.distancia_max_separacion,
       fecha_programada: v.fecha_programada,
@@ -633,6 +637,7 @@ export class ViajesService {
         nombre: true,
         es_grupal: true,
         tipo_actividad: true,
+        modo: true,
         velocidad_esperada: true,
         distancia_max_separacion: true,
         fecha_programada: true,
@@ -662,6 +667,7 @@ export class ViajesService {
         nombre: v.nombre,
         es_grupal: v.es_grupal,
         tipo_actividad: v.tipo_actividad,
+      modo: v.modo,
         velocidad_esperada: v.velocidad_esperada,
         distancia_max_separacion: v.distancia_max_separacion,
         fecha_programada: v.fecha_programada,
@@ -1275,6 +1281,7 @@ export class ViajesService {
         id: true,
         nombre: true,
         tipo_actividad: true,
+        modo: true,
         es_grupal: true,
         estado: true,
         fecha_inicio_real: true,
@@ -1287,13 +1294,19 @@ export class ViajesService {
     }
 
     const esMoto = viaje.tipo_actividad === 'moto'
+    const esEntrenamiento = viaje.modo === 'entrenamiento'
 
-    const [resumen, miMetrica, perfil] = await Promise.all([
+    const [resumen, miMetrica, perfil, splits, entrenamiento] = await Promise.all([
       this.prisma.resumenViaje.findUnique({ where: { viaje_id: viajeId } }),
       this.prisma.metricaViaje.findUnique({
         where: { viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId } },
       }),
       computePerfilVelocidad(this.prisma, viajeId, usuarioId),
+      // RN-070: en moto no se exponen ritmos ni velocidades, tampoco por kilómetro.
+      esMoto ? Promise.resolve([]) : computeSplitsPorKm(this.prisma, viajeId, usuarioId),
+      esEntrenamiento
+        ? this.evolucionEntrenamiento(usuarioId, viajeId, viaje.tipo_actividad)
+        : Promise.resolve(null),
     ])
 
     const paceMinKm =
@@ -1311,6 +1324,7 @@ export class ViajesService {
         id: viaje.id,
         nombre: viaje.nombre,
         tipo_actividad: viaje.tipo_actividad,
+        modo: viaje.modo,
         es_grupal: viaje.es_grupal,
         fecha_inicio_real: viaje.fecha_inicio_real,
         fecha_fin_real: viaje.fecha_fin_real,
@@ -1329,6 +1343,78 @@ export class ViajesService {
       perfil_velocidad: esMoto
         ? []
         : perfil.map((p) => ({ t_seg: Number(p.t_seg), velocidad_kmh: Number(p.velocidad_kmh) })),
+      // RN-065: tiempo por kilómetro. El último split puede ser parcial.
+      splits_km: splits.map((sp) => ({
+        km: sp.km,
+        metros: sp.metros,
+        segundos: sp.segundos,
+        pace_min_km: sp.metros > 0 ? (sp.segundos / 60) / (sp.metros / 1000) : null,
+      })),
+      entrenamiento,
+    }
+  }
+
+  /**
+   * RN-065: cómo viene esta sesión de entrenamiento respecto de las anteriores
+   * del mismo usuario y actividad. Todo sale de `metrica_viaje`; no recalcula GPS.
+   */
+  private async evolucionEntrenamiento(
+    usuarioId: string,
+    viajeId: string,
+    tipoActividad: TipoActividadEnum
+  ) {
+    const esMoto = tipoActividad === 'moto'
+    const filas = await this.prisma.metricaViaje.findMany({
+      where: {
+        usuario_id: usuarioId,
+        viaje: { estado: 'finalizado', modo: 'entrenamiento', tipo_actividad: tipoActividad },
+      },
+      select: {
+        viaje_id: true,
+        distancia_m: true,
+        tiempo_movimiento_seg: true,
+        velocidad_promedio_kmh: true,
+        viaje: { select: { nombre: true, fecha_fin_real: true } },
+      },
+      orderBy: { viaje: { fecha_fin_real: 'asc' } },
+    })
+
+    const sesiones = filas.map((f) => ({
+      viaje_id: f.viaje_id,
+      nombre: f.viaje.nombre,
+      fecha_fin_real: f.viaje.fecha_fin_real,
+      distancia_m: f.distancia_m,
+      tiempo_movimiento_seg: f.tiempo_movimiento_seg,
+      velocidad_promedio_kmh: esMoto ? null : f.velocidad_promedio_kmh,
+      pace_min_km:
+        !esMoto && f.tiempo_movimiento_seg > 0 && f.distancia_m > 0
+          ? (f.tiempo_movimiento_seg / 60) / (f.distancia_m / 1000)
+          : null,
+    }))
+
+    const idx = sesiones.findIndex((s) => s.viaje_id === viajeId)
+    const actual = idx >= 0 ? sesiones[idx]! : null
+    const anteriores = idx >= 0 ? sesiones.slice(0, idx) : sesiones
+    const anterior = anteriores[anteriores.length - 1] ?? null
+
+    const conPace = sesiones.filter((s) => s.pace_min_km != null)
+    const mejorPace = conPace.length > 0 ? Math.min(...conPace.map((s) => s.pace_min_km!)) : null
+    const mejorDistancia = sesiones.length > 0 ? Math.max(...sesiones.map((s) => s.distancia_m)) : null
+
+    return {
+      numero_sesion: idx >= 0 ? idx + 1 : sesiones.length + 1,
+      total_sesiones: sesiones.length,
+      mejor_pace_min_km: mejorPace,
+      es_mejor_pace: actual?.pace_min_km != null && mejorPace != null && actual.pace_min_km <= mejorPace,
+      mejor_distancia_m: mejorDistancia,
+      es_mejor_distancia: actual != null && mejorDistancia != null && actual.distancia_m >= mejorDistancia,
+      delta_distancia_m: actual && anterior ? actual.distancia_m - anterior.distancia_m : null,
+      delta_pace_min_km:
+        actual?.pace_min_km != null && anterior?.pace_min_km != null
+          ? actual.pace_min_km - anterior.pace_min_km
+          : null,
+      // Últimas 6 sesiones (incluida la actual), de la más vieja a la más nueva, para graficar la evolución.
+      evolucion: (idx >= 0 ? sesiones.slice(0, idx + 1) : sesiones).slice(-6),
     }
   }
 

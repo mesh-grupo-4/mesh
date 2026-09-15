@@ -43,6 +43,7 @@ import type { RouteStop } from '@/lib/geo/nextStop'
 import { haversineDistanceM } from '@/lib/geo/haversine'
 import { dividirRutaPorAvance } from '@/lib/geo/routeProgress'
 import { useHapticaAlEntrar } from '@/lib/haptics'
+import { formatPaceMinKm, formatSpeedKmh } from '@/lib/format'
 import { nombreCompleto } from '@/lib/nombres'
 import type { TipoAlertaApi } from '@/lib/alertasApi'
 import type { CategoriaParadaApi } from '@/lib/paradasApi'
@@ -300,12 +301,23 @@ export default function ViajeLiveScreen() {
     return { latitude: -31.4167, longitude: -64.1833 }
   }, [myPosition, initialCenter])
 
-  const { elapsedLabel, distanceLabel } = useTripMetrics({
+  const { elapsedLabel, distanceLabel, velocidadActualKmh, velocidadPromedioKmh, paceMinKm } = useTripMetrics({
     viajeId: viajeId ?? '',
     userId,
     fechaInicioReal: viaje?.fecha_inicio_real ?? null,
     tipoActividad: viaje?.tipo_actividad ?? 'otro',
   })
+
+  // RN-065: panel de entrenamiento. RN-070: en moto no se muestran velocidades.
+  const entrenamientoEnVivo = useMemo(() => {
+    if (viaje?.modo !== 'entrenamiento' || viaje.tipo_actividad === 'moto') return null
+    const esPace = viaje.tipo_actividad === 'running' || viaje.tipo_actividad === 'trekking'
+    return {
+      velocidadActual: formatSpeedKmh(velocidadActualKmh),
+      velocidadPromedio: formatSpeedKmh(velocidadPromedioKmh),
+      ritmo: esPace ? formatPaceMinKm(paceMinKm) : formatSpeedKmh(velocidadPromedioKmh),
+    }
+  }, [viaje?.modo, viaje?.tipo_actividad, velocidadActualKmh, velocidadPromedioKmh, paceMinKm])
 
   const breadcrumb = useBreadcrumbTrail({
     viajeId: viajeId ?? '',
@@ -847,6 +859,7 @@ export default function ViajeLiveScreen() {
       <LiveBottomPanel
         elapsedLabel={elapsedLabel}
         distanceLabel={distanceLabel}
+        entrenamiento={entrenamientoEnVivo}
         enCurso={viaje?.estado === 'en_curso'}
         esLider={esLider}
         accion={!!accion}

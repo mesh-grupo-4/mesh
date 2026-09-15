@@ -243,6 +243,14 @@ TipoActividadNullable:
   enum: [moto, bici, running, trekking, otro, null]
   example: bici
 
+ModoViaje:
+  type: string
+  description: |
+    RN-065: modo del viaje. `entrenamiento` habilita las métricas de sesión
+    (splits por km, ritmo, evolución entre sesiones). `competitivo` es de E07 y
+    todavía no se acepta al crear.
+  enum: [recreativo, competitivo, entrenamiento]
+
 EstadoViaje:
   type: string
   description: |
@@ -1291,6 +1299,7 @@ Viaje:
     - nombre
     - es_grupal
     - tipo_actividad
+    - modo
     - velocidad_esperada
     - distancia_max_separacion
     - tolerancia_atraso_min
@@ -1322,6 +1331,8 @@ Viaje:
       example: true
     tipo_actividad:
       $ref: '#/TipoActividad'
+    modo:
+      $ref: '#/ModoViaje'
     velocidad_esperada:
       type: number
       description: |
@@ -1427,6 +1438,7 @@ ViajeResumenPlanificado:
     - nombre
     - es_grupal
     - tipo_actividad
+    - modo
     - velocidad_esperada
     - distancia_max_separacion
     - fecha_programada
@@ -1447,6 +1459,8 @@ ViajeResumenPlanificado:
       type: boolean
     tipo_actividad:
       $ref: '#/TipoActividad'
+    modo:
+      $ref: '#/ModoViaje'
     velocidad_esperada:
       type: number
       example: 35
@@ -1471,6 +1485,7 @@ ViajeResumenFinalizado:
     - nombre
     - es_grupal
     - tipo_actividad
+    - modo
     - velocidad_esperada
     - distancia_max_separacion
     - fecha_programada
@@ -1493,6 +1508,8 @@ ViajeResumenFinalizado:
       type: boolean
     tipo_actividad:
       $ref: '#/TipoActividad'
+    modo:
+      $ref: '#/ModoViaje'
     velocidad_esperada:
       type: number
     distancia_max_separacion:
@@ -1657,6 +1674,13 @@ CrearViajeRequest:
         format: uuid
     tipoActividad:
       $ref: '#/TipoActividad'
+    modo:
+      type: string
+      enum: [recreativo, entrenamiento]
+      default: recreativo
+      description: |
+        RN-065. `entrenamiento` habilita el panel de ritmo en vivo y las métricas
+        de sesión al cerrar. `competitivo` es de E07 y todavía no se acepta.
     fechaProgramada:
       type: string
       format: date-time
@@ -2511,12 +2535,18 @@ MisMetricas:
   description: |
     Métricas individuales detalladas más el perfil de velocidad minuto a minuto.
 
-    **RN-070:** con actividad `moto`, las velocidades llegan en `null` y
-    `perfil_velocidad` es un array vacío.
+    **RN-070:** con actividad `moto`, las velocidades llegan en `null`,
+    `perfil_velocidad` y `splits_km` son arrays vacíos.
+
+    **RN-065:** `splits_km` trae el tiempo por kilómetro; `entrenamiento` solo
+    viene con `modo: entrenamiento` y compara la sesión con las anteriores del
+    mismo usuario y actividad (todo a partir de `metrica_viaje`).
   required:
     - viaje
     - metricas
     - perfil_velocidad
+    - splits_km
+    - entrenamiento
   properties:
     viaje:
       type: object
@@ -2524,6 +2554,7 @@ MisMetricas:
         - id
         - nombre
         - tipo_actividad
+        - modo
         - es_grupal
         - fecha_inicio_real
         - fecha_fin_real
@@ -2536,6 +2567,8 @@ MisMetricas:
           nullable: true
         tipo_actividad:
           $ref: '#/TipoActividad'
+        modo:
+          $ref: '#/ModoViaje'
         es_grupal:
           type: boolean
         fecha_inicio_real:
@@ -2606,6 +2639,103 @@ MisMetricas:
             type: number
             example: 28.4
         additionalProperties: false
+    splits_km:
+      type: array
+      description: Tiempo por kilómetro recorrido (RN-065). El último puede ser parcial.
+      items:
+        type: object
+        required: [km, metros, segundos, pace_min_km]
+        properties:
+          km:
+            type: integer
+            example: 3
+          metros:
+            type: number
+            example: 1000
+          segundos:
+            type: number
+            example: 312.4
+          pace_min_km:
+            type: number
+            nullable: true
+            example: 5.2
+        additionalProperties: false
+    entrenamiento:
+      type: object
+      nullable: true
+      description: 'Solo con modo `entrenamiento`; `null` en el resto.'
+      required:
+        - numero_sesion
+        - total_sesiones
+        - mejor_pace_min_km
+        - es_mejor_pace
+        - mejor_distancia_m
+        - es_mejor_distancia
+        - delta_distancia_m
+        - delta_pace_min_km
+        - evolucion
+      properties:
+        numero_sesion:
+          type: integer
+          description: Orden de esta sesión entre los entrenamientos finalizados de la actividad.
+          example: 4
+        total_sesiones:
+          type: integer
+          example: 4
+        mejor_pace_min_km:
+          type: number
+          nullable: true
+        es_mejor_pace:
+          type: boolean
+        mejor_distancia_m:
+          type: number
+          nullable: true
+        es_mejor_distancia:
+          type: boolean
+        delta_distancia_m:
+          type: number
+          nullable: true
+          description: Diferencia con la sesión anterior (positivo = más distancia).
+        delta_pace_min_km:
+          type: number
+          nullable: true
+          description: Diferencia de ritmo con la sesión anterior (negativo = más rápido).
+        evolucion:
+          type: array
+          description: Últimas 6 sesiones (incluida esta), de la más vieja a la más nueva.
+          items:
+            type: object
+            required:
+              - viaje_id
+              - nombre
+              - fecha_fin_real
+              - distancia_m
+              - tiempo_movimiento_seg
+              - velocidad_promedio_kmh
+              - pace_min_km
+            properties:
+              viaje_id:
+                type: string
+                format: uuid
+              nombre:
+                type: string
+                nullable: true
+              fecha_fin_real:
+                type: string
+                format: date-time
+                nullable: true
+              distancia_m:
+                type: number
+              tiempo_movimiento_seg:
+                type: integer
+              velocidad_promedio_kmh:
+                type: number
+                nullable: true
+              pace_min_km:
+                type: number
+                nullable: true
+            additionalProperties: false
+      additionalProperties: false
   additionalProperties: false
 
 Recorrido:

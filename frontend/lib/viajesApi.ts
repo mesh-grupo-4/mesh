@@ -25,6 +25,7 @@ export type ViajePlanificadoApi = {
   creador_id: string
   es_grupal: boolean
   tipo_actividad: TipoActividadApi
+  modo?: ModoViajeApi
   velocidad_esperada: number
   distancia_max_separacion: number
   fecha_programada: string
@@ -94,6 +95,7 @@ export async function crearViaje(
     grupoIds?: string[]
     amigoIds?: string[]
     tipoActividad: TipoActividadApi
+    modo?: 'recreativo' | 'entrenamiento'
     fechaProgramada: Date
     rutaPlantillaId?: string | null
   } & ParametrosViajeInput,
@@ -111,6 +113,7 @@ export async function crearViaje(
       grupoIds: input.grupoIds ?? [],
       amigoIds: input.amigoIds ?? [],
       tipoActividad: input.tipoActividad,
+      modo: input.modo ?? 'recreativo',
       fechaProgramada: input.fechaProgramada.toISOString(),
       rutaPlantillaId: input.rutaPlantillaId ?? undefined,
       // RN-025: solo viajan si el líder los tocó; si no, el backend aplica los defaults.
@@ -219,12 +222,16 @@ export async function unirseViajePorQr(
   return parseJson<UnirseQrViajeResponse>(res)
 }
 
+/** RN-065: modo del viaje. `competitivo` es de E07 y todavía no se puede elegir. */
+export type ModoViajeApi = 'recreativo' | 'competitivo' | 'entrenamiento'
+
 export type ViajeDetalleApi = {
   id: string
   creador_id: string
   nombre?: string | null
   es_grupal: boolean
   tipo_actividad: string
+  modo: ModoViajeApi
   velocidad_esperada: number
   distancia_max_separacion: number
   /** RN-025: null = default por actividad. */
@@ -466,11 +473,42 @@ export type PerfilVelocidadPuntoApi = {
   velocidad_kmh: number
 }
 
+export type SplitKmApi = {
+  km: number
+  metros: number
+  segundos: number
+  pace_min_km: number | null
+}
+
+export type SesionEntrenamientoApi = {
+  viaje_id: string
+  nombre: string | null
+  fecha_fin_real: string | null
+  distancia_m: number
+  tiempo_movimiento_seg: number
+  velocidad_promedio_kmh: number | null
+  pace_min_km: number | null
+}
+
+/** RN-065: comparación de la sesión con las anteriores del mismo usuario y actividad. */
+export type EntrenamientoApi = {
+  numero_sesion: number
+  total_sesiones: number
+  mejor_pace_min_km: number | null
+  es_mejor_pace: boolean
+  mejor_distancia_m: number | null
+  es_mejor_distancia: boolean
+  delta_distancia_m: number | null
+  delta_pace_min_km: number | null
+  evolucion: SesionEntrenamientoApi[]
+}
+
 export type MetricasIndividualesApi = {
   viaje: {
     id: string
     nombre: string | null
     tipo_actividad: TipoActividadApi
+    modo: ModoViajeApi
     es_grupal: boolean
     fecha_inicio_real: string | null
     fecha_fin_real: string | null
@@ -487,6 +525,8 @@ export type MetricasIndividualesApi = {
     cantidad_paradas: number
   }
   perfil_velocidad: PerfilVelocidadPuntoApi[]
+  splits_km: SplitKmApi[]
+  entrenamiento: EntrenamientoApi | null
 }
 
 export async function obtenerMetricasIndividuales(

@@ -54,6 +54,8 @@ export const createViajeSchema = z
     grupoIds: z.array(z.string().uuid()).optional().default([]),
     amigoIds: z.array(z.string().uuid()).optional().default([]),
     tipoActividad: z.nativeEnum(TipoActividad),
+    /** RN-065: `competitivo` es de E07 y todavía no se acepta. */
+    modo: z.enum(['recreativo', 'entrenamiento']).optional().default('recreativo'),
     fechaProgramada: fechaProgramadaFuturaSchema,
     /** Opcional: precarga la ruta desde una plantilla propia del creador. */
     rutaPlantillaId: z.string().uuid().optional().nullable(),

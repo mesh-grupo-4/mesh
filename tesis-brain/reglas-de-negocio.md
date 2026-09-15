@@ -121,6 +121,7 @@ A diferencia de soluciones existentes (Strava, Garmin, Google Maps, Life360) que
 | RN-061 | Métricas individuales: distancia recorrida, tiempo total, tiempo en movimiento, tiempo detenido, velocidad promedio. |
 | RN-062 | Métricas grupales: integrantes totales, distancia promedio, cantidad de alertas generadas. |
 | RN-063 | El ranking de **este viaje** (recap post-cierre, cards con tabs) se ordena por velocidad promedio, distancia o tiempo en movimiento. Solo viajes **grupales** y **no moto**. Usa los números ya calculados en `metrica_viaje`; no es una tabla global ni el Wrapped de período. |
+| RN-065 | **Modo entrenamiento (SCRUM-47/48):** al crear, el viaje elige `modo` = `recreativo` (default) o `entrenamiento`; `competitivo` queda reservado para E07 y la API lo rechaza. En entrenamiento el mapa en vivo suma un panel con velocidad actual, promedio y ritmo, y al cerrar `GET /mis-metricas` agrega `splits_km` (tiempo por kilómetro, PostGIS sobre `registro_gps`) y `entrenamiento` (número de sesión, mejor ritmo/distancia, delta contra la sesión anterior y evolución de las últimas 6 sesiones de la misma actividad, todo desde `metrica_viaje`). RN-070 aplica: en moto no hay velocidades, ritmos ni splits, solo distancia y tiempo. |
 | RN-064 | El resumen visual (tipo "Wrapped") se genera **mensual y anualmente**; es compartible como imagen. Distinto del recap de un viaje (RN-063). |
 
 #### Definición operativa: "distancia real del viaje"

@@ -52,3 +52,27 @@ export function formatPace(
   const secs = Math.round((minPorKm - mins) * 60)
   return `${mins}:${secs.toString().padStart(2, '0')} /km`
 }
+
+/** Ritmo a partir de min/km ya calculados (RN-065, panel en vivo y splits). */
+export function formatPaceMinKm(minPorKm: number | null | undefined): string {
+  if (minPorKm == null || !Number.isFinite(minPorKm) || minPorKm <= 0) return '--'
+  const mins = Math.floor(minPorKm)
+  const secs = Math.round((minPorKm - mins) * 60)
+  return `${mins}:${secs.toString().padStart(2, '0')} /km`
+}
+
+/** Diferencia con signo, para comparar sesiones ("+1,2 km", "−0:15 /km"). */
+export function formatDeltaKm(metros: number | null | undefined): string {
+  if (metros == null) return '--'
+  const signo = metros >= 0 ? '+' : '−'
+  return `${signo}${(Math.abs(metros) / 1000).toFixed(1)} km`
+}
+
+export function formatDeltaPace(minPorKm: number | null | undefined): string {
+  if (minPorKm == null) return '--'
+  const signo = minPorKm <= 0 ? '−' : '+'
+  const abs = Math.abs(minPorKm)
+  const mins = Math.floor(abs)
+  const secs = Math.round((abs - mins) * 60)
+  return `${signo}${mins}:${secs.toString().padStart(2, '0')} /km`
+}

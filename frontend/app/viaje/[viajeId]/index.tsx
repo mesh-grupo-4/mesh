@@ -594,6 +594,7 @@ export default function ViajeDetalleScreen() {
                 <Badge tone={viaje.estado === 'en_curso' ? 'live' : viaje.estado === 'planificado' ? 'accent' : 'mute'} pulse={viaje.estado === 'en_curso'}>
                   {viaje.estado === 'en_curso' ? 'En vivo' : viaje.estado === 'planificado' ? 'Planificado' : 'Finalizado'}
                 </Badge>
+                {viaje.modo === 'entrenamiento' ? <Badge tone="good">Entrenamiento</Badge> : null}
                 <ActivityTile activity={viaje.tipo_actividad} size={28} />
               </View>
               <View style={styles.titleRow}>
