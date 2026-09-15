@@ -254,6 +254,41 @@ describe('MotorEventosService — detención sospechosa (RN-036)', () => {
     )
   })
 
+  it('SCRUM-38: el posible incidente se notifica a todo el grupo, no solo al líder', async () => {
+    const m = armarPrisma()
+    m.viajeFindUnique.mockImplementation(async ({ select }: { select?: Record<string, unknown> }) =>
+      select?.creador
+        ? { creador_id: liderId, creador: { push_token: 'ExponentPushToken[lider]' } }
+        : {
+            id: viajeId,
+            estado: 'en_curso',
+            es_grupal: true,
+            tipo_actividad: 'trekking',
+            distancia_max_separacion: 80,
+            velocidad_esperada: 5,
+            creador_id: liderId,
+            alerta_incidente_habilitada: true,
+            alerta_incidente_minutos: null,
+          }
+    )
+    m.prisma.viajeIntegrante.findMany = vi.fn().mockResolvedValue([
+      { usuario: { id: otroId, push_token: 'ExponentPushToken[otro]' } },
+      { usuario: { id: usuarioId, push_token: 'ExponentPushToken[afectado]' } },
+    ]) as never
+    const service = new MotorEventosService(m.prisma)
+
+    await service.procesarPing(ping('2026-08-21T14:00:00.000Z'))
+    await service.procesarPing(ping('2026-08-21T14:06:00.000Z'))
+    await new Promise((r) => setTimeout(r, 0))
+
+    const destinos = (sendExpoPush.mock.calls[0]?.[0] as { to: string }[]).map((x) => x.to)
+    expect(destinos).toEqual(
+      expect.arrayContaining(['ExponentPushToken[lider]', 'ExponentPushToken[otro]'])
+    )
+    // Al afectado no se le avisa: ya tiene el banner "Estoy bien" en pantalla.
+    expect(destinos).not.toContain('ExponentPushToken[afectado]')
+  })
+
   it('reinicia el contador si el integrante se movió dentro del radio', async () => {
     const m = armarPrisma()
     const service = new MotorEventosService(m.prisma)

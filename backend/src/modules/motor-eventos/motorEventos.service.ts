@@ -312,7 +312,9 @@ export class MotorEventosService {
       lng: input.lng,
       mensaje: `${prefijoAlertaAfectado(input.usuarioId)}Posible incidente — ${nombre} lleva ${detencionMinutos} min detenido sin registrar parada`,
       tituloPush: 'Posible incidente',
-      notificarSoloLider: true,
+      // SCRUM-38 / RN-040: una posible caída la tiene que saber todo el grupo,
+      // no solo el líder (desvío y atraso sí van solo al líder, SCRUM-32/33).
+      notificarSoloLider: false,
     })
   }
 

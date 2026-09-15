@@ -90,7 +90,7 @@ A diferencia de soluciones existentes (Strava, Garmin, Google Maps, Life360) que
 | RN-033 | El sistema soporta hasta **150–200 usuarios concurrentes** por viaje. |
 | RN-034 | **Detección de desvío**: se dispara alerta cuando un integrante supera X metros fuera de la ruta planificada (X es configurable). |
 | RN-035 | **Detección de atraso**: se calcula comparando la posición del integrante con el bloque principal del grupo. Se dispara según la tolerancia configurada. |
-| RN-036 | **Detección de incidente vs. parada voluntaria**: si un usuario se detiene por más de N minutos SIN registrar parada manual, se genera alerta de "posible incidente". El integrante puede confirmar que está bien para cancelarla. |
+| RN-036 | **Detección de incidente vs. parada voluntaria**: si un usuario se detiene por más de N minutos SIN registrar parada manual, se genera alerta de "posible incidente" con la ubicación exacta. La notificación push llega a **todo el grupo** (líder e integrantes, salvo el afectado, que ve el banner "Estoy bien"); desvío y atraso se notifican solo al líder. El integrante puede confirmar que está bien para cancelarla. |
 | RN-037 | Los estados visibles de un integrante en el mapa son: **en movimiento**, **detenido-voluntario**, **posible incidente**. El estado se **deriva** de la parada abierta del integrante (`parada.fin IS NULL`), no se almacena duplicado en `ubicacion_viva`. |
 | RN-038 | En modo offline, los datos GPS se almacenan localmente y se sincronizan automáticamente al reconectar. No se pierden registros. |
 

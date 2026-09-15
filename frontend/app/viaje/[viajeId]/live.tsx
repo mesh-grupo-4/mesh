@@ -40,6 +40,7 @@ import { useNextStopEta } from '@/hooks/useNextStopEta'
 import { useTripMetrics } from '@/hooks/useTripMetrics'
 import { uiConfigPorActividad } from '@/lib/activityUi'
 import type { RouteStop } from '@/lib/geo/nextStop'
+import { haversineDistanceM } from '@/lib/geo/haversine'
 import { dividirRutaPorAvance } from '@/lib/geo/routeProgress'
 import { useHapticaAlEntrar } from '@/lib/haptics'
 import { nombreCompleto } from '@/lib/nombres'
@@ -166,10 +167,25 @@ export default function ViajeLiveScreen() {
     const list: LiveMember[] = []
     const onMap = new Set(memberList.map((m) => m.usuarioId))
 
+    // SCRUM-33: separación en tiempo real respecto de mi última posición.
+    const posPorId = new Map(memberList.map((m) => [m.usuarioId, m]))
+    const separacionMax = viaje?.distancia_max_separacion ?? null
     const add = (id: string, nombre: string) => {
       if (seen.has(id)) return
       seen.add(id)
-      list.push({ id, nombre, enMapa: onMap.has(id), sinSenal: staleByUserId[id] === true })
+      const pos = posPorId.get(id)
+      const distanciaM =
+        myPosition && pos && id !== userId && !staleByUserId[id]
+          ? haversineDistanceM(myPosition.lat, myPosition.lng, pos.lat, pos.lng)
+          : null
+      list.push({
+        id,
+        nombre,
+        enMapa: onMap.has(id),
+        sinSenal: staleByUserId[id] === true,
+        distanciaM,
+        lejos: distanciaM != null && separacionMax != null && distanciaM > separacionMax,
+      })
     }
 
     if (viaje?.creador) {
@@ -185,7 +201,7 @@ export default function ViajeLiveScreen() {
     }
 
     return list
-  }, [viaje, participantes, memberList, staleByUserId])
+  }, [viaje, participantes, memberList, staleByUserId, myPosition, userId])
 
   const tripDisplayName = useMemo(() => {
     if (viaje?.nombre?.trim()) return viaje.nombre.trim()
