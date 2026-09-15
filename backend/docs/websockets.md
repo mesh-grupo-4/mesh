@@ -213,6 +213,29 @@ Al salir se cierra su parada abierta (si tenía), se resuelven sus alertas del s
 (con `viaje:alerta_actualizada`) y se borra su `ubicacion_viva`: deja de aparecer en el
 mapa también para quien rehidrata por `GET /ubicaciones-vivas`.
 
+### `viaje:ubicacion_oculta`
+
+Emitido por `PrivacidadService` cuando alguien apaga el compartir ubicación en un viaje
+(`PUT /api/viajes/:viajeId/privacidad`) o revoca el consentimiento de geolocalización
+(`PUT /api/usuarios/me/privacidad`, que lo emite en cada viaje donde tuviera posición
+publicada).
+
+```jsonc
+{
+  "viajeId": "3f2c9a10-...",
+  "usuarioId": "9d8c7b6a-..."
+}
+```
+
+El cliente tiene que **sacar el marcador**, igual que con `viaje:participante_salio`.
+Dejar el último marcador congelado seguiría revelando dónde estaba la persona al apagar
+el compartir, que es justo lo que se quiso evitar (RN-111).
+
+Del lado del servidor se borra la fila de `ubicacion_viva`, así que quien rehidrate por
+`GET /ubicaciones-vivas` tampoco la recibe. A partir de ahí los pings de esa persona se
+siguen guardando en `registro_gps` (RN-038) pero no se publican ni pasan por el motor de
+eventos.
+
 ### `viaje:alerta`
 
 Emitido por `AlertasService.crear()` al publicar una alerta manual, por
@@ -335,6 +358,7 @@ Para paradas voluntarias, `estado` es `detenido_voluntario`. El frontend en `liv
 | `viaje:finalizado` | servidor → sala | — | solo el creador la dispara |
 | `viaje:ubicacion` | servidor → sala | — | — |
 | `viaje:participante_salio` | servidor → sala | — | — |
+| `viaje:ubicacion_oculta` | servidor → sala | — | solo la propia persona la dispara |
 | `viaje:alerta` | servidor → sala | — | — |
 | `viaje:alerta_actualizada` | servidor → sala | — | — |
 | `viaje:leaderboard` | servidor → sala | — | solo viajes `competitivo` |

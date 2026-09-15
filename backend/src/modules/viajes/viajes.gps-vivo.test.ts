@@ -30,7 +30,12 @@ const snapshotPrevio = {
   updated_at: new Date('2026-08-31T11:59:00.000Z'),
 }
 
-function armarPrisma(tipoActividad: string, snapshotExistente: unknown = null) {
+function armarPrisma(
+  tipoActividad: string,
+  snapshotExistente: unknown = null,
+  privacidad: { comparte?: boolean; consentimiento?: boolean } = {}
+) {
+  const { comparte = true, consentimiento = true } = privacidad
   const registroGpsCreate = vi.fn().mockResolvedValue({})
   const ubicacionVivaUpsert = vi.fn().mockResolvedValue({
     usuario_id: usuarioId,
@@ -53,6 +58,15 @@ function armarPrisma(tipoActividad: string, snapshotExistente: unknown = null) {
       }),
     },
     viajeIntegrante: { findUnique: vi.fn() },
+    // RN-110/111: `estadoCompartirUbicacion` resuelve consentimiento y preferencia
+    // del viaje en una sola consulta sobre `usuario`.
+    usuario: {
+      findUnique: vi.fn().mockResolvedValue({
+        comparte_ubicacion_default: true,
+        consentimiento_ubicacion_at: consentimiento ? new Date('2026-09-01T00:00:00.000Z') : null,
+        privacidad_viajes: [{ comparte_ubicacion: comparte }],
+      }),
+    },
     registroGPS: {
       create: registroGpsCreate,
       createMany: registroGpsCreateMany,
@@ -150,7 +164,7 @@ describe('filtrado de precisión antes de retransmitir la posición en vivo', ()
     const m = armarPrisma('bici', snapshotPrevio)
     const service = new ViajesService(m.prisma)
 
-    const row = await service.upsertUbicacionViva(usuarioId, viajeId, {
+    const out = await service.upsertUbicacionViva(usuarioId, viajeId, {
       lat: -31.42,
       lng: -64.18,
       precision: 999,
@@ -160,15 +174,15 @@ describe('filtrado de precisión antes de retransmitir la posición en vivo', ()
     expect(m.registroGpsCreate).toHaveBeenCalledTimes(1)
     expect(m.ubicacionVivaUpsert).not.toHaveBeenCalled()
     expect(emit).not.toHaveBeenCalled()
-    // Nunca null: violaría el schema `UbicacionVivaFila` (no nullable) del spec OpenAPI.
-    expect(row).toEqual(snapshotPrevio)
+    // Compartiendo, `ubicacion` nunca es null: se devuelve la posición previa.
+    expect(out).toEqual({ compartida: true, ubicacion: snapshotPrevio })
   })
 
   it('upsertUbicacionViva: un ping impreciso SIN posición previa se publica igual (primera aparición)', async () => {
     const m = armarPrisma('bici', null)
     const service = new ViajesService(m.prisma)
 
-    const row = await service.upsertUbicacionViva(usuarioId, viajeId, {
+    const out = await service.upsertUbicacionViva(usuarioId, viajeId, {
       lat: -31.42,
       lng: -64.18,
       precision: 999,
@@ -181,7 +195,7 @@ describe('filtrado de precisión antes de retransmitir la posición en vivo', ()
       'viaje:ubicacion',
       expect.objectContaining({ viajeId, usuarioId })
     )
-    expect(row).not.toBeNull()
+    expect(out.ubicacion).not.toBeNull()
   })
 
   it('upsertUbicacionViva: un ping preciso se persiste y sí emite viaje:ubicacion', async () => {
@@ -252,7 +266,7 @@ describe('ingresarPosiciones (offline_sync)', () => {
 
     const out = await service.ingresarPosiciones(usuarioId, viajeId, lote)
 
-    expect(out).toEqual({ insertados: 3 })
+    expect(out).toEqual({ insertados: 3, compartida: true })
     expect(m.registroGpsCreateMany).toHaveBeenCalledWith(
       expect.objectContaining({ skipDuplicates: true })
     )
@@ -299,6 +313,77 @@ describe('ingresarPosiciones (offline_sync)', () => {
       ],
     })
 
+    expect(m.ubicacionVivaUpsert).not.toHaveBeenCalled()
+    expect(emit).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * RN-110/111: con el compartir apagado —o sin consentimiento de geolocalización
+ * todavía otorgado— el punto se sigue guardando en `registro_gps` (RN-038: cero
+ * pérdida, es historial propio y alimenta las métricas personales), pero no se
+ * publica al grupo ni se evalúa en el motor de eventos, que generaría alertas
+ * con la ubicación exacta de alguien que eligió no mostrarla (RN-043).
+ */
+describe('compartir ubicación apagado (RN-111)', () => {
+  const ping = {
+    viajeId,
+    lat: -31.42,
+    lng: -64.18,
+    accuracy: 10,
+    recordedAt: '2026-08-31T12:00:00.000Z',
+    source: 'live' as const,
+  }
+
+  it('registrarPingUbicacion: persiste el punto pero no publica ni dispara el motor', async () => {
+    const m = armarPrisma('bici', null, { comparte: false })
+
+    await new ViajesService(m.prisma).registrarPingUbicacion(usuarioId, ping)
+
+    expect(m.registroGpsCreate).toHaveBeenCalledTimes(1)
+    expect(m.ubicacionVivaUpsert).not.toHaveBeenCalled()
+    expect(emit).not.toHaveBeenCalled()
+    expect(procesarPing).not.toHaveBeenCalled()
+  })
+
+  it('upsertUbicacionViva: devuelve compartida=false sin publicar', async () => {
+    const m = armarPrisma('bici', null, { comparte: false })
+
+    const out = await new ViajesService(m.prisma).upsertUbicacionViva(usuarioId, viajeId, {
+      lat: -31.42,
+      lng: -64.18,
+      precision: 10,
+      recordedAt: new Date('2026-08-31T12:00:00.000Z'),
+    })
+
+    expect(out).toEqual({ compartida: false, ubicacion: null })
+    expect(m.registroGpsCreate).toHaveBeenCalledTimes(1)
+    expect(m.ubicacionVivaUpsert).not.toHaveBeenCalled()
+    expect(procesarPing).not.toHaveBeenCalled()
+  })
+
+  it('ingresarPosiciones: guarda el lote offline completo pero no lo publica', async () => {
+    const m = armarPrisma('bici', null, { comparte: false })
+
+    const out = await new ViajesService(m.prisma).ingresarPosiciones(usuarioId, viajeId, {
+      source: 'offline_sync',
+      posiciones: [
+        { lat: -31.43, lng: -64.19, precision: 8, timestamp: new Date('2026-08-31T12:00:10.000Z') },
+      ],
+    })
+
+    expect(out).toEqual({ insertados: 1, compartida: false })
+    expect(m.registroGpsCreateMany).toHaveBeenCalledTimes(1)
+    expect(m.ubicacionVivaUpsert).not.toHaveBeenCalled()
+    expect(emit).not.toHaveBeenCalled()
+  })
+
+  it('sin consentimiento vigente no se publica, aunque el toggle del viaje esté en on', async () => {
+    const m = armarPrisma('bici', null, { comparte: true, consentimiento: false })
+
+    await new ViajesService(m.prisma).registrarPingUbicacion(usuarioId, ping)
+
+    expect(m.registroGpsCreate).toHaveBeenCalledTimes(1)
     expect(m.ubicacionVivaUpsert).not.toHaveBeenCalled()
     expect(emit).not.toHaveBeenCalled()
   })

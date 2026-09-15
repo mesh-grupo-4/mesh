@@ -34,6 +34,11 @@ import {
   obtenerMotorEventos,
   type MotorEventosService,
 } from '../motor-eventos/motorEventos.service'
+import {
+  comparteUbicacion,
+  filtrarQuienesComparten,
+  registrarAccesosUbicacion,
+} from '../privacidad/privacidad.acceso'
 
 export class ViajesService {
   private readonly rutasCompartidas: RutasCompartidasService
@@ -1534,6 +1539,9 @@ export class ViajesService {
    * Autoriza el envío de GPS y devuelve la fila de viaje ya consultada (con
    * `tipo_actividad`) para que el caller no tenga que pedirla de nuevo con un
    * segundo `findUnique` solo para saber los umbrales de filtrado GPS.
+   *
+   * También resuelve acá si la persona comparte su ubicación (RN-111), porque
+   * los tres puntos de entrada de GPS lo necesitan y así se pide una sola vez.
    */
   private async assertPuedeEnviarGps(viajeId: string, usuarioId: string) {
     const viaje = await this.prisma.viaje.findUnique({
@@ -1552,17 +1560,20 @@ export class ViajesService {
       throw new HttpError(409, 'El viaje no admite envío de GPS en este estado', 'INVALID_STATE')
     }
 
-    if (viaje.creador_id === usuarioId) return viaje
+    if (viaje.creador_id !== usuarioId) {
+      const integrante = await this.prisma.viajeIntegrante.findUnique({
+        where: {
+          viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId },
+        },
+        select: { estado: true },
+      })
+      if (integrante?.estado !== 'confirmado') {
+        throw new HttpError(403, 'Sin acceso a este viaje', 'FORBIDDEN')
+      }
+    }
 
-    const integrante = await this.prisma.viajeIntegrante.findUnique({
-      where: {
-        viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId },
-      },
-      select: { estado: true },
-    })
-    if (integrante?.estado === 'confirmado') return viaje
-
-    throw new HttpError(403, 'Sin acceso a este viaje', 'FORBIDDEN')
+    const comparte = await comparteUbicacion(this.prisma, viajeId, usuarioId)
+    return { ...viaje, comparte }
   }
 
   /** RN-021: precisión mala (`accuracy`/`precision_m` por encima del umbral de la
@@ -1633,8 +1644,11 @@ export class ViajesService {
 
     const activos = new Set(viaje.integrantes.map((i) => i.usuario_id))
     activos.add(viaje.creador_id)
+    // RN-111: quien apagó el compartir no aparece en la tabla — su posición es
+    // justamente lo que el leaderboard expone (progreso sobre la ruta).
+    const comparten = await filtrarQuienesComparten(this.prisma, viajeId, [...activos])
     const posiciones = await this.prisma.ubicacionViva.findMany({
-      where: { viaje_id: viajeId, usuario_id: { in: [...activos] } },
+      where: { viaje_id: viajeId, usuario_id: { in: [...comparten] } },
       include: { usuario: { select: { nombre: true, apellido: true } } },
     })
 
@@ -1732,7 +1746,10 @@ export class ViajesService {
       last != null &&
       (ultimoConocido == null || last.timestamp.getTime() > ultimoConocido.timestamp.getTime())
 
-    if (last && esMasNuevo) {
+    // RN-111: con el compartir apagado el lote se guarda igual (RN-038, cero
+    // pérdida: es historial propio y alimenta las métricas personales), pero no
+    // se publica al grupo ni se evalúa en el motor.
+    if (last && esMasNuevo && viaje.comparte) {
       await this.publicarUbicacionViva(viaje.tipo_actividad, {
         viajeId,
         usuarioId,
@@ -1747,7 +1764,7 @@ export class ViajesService {
       // estado de detención con puntos viejos.
       this.dispatchMotorPing(viajeId, usuarioId, last.lat, last.lng, last.timestamp)
     }
-    return { insertados: rows.length }
+    return { insertados: rows.length, compartida: viaje.comparte }
   }
 
   async upsertUbicacionViva(usuarioId: string, viajeId: string, input: UpsertUbicacionVivaInput) {
@@ -1763,6 +1780,10 @@ export class ViajesService {
         source: 'live',
       },
     })
+    // RN-111: el punto queda en `registro_gps` igual, pero sin compartir no se
+    // publica al grupo ni dispara alertas del motor sobre esta persona.
+    if (!viaje.comparte) return { compartida: false, ubicacion: null }
+
     const row = await this.publicarUbicacionViva(viaje.tipo_actividad, {
       viajeId,
       usuarioId,
@@ -1773,7 +1794,7 @@ export class ViajesService {
       source: 'live',
     })
     this.dispatchMotorPing(viajeId, usuarioId, input.lat, input.lng, input.recordedAt)
-    return row
+    return { compartida: true, ubicacion: row }
   }
 
   async listarUbicacionesVivas(usuarioId: string, viajeId: string) {
@@ -1805,7 +1826,26 @@ export class ViajesService {
     // ya no comparte ubicación y no tiene que reaparecer en el mapa del grupo.
     const activos = new Set(viaje?.integrantes.map((i) => i.usuario_id) ?? [])
     if (viaje) activos.add(viaje.creador_id)
-    const rows = viaje ? filas.filter((r) => activos.has(r.usuario_id)) : filas
+    const enViaje = viaje ? filas.filter((r) => activos.has(r.usuario_id)) : filas
+
+    // RN-111: red de seguridad además del filtro de publicación. Una fila de
+    // `ubicacion_viva` puede sobrevivir a que la persona apague el compartir
+    // (carrera con un ping en vuelo), y no tiene que llegar al mapa del grupo.
+    const comparten = await filtrarQuienesComparten(
+      this.prisma,
+      viajeId,
+      enViaje.map((r) => r.usuario_id)
+    )
+    const rows = enViaje.filter((r) => comparten.has(r.usuario_id))
+
+    // RN-112: queda constancia de quién vio la posición de quién. No bloquea la
+    // respuesta: el mapa no tiene por qué esperar a que se escriba la auditoría.
+    void registrarAccesosUbicacion(
+      this.prisma,
+      viajeId,
+      usuarioId,
+      rows.map((r) => r.usuario_id)
+    ).catch((e) => console.warn('[viajes] registro de accesos a ubicación:', e))
 
     const paradaPorUsuario = new Map(paradasAbiertas.map((p) => [p.usuario_id, p]))
 
@@ -1856,6 +1896,8 @@ export class ViajesService {
         source,
       },
     })
+    if (!viaje.comparte) return
+
     await this.publicarUbicacionViva(viaje.tipo_actividad, {
       viajeId,
       usuarioId,

@@ -78,6 +78,11 @@ tags:
     description: Estado del servicio.
   - name: Usuarios
     description: Perfil propio, sincronización con Firebase y token de notificaciones push.
+  - name: Privacidad
+    description: |
+      Permisos de geolocalización y privacidad (RN-110 a RN-114): consentimiento
+      informado, interruptor de compartir ubicación por viaje y registro de quién
+      accedió a la posición de cada persona.
   - name: Amistades
     description: Búsqueda de personas, solicitudes de amistad y listado de amigos.
   - name: Geocoding
@@ -139,6 +144,10 @@ paths:
     $ref: './paths/usuarios.yaml#/SincronizarUsuario'
   /api/usuarios/push-token:
     $ref: './paths/usuarios.yaml#/PushToken'
+  /api/usuarios/me/privacidad:
+    $ref: './paths/privacidad.yaml#/PrivacidadUsuario'
+  /api/usuarios/me/accesos-ubicacion:
+    $ref: './paths/privacidad.yaml#/AccesosUbicacionUsuario'
 
   # ── Amistades ──────────────────────────────────────────────────────────────
   /api/amistades:
@@ -227,6 +236,10 @@ paths:
     $ref: './paths/viajes.yaml#/UbicacionVivaViaje'
   /api/viajes/{viajeId}/ubicaciones-vivas:
     $ref: './paths/viajes.yaml#/UbicacionesVivasViaje'
+  /api/viajes/{viajeId}/privacidad:
+    $ref: './paths/privacidad.yaml#/PrivacidadViaje'
+  /api/viajes/{viajeId}/accesos-ubicacion:
+    $ref: './paths/privacidad.yaml#/AccesosUbicacionViaje'
   /api/viajes/{viajeId}/ruta:
     $ref: './paths/viajes.yaml#/RutaViajeRecurso'
   /api/viajes/{viajeId}/iniciar:

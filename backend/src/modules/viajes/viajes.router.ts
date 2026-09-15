@@ -10,6 +10,7 @@ import { climaHandlers } from '../clima/clima.router'
 import { fantasmaHandlers } from '../fantasma/fantasma.router'
 import { checklistHandlers } from '../checklist/checklist.router'
 import { gastosHandlers } from '../gastos/gastos.router'
+import { privacidadViajeHandlers } from '../privacidad/privacidad.router'
 
 const service = new ViajesService(prisma)
 const c = crearViajesController(service)
@@ -36,6 +37,11 @@ viajesRouter.delete('/:viajeId', requireUser, c.eliminar)
 viajesRouter.post('/:viajeId/posiciones', requireUser, c.ingresarPosiciones)
 viajesRouter.put('/:viajeId/ubicacion-viva', requireUser, c.upsertUbicacionViva)
 viajesRouter.get('/:viajeId/ubicaciones-vivas', requireUser, c.listarUbicacionesVivas)
+
+// RN-111/112: interruptor de compartir ubicación en este viaje y quién la vio.
+viajesRouter.get('/:viajeId/privacidad', ...privacidadViajeHandlers.obtener)
+viajesRouter.put('/:viajeId/privacidad', ...privacidadViajeHandlers.actualizar)
+viajesRouter.get('/:viajeId/accesos-ubicacion', ...privacidadViajeHandlers.accesos)
 viajesRouter.get('/:viajeId/ruta', requireUser, c.obtenerRuta)
 // Pronóstico sobre la ruta planificada (SCRUM-27, RN-108).
 viajesRouter.get('/:viajeId/clima', ...climaHandlers.obtener)

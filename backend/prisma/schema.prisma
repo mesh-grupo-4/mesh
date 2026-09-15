@@ -144,6 +144,13 @@ model Usuario {
   actividad_preferida TipoActividad? @map("actividad_preferida")
   push_token          String?        @map("push_token")
 
+  /// RN-110: consentimiento informado de geolocalización. Null = todavía no lo dio.
+  consentimiento_ubicacion_at      DateTime? @map("consentimiento_ubicacion_at")
+  /// Versión del texto aceptado: si se publica una nueva, hay que volver a pedirlo.
+  consentimiento_ubicacion_version String?   @map("consentimiento_ubicacion_version")
+  /// RN-111: valor con el que arranca `privacidad_viaje` en cada viaje nuevo.
+  comparte_ubicacion_default       Boolean   @default(true) @map("comparte_ubicacion_default")
+
   grupos_liderados       Grupo[]           @relation("GrupoLider")
   membresias             GrupoMiembro[]
   viajes_creados         Viaje[]           @relation("ViajeCreador")
@@ -163,6 +170,9 @@ model Usuario {
   checklist_items        ChecklistItem[]
   gastos_registrados     Gasto[]             @relation("GastoAutor")
   gastos_participados    GastoParticipante[] @relation("GastoParticipante")
+  privacidad_viajes      PrivacidadViaje[]
+  accesos_recibidos      AccesoUbicacion[]   @relation("AccesoObservado")
+  accesos_realizados     AccesoUbicacion[]   @relation("AccesoObservador")
 
   @@map("usuario")
 }
@@ -268,9 +278,52 @@ model Viaje {
   alertas            Alerta[]
   checklist_items    ChecklistItem[]
   gastos             Gasto[]
+  privacidad         PrivacidadViaje[]
+  accesos_ubicacion  AccesoUbicacion[]
 
   @@index([creador_id])
   @@map("viaje")
+}
+
+/// RN-111: preferencia de compartir ubicación, por viaje y por persona.
+/// Tabla aparte de `viaje_integrante` a propósito: el creador de un viaje no
+/// siempre tiene fila ahí (viajes legacy), y acá también necesita poder elegir.
+/// La ausencia de fila se lee como el default del usuario.
+model PrivacidadViaje {
+  viaje_id           String   @map("viaje_id") @db.Uuid
+  usuario_id         String   @map("usuario_id") @db.Uuid
+  comparte_ubicacion Boolean  @default(true) @map("comparte_ubicacion")
+  updated_at         DateTime @updatedAt @map("updated_at")
+
+  viaje   Viaje   @relation(fields: [viaje_id], references: [id], onDelete: Cascade)
+  usuario Usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+
+  @@id([viaje_id, usuario_id])
+  @@index([usuario_id])
+  @@map("privacidad_viaje")
+}
+
+/// RN-112: registro de quién accedió a la posición de quién.
+/// Agregado, no append-only: una fila por trío (viaje, observado, observador)
+/// con contador y última vez. Un log por lectura sería inviable — con 200
+/// integrantes (RN-033) cada refresco del mapa generaría 200 filas por persona.
+model AccesoUbicacion {
+  viaje_id      String   @map("viaje_id") @db.Uuid
+  /// Dueño de la posición consultada.
+  observado_id  String   @map("observado_id") @db.Uuid
+  /// Quien la vio.
+  observador_id String   @map("observador_id") @db.Uuid
+  primera_vez   DateTime @default(now()) @map("primera_vez")
+  ultima_vez    DateTime @default(now()) @map("ultima_vez")
+  veces         Int      @default(1)
+
+  viaje      Viaje   @relation(fields: [viaje_id], references: [id], onDelete: Cascade)
+  observado  Usuario @relation("AccesoObservado", fields: [observado_id], references: [id], onDelete: Cascade)
+  observador Usuario @relation("AccesoObservador", fields: [observador_id], references: [id], onDelete: Cascade)
+
+  @@id([viaje_id, observado_id, observador_id])
+  @@index([observado_id, ultima_vez])
+  @@map("acceso_ubicacion")
 }
 
 model UbicacionViva {

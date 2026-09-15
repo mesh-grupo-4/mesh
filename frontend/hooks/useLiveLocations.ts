@@ -295,8 +295,10 @@ export function useLiveLocations({ viajeId, userId, nameByUserId = {}, selfSeed 
         }
 
         // Quien sale del viaje deja de compartir ubicación: su marcador se va
-        // ya mismo, no cuando venza como "sin señal".
-        const onSalio = (payload: { viajeId: string; usuarioId: string }) => {
+        // ya mismo, no cuando venza como "sin señal". Lo mismo vale para quien
+        // apaga el compartir ubicación (RN-111): dejar el último marcador
+        // congelado seguiría revelando dónde estaba al apagarlo.
+        const quitarMarcador = (payload: { viajeId: string; usuarioId: string }) => {
           if (payload.viajeId !== viajeId) return
           setMembers((prev) => {
             if (!prev[payload.usuarioId]) return prev
@@ -309,13 +311,15 @@ export function useLiveLocations({ viajeId, userId, nameByUserId = {}, selfSeed 
         sock.on('viaje:ubicacion', onUbi)
         sock.on('viaje:parada_iniciada', onParadaIniciada)
         sock.on('viaje:parada_finalizada', onParadaFinalizada)
-        sock.on('viaje:participante_salio', onSalio)
+        sock.on('viaje:participante_salio', quitarMarcador)
+        sock.on('viaje:ubicacion_oculta', quitarMarcador)
         socketCleanup = () => {
           offReconnect()
           sock.off('viaje:ubicacion', onUbi)
           sock.off('viaje:parada_iniciada', onParadaIniciada)
           sock.off('viaje:parada_finalizada', onParadaFinalizada)
-          sock.off('viaje:participante_salio', onSalio)
+          sock.off('viaje:participante_salio', quitarMarcador)
+          sock.off('viaje:ubicacion_oculta', quitarMarcador)
         }
       } catch {
         /* socket opcional si REST/Realtime funcionan */

@@ -923,6 +923,10 @@ UbicacionVivaViaje:
 
       Alternativa a `POST /posiciones` para el envío de a una lectura. Requiere el viaje
       en curso.
+
+      RN-111: si el usuario tiene apagado el compartir ubicación en este viaje —o no
+      otorgó el consentimiento de geolocalización (RN-110)— el punto se persiste igual
+      pero no se publica, y la respuesta trae `compartida: false` con `ubicacion: null`.
     tags:
       - Viajes
     parameters:
@@ -935,11 +939,20 @@ UbicacionVivaViaje:
             $ref: '../components/schemas.yaml#/UbicacionVivaRequest'
     responses:
       '200':
-        description: Ubicación viva actualizada.
+        description: Posición persistida; `compartida` indica si además se publicó al grupo.
         content:
           application/json:
             schema:
-              $ref: '../components/schemas.yaml#/UbicacionVivaFila'
+              $ref: '../components/schemas.yaml#/UbicacionVivaRespuesta'
+            example:
+              compartida: true
+              ubicacion:
+                usuario_id: 8f14e45f-ceea-4c1e-9b1a-3d5c7a2e6b04
+                viaje_id: 3f2a1c4e-5b6d-4e7f-8a9b-0c1d2e3f4a5b
+                lat: -31.4201
+                lng: -64.1888
+                precision_m: 8.4
+                updated_at: '2026-09-01T13:05:00.000Z'
       '400':
         $ref: '../components/responses.yaml#/BadRequest'
       '401':

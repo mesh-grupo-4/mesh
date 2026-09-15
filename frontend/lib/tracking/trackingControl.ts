@@ -3,6 +3,7 @@ import * as Location from 'expo-location'
 import { DeviceEventEmitter, Platform } from 'react-native'
 
 import { filtrosGpsPorActividad, velocidadImplicitaKmh } from '@/lib/gpsFilters'
+import { registrarConsentimientoUbicacion } from '@/lib/privacidadApi'
 import { enqueueGpsSample } from '@/lib/tracking/gpsQueue'
 import { TICK_TARGET_MS, trackingConfigPorActividad } from '@/lib/tracking/trackingConfig'
 import {
@@ -125,11 +126,19 @@ async function startForegroundWatch(viajeId: string, userId: string): Promise<vo
   startSafetyTicker(viajeId, userId)
 }
 
+/**
+ * Pide los permisos del sistema y, si la persona los concede, deja registrado el
+ * consentimiento informado de geolocalización (RN-110). Van juntos a propósito:
+ * el momento en que la app explica para qué usa la ubicación es exactamente el
+ * mismo en que pide el permiso, y sin consentimiento registrado el backend no
+ * publica la posición al grupo.
+ */
 export async function solicitarPermisosUbicacion(): Promise<PermisoResultado> {
   const fg = await Location.requestForegroundPermissionsAsync()
   if (fg.status !== 'granted') {
     return { foreground: false, background: false }
   }
+  await registrarConsentimientoUbicacion()
   if (Platform.OS === 'web' || EN_EXPO_GO) {
     return { foreground: true, background: false }
   }

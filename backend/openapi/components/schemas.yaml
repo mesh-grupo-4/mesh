@@ -2198,11 +2198,20 @@ PosicionesIngresadas:
   type: object
   required:
     - insertados
+    - compartida
   properties:
     insertados:
       type: integer
       description: Cantidad de registros GPS efectivamente persistidos.
       example: 240
+    compartida:
+      type: boolean
+      description: |
+        RN-111: si la posición más nueva del lote se publicó al grupo. En `false`
+        el lote se persistió igual (RN-038: cero pérdida, la traza y las métricas
+        propias quedan completas) pero el usuario tiene apagado el compartir
+        ubicación en este viaje, o todavía no otorgó el consentimiento (RN-110).
+      example: true
   additionalProperties: false
 
 UbicacionVivaRequest:
@@ -2264,11 +2273,35 @@ UbicacionVivaFila:
       format: date-time
   additionalProperties: false
 
+UbicacionVivaRespuesta:
+  type: object
+  description: |
+    Resultado de publicar una posición. El punto siempre queda en `registro_gps`;
+    `compartida` dice si además se publicó al grupo (RN-111).
+  required:
+    - compartida
+    - ubicacion
+  properties:
+    compartida:
+      type: boolean
+      description: |
+        `false` cuando el usuario tiene apagado el compartir ubicación en este
+        viaje o todavía no otorgó el consentimiento de geolocalización (RN-110).
+      example: true
+    ubicacion:
+      description: La fila publicada, o `null` si no se compartió.
+      type: object
+      nullable: true
+      allOf:
+        - $ref: '#/UbicacionVivaFila'
+  additionalProperties: false
+
 UbicacionViva:
   type: object
   description: |
     Última posición conocida de un integrante. Es lo que dibuja el mapa grupal.
-    Solo la ven los integrantes **confirmados**: quien salió del viaje deja de recibirla.
+    Solo la ven los integrantes **confirmados** que además comparten su ubicación
+    en este viaje (RN-111): quien salió del viaje, o apagó el compartir, deja de recibirla.
   required:
     - usuarioId
     - viajeId
@@ -3729,4 +3762,202 @@ RutaCalculada:
       format: double
       description: Duración estimada del recorrido, en segundos, según el proveedor.
       example: 1750
+  additionalProperties: false
+
+# --- Privacidad y permisos de geolocalización (RN-110 a RN-114) ---
+
+PrivacidadUsuario:
+  type: object
+  description: |
+    Configuración de privacidad de geolocalización del perfil (RN-110/111).
+
+    El consentimiento se guarda con la versión del texto aceptado: si se publica una
+    versión nueva, `consentimiento_vigente` pasa a `false` y hay que volver a pedirlo,
+    aunque `consentimiento_otorgado` siga en `true`.
+  required:
+    - comparte_ubicacion_default
+    - consentimiento_otorgado
+    - consentimiento_vigente
+    - consentimiento_at
+    - consentimiento_version
+    - version_vigente
+    - ventana_registro_accesos_min
+  properties:
+    comparte_ubicacion_default:
+      type: boolean
+      description: Valor con el que arranca el compartir en cada viaje nuevo.
+      example: true
+    consentimiento_otorgado:
+      type: boolean
+      description: Si alguna vez aceptó el consentimiento informado de geolocalización.
+      example: true
+    consentimiento_vigente:
+      type: boolean
+      description: Si lo aceptado corresponde a la versión de texto vigente.
+      example: true
+    consentimiento_at:
+      type: string
+      format: date-time
+      nullable: true
+      description: Momento en que se otorgó, en UTC. `null` si nunca se otorgó.
+      example: '2026-09-15T13:00:00.000Z'
+    consentimiento_version:
+      type: string
+      nullable: true
+      description: Versión del texto que aceptó.
+      example: '2026-09-15'
+    version_vigente:
+      type: string
+      description: Versión del texto que la app tiene que mostrar hoy.
+      example: '2026-09-15'
+    ventana_registro_accesos_min:
+      type: integer
+      description: |
+        Minutos de agregación del registro de accesos (RN-112): dentro de la ventana,
+        releer la posición de la misma persona no genera una entrada nueva.
+      example: 10
+  additionalProperties: false
+
+PrivacidadUsuarioRequest:
+  type: object
+  description: |
+    Al menos uno de los dos campos. Revocar el consentimiento
+    (`consentimiento_ubicacion: false`) apaga el compartir en todos los viajes y borra
+    las posiciones vivas ya publicadas (RN-113).
+  minProperties: 1
+  properties:
+    comparte_ubicacion_default:
+      type: boolean
+      example: true
+    consentimiento_ubicacion:
+      type: boolean
+      description: '`true` registra el consentimiento con la versión vigente; `false` lo revoca.'
+      example: true
+  additionalProperties: false
+
+PrivacidadViaje:
+  type: object
+  description: |
+    Preferencia de compartir ubicación en un viaje concreto (RN-111).
+
+    `comparte_ubicacion` es lo que eligió la persona (`null` = nunca lo tocó, vale el
+    default del perfil). `comparte_efectivo` es lo que realmente pasa: puede ser `false`
+    con el interruptor en `true` si todavía falta el consentimiento (RN-110).
+  required:
+    - viaje_id
+    - comparte_ubicacion
+    - comparte_efectivo
+    - consentimiento_otorgado
+    - actualizado_en
+  properties:
+    viaje_id:
+      type: string
+      format: uuid
+    comparte_ubicacion:
+      type: boolean
+      nullable: true
+      description: Elección explícita para este viaje. `null` si nunca se cambió.
+      example: true
+    comparte_efectivo:
+      type: boolean
+      description: Si la posición se está publicando al grupo ahora mismo.
+      example: true
+    consentimiento_otorgado:
+      type: boolean
+      example: true
+    actualizado_en:
+      type: string
+      format: date-time
+      nullable: true
+      example: '2026-09-15T13:10:00.000Z'
+  additionalProperties: false
+
+PrivacidadViajeRequest:
+  type: object
+  required:
+    - comparte_ubicacion
+  properties:
+    comparte_ubicacion:
+      type: boolean
+      description: |
+        Apagarlo borra la posición viva ya publicada y emite `viaje:ubicacion_oculta`
+        a la sala, para que los mapas abiertos saquen el marcador.
+      example: false
+  additionalProperties: false
+
+AccesoUbicacion:
+  type: object
+  description: |
+    RN-112: una persona que accedió a mi posición en un viaje. Es un agregado, no un
+    log por lectura: `veces` cuenta las ventanas de acceso, no las consultas HTTP.
+  required:
+    - observador_id
+    - observador_nombre
+    - primera_vez
+    - ultima_vez
+    - veces
+  properties:
+    observador_id:
+      type: string
+      format: uuid
+    observador_nombre:
+      type: string
+      example: Martina Gómez
+    primera_vez:
+      type: string
+      format: date-time
+      example: '2026-09-15T13:05:00.000Z'
+    ultima_vez:
+      type: string
+      format: date-time
+      example: '2026-09-15T14:20:00.000Z'
+    veces:
+      type: integer
+      example: 8
+  additionalProperties: false
+
+AccesoUbicacionGlobal:
+  type: object
+  description: |
+    Igual que `AccesoUbicacion`, más el viaje donde ocurrió el acceso. Se escribe plano
+    y no como `allOf` sobre `AccesoUbicacion` porque ese schema cierra
+    `additionalProperties`, y la composición rechazaría los campos del viaje.
+  required:
+    - viaje_id
+    - viaje_nombre
+    - viaje_fecha
+    - observador_id
+    - observador_nombre
+    - primera_vez
+    - ultima_vez
+    - veces
+  properties:
+    viaje_id:
+      type: string
+      format: uuid
+    viaje_nombre:
+      type: string
+      nullable: true
+      example: Salida a Los Gigantes
+    viaje_fecha:
+      type: string
+      format: date-time
+      example: '2026-09-15T12:00:00.000Z'
+    observador_id:
+      type: string
+      format: uuid
+    observador_nombre:
+      type: string
+      example: Martina Gómez
+    primera_vez:
+      type: string
+      format: date-time
+      example: '2026-09-15T13:05:00.000Z'
+    ultima_vez:
+      type: string
+      format: date-time
+      example: '2026-09-15T14:20:00.000Z'
+    veces:
+      type: integer
+      example: 8
   additionalProperties: false

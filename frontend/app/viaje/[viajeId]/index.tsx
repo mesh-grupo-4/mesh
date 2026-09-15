@@ -17,6 +17,7 @@ import { meshAlert } from '@/lib/meshAlert';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { Feather } from '@expo/vector-icons'
 
+import { AvisoUbicacion, textoPermisoSistema } from '@/components/AvisoUbicacion'
 import { DEV_USER_ID } from '@/constants/Config'
 import { useAuth } from '@/context/AuthContext'
 import { useTripRealtime } from '@/context/TripRealtimeContext'
@@ -1039,6 +1040,22 @@ export default function ViajeDetalleScreen() {
               )
             })()}
 
+            {/* RN-111/112: siempre visible, también con el viaje finalizado —
+                el registro de quién vio tu posición se consulta después. */}
+            <View style={styles.optionsBlock}>
+              <Btn
+                variant="secondary"
+                block
+                size="sm"
+                icon="shield"
+                onPress={() =>
+                  router.push({ pathname: '/viaje/[viajeId]/privacidad', params: { viajeId } })
+                }
+              >
+                Privacidad y ubicación
+              </Btn>
+            </View>
+
             {puedeCompartirRuta && (
               <View style={styles.optionsBlock}>
                 <Btn
@@ -1149,15 +1166,14 @@ export default function ViajeDetalleScreen() {
       <Modal visible={modalPermisos} transparent animationType="fade">
         <View style={[styles.modalBg, { backgroundColor: theme.scrim }]}>
           <View style={[styles.modalCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>Ubicación necesaria</Text>
-            <Text style={[styles.modalBody, { color: theme.textDim }]}>
-              {Platform.OS === 'ios'
-                ? 'Mesh necesita tu ubicación para compartirla con el grupo cada 5 segundos. Para seguir transmitiendo con la pantalla apagada, elegí "Siempre" cuando iOS lo pregunte (o en Ajustes → Mesh → Ubicación).'
-                : 'Para iniciar el viaje, Mesh necesita ubicación precisa y permiso en segundo plano para la notificación fija y envíos cada 5 segundos.'}
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Cómo usa Mesh tu ubicación</Text>
+            <AvisoUbicacion />
+            <Text style={[styles.modalBody, { color: theme.textMute, marginTop: 10 }]}>
+              {textoPermisoSistema()}
             </Text>
             <View style={{ gap: 8, marginTop: 12 }}>
               <Btn variant="primary" block onPress={() => void ejecutarIniciar()} disabled={accion} loading={accion}>
-                Permitir e Iniciar
+                Acepto e inicio el viaje
               </Btn>
               <Btn variant="secondary" block onPress={abrirAjustes}>
                 Abrir ajustes de Android/iOS

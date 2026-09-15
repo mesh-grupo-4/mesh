@@ -230,6 +230,33 @@ Si el PO prefiere un criterio más conservador, la alternativa es devolver
   de negocio compara instantes absolutos (`Date.now()`), por lo que es correcta en cualquier región
   de despliegue.
 
+### 2.13 Reglas de Privacidad y Geolocalización
+
+| ID | Regla |
+|---|---|
+| RN-110 | **Consentimiento informado de geolocalización.** Antes de publicar la posición de una persona al grupo, la app le explica qué se recolecta, con qué frecuencia, quiénes lo ven y cómo apagarlo, y la persona lo acepta explícitamente. El consentimiento se registra con la **versión del texto** aceptado (`consentimiento_ubicacion_at` + `consentimiento_ubicacion_version` en `usuario`): si se publica una versión nueva, el consentimiento anterior deja de estar vigente y hay que volver a pedirlo. **Sin consentimiento vigente el backend no publica la posición**, aunque el interruptor del viaje esté encendido y los permisos del sistema operativo estén otorgados. El punto de consentimiento coincide con el pedido de permiso de GPS (iniciar un viaje o unirse a uno en curso) y también está en la pantalla de privacidad del perfil. |
+| RN-111 | **Compartir ubicación es por viaje y lo decide cada persona.** Cada integrante puede activar o desactivar el compartir en cada viaje (`privacidad_viaje`); el perfil guarda el valor por defecto con el que arrancan los viajes nuevos (`comparte_ubicacion_default`). Ni el líder ni ningún otro integrante pueden cambiar la decisión ajena (RN-030). **Con el compartir apagado:** los pings se siguen guardando en `registro_gps` (RN-038: cero pérdida — son datos propios y alimentan las métricas personales), pero **no** se publican en `ubicacion_viva`, no aparecen en el mapa grupal ni en el leaderboard (RN-071), y el **motor de eventos deja de evaluar a esa persona**: no se generan alertas de desvío, atraso ni posible incidente sobre ella, porque incluyen su ubicación exacta (RN-043). Apagarlo **borra la posición ya publicada** y emite `viaje:ubicacion_oculta` a la sala: dejar el último marcador congelado seguiría revelando dónde estaba al apagarlo. |
+| RN-112 | **Registro de accesos a la posición.** Cada vez que alguien obtiene la posición de otra persona, queda constancia de quién accedió, a quién, en qué viaje y cuándo (`acceso_ubicacion`). La persona puede consultarlo por viaje y de forma global. Es un **agregado** por trío (viaje, observado, observador) con `primera_vez`, `ultima_vez` y `veces`, no un log por lectura: con 150–200 integrantes por viaje (RN-033) y el mapa refrescándose cada pocos segundos, un registro por consulta sería inviable e ilegible. La ventana de agregación es de **10 minutos**: releer la posición de la misma persona dentro de la ventana no genera una entrada nueva. Mirarse a uno mismo no cuenta como acceso. |
+| RN-113 | **Revocación con efecto inmediato.** Revocar el consentimiento de geolocalización apaga el compartir en **todos** los viajes, borra las posiciones vivas ya publicadas y avisa a cada sala. Los recorridos históricos y las métricas propias se conservan: son datos de la persona, no del grupo. |
+| RN-114 | **Minimización.** La posición en vivo solo la reciben los integrantes **confirmados** del viaje que la comparten; quien salió del viaje deja de recibirla (ver RN-037). El link de ruta compartida nunca incluye ubicación en vivo (RN-085). No se rastrean menores de edad: quedan fuera del alcance del sistema en esta etapa. |
+
+#### Implementación
+
+- **Backend:** módulo `backend/src/modules/privacidad/`. `privacidad.acceso.ts` expone el punto de
+  control que consume `viajes.service.ts` (`estadoCompartirUbicacion`, `filtrarQuienesComparten`,
+  `registrarAccesosUbicacion`). El gate se aplica en `assertPuedeEnviarGps`, que ya resuelve la
+  autorización de los tres puntos de entrada de GPS (REST de a una, lote offline y socket), y en las
+  dos lecturas (`listarUbicacionesVivas`, `obtenerLeaderboard`).
+- **Tablas:** `privacidad_viaje` (PK `viaje_id` + `usuario_id`) y `acceso_ubicacion` (PK
+  `viaje_id` + `observado_id` + `observador_id`), más tres columnas en `usuario`.
+  `privacidad_viaje` va en tabla propia y no como columna de `viaje_integrante` porque el creador
+  del viaje no siempre tiene fila ahí y también necesita poder apagar el compartir.
+- **Frontend:** `frontend/lib/privacidadApi.ts`, `app/privacidad.tsx` (perfil) y
+  `app/viaje/[viajeId]/privacidad.tsx` (por viaje). El texto del consentimiento vive en
+  `components/AvisoUbicacion.tsx` para que el modal de permisos, el aviso al unirse y la pantalla de
+  privacidad digan exactamente lo mismo — **si cambia ese texto, hay que subir
+  `VERSION_CONSENTIMIENTO_UBICACION`** en `backend/src/modules/privacidad/privacidad.schemas.ts`.
+
 ---
 
 ## 3. Flujos del Sistema
@@ -453,8 +480,24 @@ Usuario
 ├── password_hash
 ├── foto_perfil
 ├── actividad_preferida (enum: moto, bici, running, trekking, otro)
-├── config_privacidad
+├── consentimiento_ubicacion_at (timestamp, nullable)       ← RN-110
+├── consentimiento_ubicacion_version (text, nullable)       ← RN-110
+├── comparte_ubicacion_default (bool, default true)         ← RN-111
 └── created_at
+
+PrivacidadViaje                                             ← RN-111
+├── viaje_id (FK, PK compuesta)
+├── usuario_id (FK, PK compuesta)
+├── comparte_ubicacion (bool, default true)
+└── updated_at
+
+AccesoUbicacion                                             ← RN-112
+├── viaje_id (FK, PK compuesta)
+├── observado_id (FK → Usuario, PK compuesta)   # dueño de la posición
+├── observador_id (FK → Usuario, PK compuesta)  # quien la vio
+├── primera_vez
+├── ultima_vez
+└── veces (int)
 
 Grupo
 ├── id (PK)
@@ -706,10 +749,14 @@ RachaActividad
 
 ### 6.6 Privacidad
 
-- El usuario puede activar/desactivar compartir ubicación por viaje.
-- Se solicita permiso GPS con explicación clara del uso.
-- El usuario puede ver quiénes acceden a su posición.
-- Cumplimiento con normativa de privacidad de datos.
+Detalle completo en **2.13 Reglas de Privacidad y Geolocalización** (RN-110 a RN-114).
+
+- El usuario puede activar/desactivar compartir ubicación por viaje (RN-111).
+- Se solicita permiso GPS con explicación clara del uso, y el consentimiento queda
+  registrado con la versión del texto aceptado (RN-110).
+- El usuario puede ver quiénes acceden a su posición (RN-112).
+- El consentimiento se puede revocar, con efecto inmediato sobre todos los viajes (RN-113).
+- Minimización: la posición en vivo solo llega a integrantes confirmados del viaje (RN-114).
 - No se rastrean menores de edad.
 
 ---
