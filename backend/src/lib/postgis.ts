@@ -261,6 +261,72 @@ export async function computeTrazaRecorrido(
   return segmentos
 }
 
+export type SplitKm = {
+  /** Kilómetro 1, 2, 3… El último puede ser parcial (`metros < 1000`). */
+  km: number
+  metros: number
+  segundos: number
+}
+
+/**
+ * RN-065 (métricas de entrenamiento): tiempo por kilómetro recorrido. Usa los
+ * mismos filtros de segmentos válidos que las métricas de cierre, acumula la
+ * distancia en orden temporal y agrupa por kilómetro completado.
+ */
+export async function computeSplitsPorKm(
+  prisma: PrismaClient,
+  viajeId: string,
+  usuarioId: string
+): Promise<SplitKm[]> {
+  const f = filtrosGpsPorActividad(await tipoActividadDelViaje(prisma, viajeId))
+  const filas = await prisma.$queryRaw<{ km: number; metros: number; segundos: number }[]>(
+    Prisma.sql`
+      WITH puntos AS (
+        SELECT
+          "timestamp",
+          ST_SetSRID(ST_MakePoint(lng, lat), 4326)::geography AS geog
+        FROM registro_gps
+        WHERE viaje_id = ${viajeId}::uuid
+          AND usuario_id = ${usuarioId}::uuid
+          AND (precision_m IS NULL OR precision_m <= ${f.precisionMaxM})
+      ),
+      segmentos AS (
+        SELECT
+          "timestamp",
+          ST_Distance(geog, LAG(geog) OVER w) AS metros,
+          EXTRACT(EPOCH FROM ("timestamp" - LAG("timestamp") OVER w)) AS segundos
+        FROM puntos
+        WINDOW w AS (ORDER BY "timestamp")
+      ),
+      validos AS (
+        SELECT *
+        FROM segmentos
+        WHERE metros IS NOT NULL
+          AND metros > ${f.segmentoMinM}
+          AND metros <= ${f.segmentoMaxM}
+          AND segundos > 0
+          AND segundos <= ${SEGMENTO_MAX_SEG}
+          AND (metros / segundos * 3.6) <= ${f.velocidadMaxKmh}
+      ),
+      acumulado AS (
+        SELECT
+          metros,
+          segundos,
+          SUM(metros) OVER (ORDER BY "timestamp") AS metros_acum
+        FROM validos
+      )
+      SELECT
+        CEIL(metros_acum / 1000.0)::int        AS km,
+        SUM(metros)::float8                    AS metros,
+        SUM(segundos)::float8                  AS segundos
+      FROM acumulado
+      GROUP BY 1
+      ORDER BY 1
+    `
+  )
+  return filas.map((r) => ({ km: Number(r.km), metros: Number(r.metros), segundos: Number(r.segundos) }))
+}
+
 export async function computeMetricasGpsPorUsuario(
   prisma: PrismaClient,
   viajeId: string

@@ -22,15 +22,21 @@ import { StatCard, StatCardRow } from '@/components/StatCard'
 import { DEV_USER_ID } from '@/constants/Config'
 import { useAuth } from '@/context/AuthContext'
 import {
+  formatDeltaKm,
+  formatDeltaPace,
   formatDurationHm,
   formatKm,
   formatPace,
+  formatPaceMinKm,
   formatSpeedKmh,
 } from '@/lib/format'
+import { formatearEnArg } from '@/lib/tiempoArg'
 import {
   obtenerMetricasIndividuales,
   type MetricasIndividualesApi,
   type PerfilVelocidadPuntoApi,
+  type SesionEntrenamientoApi,
+  type SplitKmApi,
 } from '@/lib/viajesApi'
 
 export default function MetricasScreen() {
@@ -86,6 +92,9 @@ export default function MetricasScreen() {
   const viaje = data?.viaje
   const m = data?.metricas
   const perfil = data?.perfil_velocidad ?? []
+  const splits = data?.splits_km ?? []
+  const entrenamiento = data?.entrenamiento ?? null
+  const esEntrenamiento = viaje?.modo === 'entrenamiento'
   const esMoto = viaje?.tipo_actividad === 'moto'
   const esPace = viaje?.tipo_actividad === 'running' || viaje?.tipo_actividad === 'trekking'
 
@@ -130,6 +139,7 @@ export default function MetricasScreen() {
                 </Text>
                 <View style={styles.badgeRow}>
                   <Badge tone="mute">Finalizado</Badge>
+                  {esEntrenamiento ? <Badge tone="good">Entrenamiento</Badge> : null}
                 </View>
               </View>
             </View>
@@ -215,6 +225,82 @@ export default function MetricasScreen() {
             </View>
           )}
 
+          {/* ── RN-065: entrenamiento — evolución entre sesiones ── */}
+          {esEntrenamiento && entrenamiento ? (
+            <>
+              <Text style={[styles.seccion, { color: theme.text }]}>
+                Sesión {entrenamiento.numero_sesion} de {entrenamiento.total_sesiones}
+              </Text>
+              <StatCardRow>
+                <StatCard
+                  icon="trending-up"
+                  value={formatDeltaKm(entrenamiento.delta_distancia_m)}
+                  label="vs. sesión anterior"
+                  hint={entrenamiento.es_mejor_distancia ? 'Tu mayor distancia' : undefined}
+                />
+                {!esMoto ? (
+                  <StatCard
+                    icon="watch"
+                    value={formatDeltaPace(entrenamiento.delta_pace_min_km)}
+                    label="Ritmo vs. anterior"
+                    hint={entrenamiento.es_mejor_pace ? 'Tu mejor ritmo' : undefined}
+                  />
+                ) : null}
+                {!esMoto ? (
+                  <StatCard
+                    icon="award"
+                    value={formatPaceMinKm(entrenamiento.mejor_pace_min_km)}
+                    label="Mejor ritmo"
+                  />
+                ) : (
+                  <StatCard
+                    icon="award"
+                    value={formatKm(entrenamiento.mejor_distancia_m)}
+                    label="Mayor distancia"
+                  />
+                )}
+              </StatCardRow>
+
+              {entrenamiento.evolucion.length >= 2 ? (
+                <View style={[styles.chartCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                  <EvolucionSesiones
+                    sesiones={entrenamiento.evolucion}
+                    actualId={viaje?.id ?? ''}
+                    esMoto={esMoto}
+                    accentColor={theme.accent}
+                    textColor={theme.text}
+                    textMuteColor={theme.textDim}
+                    barColor={theme.surface2}
+                  />
+                  <Text style={[styles.chartCaption, { color: theme.textDim }]}>
+                    Últimas sesiones de {viaje?.tipo_actividad} · distancia y {esMoto ? 'tiempo' : 'ritmo'}
+                  </Text>
+                </View>
+              ) : (
+                <Text style={[styles.sinDatos, { color: theme.textDim }]}>
+                  Con tu próxima sesión vas a ver la evolución acá.
+                </Text>
+              )}
+            </>
+          ) : null}
+
+          {/* ── RN-065: splits por kilómetro ── */}
+          {splits.length > 0 ? (
+            <>
+              <Text style={[styles.seccion, { color: theme.text }]}>Tiempo por kilómetro</Text>
+              <View style={[styles.chartCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                <SplitsList
+                  splits={splits}
+                  esPace={esPace}
+                  accentColor={theme.accent}
+                  textColor={theme.text}
+                  textMuteColor={theme.textDim}
+                  barColor={theme.surface2}
+                />
+              </View>
+            </>
+          ) : null}
+
           {/* ── Gráfico de velocidad ── */}
           {perfil.length >= 2 ? (
             <>
@@ -236,6 +322,99 @@ export default function MetricasScreen() {
           ) : null}
         </ScrollView>
       )}
+    </View>
+  )
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// RN-065: splits por kilómetro (barras relativas al km más lento)
+
+function SplitsList({
+  splits,
+  esPace,
+  accentColor,
+  textColor,
+  textMuteColor,
+  barColor,
+}: {
+  splits: SplitKmApi[]
+  esPace: boolean
+  accentColor: string
+  textColor: string
+  textMuteColor: string
+  barColor: string
+}) {
+  const paces = splits.map((s) => s.pace_min_km ?? 0)
+  const maxPace = Math.max(...paces, 0.01)
+  return (
+    <View style={{ gap: 8 }}>
+      {splits.map((sp) => {
+        const parcial = sp.metros < 990
+        const ancho = sp.pace_min_km != null ? Math.max(0.08, sp.pace_min_km / maxPace) : 0
+        const valor = esPace
+          ? formatPaceMinKm(sp.pace_min_km)
+          : sp.pace_min_km != null
+            ? formatSpeedKmh(60 / sp.pace_min_km)
+            : '--'
+        return (
+          <View key={sp.km} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <Text style={{ width: 44, fontSize: 13, fontWeight: '700', color: textColor }}>
+              {parcial ? `${(sp.metros / 1000).toFixed(1)}` : `km ${sp.km}`}
+            </Text>
+            <View style={{ flex: 1, height: 10, borderRadius: 5, backgroundColor: barColor, overflow: 'hidden' }}>
+              <View style={{ width: `${Math.round(ancho * 100)}%`, height: '100%', backgroundColor: accentColor, opacity: parcial ? 0.55 : 1 }} />
+            </View>
+            <Text style={{ width: 84, textAlign: 'right', fontSize: 13, fontVariant: ['tabular-nums'], color: parcial ? textMuteColor : textColor }}>
+              {valor}
+            </Text>
+          </View>
+        )
+      })}
+    </View>
+  )
+}
+
+// RN-065: evolución entre sesiones de entrenamiento (barras de distancia + ritmo)
+
+function EvolucionSesiones({
+  sesiones,
+  actualId,
+  esMoto,
+  accentColor,
+  textColor,
+  textMuteColor,
+  barColor,
+}: {
+  sesiones: SesionEntrenamientoApi[]
+  actualId: string
+  esMoto: boolean
+  accentColor: string
+  textColor: string
+  textMuteColor: string
+  barColor: string
+}) {
+  const maxDist = Math.max(...sesiones.map((s) => s.distancia_m), 1)
+  return (
+    <View style={{ gap: 10 }}>
+      {sesiones.map((s) => {
+        const actual = s.viaje_id === actualId
+        return (
+          <View key={s.viaje_id} style={{ gap: 4 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Text style={{ fontSize: 12, fontWeight: actual ? '800' : '600', color: actual ? accentColor : textMuteColor }}>
+                {formatearEnArg(s.fecha_fin_real, { day: '2-digit', month: 'short' })}
+                {actual ? ' · esta sesión' : ''}
+              </Text>
+              <Text style={{ fontSize: 12, fontVariant: ['tabular-nums'], color: textColor }}>
+                {formatKm(s.distancia_m)} · {esMoto ? formatDurationHm(s.tiempo_movimiento_seg) : formatPaceMinKm(s.pace_min_km)}
+              </Text>
+            </View>
+            <View style={{ height: 8, borderRadius: 4, backgroundColor: barColor, overflow: 'hidden' }}>
+              <View style={{ width: `${Math.round((s.distancia_m / maxDist) * 100)}%`, height: '100%', backgroundColor: accentColor, opacity: actual ? 1 : 0.45 }} />
+            </View>
+          </View>
+        )
+      })}
     </View>
   )
 }

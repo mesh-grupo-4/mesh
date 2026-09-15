@@ -83,6 +83,8 @@ export default function CrearViajeScreen() {
     tipoDesdePlantilla ?? actividadInicialDesdePerfil(profile?.actividadPreferida)
   )
   const [esGrupal, setEsGrupal] = useState(true)
+  // RN-065: entrenamiento muestra ritmo en vivo y métricas de sesión al cerrar.
+  const [modo, setModo] = useState<'recreativo' | 'entrenamiento'>('recreativo')
   const [gruposSeleccionados, setGruposSeleccionados] = useState<Set<string>>(new Set())
   const [amigosSeleccionados, setAmigosSeleccionados] = useState<Set<string>>(new Set())
   const [fecha, setFecha] = useState<Date>(fechaPorDefecto)
@@ -272,6 +274,7 @@ export default function CrearViajeScreen() {
           grupoIds: esGrupal ? [...gruposSeleccionados] : [],
           amigoIds: esGrupal ? [...amigosSeleccionados] : [],
           tipoActividad,
+          modo,
           fechaProgramada: fecha,
           rutaPlantillaId: plantillaId,
           ...parametros,
@@ -519,6 +522,39 @@ export default function CrearViajeScreen() {
             Grupal
           </Text>
           <Text style={[styles.opcionHint, { color: theme.textDim }]}>Invitar grupos / amigos</Text>
+        </Pressable>
+      </View>
+
+      {/* RN-065 (SCRUM-48): modo del viaje. Competitivo llega con E07. */}
+      <Text style={[styles.seccion, { color: theme.text }]}>Modo</Text>
+      <View style={styles.filaModalidad}>
+        <Pressable
+          style={[
+            styles.opcionModalidad,
+            { backgroundColor: theme.surface, borderColor: theme.border },
+            modo === 'recreativo' && { borderColor: theme.accentLine, backgroundColor: theme.accentWeak },
+          ]}
+          onPress={() => setModo('recreativo')}
+        >
+          <Text style={[styles.opcionTitulo, { color: modo === 'recreativo' ? theme.accent : theme.text }]}>
+            Recreativo
+          </Text>
+          <Text style={[styles.opcionHint, { color: theme.textDim }]}>Navegación y alertas, sin comparaciones</Text>
+        </Pressable>
+        <Pressable
+          style={[
+            styles.opcionModalidad,
+            { backgroundColor: theme.surface, borderColor: theme.border },
+            modo === 'entrenamiento' && { borderColor: theme.accentLine, backgroundColor: theme.accentWeak },
+          ]}
+          onPress={() => setModo('entrenamiento')}
+        >
+          <Text style={[styles.opcionTitulo, { color: modo === 'entrenamiento' ? theme.accent : theme.text }]}>
+            Entrenamiento
+          </Text>
+          <Text style={[styles.opcionHint, { color: theme.textDim }]}>
+            {tipoActividad === 'moto' ? 'Splits y evolución de tus sesiones' : 'Ritmo en vivo, splits y evolución'}
+          </Text>
         </Pressable>
       </View>
 

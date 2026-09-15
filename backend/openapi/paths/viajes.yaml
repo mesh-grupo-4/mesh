@@ -120,6 +120,7 @@ ViajesPlanificados:
                 nombre: Alta Gracia y vuelta
                 es_grupal: true
                 tipo_actividad: moto
+                modo: recreativo
                 velocidad_esperada: 85
                 distancia_max_separacion: 500
                 fecha_programada: '2026-09-06T12:30:00.000Z'
@@ -131,6 +132,7 @@ ViajesPlanificados:
                 nombre: Subida al Cerro Champaquí
                 es_grupal: true
                 tipo_actividad: trekking
+                modo: recreativo
                 velocidad_esperada: 4.5
                 distancia_max_separacion: 150
                 fecha_programada: '2026-08-24T10:00:00.000Z'
@@ -170,6 +172,7 @@ ViajesFinalizados:
                 nombre: Costanera al atardecer
                 es_grupal: true
                 tipo_actividad: bici
+                modo: recreativo
                 velocidad_esperada: 24
                 distancia_max_separacion: 300
                 fecha_programada: '2026-08-16T21:00:00.000Z'
@@ -185,6 +188,7 @@ ViajesFinalizados:
                 nombre: null
                 es_grupal: false
                 tipo_actividad: running
+                modo: recreativo
                 velocidad_esperada: 11
                 distancia_max_separacion: 100
                 fecha_programada: '2026-08-09T10:30:00.000Z'
