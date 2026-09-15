@@ -231,6 +231,8 @@ model Viaje {
   tipo_actividad           TipoActividad @map("tipo_actividad")
   velocidad_esperada       Float         @map("velocidad_esperada")
   distancia_max_separacion Int           @map("distancia_max_separacion")
+  /// RN-025: minutos de tolerancia de atraso respecto del bloque principal; null = default por actividad.
+  tolerancia_atraso_min    Int?          @map("tolerancia_atraso_min")
   /// RN-036: detección automática de posible incidente (solo viajes grupales).
   alerta_incidente_habilitada Boolean   @default(true) @map("alerta_incidente_habilitada")
   /// Minutos quieto sin parada manual; null = umbral por actividad.

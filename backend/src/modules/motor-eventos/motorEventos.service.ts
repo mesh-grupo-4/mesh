@@ -30,6 +30,8 @@ type ViajeMotor = {
   tipo_actividad: TipoActividad
   distancia_max_separacion: number
   velocidad_esperada: number
+  /** RN-025: null = tolerancia por actividad. */
+  tolerancia_atraso_min?: number | null
   creador_id: string
   alerta_incidente_habilitada: boolean
   alerta_incidente_minutos: number | null
@@ -95,6 +97,7 @@ export class MotorEventosService {
         tipo_actividad: true,
         distancia_max_separacion: true,
         velocidad_esperada: true,
+        tolerancia_atraso_min: true,
         creador_id: true,
         alerta_incidente_habilitada: true,
         alerta_incidente_minutos: true,
@@ -356,10 +359,10 @@ export class MotorEventosService {
     const bloque = identificarBloquePrincipal(miembros, viaje.distancia_max_separacion)
     if (!bloque) return
 
-    const umbrales = umbralesMotorPorActividad(viaje.tipo_actividad)
     const umbralM = toleranciaAtrasoMetros(
       viaje.velocidad_esperada,
-      umbrales.toleranciaAtrasoMinutos
+      viaje.tolerancia_atraso_min ??
+        umbralesMotorPorActividad(viaje.tipo_actividad).toleranciaAtrasoMinutos
     )
     const atrasoM = atrasoMetros(bloque.progresoReferenciaM, progresoM)
 

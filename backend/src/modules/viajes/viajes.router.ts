@@ -6,6 +6,7 @@ import { crearViajesController } from './viajes.controller'
 import { rutasCompartirHandlers } from '../rutas-compartidas/rutas-compartidas.router'
 import { paradasHandlers } from '../paradas/paradas.router'
 import { alertasHandlers } from '../alertas/alertas.router'
+import { climaHandlers } from '../clima/clima.router'
 import { checklistHandlers } from '../checklist/checklist.router'
 import { gastosHandlers } from '../gastos/gastos.router'
 
@@ -35,6 +36,8 @@ viajesRouter.post('/:viajeId/posiciones', requireUser, c.ingresarPosiciones)
 viajesRouter.put('/:viajeId/ubicacion-viva', requireUser, c.upsertUbicacionViva)
 viajesRouter.get('/:viajeId/ubicaciones-vivas', requireUser, c.listarUbicacionesVivas)
 viajesRouter.get('/:viajeId/ruta', requireUser, c.obtenerRuta)
+// Pronóstico sobre la ruta planificada (SCRUM-27, RN-108).
+viajesRouter.get('/:viajeId/clima', ...climaHandlers.obtener)
 viajesRouter.put('/:viajeId/ruta', requireUser, c.guardarRuta)
 viajesRouter.post('/:viajeId/ruta/compartir', requireUser, rutasCompartirHandlers.compartir)
 viajesRouter.delete('/:viajeId/ruta/compartir', requireUser, rutasCompartirHandlers.revocar)
