@@ -9,6 +9,7 @@ import { distanciaMetros } from '../../lib/geo2d'
 import type { GeoJsonLineString } from '../../lib/geo'
 import { computeDistanciaPuntoARutaM, computeProgresoEnRutaM } from '../../lib/postgis'
 import { getIo } from '../../realtime/ioRegistry'
+import { armarLeaderboard, type IntegranteEnRuta } from '../viajes/leaderboard'
 import {
   minutosIncidenteEfectivo,
   prefijoAlertaAfectado,
@@ -28,6 +29,8 @@ type ViajeMotor = {
   estado: string
   es_grupal: boolean
   tipo_actividad: TipoActividad
+  /** RN-071: en competitivo el motor emite el leaderboard en vivo. */
+  modo?: string
   distancia_max_separacion: number
   velocidad_esperada: number
   /** RN-025: null = tolerancia por actividad. */
@@ -56,6 +59,8 @@ type AlertaSistemaActiva = { id: string; tipo: string }
 
 /** Progresos más viejos que esto no entran al cálculo del bloque principal. */
 const PROGRESO_MAX_EDAD_MS = 30_000
+/** RN-071: el leaderboard se re-emite como máximo cada tanto por viaje. */
+const LEADERBOARD_MIN_INTERVALO_MS = 3_000
 
 /**
  * Histéresis de auto-resolución: la alerta de desvío/atraso se cierra sola recién
@@ -84,6 +89,9 @@ export class MotorEventosService {
    * cada ping calcula solo el propio y lee el de los demás de acá.
    */
   private readonly progresoPorClave = new Map<string, ProgresoCacheado>()
+  /** Nombres ya resueltos, para no consultar `usuario` en cada emisión del leaderboard. */
+  private readonly nombrePorUsuario = new Map<string, string>()
+  private readonly ultimoLeaderboardAt = new Map<string, number>()
 
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -95,6 +103,7 @@ export class MotorEventosService {
         estado: true,
         es_grupal: true,
         tipo_actividad: true,
+        modo: true,
         distancia_max_separacion: true,
         velocidad_esperada: true,
         tolerancia_atraso_min: true,
@@ -339,6 +348,11 @@ export class MotorEventosService {
       at: ahora,
     })
 
+    // RN-071: con el progreso propio ya cacheado, el leaderboard sale del caché.
+    if (viaje.modo === 'competitivo' && viaje.tipo_actividad !== 'moto') {
+      void this.emitirLeaderboard(input.viajeId, viaje.velocidad_esperada, ahora)
+    }
+
     if (tieneParadaVoluntaria) return
 
     const prefijo = `${input.viajeId}:`
@@ -392,11 +406,42 @@ export class MotorEventosService {
   }
 
   private async nombreUsuario(usuarioId: string): Promise<string> {
+    const cacheado = this.nombrePorUsuario.get(usuarioId)
+    if (cacheado) return cacheado
     const usuario = await this.prisma.usuario.findUnique({
       where: { id: usuarioId },
       select: { nombre: true, apellido: true },
     })
-    return usuario ? nombreDe(usuario) : 'Un integrante'
+    const nombre = usuario ? nombreDe(usuario) : 'Un integrante'
+    this.nombrePorUsuario.set(usuarioId, nombre)
+    return nombre
+  }
+
+  /** RN-071 (SCRUM-51): tabla en vivo a partir del progreso cacheado, con throttle por viaje. */
+  private async emitirLeaderboard(viajeId: string, velocidadEsperada: number, ahora: number) {
+    const ultimo = this.ultimoLeaderboardAt.get(viajeId) ?? 0
+    if (ahora - ultimo < LEADERBOARD_MIN_INTERVALO_MS) return
+    this.ultimoLeaderboardAt.set(viajeId, ahora)
+
+    const prefijo = `${viajeId}:`
+    const integrantes: IntegranteEnRuta[] = []
+    for (const [key, p] of this.progresoPorClave) {
+      if (!key.startsWith(prefijo) || ahora - p.at > PROGRESO_MAX_EDAD_MS * 4) continue
+      const usuarioId = key.slice(prefijo.length)
+      integrantes.push({
+        usuarioId,
+        nombre: await this.nombreUsuario(usuarioId),
+        progresoM: p.progresoM,
+        lat: p.lat,
+        lng: p.lng,
+        actualizadoEn: new Date(p.at).toISOString(),
+      })
+    }
+    this.emitir(viajeId, 'viaje:leaderboard', {
+      viajeId,
+      filas: armarLeaderboard(integrantes, velocidadEsperada),
+      generadoEn: new Date(ahora).toISOString(),
+    })
   }
 
   private async resolverAlertas(viajeId: string, ids: string[]): Promise<void> {

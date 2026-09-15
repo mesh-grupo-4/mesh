@@ -21,6 +21,9 @@ import { ParadaVoluntariaBanner } from '@/components/live/ParadaVoluntariaBanner
 import { SolicitudParadaBanner } from '@/components/live/SolicitudParadaBanner'
 import { LlegadaDestinoBanner } from '@/components/live/LlegadaDestinoBanner'
 import { EstoyBienBanner } from '@/components/live/EstoyBienBanner'
+import { FantasmaPanel } from '@/components/live/FantasmaPanel'
+import { FantasmaPickerModal } from '@/components/live/FantasmaPickerModal'
+import { LeaderboardPanel } from '@/components/live/LeaderboardPanel'
 import { LiveBottomPanel } from '@/components/live/LiveBottomPanel'
 import { LiveMapView, type LiveMapViewHandle } from '@/components/live/LiveMapView'
 import type { LiveMember } from '@/components/live/LiveMembersBar'
@@ -32,6 +35,8 @@ import { DEV_USER_ID, API_BASE_URL } from '@/constants/Config'
 import { tamanoOutdoor } from '@/constants/Typography'
 import { useAuth } from '@/context/AuthContext'
 import { useBreadcrumbTrail } from '@/hooks/useBreadcrumbTrail'
+import { useFantasma } from '@/hooks/useFantasma'
+import { useLeaderboard } from '@/hooks/useLeaderboard'
 import { useLiveLocations } from '@/hooks/useLiveLocations'
 import { useLlegadaDestino } from '@/hooks/useLlegadaDestino'
 import { useAlertas } from '@/hooks/useAlertas'
@@ -117,6 +122,7 @@ export default function ViajeLiveScreen() {
   const [accion, setAccion] = useState(false)
   const [eligiendoCategoria, setEligiendoCategoria] = useState(false)
   const [componiendoAlerta, setComponiendoAlerta] = useState(false)
+  const [eligiendoFantasma, setEligiendoFantasma] = useState(false)
   /** Alto real de la pila de banners: los botones flotantes se corren debajo. */
   const [altoBanners, setAltoBanners] = useState(0)
   /** Alto real de la botonera inferior, que creció con la fila de paradas. */
@@ -301,7 +307,7 @@ export default function ViajeLiveScreen() {
     return { latitude: -31.4167, longitude: -64.1833 }
   }, [myPosition, initialCenter])
 
-  const { elapsedLabel, distanceLabel, velocidadActualKmh, velocidadPromedioKmh, paceMinKm } = useTripMetrics({
+  const { elapsedLabel, distanceLabel, distanceM, velocidadActualKmh, velocidadPromedioKmh, paceMinKm } = useTripMetrics({
     viajeId: viajeId ?? '',
     userId,
     fechaInicioReal: viaje?.fecha_inicio_real ?? null,
@@ -318,6 +324,37 @@ export default function ViajeLiveScreen() {
       ritmo: esPace ? formatPaceMinKm(paceMinKm) : formatSpeedKmh(velocidadPromedioKmh),
     }
   }, [viaje?.modo, viaje?.tipo_actividad, velocidadActualKmh, velocidadPromedioKmh, paceMinKm])
+
+  // RN-072 / RN-070: sin comparaciones en recreativo ni en moto.
+  const permiteComparar =
+    viaje?.estado === 'en_curso' && viaje.modo !== 'recreativo' && viaje.tipo_actividad !== 'moto'
+
+  // RN-073: fantasma contra el reloj del viaje.
+  const {
+    fantasma,
+    activo: fantasmaActivo,
+    cargando: cargandoFantasma,
+    activar: activarFantasma,
+    quitar: quitarFantasma,
+    alternarPausa: pausarFantasma,
+  } = useFantasma({
+    viajeId: viajeId ?? '',
+    fechaInicioReal: viaje?.fecha_inicio_real ?? null,
+    miDistanciaM: distanceM,
+    habilitado: Boolean(permiteComparar),
+  })
+
+  // RN-071: leaderboard en vivo solo en competitivo.
+  const { filas: leaderboard } = useLeaderboard({
+    viajeId: viajeId ?? '',
+    habilitado: Boolean(permiteComparar && viaje?.modo === 'competitivo'),
+  })
+
+  const handleElegirFantasma = (ref: string) => {
+    void activarFantasma(ref)
+      .then(() => setEligiendoFantasma(false))
+      .catch((e: unknown) => meshAlert('No se pudo cargar el fantasma', mensajeDeError(e)))
+  }
 
   const breadcrumb = useBreadcrumbTrail({
     viajeId: viajeId ?? '',
@@ -734,6 +771,11 @@ export default function ViajeLiveScreen() {
         alertasEnMapa={alertasEnMapa}
         guiaParada={guiaParada}
         guiaAlerta={guiaAlerta}
+        fantasma={
+          fantasma
+            ? { ...fantasma.posicion, nombre: fantasma.nombre, pausado: fantasma.pausado, traza: fantasma.traza }
+            : null
+        }
         currentUserId={userId}
         initialCenter={initialCenter}
         mapStyle={mapStyle}
@@ -780,6 +822,14 @@ export default function ViajeLiveScreen() {
               iOS no puede usar localhost. Agregá EXPO_PUBLIC_API_URL=http://IP_PC:3000 en .env
             </Text>
           </View>
+        ) : null}
+
+        {permiteComparar && viaje?.modo === 'competitivo' ? (
+          <LeaderboardPanel filas={leaderboard} currentUserId={userId} />
+        ) : null}
+
+        {fantasma ? (
+          <FantasmaPanel fantasma={fantasma} onPausar={pausarFantasma} onQuitar={quitarFantasma} />
         ) : null}
 
         {alertaEntrante ? (
@@ -833,6 +883,8 @@ export default function ViajeLiveScreen() {
             topOffset={topFlotantes + 14}
             onPress={irAAlertas}
             onCrear={puedeCrearAlertas ? () => setComponiendoAlerta(true) : undefined}
+            onFantasma={permiteComparar ? () => setEligiendoFantasma(true) : undefined}
+            fantasmaActivo={fantasmaActivo}
             tipoActividad={tipoActividad}
           />
 
@@ -883,6 +935,14 @@ export default function ViajeLiveScreen() {
         onSeleccionar={handleCategoriaElegida}
         onCancelar={() => setEligiendoCategoria(false)}
         tipoActividad={tipoActividad}
+      />
+
+      <FantasmaPickerModal
+        visible={eligiendoFantasma}
+        viajeId={viajeId}
+        ocupado={cargandoFantasma}
+        onElegir={handleElegirFantasma}
+        onCerrar={() => setEligiendoFantasma(false)}
       />
 
       <CrearAlertaSheet

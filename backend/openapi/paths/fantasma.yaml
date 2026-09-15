@@ -1,0 +1,147 @@
+# Módulo Fantasma — src/modules/fantasma/ (RN-073, SCRUM-49/50)
+# Router: montado sobre viajesRouter (fantasma.router.ts) · Controller: fantasma.controller.ts
+#
+# Ghost tracking: un recorrido histórico (traza GPS de un viaje finalizado, propia
+# o de otro integrante de un viaje compartido, o una ruta compartida importada como
+# plantilla) que el cliente anima sobre el mapa en vivo para comparar tiempos.
+# RN-070: nunca en moto. RN-072: no en modo recreativo.
+
+FantasmaCandidatos:
+  get:
+    operationId: listarCandidatosFantasma
+    summary: Recorridos históricos elegibles como fantasma (RN-073)
+    description: |
+      Viajes finalizados en los que participó el usuario (su traza y la de los demás
+      integrantes) y sus plantillas de rutas compartidas con tiempo estimado.
+      Primero los de la misma actividad y, dentro de eso, los propios.
+      Responde `409 FANTASMA_NO_DISPONIBLE` si el viaje es de moto (RN-070) o
+      está en modo recreativo (RN-072).
+    tags:
+      - Fantasma
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '200':
+        description: Candidatos, de más a menos relevante.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/CandidatoFantasma'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: No participa del viaje (`FORBIDDEN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Sin acceso a este viaje
+              code: FORBIDDEN
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '409':
+        description: Moto o modo recreativo (`FANTASMA_NO_DISPONIBLE`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: El modo recreativo no muestra comparaciones (RN-072)
+              code: FANTASMA_NO_DISPONIBLE
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+FantasmaRecurso:
+  get:
+    operationId: obtenerFantasma
+    summary: Traza del fantasma a animar (RN-073)
+    description: |
+      Con `viajeRef` (+ `usuarioRef`, por defecto el propio) devuelve la traza GPS
+      real con tiempo y distancia acumulados por punto, submuestreada a ≤ 1500 puntos.
+      Con `plantillaId` devuelve la ruta compartida recorrida a ritmo constante
+      según su tiempo estimado (`interpolado: true`). Solo trazas de viajes en los
+      que el usuario participó y plantillas propias.
+    tags:
+      - Fantasma
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+      - name: viajeRef
+        in: query
+        required: false
+        description: Viaje finalizado de referencia. Excluyente con `plantillaId`.
+        schema:
+          type: string
+          format: uuid
+      - name: usuarioRef
+        in: query
+        required: false
+        description: Integrante cuya traza se usa (por defecto, el usuario autenticado).
+        schema:
+          type: string
+          format: uuid
+      - name: plantillaId
+        in: query
+        required: false
+        description: Plantilla propia (ruta compartida importada). Excluyente con `viajeRef`.
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Traza del fantasma.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Fantasma'
+            example:
+              tipo: viaje
+              ref: 'viaje:3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d:9d8c7b6a-5f4e-4d3c-8b2a-1f0e9d8c7b6a'
+              nombre: Vuelta al lago
+              autor: Vos
+              tipo_actividad: running
+              distancia_m: 10240
+              duracion_seg: 3180
+              interpolado: false
+              puntos:
+                - { t_seg: 0, lat: -31.4201, lng: -64.1888, d_m: 0 }
+                - { t_seg: 5, lat: -31.4203, lng: -64.1891, d_m: 36.2 }
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: Sin acceso al viaje actual o al de referencia (`FORBIDDEN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Sin acceso a ese viaje
+              code: FORBIDDEN
+      '404':
+        description: |
+          Viaje o plantilla inexistente (`VIAJE_NOT_FOUND` / `PLANTILLA_NOT_FOUND`), o
+          sin traza GPS utilizable (`FANTASMA_SIN_TRAZA`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Ese viaje no tiene traza GPS para usar de fantasma
+              code: FANTASMA_SIN_TRAZA
+      '409':
+        description: |
+          Moto o modo recreativo (`FANTASMA_NO_DISPONIBLE`), o viaje de referencia sin
+          finalizar (`TRIP_NOT_FINISHED`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: La modalidad moto no admite fantasma (RN-070)
+              code: FANTASMA_NO_DISPONIBLE
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'

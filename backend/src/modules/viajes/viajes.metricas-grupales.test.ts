@@ -32,6 +32,8 @@ function armarPrisma(o: Opciones = {}) {
     tipo_actividad: tipoActividad,
     estado,
     es_grupal: esGrupal,
+    // RN-072: los puestos del recap solo existen en modo competitivo.
+    modo: 'competitivo',
     creador_id: creadorId,
   }
 

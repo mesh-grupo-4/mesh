@@ -54,8 +54,8 @@ export const createViajeSchema = z
     grupoIds: z.array(z.string().uuid()).optional().default([]),
     amigoIds: z.array(z.string().uuid()).optional().default([]),
     tipoActividad: z.nativeEnum(TipoActividad),
-    /** RN-065: `competitivo` es de E07 y todavía no se acepta. */
-    modo: z.enum(['recreativo', 'entrenamiento']).optional().default('recreativo'),
+    /** RN-065 / RN-071: `competitivo` exige viaje grupal y no moto (RN-070); lo valida el servicio. */
+    modo: z.enum(['recreativo', 'entrenamiento', 'competitivo']).optional().default('recreativo'),
     fechaProgramada: fechaProgramadaFuturaSchema,
     /** Opcional: precarga la ruta desde una plantilla propia del creador. */
     rutaPlantillaId: z.string().uuid().optional().nullable(),
@@ -156,6 +156,18 @@ export const postPosicionesSchema = z.object({
   source: z.nativeEnum(GpsSource),
   posiciones: z.array(posicionEntradaSchema).min(1).max(2000),
 })
+
+export const fantasmaQuerySchema = z
+  .object({
+    viajeRef: z.string().uuid().optional(),
+    usuarioRef: z.string().uuid().optional(),
+    plantillaId: z.string().uuid().optional(),
+  })
+  .refine((q) => Boolean(q.plantillaId) !== Boolean(q.viajeRef), {
+    message: 'Indicá viajeRef (y opcionalmente usuarioRef) o plantillaId, no ambos',
+  })
+
+export type FantasmaQuery = z.infer<typeof fantasmaQuerySchema>
 
 export type PostPosicionesInput = z.infer<typeof postPosicionesSchema>
 

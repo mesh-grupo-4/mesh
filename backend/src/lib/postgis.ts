@@ -261,6 +261,71 @@ export async function computeTrazaRecorrido(
   return segmentos
 }
 
+export type PuntoFantasma = {
+  /** Segundos desde el primer punto de la traza. */
+  t_seg: number
+  lat: number
+  lng: number
+  /** Metros acumulados (solo segmentos válidos). */
+  d_m: number
+}
+
+/**
+ * RN-073: traza de un integrante en un viaje finalizado, con tiempo y distancia
+ * acumulados por punto, para animar un fantasma. Mismos filtros que las métricas;
+ * se submuestrea a `maxPuntos` conservando primer y último punto.
+ */
+export async function computeTrazaFantasma(
+  prisma: PrismaClient,
+  viajeId: string,
+  usuarioId: string,
+  maxPuntos: number
+): Promise<PuntoFantasma[]> {
+  const f = filtrosGpsPorActividad(await tipoActividadDelViaje(prisma, viajeId))
+  const filas = await prisma.$queryRaw<{ t_seg: number; lat: number; lng: number; d_m: number }[]>(
+    Prisma.sql`
+      WITH puntos AS (
+        SELECT
+          lat, lng, "timestamp",
+          ST_SetSRID(ST_MakePoint(lng, lat), 4326)::geography AS geog
+        FROM registro_gps
+        WHERE viaje_id = ${viajeId}::uuid
+          AND usuario_id = ${usuarioId}::uuid
+          AND (precision_m IS NULL OR precision_m <= ${f.precisionMaxM})
+      ),
+      segmentos AS (
+        SELECT
+          lat, lng, "timestamp",
+          ST_Distance(geog, LAG(geog) OVER w) AS metros,
+          EXTRACT(EPOCH FROM ("timestamp" - LAG("timestamp") OVER w)) AS segundos
+        FROM puntos
+        WINDOW w AS (ORDER BY "timestamp")
+      ),
+      acumulado AS (
+        SELECT
+          lat, lng, "timestamp",
+          SUM(
+            CASE
+              WHEN metros IS NOT NULL AND metros > ${f.segmentoMinM} AND metros <= ${f.segmentoMaxM}
+                   AND segundos > 0 AND segundos <= ${SEGMENTO_MAX_SEG}
+                   AND (metros / segundos * 3.6) <= ${f.velocidadMaxKmh}
+              THEN metros ELSE 0
+            END
+          ) OVER (ORDER BY "timestamp") AS d_m,
+          EXTRACT(EPOCH FROM ("timestamp" - FIRST_VALUE("timestamp") OVER (ORDER BY "timestamp"))) AS t_seg,
+          ROW_NUMBER() OVER (ORDER BY "timestamp") AS n,
+          COUNT(*) OVER () AS total
+        FROM segmentos
+      )
+      SELECT t_seg::float8 AS t_seg, lat::float8 AS lat, lng::float8 AS lng, d_m::float8 AS d_m
+      FROM acumulado
+      WHERE n = 1 OR n = total OR (n % GREATEST(1, CEIL(total::float8 / ${maxPuntos})::int)) = 0
+      ORDER BY "timestamp"
+    `
+  )
+  return filas.map((r) => ({ t_seg: Number(r.t_seg), lat: Number(r.lat), lng: Number(r.lng), d_m: Number(r.d_m) }))
+}
+
 export type SplitKm = {
   /** Kilómetro 1, 2, 3… El último puede ser parcial (`metros < 1000`). */
   km: number

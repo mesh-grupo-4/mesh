@@ -78,12 +78,13 @@ beforeEach(() => {
 })
 
 describe('RN-065 — modo entrenamiento', () => {
-  it('crear: modo por defecto recreativo, competitivo todavía no se acepta (E07)', () => {
+  it('crear: modo por defecto recreativo; competitivo pasa el schema', () => {
     const base = { nombre: 'x', esGrupal: false, tipoActividad: 'running', fechaProgramada: new Date(Date.now() + 86_400_000).toISOString() }
     const r = createViajeSchema.safeParse(base)
     expect(r.success && r.data.modo).toBe('recreativo')
     expect(createViajeSchema.safeParse({ ...base, modo: 'entrenamiento' }).success).toBe(true)
-    expect(createViajeSchema.safeParse({ ...base, modo: 'competitivo' }).success).toBe(false)
+    // RN-071: competitivo se acepta en el schema; el servicio exige grupal y no moto.
+    expect(createViajeSchema.safeParse({ ...base, modo: 'competitivo' }).success).toBe(true)
   })
 
   it('mis-metricas: splits por km con ritmo y evolución respecto de sesiones anteriores', async () => {

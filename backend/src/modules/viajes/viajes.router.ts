@@ -7,6 +7,7 @@ import { rutasCompartirHandlers } from '../rutas-compartidas/rutas-compartidas.r
 import { paradasHandlers } from '../paradas/paradas.router'
 import { alertasHandlers } from '../alertas/alertas.router'
 import { climaHandlers } from '../clima/clima.router'
+import { fantasmaHandlers } from '../fantasma/fantasma.router'
 import { checklistHandlers } from '../checklist/checklist.router'
 import { gastosHandlers } from '../gastos/gastos.router'
 
@@ -38,6 +39,10 @@ viajesRouter.get('/:viajeId/ubicaciones-vivas', requireUser, c.listarUbicaciones
 viajesRouter.get('/:viajeId/ruta', requireUser, c.obtenerRuta)
 // Pronóstico sobre la ruta planificada (SCRUM-27, RN-108).
 viajesRouter.get('/:viajeId/clima', ...climaHandlers.obtener)
+// Modo competitivo (RN-071) y ghost tracking (RN-073).
+viajesRouter.get('/:viajeId/leaderboard', requireUser, c.leaderboard)
+viajesRouter.get('/:viajeId/fantasma/candidatos', ...fantasmaHandlers.candidatos)
+viajesRouter.get('/:viajeId/fantasma', ...fantasmaHandlers.obtener)
 viajesRouter.put('/:viajeId/ruta', requireUser, c.guardarRuta)
 viajesRouter.post('/:viajeId/ruta/compartir', requireUser, rutasCompartirHandlers.compartir)
 viajesRouter.delete('/:viajeId/ruta/compartir', requireUser, rutasCompartirHandlers.revocar)

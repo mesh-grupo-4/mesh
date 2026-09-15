@@ -101,6 +101,11 @@ export function crearViajesController(service: ViajesService) {
       res.json(out)
     }),
 
+    leaderboard: asyncHandler(async (req, res) => {
+      const { viajeId } = viajeIdParamSchema.parse(req.params)
+      res.json(await service.obtenerLeaderboard(req.userId!, viajeId))
+    }),
+
     listarUbicacionesVivas: asyncHandler(async (req, res) => {
       const { viajeId } = viajeIdParamSchema.parse(req.params)
       const out = await service.listarUbicacionesVivas(req.userId!, viajeId)

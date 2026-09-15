@@ -26,6 +26,9 @@ import {
   prefijoAlertaAfectado,
 } from '../motor-eventos/motorEventos.config'
 import { aplicarPuestosRanking } from './ranking'
+import { armarLeaderboard, type IntegranteEnRuta } from './leaderboard'
+import { computeProgresoEnRutaM } from '../../lib/postgis'
+import type { GeoJsonLineString } from '../../lib/geo'
 import { RutasCompartidasService } from '../rutas-compartidas/rutas-compartidas.service'
 import {
   obtenerMotorEventos,
@@ -128,6 +131,20 @@ export class ViajesService {
         throw new HttpError(404, 'Plantilla no encontrada', 'PLANTILLA_NOT_FOUND')
       }
       tipoActividad = plantilla.tipo_actividad
+    }
+
+    // RN-071 / RN-070 / RN-072: competir exige grupo y nunca en moto.
+    if (input.modo === 'competitivo') {
+      if (!input.esGrupal) {
+        throw new HttpError(400, 'El modo competitivo requiere un viaje grupal', 'MODO_INVALIDO')
+      }
+      if (tipoActividad === 'moto') {
+        throw new HttpError(
+          400,
+          'La modalidad moto no admite modo competitivo (RN-070)',
+          'MODO_INVALIDO'
+        )
+      }
     }
 
     const params = parametrosPorActividad(tipoActividad)
@@ -1046,6 +1063,7 @@ export class ViajesService {
         nombre: true,
         es_grupal: true,
         tipo_actividad: true,
+        modo: true,
         estado: true,
         fecha_inicio_real: true,
         fecha_fin_real: true,
@@ -1114,8 +1132,8 @@ export class ViajesService {
         sali_antes: miIntegrante?.estado === 'salido',
         fecha_salida: miIntegrante?.fecha_salida ?? null,
       },
-      // RN-070: compuerta única para cualquier feature comparativa futura.
-      ranking_habilitado: viaje.tipo_actividad !== 'moto',
+      // RN-070 + RN-072: comparar solo en modo competitivo, y nunca en moto.
+      ranking_habilitado: viaje.tipo_actividad !== 'moto' && viaje.modo === 'competitivo',
       generado_en: resumen?.generado_en ?? null,
     }
   }
@@ -1132,6 +1150,7 @@ export class ViajesService {
       select: {
         id: true,
         tipo_actividad: true,
+        modo: true,
         estado: true,
         es_grupal: true,
         creador_id: true,
@@ -1229,9 +1248,9 @@ export class ViajesService {
         velocidad_maxima_kmh: null as number | null,
       }))
 
-    // Recap RN-063: puestos solo en viaje grupal no moto. Los números siguen
-    // siendo los de metrica_viaje; acá solo se ordena (no se recalcula GPS).
-    const rankingHabilitado = viaje.es_grupal && !esMoto
+    // Recap RN-063: puestos solo en viaje grupal, competitivo (RN-072) y no moto
+    // (RN-070). Los números siguen siendo los de metrica_viaje; acá solo se ordena.
+    const rankingHabilitado = viaje.es_grupal && !esMoto && viaje.modo === 'competitivo'
     const por_integrante = aplicarPuestosRanking(
       [...porIntegrante, ...sinGps],
       rankingHabilitado
@@ -1582,6 +1601,61 @@ export class ViajesService {
       where: { usuario_id: args.usuarioId },
     })
     return existente ?? (await this.upsertUbicacionVivaSnapshot(args))
+  }
+
+  /**
+   * RN-071 (SCRUM-51): foto actual del leaderboard, para cargar la tabla al
+   * entrar; las actualizaciones siguen por `viaje:leaderboard` (motor de eventos).
+   */
+  async obtenerLeaderboard(usuarioId: string, viajeId: string) {
+    await this.assertPuedeVerEnVivo(viajeId, usuarioId)
+    const viaje = await this.prisma.viaje.findUnique({
+      where: { id: viajeId },
+      select: {
+        estado: true,
+        modo: true,
+        tipo_actividad: true,
+        velocidad_esperada: true,
+        creador_id: true,
+        ruta: { select: { linestring_geojson: true } },
+        integrantes: { where: { estado: 'confirmado' }, select: { usuario_id: true } },
+      },
+    })
+    if (!viaje) throw new HttpError(404, 'Viaje no encontrado', 'VIAJE_NOT_FOUND')
+    if (viaje.modo !== 'competitivo' || viaje.tipo_actividad === 'moto') {
+      throw new HttpError(409, 'El viaje no está en modo competitivo', 'MODO_INVALIDO')
+    }
+    if (viaje.estado !== 'en_curso') {
+      throw new HttpError(409, 'El viaje no está en curso', 'INVALID_STATE')
+    }
+    const linestring = viaje.ruta?.linestring_geojson as unknown as GeoJsonLineString | null
+    if (!linestring) return { viaje_id: viajeId, filas: [], generado_en: new Date().toISOString() }
+
+    const activos = new Set(viaje.integrantes.map((i) => i.usuario_id))
+    activos.add(viaje.creador_id)
+    const posiciones = await this.prisma.ubicacionViva.findMany({
+      where: { viaje_id: viajeId, usuario_id: { in: [...activos] } },
+      include: { usuario: { select: { nombre: true, apellido: true } } },
+    })
+
+    const integrantes: IntegranteEnRuta[] = []
+    for (const p of posiciones) {
+      const progresoM = await computeProgresoEnRutaM(this.prisma, p.lat, p.lng, linestring)
+      if (progresoM == null) continue
+      integrantes.push({
+        usuarioId: p.usuario_id,
+        nombre: [p.usuario.nombre, p.usuario.apellido].filter(Boolean).join(' ').trim(),
+        progresoM,
+        lat: p.lat,
+        lng: p.lng,
+        actualizadoEn: p.updated_at.toISOString(),
+      })
+    }
+    return {
+      viaje_id: viajeId,
+      filas: armarLeaderboard(integrantes, viaje.velocidad_esperada),
+      generado_en: new Date().toISOString(),
+    }
   }
 
   async detalleParaUsuario(usuarioId: string, viajeId: string) {
