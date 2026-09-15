@@ -595,6 +595,7 @@ export default function ViajeDetalleScreen() {
                   {viaje.estado === 'en_curso' ? 'En vivo' : viaje.estado === 'planificado' ? 'Planificado' : 'Finalizado'}
                 </Badge>
                 {viaje.modo === 'entrenamiento' ? <Badge tone="good">Entrenamiento</Badge> : null}
+                {viaje.modo === 'competitivo' ? <Badge tone="warning">Competitivo</Badge> : null}
                 <ActivityTile activity={viaje.tipo_actividad} size={28} />
               </View>
               <View style={styles.titleRow}>

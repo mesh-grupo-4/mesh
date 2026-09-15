@@ -271,6 +271,30 @@ Cambio de estado de una alerta ya emitida. Lo disparan:
 En el frontend actualiza el historial, saca la alerta del mapa si dejó de estar `activa`
 y cierra su banner si todavía estaba en pantalla.
 
+### `viaje:leaderboard`
+
+RN-071 (modo competitivo): clasificación en vivo. La emite `MotorEventosService` con cada
+ping GPS de un viaje `competitivo` (nunca en moto, RN-070), como máximo una vez cada 3 s
+por viaje, a partir del progreso sobre la ruta que ya tiene cacheado de cada integrante.
+La foto inicial se carga con `GET /api/viajes/{viajeId}/leaderboard`.
+
+```jsonc
+{
+  "viajeId": "3f2c9a10-...",
+  "generadoEn": "2026-09-01T13:20:00.000Z",
+  "filas": [
+    { "usuarioId": "9d8c...", "nombre": "Ana Pérez", "progresoM": 5420, "lat": -31.41, "lng": -64.18,
+      "actualizadoEn": "2026-09-01T13:19:58.000Z", "puesto": 1, "deltaM": 0, "gapSeg": 0 },
+    { "usuarioId": "7e8f...", "nombre": "Juan Gómez", "progresoM": 5100, "lat": -31.412, "lng": -64.183,
+      "actualizadoEn": "2026-09-01T13:19:57.000Z", "puesto": 2, "deltaM": 320, "gapSeg": 32.9 }
+  ]
+}
+```
+
+`deltaM` son los metros detrás del líder y `gapSeg` ese mismo atraso expresado en segundos
+a la velocidad esperada del viaje. El ghost tracking (RN-073) **no** usa sockets: el cliente
+descarga la traza histórica por REST y la anima localmente.
+
 ### Paradas voluntarias e incidentes (`paradas.service.ts`, `motorEventos.service.ts`)
 
 | Evento | Cuándo |
@@ -313,6 +337,7 @@ Para paradas voluntarias, `estado` es `detenido_voluntario`. El frontend en `liv
 | `viaje:participante_salio` | servidor → sala | — | — |
 | `viaje:alerta` | servidor → sala | — | — |
 | `viaje:alerta_actualizada` | servidor → sala | — | — |
+| `viaje:leaderboard` | servidor → sala | — | solo viajes `competitivo` |
 | `viaje:parada_iniciada` | servidor → sala | — | — |
 | `viaje:parada_finalizada` | servidor → sala | — | — |
 | `viaje:solicitud_parada` | servidor → sala | — | — |

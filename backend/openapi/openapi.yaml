@@ -104,6 +104,10 @@ tags:
     description: Pedidos de un integrante para que el líder autorice una parada (RN-044).
   - name: Alertas
     description: Alertas que el líder envía al grupo durante el viaje (RN-040/041/043).
+  - name: Fantasma
+    description: |
+      Ghost tracking (RN-073): recorrido histórico para superponer en el mapa en vivo
+      y comparar tiempos. Nunca en moto (RN-070) ni en modo recreativo (RN-072).
   - name: Clima
     description: |
       Pronóstico meteorológico sobre la ruta planificada, vía Open-Meteo (RN-108).
@@ -269,6 +273,14 @@ paths:
   # ── Clima ────────────────────────────────────────────────────────────────────
   /api/viajes/{viajeId}/clima:
     $ref: './paths/clima.yaml#/ClimaViaje'
+
+  # ── Competición y ghost tracking (E07) ───────────────────────────────────────
+  /api/viajes/{viajeId}/leaderboard:
+    $ref: './paths/viajes.yaml#/LeaderboardViaje'
+  /api/viajes/{viajeId}/fantasma/candidatos:
+    $ref: './paths/fantasma.yaml#/FantasmaCandidatos'
+  /api/viajes/{viajeId}/fantasma:
+    $ref: './paths/fantasma.yaml#/FantasmaRecurso'
 
   # ── Checklist de preparativos ────────────────────────────────────────────────
   /api/viajes/{viajeId}/checklist:

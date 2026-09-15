@@ -13,6 +13,7 @@ import type { MemberLocation } from '@/hooks/useLiveLocations'
 import type { AlertaApi } from '@/lib/alertasApi'
 
 import { alertMarkerHtml, alertMarkerPopup } from './alertMarker'
+import { GHOST_MARKER_BOX, GHOST_TRAIL_COLOR, ghostMarkerHtml } from './ghostMarker'
 import { memberMarkerHtml, MEMBER_MARKER_BOX } from './memberMarker'
 import { paradaMarkerHtml, paradaMarkerPopup } from './paradaMarker'
 import type { CategoriaParadaApi } from '@/lib/paradasApi'
@@ -40,6 +41,8 @@ type Props = {
   alertasEnMapa?: AlertaApi[]
   guiaParada?: GuiaDestino | null
   guiaAlerta?: GuiaDestino | null
+  /** RN-073: fantasma animado y su recorrido completo. */
+  fantasma?: { lat: number; lng: number; nombre: string; pausado: boolean; traza: [number, number][] } | null
   currentUserId: string
   initialCenter: { latitude: number; longitude: number } | null
   mapStyle: MapStyleId
@@ -55,6 +58,7 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
     alertasEnMapa = [],
     guiaParada = null,
     guiaAlerta = null,
+    fantasma = null,
     currentUserId,
     initialCenter,
     mapStyle,
@@ -147,8 +151,23 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
         ]
       : []
 
-    return [...alertaGuia, ...paradaGuia, ...alertas, ...integrantes]
-  }, [members, alertasEnMapa, guiaParada, guiaAlerta, currentUserId])
+    const ghost: MarkerSpec[] = fantasma
+      ? [
+          {
+            id: 'fantasma',
+            lat: fantasma.lat,
+            lng: fantasma.lng,
+            html: ghostMarkerHtml(fantasma.nombre, fantasma.pausado),
+            size: [GHOST_MARKER_BOX, GHOST_MARKER_BOX],
+            anchor: [GHOST_MARKER_BOX / 2, GHOST_MARKER_BOX / 2],
+            zIndexOffset: 900,
+            popup: `Fantasma: ${fantasma.nombre}`,
+          },
+        ]
+      : []
+
+    return [...alertaGuia, ...paradaGuia, ...alertas, ...ghost, ...integrantes]
+  }, [members, alertasEnMapa, guiaParada, guiaAlerta, fantasma, currentUserId])
 
   const polylines = useMemo((): PolylineSpec[] => {
     const list: PolylineSpec[] = []
@@ -187,8 +206,11 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
         opacity: 0.95,
       })
     }
+    if (fantasma && fantasma.traza.length > 1) {
+      list.push({ coords: fantasma.traza, color: GHOST_TRAIL_COLOR, width: 3, opacity: 0.35 })
+    }
     return list
-  }, [breadcrumb, routeRemaining, guiaParada, guiaAlerta, capa.routeStrokeColor])
+  }, [breadcrumb, routeRemaining, guiaParada, guiaAlerta, fantasma, capa.routeStrokeColor])
 
   return (
     <View style={styles.container}>

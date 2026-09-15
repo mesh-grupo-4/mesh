@@ -1282,3 +1282,72 @@ SalirViaje:
               code: INDIVIDUAL_TRIP
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'
+
+LeaderboardViaje:
+  get:
+    operationId: obtenerLeaderboard
+    summary: Leaderboard en vivo del modo competitivo (RN-071)
+    description: |
+      Foto actual de la clasificación: integrantes ordenados por progreso sobre la
+      ruta planificada, con la diferencia con el líder en metros y en segundos (a la
+      velocidad esperada del viaje). Sirve para cargar la tabla al entrar; después el
+      motor de eventos la re-emite por Socket.io (`viaje:leaderboard`) con cada ping,
+      como máximo cada 3 s por viaje. Solo con `modo: competitivo`, viaje en curso y
+      nunca en moto (RN-070).
+    tags:
+      - Viajes
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '200':
+        description: Clasificación actual.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Leaderboard'
+            example:
+              viaje_id: 3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d
+              generado_en: '2026-09-01T13:20:00.000Z'
+              filas:
+                - usuarioId: 9d8c7b6a-5f4e-4d3c-8b2a-1f0e9d8c7b6a
+                  nombre: Ana Pérez
+                  progresoM: 5420
+                  lat: -31.41
+                  lng: -64.18
+                  actualizadoEn: '2026-09-01T13:19:58.000Z'
+                  puesto: 1
+                  deltaM: 0
+                  gapSeg: 0
+                - usuarioId: 7e8f90a1-bc2d-4e3f-8a4b-5c6d7e8f90a1
+                  nombre: Juan Gómez
+                  progresoM: 5100
+                  lat: -31.412
+                  lng: -64.183
+                  actualizadoEn: '2026-09-01T13:19:57.000Z'
+                  puesto: 2
+                  deltaM: 320
+                  gapSeg: 32.9
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: No es creador ni integrante confirmado (`FORBIDDEN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Sin acceso a este viaje
+              code: FORBIDDEN
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '409':
+        description: No es competitivo o es moto (`MODO_INVALIDO`), o no está en curso (`INVALID_STATE`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: El viaje no está en modo competitivo
+              code: MODO_INVALIDO
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'

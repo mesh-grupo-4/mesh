@@ -95,7 +95,7 @@ export async function crearViaje(
     grupoIds?: string[]
     amigoIds?: string[]
     tipoActividad: TipoActividadApi
-    modo?: 'recreativo' | 'entrenamiento'
+    modo?: 'recreativo' | 'entrenamiento' | 'competitivo'
     fechaProgramada: Date
     rutaPlantillaId?: string | null
   } & ParametrosViajeInput,
@@ -222,7 +222,7 @@ export async function unirseViajePorQr(
   return parseJson<UnirseQrViajeResponse>(res)
 }
 
-/** RN-065: modo del viaje. `competitivo` es de E07 y todavía no se puede elegir. */
+/** Modo del viaje: recreativo (RN-072), entrenamiento (RN-065) o competitivo (RN-071). */
 export type ModoViajeApi = 'recreativo' | 'competitivo' | 'entrenamiento'
 
 export type ViajeDetalleApi = {
@@ -646,3 +646,27 @@ export async function listarUbicacionesVivas(
   return parseJson<UbicacionVivaSnapshotApi[]>(res)
 }
 
+
+/** RN-071: fila del leaderboard en vivo (espejo de `FilaLeaderboard` del spec). */
+export type FilaLeaderboardApi = {
+  usuarioId: string
+  nombre: string
+  progresoM: number
+  lat: number
+  lng: number
+  actualizadoEn: string
+  puesto: number
+  deltaM: number
+  gapSeg: number
+}
+
+export type LeaderboardApi = {
+  viaje_id: string
+  filas: FilaLeaderboardApi[]
+  generado_en: string
+}
+
+export async function obtenerLeaderboard(viajeId: string): Promise<LeaderboardApi> {
+  const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}/leaderboard`))
+  return parseJson<LeaderboardApi>(res)
+}

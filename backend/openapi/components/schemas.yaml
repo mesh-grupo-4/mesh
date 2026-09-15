@@ -104,6 +104,9 @@ ErrorCode:
     - ROUTING_UPSTREAM_ERROR
     - ROUTING_RATE_LIMIT
     - ROUTING_NO_ROUTE
+    - MODO_INVALIDO
+    - FANTASMA_NO_DISPONIBLE
+    - FANTASMA_SIN_TRAZA
     - CLIMA_TIMEOUT
     - CLIMA_UPSTREAM_ERROR
     # Login de la documentación (src/docs/login.ts) — fuera del contrato de la app
@@ -246,9 +249,9 @@ TipoActividadNullable:
 ModoViaje:
   type: string
   description: |
-    RN-065: modo del viaje. `entrenamiento` habilita las métricas de sesión
-    (splits por km, ritmo, evolución entre sesiones). `competitivo` es de E07 y
-    todavía no se acepta al crear.
+    Modo del viaje. `recreativo` (RN-072) sin rankings ni comparaciones;
+    `entrenamiento` (RN-065) con métricas de sesión; `competitivo` (RN-071) con
+    leaderboard en vivo y recap con puestos. Solo grupal y no moto para competir.
   enum: [recreativo, competitivo, entrenamiento]
 
 EstadoViaje:
@@ -1675,12 +1678,12 @@ CrearViajeRequest:
     tipoActividad:
       $ref: '#/TipoActividad'
     modo:
-      type: string
-      enum: [recreativo, entrenamiento]
-      default: recreativo
+      allOf:
+        - $ref: '#/ModoViaje'
       description: |
         RN-065. `entrenamiento` habilita el panel de ritmo en vivo y las métricas
-        de sesión al cerrar. `competitivo` es de E07 y todavía no se acepta.
+        de sesión al cerrar. `competitivo` (RN-071) exige viaje grupal y no moto
+        (RN-070); si no, `400 MODO_INVALIDO`. Por defecto `recreativo`.
     fechaProgramada:
       type: string
       format: date-time
@@ -3006,6 +3009,152 @@ Alerta:
     created_at:
       type: string
       format: date-time
+  additionalProperties: false
+
+# ── Competición y ghost tracking (E07) ─────────────────────────────────────────
+
+FilaLeaderboard:
+  type: object
+  required: [usuarioId, nombre, progresoM, lat, lng, actualizadoEn, puesto, deltaM, gapSeg]
+  properties:
+    usuarioId:
+      type: string
+      format: uuid
+    nombre:
+      type: string
+    progresoM:
+      type: number
+      description: Metros recorridos sobre la ruta planificada (proyección PostGIS).
+    lat:
+      type: number
+    lng:
+      type: number
+    actualizadoEn:
+      type: string
+      format: date-time
+    puesto:
+      type: integer
+    deltaM:
+      type: number
+      description: Metros detrás del líder (0 para el líder).
+    gapSeg:
+      type: number
+      description: Segundos detrás del líder a la velocidad esperada del viaje.
+  additionalProperties: false
+
+Leaderboard:
+  type: object
+  required: [viaje_id, filas, generado_en]
+  properties:
+    viaje_id:
+      type: string
+      format: uuid
+    filas:
+      type: array
+      items:
+        $ref: '#/FilaLeaderboard'
+    generado_en:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+CandidatoFantasma:
+  type: object
+  required:
+    - tipo
+    - ref
+    - viaje_id
+    - usuario_id
+    - plantilla_id
+    - nombre
+    - autor
+    - es_propio
+    - tipo_actividad
+    - fecha
+    - distancia_m
+    - duracion_seg
+  properties:
+    tipo:
+      type: string
+      enum: [viaje, plantilla]
+    ref:
+      type: string
+      description: '`viaje:<viajeId>:<usuarioId>` o `plantilla:<id>`.'
+    viaje_id:
+      type: string
+      format: uuid
+      nullable: true
+    usuario_id:
+      type: string
+      format: uuid
+      nullable: true
+    plantilla_id:
+      type: string
+      format: uuid
+      nullable: true
+    nombre:
+      type: string
+    autor:
+      type: string
+      description: '`Vos`, el nombre del integrante o `Ruta compartida`.'
+    es_propio:
+      type: boolean
+    tipo_actividad:
+      $ref: '#/TipoActividad'
+    fecha:
+      type: string
+      format: date-time
+      nullable: true
+    distancia_m:
+      type: number
+      nullable: true
+    duracion_seg:
+      type: integer
+      nullable: true
+  additionalProperties: false
+
+PuntoFantasma:
+  type: object
+  required: [t_seg, lat, lng, d_m]
+  properties:
+    t_seg:
+      type: number
+      description: Segundos desde el inicio de la traza.
+    lat:
+      type: number
+    lng:
+      type: number
+    d_m:
+      type: number
+      description: Metros acumulados.
+  additionalProperties: false
+
+Fantasma:
+  type: object
+  required: [tipo, ref, nombre, autor, tipo_actividad, distancia_m, duracion_seg, interpolado, puntos]
+  properties:
+    tipo:
+      type: string
+      enum: [viaje, plantilla]
+    ref:
+      type: string
+    nombre:
+      type: string
+    autor:
+      type: string
+    tipo_actividad:
+      $ref: '#/TipoActividad'
+    distancia_m:
+      type: number
+    duracion_seg:
+      type: number
+    interpolado:
+      type: boolean
+      description: '`true` si es una plantilla recorrida a ritmo constante (sin traza real).'
+    puntos:
+      type: array
+      items:
+        $ref: '#/PuntoFantasma'
   additionalProperties: false
 
 # ── Clima sobre la ruta (src/modules/clima/) ──────────────────────────────────

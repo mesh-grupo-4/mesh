@@ -101,6 +101,19 @@ describe('ViajesService — parámetros de actividad (SCRUM-26)', () => {
     })
   })
 
+  it('RN-071 / RN-070: competitivo exige grupal y nunca moto', async () => {
+    const m = armarCrear()
+    const base = { nombre: 'Salida', grupoIds: [], amigoIds: [], fechaProgramada: futura }
+    await expect(
+      new ViajesService(m.prisma).crearViaje(creadorId, { ...base, esGrupal: false, tipoActividad: 'bici', modo: 'competitivo' })
+    ).rejects.toMatchObject({ status: 400, code: 'MODO_INVALIDO' })
+    await expect(
+      new ViajesService(m.prisma).crearViaje(creadorId, { ...base, esGrupal: true, tipoActividad: 'moto', modo: 'competitivo' })
+    ).rejects.toMatchObject({ status: 400, code: 'MODO_INVALIDO' })
+    await new ViajesService(m.prisma).crearViaje(creadorId, { ...base, esGrupal: true, tipoActividad: 'bici', modo: 'competitivo' })
+    expect(m.viajeCreate.mock.calls[0]![0].data).toMatchObject({ modo: 'competitivo' })
+  })
+
   it('actualizar cambia los parámetros y devuelve la tolerancia efectiva', async () => {
     const viaje = {
       id: viajeId,

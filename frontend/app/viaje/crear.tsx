@@ -84,7 +84,12 @@ export default function CrearViajeScreen() {
   )
   const [esGrupal, setEsGrupal] = useState(true)
   // RN-065: entrenamiento muestra ritmo en vivo y métricas de sesión al cerrar.
-  const [modo, setModo] = useState<'recreativo' | 'entrenamiento'>('recreativo')
+  const [modo, setModo] = useState<'recreativo' | 'entrenamiento' | 'competitivo'>('recreativo')
+  // RN-071 / RN-070: competir exige grupo y nunca moto.
+  const puedeCompetir = esGrupal && tipoActividad !== 'moto'
+  useEffect(() => {
+    if (!puedeCompetir && modo === 'competitivo') setModo('recreativo')
+  }, [puedeCompetir, modo])
   const [gruposSeleccionados, setGruposSeleccionados] = useState<Set<string>>(new Set())
   const [amigosSeleccionados, setAmigosSeleccionados] = useState<Set<string>>(new Set())
   const [fecha, setFecha] = useState<Date>(fechaPorDefecto)
@@ -556,7 +561,27 @@ export default function CrearViajeScreen() {
             {tipoActividad === 'moto' ? 'Splits y evolución de tus sesiones' : 'Ritmo en vivo, splits y evolución'}
           </Text>
         </Pressable>
+        {puedeCompetir ? (
+          <Pressable
+            style={[
+              styles.opcionModalidad,
+              { backgroundColor: theme.surface, borderColor: theme.border },
+              modo === 'competitivo' && { borderColor: theme.accentLine, backgroundColor: theme.accentWeak },
+            ]}
+            onPress={() => setModo('competitivo')}
+          >
+            <Text style={[styles.opcionTitulo, { color: modo === 'competitivo' ? theme.accent : theme.text }]}>
+              Competitivo
+            </Text>
+            <Text style={[styles.opcionHint, { color: theme.textDim }]}>Clasificación en vivo y recap con puestos</Text>
+          </Pressable>
+        ) : null}
       </View>
+      {tipoActividad === 'moto' ? (
+        <Text style={[styles.paramHint, { color: theme.textDim }]}>
+          En moto no hay modo competitivo ni comparaciones de velocidad (seguridad vial).
+        </Text>
+      ) : null}
 
       {plantillaId ? null : (
         <>

@@ -439,6 +439,29 @@ describe('MotorEventosService — atraso (RN-035)', () => {
     expect(eventos()).toContain('viaje:alerta_actualizada')
   })
 
+  it('RN-071: en modo competitivo emite viaje:leaderboard con los progresos cacheados', async () => {
+    const m = armarPrisma()
+    m.viajeFindUnique.mockResolvedValue({
+      id: viajeId,
+      estado: 'en_curso',
+      es_grupal: true,
+      tipo_actividad: 'trekking',
+      modo: 'competitivo',
+      distancia_max_separacion: 80,
+      velocidad_esperada: 5,
+      creador_id: liderId,
+      alerta_incidente_habilitada: true,
+      alerta_incidente_minutos: null,
+    })
+    const service = new MotorEventosService(m.prisma)
+    await service.procesarPing(ping('2026-08-21T14:00:00.000Z', -31.41, -64.18, liderId))
+
+    const lb = emit.mock.calls.find((c) => c[0] === 'viaje:leaderboard')?.[1] as {
+      filas: { usuarioId: string; puesto: number }[]
+    }
+    expect(lb.filas).toEqual([expect.objectContaining({ usuarioId: liderId, puesto: 1, deltaM: 0 })])
+  })
+
   it('limpiarViaje olvida el progreso cacheado del grupo', async () => {
     const m = armarPrisma()
     const service = new MotorEventosService(m.prisma)
