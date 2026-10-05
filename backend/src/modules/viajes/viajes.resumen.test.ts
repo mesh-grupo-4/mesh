@@ -54,6 +54,7 @@ function armarPrisma(o: Opciones = {}) {
     nombre: 'Salida del domingo',
     es_grupal: true,
     tipo_actividad: tipoActividad,
+    modo: 'competitivo',
     estado,
     fecha_inicio_real: new Date('2026-08-13T15:00:00.000Z'),
     fecha_fin_real: new Date('2026-08-13T16:30:00.000Z'),

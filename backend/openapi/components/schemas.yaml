@@ -50,10 +50,12 @@ ErrorCode:
     - ROUTE_NOT_FOUND
     - SHARE_NOT_FOUND
     - SOLICITUD_NOT_FOUND
+    - ALERTA_NOT_FOUND
     - ITEM_NOT_FOUND
     - VIAJE_ORIGEN_NOT_FOUND
     # Conflictos de estado
     - INVALID_STATE
+    - INVALID_TRANSITION
     - TRIP_NOT_FINISHED
     - TRIP_NOT_PLANNED
     - INDIVIDUAL_TRIP
@@ -104,6 +106,11 @@ ErrorCode:
     - ROUTING_UPSTREAM_ERROR
     - ROUTING_RATE_LIMIT
     - ROUTING_NO_ROUTE
+    - MODO_INVALIDO
+    - FANTASMA_NO_DISPONIBLE
+    - FANTASMA_SIN_TRAZA
+    - CLIMA_TIMEOUT
+    - CLIMA_UPSTREAM_ERROR
     # Login de la documentación (src/docs/login.ts) — fuera del contrato de la app
     - INVALID_CREDENTIALS
     - USER_DISABLED
@@ -240,6 +247,14 @@ TipoActividadNullable:
     permite combinar `nullable` con `$ref`.
   enum: [moto, bici, running, trekking, otro, null]
   example: bici
+
+ModoViaje:
+  type: string
+  description: |
+    Modo del viaje. `recreativo` (RN-072) sin rankings ni comparaciones;
+    `entrenamiento` (RN-065) con métricas de sesión; `competitivo` (RN-071) con
+    leaderboard en vivo y recap con puestos. Solo grupal y no moto para competir.
+  enum: [recreativo, competitivo, entrenamiento]
 
 EstadoViaje:
   type: string
@@ -1280,17 +1295,19 @@ EstadoParticipacion:
 Viaje:
   type: object
   description: |
-    Viaje tal como lo persiste la base. `velocidad_esperada` y
-    `distancia_max_separacion` **las asigna el backend** según la actividad (RN-021);
-    el cliente no las envía.
+    Viaje tal como lo persiste la base. `velocidad_esperada`,
+    `distancia_max_separacion` y `tolerancia_atraso_min` nacen con los defaults de
+    la actividad (RN-021) y el líder puede ajustarlos al crear o con `PATCH` (RN-025).
   required:
     - id
     - creador_id
     - nombre
     - es_grupal
     - tipo_actividad
+    - modo
     - velocidad_esperada
     - distancia_max_separacion
+    - tolerancia_atraso_min
     - alerta_incidente_habilitada
     - alerta_incidente_minutos
     - alerta_incidente_minutos_efectivo
@@ -1319,6 +1336,8 @@ Viaje:
       example: true
     tipo_actividad:
       $ref: '#/TipoActividad'
+    modo:
+      $ref: '#/ModoViaje'
     velocidad_esperada:
       type: number
       description: |
@@ -1331,6 +1350,22 @@ Viaje:
         Separación máxima tolerada en metros antes de generar una alerta (RN-021):
         moto 1000 · bici 300 · running 100 · trekking 50 · otro 200.
       example: 300
+    tolerancia_atraso_min:
+      type: integer
+      nullable: true
+      minimum: 1
+      maximum: 60
+      description: |
+        RN-025 / RN-035: minutos de atraso tolerados respecto del bloque principal
+        antes de alertar. `null` usa el default por actividad
+        (trekking 3 · running 3 · bici 5 · moto 10 · otro 5).
+      example: null
+    tolerancia_atraso_min_efectivo:
+      type: integer
+      minimum: 1
+      maximum: 60
+      description: Tolerancia resuelta que usa el motor (custom o por actividad).
+      example: 5
     alerta_incidente_habilitada:
       type: boolean
       description: |
@@ -1408,6 +1443,7 @@ ViajeResumenPlanificado:
     - nombre
     - es_grupal
     - tipo_actividad
+    - modo
     - velocidad_esperada
     - distancia_max_separacion
     - fecha_programada
@@ -1428,6 +1464,8 @@ ViajeResumenPlanificado:
       type: boolean
     tipo_actividad:
       $ref: '#/TipoActividad'
+    modo:
+      $ref: '#/ModoViaje'
     velocidad_esperada:
       type: number
       example: 35
@@ -1452,6 +1490,7 @@ ViajeResumenFinalizado:
     - nombre
     - es_grupal
     - tipo_actividad
+    - modo
     - velocidad_esperada
     - distancia_max_separacion
     - fecha_programada
@@ -1474,6 +1513,8 @@ ViajeResumenFinalizado:
       type: boolean
     tipo_actividad:
       $ref: '#/TipoActividad'
+    modo:
+      $ref: '#/ModoViaje'
     velocidad_esperada:
       type: number
     distancia_max_separacion:
@@ -1541,6 +1582,7 @@ ViajeDetalle:
         - creador
         - ruta
         - mi_participacion
+        - tolerancia_atraso_min_efectivo
       properties:
         creador:
           type: object
@@ -1597,8 +1639,10 @@ ViajeDetalle:
 CrearViajeRequest:
   type: object
   description: |
-    Alta de un viaje. La actividad determina `velocidad_esperada` y
-    `distancia_max_separacion`, que asigna el backend (RN-021).
+    Alta de un viaje. La actividad determina los defaults de `velocidad_esperada`,
+    `distancia_max_separacion` y tolerancia de atraso (RN-021); el líder puede
+    enviar `velocidadEsperada`, `distanciaMaxSeparacion` y `toleranciaAtrasoMin`
+    para ajustarlos (RN-025).
 
     Si se envía `rutaPlantillaId`, la ruta se precarga desde esa plantilla y
     **`tipoActividad` se sobrescribe** con el de la plantilla.
@@ -1635,6 +1679,13 @@ CrearViajeRequest:
         format: uuid
     tipoActividad:
       $ref: '#/TipoActividad'
+    modo:
+      allOf:
+        - $ref: '#/ModoViaje'
+      description: |
+        RN-065. `entrenamiento` habilita el panel de ritmo en vivo y las métricas
+        de sesión al cerrar. `competitivo` (RN-071) exige viaje grupal y no moto
+        (RN-070); si no, `400 MODO_INVALIDO`. Por defecto `recreativo`.
     fechaProgramada:
       type: string
       format: date-time
@@ -1647,6 +1698,24 @@ CrearViajeRequest:
       format: uuid
       nullable: true
       description: Plantilla propia desde la que precargar la ruta (RN-084).
+    velocidadEsperada:
+      type: number
+      minimum: 1
+      maximum: 300
+      description: Velocidad promedio esperada en km/h (RN-025). Omitido = default de la actividad.
+      example: 40
+    distanciaMaxSeparacion:
+      type: integer
+      minimum: 10
+      maximum: 20000
+      description: Separación máxima del grupo en metros (RN-025). Omitido = default de la actividad.
+      example: 400
+    toleranciaAtrasoMin:
+      type: integer
+      minimum: 1
+      maximum: 60
+      description: Tolerancia de atraso en minutos (RN-025). Omitido = default de la actividad.
+      example: 6
   additionalProperties: false
 
 ActualizarViajeRequest:
@@ -1654,9 +1723,29 @@ ActualizarViajeRequest:
   description: |
     Campos editables del viaje por el líder (RN-030).
     Enviá al menos uno. La fecha solo se puede cambiar en estado `planificado`;
-    la configuración de alertas de incidente aplica en `planificado` y `en_curso`.
+    la configuración de alertas de incidente y los parámetros del grupo (RN-025)
+    aplican en `planificado` y `en_curso`.
   minProperties: 1
   properties:
+    velocidadEsperada:
+      type: number
+      minimum: 1
+      maximum: 300
+      description: Velocidad promedio esperada en km/h (RN-025).
+      example: 40
+    distanciaMaxSeparacion:
+      type: integer
+      minimum: 10
+      maximum: 20000
+      description: Separación máxima del grupo en metros (RN-025).
+      example: 400
+    toleranciaAtrasoMin:
+      type: integer
+      nullable: true
+      minimum: 1
+      maximum: 60
+      description: Tolerancia de atraso en minutos; `null` restaura el default por actividad (RN-025).
+      example: 6
     fechaProgramada:
       type: string
       format: date-time
@@ -1689,6 +1778,10 @@ ViajeReprogramado:
     - alerta_incidente_minutos
     - alerta_incidente_minutos_efectivo
     - alertas_solo_lider
+    - velocidad_esperada
+    - distancia_max_separacion
+    - tolerancia_atraso_min
+    - tolerancia_atraso_min_efectivo
   properties:
     id:
       type: string
@@ -1707,6 +1800,15 @@ ViajeReprogramado:
       type: integer
     alertas_solo_lider:
       type: boolean
+    velocidad_esperada:
+      type: number
+    distancia_max_separacion:
+      type: integer
+    tolerancia_atraso_min:
+      type: integer
+      nullable: true
+    tolerancia_atraso_min_efectivo:
+      type: integer
   additionalProperties: false
 
 ViajeEliminado:
@@ -2098,11 +2200,20 @@ PosicionesIngresadas:
   type: object
   required:
     - insertados
+    - compartida
   properties:
     insertados:
       type: integer
       description: Cantidad de registros GPS efectivamente persistidos.
       example: 240
+    compartida:
+      type: boolean
+      description: |
+        RN-111: si la posición más nueva del lote se publicó al grupo. En `false`
+        el lote se persistió igual (RN-038: cero pérdida, la traza y las métricas
+        propias quedan completas) pero el usuario tiene apagado el compartir
+        ubicación en este viaje, o todavía no otorgó el consentimiento (RN-110).
+      example: true
   additionalProperties: false
 
 UbicacionVivaRequest:
@@ -2164,11 +2275,35 @@ UbicacionVivaFila:
       format: date-time
   additionalProperties: false
 
+UbicacionVivaRespuesta:
+  type: object
+  description: |
+    Resultado de publicar una posición. El punto siempre queda en `registro_gps`;
+    `compartida` dice si además se publicó al grupo (RN-111).
+  required:
+    - compartida
+    - ubicacion
+  properties:
+    compartida:
+      type: boolean
+      description: |
+        `false` cuando el usuario tiene apagado el compartir ubicación en este
+        viaje o todavía no otorgó el consentimiento de geolocalización (RN-110).
+      example: true
+    ubicacion:
+      description: La fila publicada, o `null` si no se compartió.
+      type: object
+      nullable: true
+      allOf:
+        - $ref: '#/UbicacionVivaFila'
+  additionalProperties: false
+
 UbicacionViva:
   type: object
   description: |
     Última posición conocida de un integrante. Es lo que dibuja el mapa grupal.
-    Solo la ven los integrantes **confirmados**: quien salió del viaje deja de recibirla.
+    Solo la ven los integrantes **confirmados** que además comparten su ubicación
+    en este viaje (RN-111): quien salió del viaje, o apagó el compartir, deja de recibirla.
   required:
     - usuarioId
     - viajeId
@@ -2438,12 +2573,18 @@ MisMetricas:
   description: |
     Métricas individuales detalladas más el perfil de velocidad minuto a minuto.
 
-    **RN-070:** con actividad `moto`, las velocidades llegan en `null` y
-    `perfil_velocidad` es un array vacío.
+    **RN-070:** con actividad `moto`, las velocidades llegan en `null`,
+    `perfil_velocidad` y `splits_km` son arrays vacíos.
+
+    **RN-065:** `splits_km` trae el tiempo por kilómetro; `entrenamiento` solo
+    viene con `modo: entrenamiento` y compara la sesión con las anteriores del
+    mismo usuario y actividad (todo a partir de `metrica_viaje`).
   required:
     - viaje
     - metricas
     - perfil_velocidad
+    - splits_km
+    - entrenamiento
   properties:
     viaje:
       type: object
@@ -2451,6 +2592,7 @@ MisMetricas:
         - id
         - nombre
         - tipo_actividad
+        - modo
         - es_grupal
         - fecha_inicio_real
         - fecha_fin_real
@@ -2463,6 +2605,8 @@ MisMetricas:
           nullable: true
         tipo_actividad:
           $ref: '#/TipoActividad'
+        modo:
+          $ref: '#/ModoViaje'
         es_grupal:
           type: boolean
         fecha_inicio_real:
@@ -2533,6 +2677,103 @@ MisMetricas:
             type: number
             example: 28.4
         additionalProperties: false
+    splits_km:
+      type: array
+      description: Tiempo por kilómetro recorrido (RN-065). El último puede ser parcial.
+      items:
+        type: object
+        required: [km, metros, segundos, pace_min_km]
+        properties:
+          km:
+            type: integer
+            example: 3
+          metros:
+            type: number
+            example: 1000
+          segundos:
+            type: number
+            example: 312.4
+          pace_min_km:
+            type: number
+            nullable: true
+            example: 5.2
+        additionalProperties: false
+    entrenamiento:
+      type: object
+      nullable: true
+      description: 'Solo con modo `entrenamiento`; `null` en el resto.'
+      required:
+        - numero_sesion
+        - total_sesiones
+        - mejor_pace_min_km
+        - es_mejor_pace
+        - mejor_distancia_m
+        - es_mejor_distancia
+        - delta_distancia_m
+        - delta_pace_min_km
+        - evolucion
+      properties:
+        numero_sesion:
+          type: integer
+          description: Orden de esta sesión entre los entrenamientos finalizados de la actividad.
+          example: 4
+        total_sesiones:
+          type: integer
+          example: 4
+        mejor_pace_min_km:
+          type: number
+          nullable: true
+        es_mejor_pace:
+          type: boolean
+        mejor_distancia_m:
+          type: number
+          nullable: true
+        es_mejor_distancia:
+          type: boolean
+        delta_distancia_m:
+          type: number
+          nullable: true
+          description: Diferencia con la sesión anterior (positivo = más distancia).
+        delta_pace_min_km:
+          type: number
+          nullable: true
+          description: Diferencia de ritmo con la sesión anterior (negativo = más rápido).
+        evolucion:
+          type: array
+          description: Últimas 6 sesiones (incluida esta), de la más vieja a la más nueva.
+          items:
+            type: object
+            required:
+              - viaje_id
+              - nombre
+              - fecha_fin_real
+              - distancia_m
+              - tiempo_movimiento_seg
+              - velocidad_promedio_kmh
+              - pace_min_km
+            properties:
+              viaje_id:
+                type: string
+                format: uuid
+              nombre:
+                type: string
+                nullable: true
+              fecha_fin_real:
+                type: string
+                format: date-time
+                nullable: true
+              distancia_m:
+                type: number
+              tiempo_movimiento_seg:
+                type: integer
+              velocidad_promedio_kmh:
+                type: number
+                nullable: true
+              pace_min_km:
+                type: number
+                nullable: true
+            additionalProperties: false
+      additionalProperties: false
   additionalProperties: false
 
 Recorrido:
@@ -2750,11 +2991,29 @@ CrearAlertaRequest:
       nullable: true
   additionalProperties: false
 
+EstadoAlerta:
+  type: string
+  description: |
+    Estado de la alerta (RN-042). Transiciones válidas:
+    `activa → pausada | cancelada | resuelta` y `pausada → activa | cancelada`.
+  enum: [activa, pausada, cancelada, resuelta]
+
+CambiarEstadoAlertaRequest:
+  type: object
+  required: [estado]
+  properties:
+    estado:
+      $ref: '#/EstadoAlerta'
+  additionalProperties: false
+
 Alerta:
   type: object
   description: |
     Alerta enviada al grupo durante el viaje (RN-040/041). Todas nacen en estado
-    `activa`; la gestión de pausar/cancelar/resolver es de otra US.
+    `activa`. El líder puede pausarla, reactivarla, cancelarla o resolverla a mano
+    (RN-042); las del motor de eventos (`origen: sistema`) se resuelven solas cuando
+    el integrante vuelve a la ruta, alcanza al grupo o confirma que está bien, y
+    todas las abiertas se resuelven al finalizar el viaje.
   required: [id, viaje_id, tipo, origen, estado, created_at]
   properties:
     id:
@@ -2786,11 +3045,274 @@ Alerta:
       type: number
       nullable: true
     estado:
-      type: string
-      enum: [activa, pausada, cancelada, resuelta]
+      $ref: '#/EstadoAlerta'
     created_at:
       type: string
       format: date-time
+  additionalProperties: false
+
+# ── Competición y ghost tracking (E07) ─────────────────────────────────────────
+
+FilaLeaderboard:
+  type: object
+  required: [usuarioId, nombre, progresoM, lat, lng, actualizadoEn, puesto, deltaM, gapSeg]
+  properties:
+    usuarioId:
+      type: string
+      format: uuid
+    nombre:
+      type: string
+    progresoM:
+      type: number
+      description: Metros recorridos sobre la ruta planificada (proyección PostGIS).
+    lat:
+      type: number
+    lng:
+      type: number
+    actualizadoEn:
+      type: string
+      format: date-time
+    puesto:
+      type: integer
+    deltaM:
+      type: number
+      description: Metros detrás del líder (0 para el líder).
+    gapSeg:
+      type: number
+      description: Segundos detrás del líder a la velocidad esperada del viaje.
+  additionalProperties: false
+
+Leaderboard:
+  type: object
+  required: [viaje_id, filas, generado_en]
+  properties:
+    viaje_id:
+      type: string
+      format: uuid
+    filas:
+      type: array
+      items:
+        $ref: '#/FilaLeaderboard'
+    generado_en:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+CandidatoFantasma:
+  type: object
+  required:
+    - tipo
+    - ref
+    - viaje_id
+    - usuario_id
+    - plantilla_id
+    - nombre
+    - autor
+    - es_propio
+    - tipo_actividad
+    - fecha
+    - distancia_m
+    - duracion_seg
+  properties:
+    tipo:
+      type: string
+      enum: [viaje, plantilla]
+    ref:
+      type: string
+      description: '`viaje:<viajeId>:<usuarioId>` o `plantilla:<id>`.'
+    viaje_id:
+      type: string
+      format: uuid
+      nullable: true
+    usuario_id:
+      type: string
+      format: uuid
+      nullable: true
+    plantilla_id:
+      type: string
+      format: uuid
+      nullable: true
+    nombre:
+      type: string
+    autor:
+      type: string
+      description: '`Vos`, el nombre del integrante o `Ruta compartida`.'
+    es_propio:
+      type: boolean
+    tipo_actividad:
+      $ref: '#/TipoActividad'
+    fecha:
+      type: string
+      format: date-time
+      nullable: true
+    distancia_m:
+      type: number
+      nullable: true
+    duracion_seg:
+      type: integer
+      nullable: true
+  additionalProperties: false
+
+PuntoFantasma:
+  type: object
+  required: [t_seg, lat, lng, d_m]
+  properties:
+    t_seg:
+      type: number
+      description: Segundos desde el inicio de la traza.
+    lat:
+      type: number
+    lng:
+      type: number
+    d_m:
+      type: number
+      description: Metros acumulados.
+  additionalProperties: false
+
+Fantasma:
+  type: object
+  required: [tipo, ref, nombre, autor, tipo_actividad, distancia_m, duracion_seg, interpolado, puntos]
+  properties:
+    tipo:
+      type: string
+      enum: [viaje, plantilla]
+    ref:
+      type: string
+    nombre:
+      type: string
+    autor:
+      type: string
+    tipo_actividad:
+      $ref: '#/TipoActividad'
+    distancia_m:
+      type: number
+    duracion_seg:
+      type: number
+    interpolado:
+      type: boolean
+      description: '`true` si es una plantilla recorrida a ritmo constante (sin traza real).'
+    puntos:
+      type: array
+      items:
+        $ref: '#/PuntoFantasma'
+  additionalProperties: false
+
+# ── Clima sobre la ruta (src/modules/clima/) ──────────────────────────────────
+
+PuntoClima:
+  type: object
+  description: Pronóstico en un punto de la ruta, para la hora estimada de paso.
+  required:
+    - nombre
+    - lat
+    - lng
+    - hora
+    - temperatura_c
+    - prob_precipitacion_pct
+    - precipitacion_mm
+    - viento_kmh
+    - rafagas_kmh
+    - codigo_tiempo
+    - descripcion
+    - lluvia
+    - viento_fuerte
+  properties:
+    nombre:
+      type: string
+      description: Origen, nombre de la parada, `Tramo N` o Destino.
+    lat:
+      type: number
+    lng:
+      type: number
+    hora:
+      type: string
+      format: date-time
+      description: Instante UTC del pronóstico leído (hora estimada de paso por el punto).
+    temperatura_c:
+      type: number
+      nullable: true
+    prob_precipitacion_pct:
+      type: number
+      nullable: true
+    precipitacion_mm:
+      type: number
+      nullable: true
+    viento_kmh:
+      type: number
+      nullable: true
+    rafagas_kmh:
+      type: number
+      nullable: true
+    codigo_tiempo:
+      type: integer
+      nullable: true
+      description: Código WMO de Open-Meteo.
+    descripcion:
+      type: string
+      description: Traducción del código WMO (Despejado, Lluvia, Tormenta, …).
+    lluvia:
+      type: boolean
+    viento_fuerte:
+      type: boolean
+  additionalProperties: false
+
+AlertaClima:
+  type: object
+  required: [tipo, mensaje, puntos]
+  properties:
+    tipo:
+      type: string
+      enum: [lluvia, viento_fuerte]
+    mensaje:
+      type: string
+    puntos:
+      type: array
+      items:
+        type: string
+      description: Nombres de los puntos afectados.
+  additionalProperties: false
+
+ClimaViaje:
+  type: object
+  required:
+    - disponible
+    - motivo
+    - fuente
+    - consultado_en
+    - inicio_previsto
+    - puntos
+    - alertas
+    - resumen
+  properties:
+    disponible:
+      type: boolean
+      description: '`false` si no hay pronóstico; ver `motivo`.'
+    motivo:
+      type: string
+      nullable: true
+      enum: [SIN_RUTA, FUERA_DE_HORIZONTE, VIAJE_FINALIZADO, null]
+    fuente:
+      type: string
+      enum: [open-meteo]
+    consultado_en:
+      type: string
+      format: date-time
+    inicio_previsto:
+      type: string
+      format: date-time
+      nullable: true
+      description: Instante desde el que se leyó el pronóstico (fecha programada o ahora si ya empezó).
+    puntos:
+      type: array
+      items:
+        $ref: '#/PuntoClima'
+    alertas:
+      type: array
+      items:
+        $ref: '#/AlertaClima'
+    resumen:
+      type: string
+      description: Frase lista para mostrar en la pantalla de inicio del viaje.
   additionalProperties: false
 
 # ── Login de la documentación (src/docs/login.ts) ──────────────────────────────
@@ -3247,4 +3769,202 @@ RutaCalculada:
       format: double
       description: Duración estimada del recorrido, en segundos, según el proveedor.
       example: 1750
+  additionalProperties: false
+
+# --- Privacidad y permisos de geolocalización (RN-110 a RN-114) ---
+
+PrivacidadUsuario:
+  type: object
+  description: |
+    Configuración de privacidad de geolocalización del perfil (RN-110/111).
+
+    El consentimiento se guarda con la versión del texto aceptado: si se publica una
+    versión nueva, `consentimiento_vigente` pasa a `false` y hay que volver a pedirlo,
+    aunque `consentimiento_otorgado` siga en `true`.
+  required:
+    - comparte_ubicacion_default
+    - consentimiento_otorgado
+    - consentimiento_vigente
+    - consentimiento_at
+    - consentimiento_version
+    - version_vigente
+    - ventana_registro_accesos_min
+  properties:
+    comparte_ubicacion_default:
+      type: boolean
+      description: Valor con el que arranca el compartir en cada viaje nuevo.
+      example: true
+    consentimiento_otorgado:
+      type: boolean
+      description: Si alguna vez aceptó el consentimiento informado de geolocalización.
+      example: true
+    consentimiento_vigente:
+      type: boolean
+      description: Si lo aceptado corresponde a la versión de texto vigente.
+      example: true
+    consentimiento_at:
+      type: string
+      format: date-time
+      nullable: true
+      description: Momento en que se otorgó, en UTC. `null` si nunca se otorgó.
+      example: '2026-09-15T13:00:00.000Z'
+    consentimiento_version:
+      type: string
+      nullable: true
+      description: Versión del texto que aceptó.
+      example: '2026-09-15'
+    version_vigente:
+      type: string
+      description: Versión del texto que la app tiene que mostrar hoy.
+      example: '2026-09-15'
+    ventana_registro_accesos_min:
+      type: integer
+      description: |
+        Minutos de agregación del registro de accesos (RN-112): dentro de la ventana,
+        releer la posición de la misma persona no genera una entrada nueva.
+      example: 10
+  additionalProperties: false
+
+PrivacidadUsuarioRequest:
+  type: object
+  description: |
+    Al menos uno de los dos campos. Revocar el consentimiento
+    (`consentimiento_ubicacion: false`) apaga el compartir en todos los viajes y borra
+    las posiciones vivas ya publicadas (RN-113).
+  minProperties: 1
+  properties:
+    comparte_ubicacion_default:
+      type: boolean
+      example: true
+    consentimiento_ubicacion:
+      type: boolean
+      description: '`true` registra el consentimiento con la versión vigente; `false` lo revoca.'
+      example: true
+  additionalProperties: false
+
+PrivacidadViaje:
+  type: object
+  description: |
+    Preferencia de compartir ubicación en un viaje concreto (RN-111).
+
+    `comparte_ubicacion` es lo que eligió la persona (`null` = nunca lo tocó, vale el
+    default del perfil). `comparte_efectivo` es lo que realmente pasa: puede ser `false`
+    con el interruptor en `true` si todavía falta el consentimiento (RN-110).
+  required:
+    - viaje_id
+    - comparte_ubicacion
+    - comparte_efectivo
+    - consentimiento_otorgado
+    - actualizado_en
+  properties:
+    viaje_id:
+      type: string
+      format: uuid
+    comparte_ubicacion:
+      type: boolean
+      nullable: true
+      description: Elección explícita para este viaje. `null` si nunca se cambió.
+      example: true
+    comparte_efectivo:
+      type: boolean
+      description: Si la posición se está publicando al grupo ahora mismo.
+      example: true
+    consentimiento_otorgado:
+      type: boolean
+      example: true
+    actualizado_en:
+      type: string
+      format: date-time
+      nullable: true
+      example: '2026-09-15T13:10:00.000Z'
+  additionalProperties: false
+
+PrivacidadViajeRequest:
+  type: object
+  required:
+    - comparte_ubicacion
+  properties:
+    comparte_ubicacion:
+      type: boolean
+      description: |
+        Apagarlo borra la posición viva ya publicada y emite `viaje:ubicacion_oculta`
+        a la sala, para que los mapas abiertos saquen el marcador.
+      example: false
+  additionalProperties: false
+
+AccesoUbicacion:
+  type: object
+  description: |
+    RN-112: una persona que accedió a mi posición en un viaje. Es un agregado, no un
+    log por lectura: `veces` cuenta las ventanas de acceso, no las consultas HTTP.
+  required:
+    - observador_id
+    - observador_nombre
+    - primera_vez
+    - ultima_vez
+    - veces
+  properties:
+    observador_id:
+      type: string
+      format: uuid
+    observador_nombre:
+      type: string
+      example: Martina Gómez
+    primera_vez:
+      type: string
+      format: date-time
+      example: '2026-09-15T13:05:00.000Z'
+    ultima_vez:
+      type: string
+      format: date-time
+      example: '2026-09-15T14:20:00.000Z'
+    veces:
+      type: integer
+      example: 8
+  additionalProperties: false
+
+AccesoUbicacionGlobal:
+  type: object
+  description: |
+    Igual que `AccesoUbicacion`, más el viaje donde ocurrió el acceso. Se escribe plano
+    y no como `allOf` sobre `AccesoUbicacion` porque ese schema cierra
+    `additionalProperties`, y la composición rechazaría los campos del viaje.
+  required:
+    - viaje_id
+    - viaje_nombre
+    - viaje_fecha
+    - observador_id
+    - observador_nombre
+    - primera_vez
+    - ultima_vez
+    - veces
+  properties:
+    viaje_id:
+      type: string
+      format: uuid
+    viaje_nombre:
+      type: string
+      nullable: true
+      example: Salida a Los Gigantes
+    viaje_fecha:
+      type: string
+      format: date-time
+      example: '2026-09-15T12:00:00.000Z'
+    observador_id:
+      type: string
+      format: uuid
+    observador_nombre:
+      type: string
+      example: Martina Gómez
+    primera_vez:
+      type: string
+      format: date-time
+      example: '2026-09-15T13:05:00.000Z'
+    ultima_vez:
+      type: string
+      format: date-time
+      example: '2026-09-15T14:20:00.000Z'
+    veces:
+      type: integer
+      example: 8
   additionalProperties: false

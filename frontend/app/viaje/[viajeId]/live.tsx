@@ -21,6 +21,9 @@ import { ParadaVoluntariaBanner } from '@/components/live/ParadaVoluntariaBanner
 import { SolicitudParadaBanner } from '@/components/live/SolicitudParadaBanner'
 import { LlegadaDestinoBanner } from '@/components/live/LlegadaDestinoBanner'
 import { EstoyBienBanner } from '@/components/live/EstoyBienBanner'
+import { FantasmaPanel } from '@/components/live/FantasmaPanel'
+import { FantasmaPickerModal } from '@/components/live/FantasmaPickerModal'
+import { LeaderboardPanel } from '@/components/live/LeaderboardPanel'
 import { LiveBottomPanel } from '@/components/live/LiveBottomPanel'
 import { LiveMapView, type LiveMapViewHandle } from '@/components/live/LiveMapView'
 import type { LiveMember } from '@/components/live/LiveMembersBar'
@@ -32,6 +35,8 @@ import { DEV_USER_ID, API_BASE_URL } from '@/constants/Config'
 import { tamanoOutdoor } from '@/constants/Typography'
 import { useAuth } from '@/context/AuthContext'
 import { useBreadcrumbTrail } from '@/hooks/useBreadcrumbTrail'
+import { useFantasma } from '@/hooks/useFantasma'
+import { useLeaderboard } from '@/hooks/useLeaderboard'
 import { useLiveLocations } from '@/hooks/useLiveLocations'
 import { useLlegadaDestino } from '@/hooks/useLlegadaDestino'
 import { useAlertas } from '@/hooks/useAlertas'
@@ -40,14 +45,17 @@ import { useNextStopEta } from '@/hooks/useNextStopEta'
 import { useTripMetrics } from '@/hooks/useTripMetrics'
 import { uiConfigPorActividad } from '@/lib/activityUi'
 import type { RouteStop } from '@/lib/geo/nextStop'
+import { haversineDistanceM } from '@/lib/geo/haversine'
 import { dividirRutaPorAvance } from '@/lib/geo/routeProgress'
 import { useHapticaAlEntrar } from '@/lib/haptics'
+import { formatPaceMinKm, formatSpeedKmh } from '@/lib/format'
 import { nombreCompleto } from '@/lib/nombres'
 import type { TipoAlertaApi } from '@/lib/alertasApi'
 import type { CategoriaParadaApi } from '@/lib/paradasApi'
 import { motivoParadaLegible } from '@/lib/paradasApi'
+import { waypointTieneCoords } from '@/components/route-config/routeTypes'
 import { linestringToLatLng, waypointsFromRutaDetalle } from '@/lib/routePayload'
-import { connectMeshSocket } from '@/lib/meshSocket'
+import { connectMeshSocket, joinViajeRoom } from '@/lib/meshSocket'
 import { isSupabaseConfigured } from '@/lib/supabase'
 import {
   detenerTrackingViaje,
@@ -114,6 +122,7 @@ export default function ViajeLiveScreen() {
   const [accion, setAccion] = useState(false)
   const [eligiendoCategoria, setEligiendoCategoria] = useState(false)
   const [componiendoAlerta, setComponiendoAlerta] = useState(false)
+  const [eligiendoFantasma, setEligiendoFantasma] = useState(false)
   /** Alto real de la pila de banners: los botones flotantes se corren debajo. */
   const [altoBanners, setAltoBanners] = useState(0)
   /** Alto real de la botonera inferior, que creció con la fila de paradas. */
@@ -165,10 +174,25 @@ export default function ViajeLiveScreen() {
     const list: LiveMember[] = []
     const onMap = new Set(memberList.map((m) => m.usuarioId))
 
+    // SCRUM-33: separación en tiempo real respecto de mi última posición.
+    const posPorId = new Map(memberList.map((m) => [m.usuarioId, m]))
+    const separacionMax = viaje?.distancia_max_separacion ?? null
     const add = (id: string, nombre: string) => {
       if (seen.has(id)) return
       seen.add(id)
-      list.push({ id, nombre, enMapa: onMap.has(id), sinSenal: staleByUserId[id] === true })
+      const pos = posPorId.get(id)
+      const distanciaM =
+        myPosition && pos && id !== userId && !staleByUserId[id]
+          ? haversineDistanceM(myPosition.lat, myPosition.lng, pos.lat, pos.lng)
+          : null
+      list.push({
+        id,
+        nombre,
+        enMapa: onMap.has(id),
+        sinSenal: staleByUserId[id] === true,
+        distanciaM,
+        lejos: distanciaM != null && separacionMax != null && distanciaM > separacionMax,
+      })
     }
 
     if (viaje?.creador) {
@@ -184,7 +208,7 @@ export default function ViajeLiveScreen() {
     }
 
     return list
-  }, [viaje, participantes, memberList, staleByUserId])
+  }, [viaje, participantes, memberList, staleByUserId, myPosition, userId])
 
   const tripDisplayName = useMemo(() => {
     if (viaje?.nombre?.trim()) return viaje.nombre.trim()
@@ -285,12 +309,54 @@ export default function ViajeLiveScreen() {
     return { latitude: -31.4167, longitude: -64.1833 }
   }, [myPosition, initialCenter])
 
-  const { elapsedLabel, distanceLabel } = useTripMetrics({
+  const { elapsedLabel, distanceLabel, distanceM, velocidadActualKmh, velocidadPromedioKmh, paceMinKm } = useTripMetrics({
     viajeId: viajeId ?? '',
     userId,
     fechaInicioReal: viaje?.fecha_inicio_real ?? null,
     tipoActividad: viaje?.tipo_actividad ?? 'otro',
   })
+
+  // RN-065: panel de entrenamiento. RN-070: en moto no se muestran velocidades.
+  const entrenamientoEnVivo = useMemo(() => {
+    if (viaje?.modo !== 'entrenamiento' || viaje.tipo_actividad === 'moto') return null
+    const esPace = viaje.tipo_actividad === 'running' || viaje.tipo_actividad === 'trekking'
+    return {
+      velocidadActual: formatSpeedKmh(velocidadActualKmh),
+      velocidadPromedio: formatSpeedKmh(velocidadPromedioKmh),
+      ritmo: esPace ? formatPaceMinKm(paceMinKm) : formatSpeedKmh(velocidadPromedioKmh),
+    }
+  }, [viaje?.modo, viaje?.tipo_actividad, velocidadActualKmh, velocidadPromedioKmh, paceMinKm])
+
+  // RN-072 / RN-070: sin comparaciones en recreativo ni en moto.
+  const permiteComparar =
+    viaje?.estado === 'en_curso' && viaje.modo !== 'recreativo' && viaje.tipo_actividad !== 'moto'
+
+  // RN-073: fantasma contra el reloj del viaje.
+  const {
+    fantasma,
+    activo: fantasmaActivo,
+    cargando: cargandoFantasma,
+    activar: activarFantasma,
+    quitar: quitarFantasma,
+    alternarPausa: pausarFantasma,
+  } = useFantasma({
+    viajeId: viajeId ?? '',
+    fechaInicioReal: viaje?.fecha_inicio_real ?? null,
+    miDistanciaM: distanceM,
+    habilitado: Boolean(permiteComparar),
+  })
+
+  // RN-071: leaderboard en vivo solo en competitivo.
+  const { filas: leaderboard } = useLeaderboard({
+    viajeId: viajeId ?? '',
+    habilitado: Boolean(permiteComparar && viaje?.modo === 'competitivo'),
+  })
+
+  const handleElegirFantasma = (ref: string) => {
+    void activarFantasma(ref)
+      .then(() => setEligiendoFantasma(false))
+      .catch((e: unknown) => meshAlert('No se pudo cargar el fantasma', mensajeDeError(e)))
+  }
 
   const breadcrumb = useBreadcrumbTrail({
     viajeId: viajeId ?? '',
@@ -343,21 +409,24 @@ export default function ViajeLiveScreen() {
         if (ruta?.linestring) {
           setRouteLine(linestringToLatLng(ruta.linestring))
           const h = waypointsFromRutaDetalle(ruta)
-          const stops: RouteStop[] = [
-            { lat: h.origen.lat, lng: h.origen.lon, name: h.origen.name || 'Origen', type: 'ORIGIN' },
-            ...h.paradas.map((p) => ({
-              lat: p.lat,
-              lng: p.lon,
-              name: p.name || 'Parada',
-              type: 'STOP' as const,
-            })),
-            {
+          // Un waypoint sin coordenadas (parada sin geocodificar) no puede ser
+          // "próxima parada": metía NaN en el ETA y en la detección de llegada.
+          const stops: RouteStop[] = []
+          if (waypointTieneCoords(h.origen)) {
+            stops.push({ lat: h.origen.lat, lng: h.origen.lon, name: h.origen.name || 'Origen', type: 'ORIGIN' })
+          }
+          for (const p of h.paradas) {
+            if (!waypointTieneCoords(p)) continue
+            stops.push({ lat: p.lat, lng: p.lon, name: p.name || 'Parada', type: 'STOP' })
+          }
+          if (waypointTieneCoords(h.destino)) {
+            stops.push({
               lat: h.destino.lat,
               lng: h.destino.lon,
               name: h.destino.name || 'Destino',
               type: 'DESTINATION',
-            },
-          ]
+            })
+          }
           setRouteStops(stops)
         } else {
           setRouteStops([])
@@ -378,8 +447,8 @@ export default function ViajeLiveScreen() {
     let cleanup: (() => void) | undefined
 
     void (async () => {
+      joinViajeRoom(viajeId)
       const sock = await connectMeshSocket()
-      sock.emit('join_viaje', { viajeId })
 
       const onFin = (payload: { viajeId: string }) => {
         if (payload.viajeId !== viajeId) return
@@ -732,6 +801,11 @@ export default function ViajeLiveScreen() {
         alertasEnMapa={alertasEnMapa}
         guiaParada={guiaParada}
         guiaAlerta={guiaAlerta}
+        fantasma={
+          fantasma
+            ? { ...fantasma.posicion, nombre: fantasma.nombre, pausado: fantasma.pausado, traza: fantasma.traza }
+            : null
+        }
         currentUserId={userId}
         initialCenter={initialCenter}
         mapStyle={mapStyle}
@@ -778,6 +852,14 @@ export default function ViajeLiveScreen() {
               iOS no puede usar localhost. Agregá EXPO_PUBLIC_API_URL=http://IP_PC:3000 en .env
             </Text>
           </View>
+        ) : null}
+
+        {permiteComparar && viaje?.modo === 'competitivo' ? (
+          <LeaderboardPanel filas={leaderboard} currentUserId={userId} />
+        ) : null}
+
+        {fantasma ? (
+          <FantasmaPanel fantasma={fantasma} onPausar={pausarFantasma} onQuitar={quitarFantasma} />
         ) : null}
 
         {alertaEntrante ? (
@@ -831,6 +913,8 @@ export default function ViajeLiveScreen() {
             topOffset={topFlotantes + 14}
             onPress={irAAlertas}
             onCrear={puedeCrearAlertas ? () => setComponiendoAlerta(true) : undefined}
+            onFantasma={permiteComparar ? () => setEligiendoFantasma(true) : undefined}
+            fantasmaActivo={fantasmaActivo}
             tipoActividad={tipoActividad}
           />
 
@@ -859,6 +943,7 @@ export default function ViajeLiveScreen() {
       <LiveBottomPanel
         elapsedLabel={elapsedLabel}
         distanceLabel={distanceLabel}
+        entrenamiento={entrenamientoEnVivo}
         enCurso={viaje?.estado === 'en_curso'}
         esLider={esLider}
         accion={!!accion}
@@ -882,6 +967,14 @@ export default function ViajeLiveScreen() {
         onSeleccionar={handleCategoriaElegida}
         onCancelar={() => setEligiendoCategoria(false)}
         tipoActividad={tipoActividad}
+      />
+
+      <FantasmaPickerModal
+        visible={eligiendoFantasma}
+        viajeId={viajeId}
+        ocupado={cargandoFantasma}
+        onElegir={handleElegirFantasma}
+        onCerrar={() => setEligiendoFantasma(false)}
       />
 
       <CrearAlertaSheet

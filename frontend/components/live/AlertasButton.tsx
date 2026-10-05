@@ -11,10 +11,21 @@ type Props = {
   onPress: () => void
   /** Solo se pasa cuando quien mira puede crear alertas (líder, viaje en curso). */
   onCrear?: () => void
+  /** RN-073: elegir/quitar fantasma. Solo fuera de moto y de modo recreativo. */
+  onFantasma?: () => void
+  fantasmaActivo?: boolean
   tipoActividad?: TipoActividadApi
 }
 
-export function AlertasButton({ cantidad, topOffset, onPress, onCrear, tipoActividad = 'otro' }: Props) {
+export function AlertasButton({
+  cantidad,
+  topOffset,
+  onPress,
+  onCrear,
+  onFantasma,
+  fantasmaActivo = false,
+  tipoActividad = 'otro',
+}: Props) {
   const { escalaBotones } = uiConfigPorActividad(tipoActividad)
   const tam = Math.round(46 * escalaBotones)
 
@@ -55,11 +66,36 @@ export function AlertasButton({ cantidad, topOffset, onPress, onCrear, tipoActiv
           <Text style={styles.crearTxt}>+</Text>
         </Pressable>
       ) : null}
+
+      {onFantasma ? (
+        <Pressable
+          style={({ pressed }) => [
+            styles.boton,
+            fantasmaActivo && styles.fantasmaActivo,
+            {
+              top: topOffset + (tam + 8) * (onCrear ? 2 : 1),
+              width: tam,
+              height: tam,
+              borderRadius: tam / 2,
+            },
+            pressed && styles.presionado,
+          ]}
+          onPress={onFantasma}
+          accessibilityRole="button"
+          accessibilityLabel={fantasmaActivo ? 'Cambiar fantasma' : 'Competir contra un fantasma'}
+        >
+          <Text style={[styles.icono, { fontSize: Math.round(20 * escalaBotones) }]}>👻</Text>
+        </Pressable>
+      ) : null}
     </>
   )
 }
 
 const styles = StyleSheet.create({
+  fantasmaActivo: {
+    borderWidth: 2,
+    borderColor: '#7c3aed',
+  },
   boton: {
     position: 'absolute',
     left: 12,

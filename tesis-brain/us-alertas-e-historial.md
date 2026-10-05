@@ -36,7 +36,9 @@
 | Decisión | Qué se resolvió | Por qué |
 |---|---|---|
 | **Dos ejes de clasificación** | `tipo` es el tema (parada, combustible, desvío, peligro, información) y `origen` dice quién la generó (`lider`, `integrante`, `sistema`) | Distinguir alertas del líder, de un integrante autorizado y del motor |
-| **Solo crear + historial** | RN-042 (pausar / cancelar / resolver) queda fuera | Los criterios de aceptación piden crear, notificar y listar. El enum `EstadoAlerta` ya existe en la tabla para esa US |
+| **Gestión de estado (RN-042)** | `PATCH /api/viajes/{viajeId}/alertas/{alertaId}` con `{ estado }`: `activa → pausada / cancelada / resuelta`, `pausada → activa / cancelada`. Solo el líder, con viaje en curso. Emite `viaje:alerta_actualizada` | El líder necesita cerrar o pausar una alerta manual sin esperar al fin del viaje; el backend valida la transición (RN-030) |
+| **Auto-resolución de alertas del sistema** | Desvío y atraso se resuelven solos cuando el integrante vuelve por debajo de la **mitad** del umbral (histéresis); posible incidente al confirmar "estoy bien"; todas al salir o finalizar | Sin esto, el dedup por `estado = activa` dejaba una sola alerta de desvío por viaje y el líder perdía los desvíos siguientes |
+| **Parada voluntaria ≠ desvío** | El motor no evalúa desvío mientras el integrante tiene una parada voluntaria abierta | Parar en una estación de servicio a 150 m del trazado no es desviarse |
 | **Solo con viaje en curso** | Crear alertas exige `estado = en_curso` | Son coordinación en movimiento; antes de salir el grupo se comunica por otros medios |
 | **Mensajes predeterminados** | Al elegir tipo se prellena un mensaje editable (p. ej. combustible → "Paramos en la próxima estación de servicio") | Acelera la acción en movimiento sin obligar a escribir |
 | **Ubicación opcional** | `lat`/`lng` solo si el autor marca un punto en el mapa; no se adjunta GPS automático | El lugar comunicado es dónde van a parar, no dónde están ahora |
@@ -62,7 +64,7 @@ Alerta
 ├── origen (enum: lider, integrante, sistema)
 ├── mensaje (opcional, máx. 280)
 ├── lat / lng (nullable — punto de parada futuro, opcional)
-├── estado (enum: activa, pausada, cancelada, resuelta — hoy siempre `activa`)
+├── estado (enum: activa, pausada, cancelada, resuelta — nace `activa`; ver RN-042 y auto-resolución)
 ├── created_at
 └── resolved_at (nullable)
 ```
@@ -106,5 +108,4 @@ viaje abre con el mapa del recorrido, con marcadores de inicio y fin.
 
 ## Pendiente relacionado
 
-- RN-042: pausar / cancelar / resolver alertas manuales desde la UI.
 - RN-025: exponer `tolerancia_atraso` configurable por el líder en el viaje (hoy el motor usa defaults por actividad).

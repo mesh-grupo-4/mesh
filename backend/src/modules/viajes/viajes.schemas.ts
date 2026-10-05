@@ -1,6 +1,23 @@
 import { z } from 'zod'
 import { CategoriaParada, GpsSource, TipoActividad } from '@prisma/client'
 import type { GeoJsonLineString, GeoJsonPoint } from '../../lib/geo'
+import { RANGO_PARAMETROS } from './activityDefaults'
+
+/** RN-025: parámetros del grupo que el líder puede ajustar. */
+const velocidadEsperadaSchema = z
+  .number()
+  .min(RANGO_PARAMETROS.velocidadEsperada.min)
+  .max(RANGO_PARAMETROS.velocidadEsperada.max)
+const distanciaMaxSeparacionSchema = z
+  .number()
+  .int()
+  .min(RANGO_PARAMETROS.distanciaMaxSeparacion.min)
+  .max(RANGO_PARAMETROS.distanciaMaxSeparacion.max)
+const toleranciaAtrasoMinSchema = z
+  .number()
+  .int()
+  .min(RANGO_PARAMETROS.toleranciaAtrasoMin.min)
+  .max(RANGO_PARAMETROS.toleranciaAtrasoMin.max)
 
 const pointSchema: z.ZodType<GeoJsonPoint> = z.object({
   type: z.literal('Point'),
@@ -37,9 +54,15 @@ export const createViajeSchema = z
     grupoIds: z.array(z.string().uuid()).optional().default([]),
     amigoIds: z.array(z.string().uuid()).optional().default([]),
     tipoActividad: z.nativeEnum(TipoActividad),
+    /** RN-065 / RN-071: `competitivo` exige viaje grupal y no moto (RN-070); lo valida el servicio. */
+    modo: z.enum(['recreativo', 'entrenamiento', 'competitivo']).optional().default('recreativo'),
     fechaProgramada: fechaProgramadaFuturaSchema,
     /** Opcional: precarga la ruta desde una plantilla propia del creador. */
     rutaPlantillaId: z.string().uuid().optional().nullable(),
+    /** RN-025: si no vienen, el backend aplica los defaults de la actividad (RN-021). */
+    velocidadEsperada: velocidadEsperadaSchema.optional(),
+    distanciaMaxSeparacion: distanciaMaxSeparacionSchema.optional(),
+    toleranciaAtrasoMin: toleranciaAtrasoMinSchema.optional(),
   })
   .superRefine((data, ctx) => {
     const grupoIds = data.grupoIds ?? []
@@ -76,13 +99,20 @@ export const actualizarViajeSchema = z
     alertaIncidenteHabilitada: z.boolean().optional(),
     alertaIncidenteMinutos: z.number().int().min(1).max(30).nullable().optional(),
     alertasSoloLider: z.boolean().optional(),
+    velocidadEsperada: velocidadEsperadaSchema.optional(),
+    distanciaMaxSeparacion: distanciaMaxSeparacionSchema.optional(),
+    /** `null` vuelve al default por actividad. */
+    toleranciaAtrasoMin: toleranciaAtrasoMinSchema.nullable().optional(),
   })
   .superRefine((data, ctx) => {
     const tieneCampo =
       data.fechaProgramada != null ||
       data.alertaIncidenteHabilitada != null ||
       data.alertaIncidenteMinutos !== undefined ||
-      data.alertasSoloLider != null
+      data.alertasSoloLider != null ||
+      data.velocidadEsperada != null ||
+      data.distanciaMaxSeparacion != null ||
+      data.toleranciaAtrasoMin !== undefined
     if (!tieneCampo) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -126,6 +156,18 @@ export const postPosicionesSchema = z.object({
   source: z.nativeEnum(GpsSource),
   posiciones: z.array(posicionEntradaSchema).min(1).max(2000),
 })
+
+export const fantasmaQuerySchema = z
+  .object({
+    viajeRef: z.string().uuid().optional(),
+    usuarioRef: z.string().uuid().optional(),
+    plantillaId: z.string().uuid().optional(),
+  })
+  .refine((q) => Boolean(q.plantillaId) !== Boolean(q.viajeRef), {
+    message: 'Indicá viajeRef (y opcionalmente usuarioRef) o plantillaId, no ambos',
+  })
+
+export type FantasmaQuery = z.infer<typeof fantasmaQuerySchema>
 
 export type PostPosicionesInput = z.infer<typeof postPosicionesSchema>
 

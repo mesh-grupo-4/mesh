@@ -25,6 +25,7 @@ export type ViajePlanificadoApi = {
   creador_id: string
   es_grupal: boolean
   tipo_actividad: TipoActividadApi
+  modo?: ModoViajeApi
   velocidad_esperada: number
   distancia_max_separacion: number
   fecha_programada: string
@@ -94,9 +95,10 @@ export async function crearViaje(
     grupoIds?: string[]
     amigoIds?: string[]
     tipoActividad: TipoActividadApi
+    modo?: 'recreativo' | 'entrenamiento' | 'competitivo'
     fechaProgramada: Date
     rutaPlantillaId?: string | null
-  },
+  } & ParametrosViajeInput,
   userId: string,
   baseUrl: string = API_BASE_URL
 ): Promise<ViajeCreadoApi> {
@@ -111,8 +113,13 @@ export async function crearViaje(
       grupoIds: input.grupoIds ?? [],
       amigoIds: input.amigoIds ?? [],
       tipoActividad: input.tipoActividad,
+      modo: input.modo ?? 'recreativo',
       fechaProgramada: input.fechaProgramada.toISOString(),
       rutaPlantillaId: input.rutaPlantillaId ?? undefined,
+      // RN-025: solo viajan si el líder los tocó; si no, el backend aplica los defaults.
+      velocidadEsperada: input.velocidadEsperada,
+      distanciaMaxSeparacion: input.distanciaMaxSeparacion,
+      toleranciaAtrasoMin: input.toleranciaAtrasoMin ?? undefined,
     }),
   })
   return parseJson<ViajeCreadoApi>(res)
@@ -215,14 +222,21 @@ export async function unirseViajePorQr(
   return parseJson<UnirseQrViajeResponse>(res)
 }
 
+/** Modo del viaje: recreativo (RN-072), entrenamiento (RN-065) o competitivo (RN-071). */
+export type ModoViajeApi = 'recreativo' | 'competitivo' | 'entrenamiento'
+
 export type ViajeDetalleApi = {
   id: string
   creador_id: string
   nombre?: string | null
   es_grupal: boolean
   tipo_actividad: string
+  modo: ModoViajeApi
   velocidad_esperada: number
   distancia_max_separacion: number
+  /** RN-025: null = default por actividad. */
+  tolerancia_atraso_min: number | null
+  tolerancia_atraso_min_efectivo: number
   alerta_incidente_habilitada: boolean
   alerta_incidente_minutos: number | null
   alerta_incidente_minutos_efectivo: number
@@ -255,6 +269,17 @@ export type ViajeActualizadoApi = {
   alerta_incidente_minutos: number | null
   alerta_incidente_minutos_efectivo: number
   alertas_solo_lider: boolean
+  velocidad_esperada: number
+  distancia_max_separacion: number
+  tolerancia_atraso_min: number | null
+  tolerancia_atraso_min_efectivo: number
+}
+
+/** RN-025: parámetros del grupo que el líder puede ajustar. */
+export type ParametrosViajeInput = {
+  velocidadEsperada?: number
+  distanciaMaxSeparacion?: number
+  toleranciaAtrasoMin?: number | null
 }
 
 export async function actualizarFechaViaje(
@@ -274,10 +299,13 @@ export async function actualizarViaje(
     alertaIncidenteHabilitada?: boolean
     alertaIncidenteMinutos?: number | null
     alertasSoloLider?: boolean
-  },
+  } & ParametrosViajeInput,
   baseUrl: string = API_BASE_URL
 ): Promise<ViajeActualizadoApi> {
   const body: Record<string, unknown> = {}
+  if (input.velocidadEsperada != null) body.velocidadEsperada = input.velocidadEsperada
+  if (input.distanciaMaxSeparacion != null) body.distanciaMaxSeparacion = input.distanciaMaxSeparacion
+  if (input.toleranciaAtrasoMin !== undefined) body.toleranciaAtrasoMin = input.toleranciaAtrasoMin
   if (input.fechaProgramada != null) {
     body.fechaProgramada = input.fechaProgramada.toISOString()
   }
@@ -445,11 +473,42 @@ export type PerfilVelocidadPuntoApi = {
   velocidad_kmh: number
 }
 
+export type SplitKmApi = {
+  km: number
+  metros: number
+  segundos: number
+  pace_min_km: number | null
+}
+
+export type SesionEntrenamientoApi = {
+  viaje_id: string
+  nombre: string | null
+  fecha_fin_real: string | null
+  distancia_m: number
+  tiempo_movimiento_seg: number
+  velocidad_promedio_kmh: number | null
+  pace_min_km: number | null
+}
+
+/** RN-065: comparación de la sesión con las anteriores del mismo usuario y actividad. */
+export type EntrenamientoApi = {
+  numero_sesion: number
+  total_sesiones: number
+  mejor_pace_min_km: number | null
+  es_mejor_pace: boolean
+  mejor_distancia_m: number | null
+  es_mejor_distancia: boolean
+  delta_distancia_m: number | null
+  delta_pace_min_km: number | null
+  evolucion: SesionEntrenamientoApi[]
+}
+
 export type MetricasIndividualesApi = {
   viaje: {
     id: string
     nombre: string | null
     tipo_actividad: TipoActividadApi
+    modo: ModoViajeApi
     es_grupal: boolean
     fecha_inicio_real: string | null
     fecha_fin_real: string | null
@@ -466,6 +525,8 @@ export type MetricasIndividualesApi = {
     cantidad_paradas: number
   }
   perfil_velocidad: PerfilVelocidadPuntoApi[]
+  splits_km: SplitKmApi[]
+  entrenamiento: EntrenamientoApi | null
 }
 
 export async function obtenerMetricasIndividuales(
@@ -585,3 +646,27 @@ export async function listarUbicacionesVivas(
   return parseJson<UbicacionVivaSnapshotApi[]>(res)
 }
 
+
+/** RN-071: fila del leaderboard en vivo (espejo de `FilaLeaderboard` del spec). */
+export type FilaLeaderboardApi = {
+  usuarioId: string
+  nombre: string
+  progresoM: number
+  lat: number
+  lng: number
+  actualizadoEn: string
+  puesto: number
+  deltaM: number
+  gapSeg: number
+}
+
+export type LeaderboardApi = {
+  viaje_id: string
+  filas: FilaLeaderboardApi[]
+  generado_en: string
+}
+
+export async function obtenerLeaderboard(viajeId: string): Promise<LeaderboardApi> {
+  const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}/leaderboard`))
+  return parseJson<LeaderboardApi>(res)
+}

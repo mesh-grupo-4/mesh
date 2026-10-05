@@ -66,10 +66,20 @@ export function dequeueGpsSample(id: number): void {
   d.runSync('DELETE FROM pending_gps WHERE id = ?', id)
 }
 
+/**
+ * Margen para que el envío en vivo (PUT/socket) termine y borre su fila antes de
+ * que el flush la considere "pendiente". Sin esto, cada flush reenviaba como
+ * `offline_sync` los últimos pings que todavía estaban en vuelo.
+ */
+const EDAD_MINIMA_PARA_FLUSH_MS = 20_000
+
 /** Envía lotes `offline_sync` al backend y borra filas confirmadas (RN-038). */
 export async function flushGpsQueue(baseUrl: string = API_BASE_URL): Promise<void> {
   const d = openDb()
-  const rows = d.getAllSync<PendingGpsRow>('SELECT * FROM pending_gps ORDER BY id ASC LIMIT 500')
+  const rows = d.getAllSync<PendingGpsRow>(
+    'SELECT * FROM pending_gps WHERE ts <= ? ORDER BY ts ASC, id ASC LIMIT 500',
+    Date.now() - EDAD_MINIMA_PARA_FLUSH_MS
+  )
   if (!rows.length) return
 
   const groups = new Map<string, PendingGpsRow[]>()

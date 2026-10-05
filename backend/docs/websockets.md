@@ -157,6 +157,10 @@ Emitido por `ViajesService.finalizar()`.
 Se emite **antes** de calcular el resumen: el cierre del viaje no espera al agregado de
 métricas. Los integrantes confirmados reciben además una notificación push.
 
+Tras emitirlo, el backend cierra todo lo que solo tiene sentido en curso: pone `fin` a las
+paradas abiertas, resuelve las alertas `activa`/`pausada` (una `viaje:alerta_actualizada`
+por cada una) y borra las filas de `ubicacion_viva` del viaje.
+
 ### `viaje:ubicacion`
 
 Posición de un integrante. Es lo que mueve los marcadores del mapa grupal.
@@ -175,9 +179,22 @@ Posición de un integrante. Es lo que mueve los marcadores del mapa grupal.
 
 Se dispara desde `upsertUbicacionVivaSnapshot`, así que sale por igual venga la posición
 del socket (`viaje:gps_ping`) o de cualquiera de los dos endpoints REST de GPS.
+`recordedAt` es el instante de la lectura en el dispositivo y `source` dice por dónde
+llegó: un lote `offline_sync` solo se publica si su posición más nueva es posterior a la
+última ya conocida del integrante (así el marcador nunca retrocede al sincronizar), y
+solo esa posición pasa por el motor de eventos. Un ping por debajo de la precisión mínima
+de la modalidad (RN-021) se persiste pero no se emite si ya había una posición mejor.
 
 > **RN-032:** la latencia máxima tolerada entre la lectura y su aparición en el mapa es de
 > 10 segundos.
+
+### Reconexión
+
+Socket.io reconecta solo, pero **las salas no sobreviven a la reconexión**: el servidor
+crea un socket nuevo y el cliente tiene que volver a emitir `join_viaje` por cada viaje
+que le interesa. El frontend (`frontend/lib/meshSocket.ts`) recuerda las salas pedidas y
+las re-suscribe en cada `connect`; los hooks del mapa además refrescan por REST al
+reconectar para cubrir lo que se perdió mientras tanto.
 
 ### `viaje:participante_salio`
 
@@ -192,6 +209,32 @@ Emitido por `ViajesService.salirViaje()`, y **solo si el viaje está en curso**.
 
 La persona pasa a estado `salido` y deja de publicar ubicación, pero conserva su fila para
 seguir figurando en el resumen con lo que recorrió. El viaje **no** se cierra para el resto.
+Al salir se cierra su parada abierta (si tenía), se resuelven sus alertas del sistema
+(con `viaje:alerta_actualizada`) y se borra su `ubicacion_viva`: deja de aparecer en el
+mapa también para quien rehidrata por `GET /ubicaciones-vivas`.
+
+### `viaje:ubicacion_oculta`
+
+Emitido por `PrivacidadService` cuando alguien apaga el compartir ubicación en un viaje
+(`PUT /api/viajes/:viajeId/privacidad`) o revoca el consentimiento de geolocalización
+(`PUT /api/usuarios/me/privacidad`, que lo emite en cada viaje donde tuviera posición
+publicada).
+
+```jsonc
+{
+  "viajeId": "3f2c9a10-...",
+  "usuarioId": "9d8c7b6a-..."
+}
+```
+
+El cliente tiene que **sacar el marcador**, igual que con `viaje:participante_salio`.
+Dejar el último marcador congelado seguiría revelando dónde estaba la persona al apagar
+el compartir, que es justo lo que se quiso evitar (RN-111).
+
+Del lado del servidor se borra la fila de `ubicacion_viva`, así que quien rehidrate por
+`GET /ubicaciones-vivas` tampoco la recibe. A partir de ahí los pings de esa persona se
+siguen guardando en `registro_gps` (RN-038) pero no se publican ni pasan por el motor de
+eventos.
 
 ### `viaje:alerta`
 
@@ -228,13 +271,58 @@ Las alertas del sistema incluyen el prefijo interno `[afectado:{usuarioId}]` en
 `tipo: "peligro"`, `origen: "integrante"`, con la ubicación del incidente y el mismo
 prefijo `[afectado:{usuarioId}]`.
 
+Mientras un integrante tiene una alerta `activa` de un tipo, el motor no genera otra del
+mismo tipo para él. Una parada voluntaria fuera del trazado no cuenta como desvío.
+
 ### `viaje:alerta_actualizada`
 
-Emitido cuando cambia el estado de una alerta ya publicada. Hoy lo usa el pedido de
-ayuda de RN-036: pasa a `cancelada` al deshacer "Estoy mal" (`deshacerEstoyMal()`) y a
-`resuelta` si luego el integrante confirma "Estoy bien". Mismo payload que
-`viaje:alerta`; el frontend reemplaza la alerta por `id` y la saca de los banners si
-dejó de estar `activa`.
+Cambio de estado de una alerta ya emitida. Lo disparan:
+
+- `PATCH /api/viajes/{viajeId}/alertas/{alertaId}` (RN-042): el líder pausa, reactiva,
+  cancela o resuelve una alerta.
+- `MotorEventosService`: resolución automática de `desvio` cuando el integrante vuelve a
+  menos de la **mitad** del umbral de separación, y de `atraso` cuando su atraso baja de la
+  mitad de la tolerancia (histéresis para no oscilar en el borde).
+- `ParadasService.confirmarEstoyBien()`: resuelve las alertas del sistema del integrante y,
+  si había pedido ayuda (RN-036), también esa alerta de `peligro`.
+- `ParadasService.deshacerEstoyMal()`: cancela el pedido de ayuda de RN-036.
+- `ViajesService.salirViaje()` y `finalizar()`: resuelven las que quedaban abiertas.
+
+```jsonc
+{
+  "viajeId": "3f2c9a10-...",
+  "alertaId": "7e8f90a1-...",
+  "estado": "resuelta", // activa | pausada | cancelada | resuelta
+  "resolvedAt": "2026-09-01T13:20:00.000Z" // null si vuelve a activa o queda pausada
+}
+```
+
+En el frontend actualiza el historial, saca la alerta del mapa si dejó de estar `activa`
+y cierra su banner si todavía estaba en pantalla.
+
+### `viaje:leaderboard`
+
+RN-071 (modo competitivo): clasificación en vivo. La emite `MotorEventosService` con cada
+ping GPS de un viaje `competitivo` (nunca en moto, RN-070), como máximo una vez cada 3 s
+por viaje, a partir del progreso sobre la ruta que ya tiene cacheado de cada integrante.
+La foto inicial se carga con `GET /api/viajes/{viajeId}/leaderboard`.
+
+```jsonc
+{
+  "viajeId": "3f2c9a10-...",
+  "generadoEn": "2026-09-01T13:20:00.000Z",
+  "filas": [
+    { "usuarioId": "9d8c...", "nombre": "Ana Pérez", "progresoM": 5420, "lat": -31.41, "lng": -64.18,
+      "actualizadoEn": "2026-09-01T13:19:58.000Z", "puesto": 1, "deltaM": 0, "gapSeg": 0 },
+    { "usuarioId": "7e8f...", "nombre": "Juan Gómez", "progresoM": 5100, "lat": -31.412, "lng": -64.183,
+      "actualizadoEn": "2026-09-01T13:19:57.000Z", "puesto": 2, "deltaM": 320, "gapSeg": 32.9 }
+  ]
+}
+```
+
+`deltaM` son los metros detrás del líder y `gapSeg` ese mismo atraso expresado en segundos
+a la velocidad esperada del viaje. El ghost tracking (RN-073) **no** usa sockets: el cliente
+descarga la traza histórica por REST y la anima localmente.
 
 ### Paradas voluntarias e incidentes (`paradas.service.ts`, `motorEventos.service.ts`)
 
@@ -276,8 +364,10 @@ Para paradas voluntarias, `estado` es `detenido_voluntario`. El frontend en `liv
 | `viaje:finalizado` | servidor → sala | — | solo el creador la dispara |
 | `viaje:ubicacion` | servidor → sala | — | — |
 | `viaje:participante_salio` | servidor → sala | — | — |
+| `viaje:ubicacion_oculta` | servidor → sala | — | solo la propia persona la dispara |
 | `viaje:alerta` | servidor → sala | — | — |
 | `viaje:alerta_actualizada` | servidor → sala | — | — |
+| `viaje:leaderboard` | servidor → sala | — | solo viajes `competitivo` |
 | `viaje:parada_iniciada` | servidor → sala | — | — |
 | `viaje:parada_finalizada` | servidor → sala | — | — |
 | `viaje:solicitud_parada` | servidor → sala | — | — |
@@ -288,3 +378,9 @@ Para paradas voluntarias, `estado` es `detenido_voluntario`. El frontend en `liv
 RN-033: el objetivo es soportar entre 150 y 200 usuarios concurrentes por viaje. Con un ping
 cada 5 s (RN-031), eso son unos 40 eventos por segundo por viaje, cada uno con una escritura
 en `registro_gps` y un upsert en `ubicacion_viva`.
+
+El motor de eventos es **una sola instancia por proceso** (`obtenerMotorEventos`), porque
+guarda en memoria el estado de detención y el último progreso en ruta de cada integrante.
+Cada ping calcula con PostGIS solo su propio progreso y compara contra el de los demás
+cacheado (vigente 30 s); antes recalculaba el de todo el grupo en cada ping (N² consultas
+por ciclo).

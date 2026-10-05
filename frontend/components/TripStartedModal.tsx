@@ -1,5 +1,6 @@
-import { Modal, StyleSheet, Text, View } from 'react-native'
+import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native'
 
+import { AvisoUbicacion } from '@/components/AvisoUbicacion'
 import { Btn, useTheme } from '@/components/MeshUI'
 import type { TripStartedPayload } from '@/lib/tripBroadcast'
 
@@ -28,8 +29,14 @@ export function TripStartedModal({ visible, trip, joining, onJoin }: Props) {
             ¡El viaje {nombreViaje} ha comenzado! El líder ha iniciado la ruta. ¿Estás listo para unirte?
           </Text>
 
+          {/* RN-110: unirse enciende el tracking, así que este también es un punto
+              de consentimiento y tiene que explicar el uso antes de pedir el permiso. */}
+          <ScrollView style={styles.aviso} contentContainerStyle={styles.avisoContenido}>
+            <AvisoUbicacion />
+          </ScrollView>
+
           <Btn variant="primary" block onPress={onJoin} loading={joining} disabled={joining}>
-            Unirme al recorrido
+            Acepto y me uno al recorrido
           </Btn>
         </View>
       </View>
@@ -71,5 +78,13 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     textAlign: 'center',
+  },
+  // Con tipografía grande (RN-052) los cuatro puntos del aviso no entran en
+  // pantallas chicas: el scroll evita que el botón de unirse quede fuera de vista.
+  aviso: {
+    maxHeight: 220,
+  },
+  avisoContenido: {
+    paddingVertical: 4,
   },
 })

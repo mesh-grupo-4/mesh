@@ -31,6 +31,44 @@ export async function crearAlerta(
   return parseJson<AlertaApi>(res)
 }
 
+export type EstadoAlertaApi = AlertaApi['estado']
+
+/** RN-042: pausar / reactivar / cancelar / resolver. Solo el líder, viaje en curso. */
+export async function cambiarEstadoAlerta(
+  viajeId: string,
+  alertaId: string,
+  estado: EstadoAlertaApi
+): Promise<AlertaApi> {
+  const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}/alertas/${alertaId}`), {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ estado }),
+  })
+  return parseJson<AlertaApi>(res)
+}
+
+/** Transiciones que el líder puede pedir desde la UI (espejo de `alertas.service.ts`). */
+export const TRANSICIONES_ALERTA: Record<EstadoAlertaApi, EstadoAlertaApi[]> = {
+  activa: ['pausada', 'resuelta', 'cancelada'],
+  pausada: ['activa', 'cancelada'],
+  cancelada: [],
+  resuelta: [],
+}
+
+export const ETIQUETA_ESTADO_ALERTA: Record<EstadoAlertaApi, string> = {
+  activa: 'Activa',
+  pausada: 'Pausada',
+  cancelada: 'Cancelada',
+  resuelta: 'Resuelta',
+}
+
+export const ACCION_ESTADO_ALERTA: Record<EstadoAlertaApi, string> = {
+  activa: 'Reactivar',
+  pausada: 'Pausar',
+  cancelada: 'Cancelar',
+  resuelta: 'Resolver',
+}
+
 /** Historial del viaje, más reciente primero. */
 export async function listarAlertas(viajeId: string): Promise<AlertaApi[]> {
   const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}/alertas`))

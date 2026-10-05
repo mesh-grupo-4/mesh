@@ -17,7 +17,10 @@ export type RouteWaypoint = {
   order: number
 }
 
-export function waypointTieneCoords(w: RouteWaypoint): w is RouteWaypoint & { lat: number; lon: number } {
+/** Acepta también waypoints sin `id` (los que arma `waypointsFromRutaDetalle`). */
+export function waypointTieneCoords<W extends Pick<RouteWaypoint, 'lat' | 'lon'>>(
+  w: W
+): w is W & { lat: number; lon: number } {
   return w.lat != null && w.lon != null && !Number.isNaN(w.lat) && !Number.isNaN(w.lon)
 }
 

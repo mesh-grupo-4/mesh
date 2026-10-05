@@ -1,0 +1,267 @@
+# Módulo Privacidad — src/modules/privacidad/
+# Router: privacidad.router.ts (se monta sobre usuarios y sobre viajes)
+# Controller: privacidad.controller.ts
+
+PrivacidadUsuario:
+  get:
+    operationId: getPrivacidadUsuario
+    summary: Obtener mi configuración de privacidad de ubicación
+    description: |
+      Consentimiento informado de geolocalización (RN-110) y valor por defecto con el
+      que arranca el compartir en cada viaje nuevo (RN-111).
+
+      La app usa `consentimiento_vigente` para decidir si tiene que volver a mostrar el
+      texto: queda en `false` cuando se publica una versión nueva, aunque la persona ya
+      lo hubiera aceptado antes.
+    tags:
+      - Privacidad
+    responses:
+      '200':
+        description: Configuración de privacidad del usuario autenticado.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/PrivacidadUsuario'
+            example:
+              comparte_ubicacion_default: true
+              consentimiento_otorgado: true
+              consentimiento_vigente: true
+              consentimiento_at: '2026-09-15T13:00:00.000Z'
+              consentimiento_version: '2026-09-15'
+              version_vigente: '2026-09-15'
+              ventana_registro_accesos_min: 10
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+  put:
+    operationId: actualizarPrivacidadUsuario
+    summary: Otorgar o revocar el consentimiento y fijar el default
+    description: |
+      Registra el consentimiento informado de geolocalización con la versión vigente,
+      lo revoca, o cambia el valor por defecto del compartir.
+
+      **Revocar tiene efecto inmediato (RN-113):** además de dejar de publicar, borra
+      las posiciones vivas ya publicadas en todos los viajes y emite
+      `viaje:ubicacion_oculta` a cada sala, para que ningún mapa abierto quede mostrando
+      el último marcador congelado.
+
+      Sin consentimiento vigente no se publica ubicación aunque el interruptor del viaje
+      esté encendido: los registros GPS se siguen guardando para la traza y las métricas
+      propias (RN-038), pero nadie más los ve.
+    tags:
+      - Privacidad
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/PrivacidadUsuarioRequest'
+          example:
+            consentimiento_ubicacion: true
+            comparte_ubicacion_default: true
+    responses:
+      '200':
+        description: Configuración actualizada.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/PrivacidadUsuario'
+            example:
+              comparte_ubicacion_default: true
+              consentimiento_otorgado: true
+              consentimiento_vigente: true
+              consentimiento_at: '2026-09-15T13:00:00.000Z'
+              consentimiento_version: '2026-09-15'
+              version_vigente: '2026-09-15'
+              ventana_registro_accesos_min: 10
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+AccesosUbicacionUsuario:
+  get:
+    operationId: listarMisAccesosUbicacion
+    summary: Ver quiénes accedieron a mi posición
+    description: |
+      RN-112: historial de accesos a la posición propia, en todos los viajes, ordenado
+      por acceso más reciente. Hasta 200 entradas.
+
+      Es un agregado por (viaje, observador), no un log por lectura: `veces` cuenta
+      ventanas de acceso de `ventana_registro_accesos_min` minutos. Un log por consulta
+      HTTP sería inviable con 150–200 integrantes por viaje (RN-033) y además ilegible.
+    tags:
+      - Privacidad
+    responses:
+      '200':
+        description: Accesos registrados, del más reciente al más viejo.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/AccesoUbicacionGlobal'
+            example:
+              - viaje_id: 3f2a1c4e-5b6d-4e7f-8a9b-0c1d2e3f4a5b
+                viaje_nombre: Salida a Los Gigantes
+                viaje_fecha: '2026-09-15T12:00:00.000Z'
+                observador_id: 8f14e45f-ceea-4c1e-9b1a-3d5c7a2e6b04
+                observador_nombre: Martina Gómez
+                primera_vez: '2026-09-15T13:05:00.000Z'
+                ultima_vez: '2026-09-15T14:20:00.000Z'
+                veces: 8
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+PrivacidadViaje:
+  get:
+    operationId: getPrivacidadViaje
+    summary: Ver si comparto mi ubicación en este viaje
+    description: |
+      RN-111: estado del interruptor de compartir ubicación para este viaje.
+
+      Distingue la elección (`comparte_ubicacion`, `null` si nunca se tocó y vale el
+      default del perfil) de lo que efectivamente ocurre (`comparte_efectivo`), que
+      puede ser `false` por falta de consentimiento aunque el interruptor esté en `true`.
+    tags:
+      - Privacidad
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '200':
+        description: Preferencia de privacidad del usuario en este viaje.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/PrivacidadViaje'
+            example:
+              viaje_id: 3f2a1c4e-5b6d-4e7f-8a9b-0c1d2e3f4a5b
+              comparte_ubicacion: true
+              comparte_efectivo: true
+              consentimiento_otorgado: true
+              actualizado_en: '2026-09-15T13:10:00.000Z'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: El usuario no participa del viaje (`FORBIDDEN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Sin acceso a este viaje
+              code: FORBIDDEN
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+  put:
+    operationId: actualizarPrivacidadViaje
+    summary: Activar o desactivar compartir ubicación en este viaje
+    description: |
+      RN-111. Apagarlo surte efecto de inmediato: se borra la posición viva ya publicada
+      y se emite `viaje:ubicacion_oculta` a la sala `viaje:<id>`, para que el mapa del
+      resto saque el marcador en vez de dejarlo congelado donde la persona estaba.
+
+      Mientras está apagado, los pings se siguen guardando en `registro_gps` (RN-038:
+      cero pérdida — son datos propios y alimentan las métricas personales), pero no se
+      publican al grupo, no aparecen en el mapa ni en el leaderboard, y el motor de
+      eventos deja de evaluar a esa persona: no generaría alertas de desvío ni de
+      posible incidente, que incluyen la ubicación exacta (RN-043).
+
+      La decisión es de cada persona: ni el líder ni nadie más puede cambiarla.
+    tags:
+      - Privacidad
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/PrivacidadViajeRequest'
+          example:
+            comparte_ubicacion: false
+    responses:
+      '200':
+        description: Preferencia actualizada.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/PrivacidadViaje'
+            example:
+              viaje_id: 3f2a1c4e-5b6d-4e7f-8a9b-0c1d2e3f4a5b
+              comparte_ubicacion: false
+              comparte_efectivo: false
+              consentimiento_otorgado: true
+              actualizado_en: '2026-09-15T14:30:00.000Z'
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: El usuario no participa del viaje (`FORBIDDEN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Sin acceso a este viaje
+              code: FORBIDDEN
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+AccesosUbicacionViaje:
+  get:
+    operationId: listarAccesosUbicacionViaje
+    summary: Ver quiénes accedieron a mi posición en este viaje
+    description: |
+      RN-112, acotado a un viaje. Mismo agregado que
+      `GET /api/usuarios/me/accesos-ubicacion`, sin los datos del viaje (ya se conocen).
+    tags:
+      - Privacidad
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '200':
+        description: Accesos a la posición propia dentro de este viaje.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/AccesoUbicacion'
+            example:
+              - observador_id: 8f14e45f-ceea-4c1e-9b1a-3d5c7a2e6b04
+                observador_nombre: Martina Gómez
+                primera_vez: '2026-09-15T13:05:00.000Z'
+                ultima_vez: '2026-09-15T14:20:00.000Z'
+                veces: 8
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: El usuario no participa del viaje (`FORBIDDEN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Sin acceso a este viaje
+              code: FORBIDDEN
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'

@@ -1,7 +1,24 @@
 import type { PrismaClient } from '@prisma/client'
 import { HttpError } from '../../lib/httpError'
 import { getIo } from '../../realtime/ioRegistry'
-import type { CrearAlertaInput, TipoAlerta } from './alertas.schemas'
+import type {
+  CambiarEstadoAlertaInput,
+  CrearAlertaInput,
+  EstadoAlerta,
+  TipoAlerta,
+} from './alertas.schemas'
+
+/**
+ * Máquina de estados de una alerta (RN-042):
+ *   activa → pausada | cancelada | resuelta
+ *   pausada → activa | cancelada
+ */
+const TRANSICIONES: Record<EstadoAlerta, EstadoAlerta[]> = {
+  activa: ['pausada', 'cancelada', 'resuelta'],
+  pausada: ['activa', 'cancelada'],
+  cancelada: [],
+  resuelta: [],
+}
 
 /** Título del push por tema (RN-040). */
 const TITULO_POR_TIPO: Record<TipoAlerta, string> = {
@@ -103,6 +120,57 @@ export class AlertasService {
     return mapeada
   }
 
+  /**
+   * RN-042 / RN-030: solo el líder cambia el estado de una alerta, y solo con el
+   * viaje en curso (al finalizar, el backend resuelve todas las abiertas).
+   */
+  async cambiarEstado(
+    usuarioId: string,
+    viajeId: string,
+    alertaId: string,
+    input: CambiarEstadoAlertaInput
+  ) {
+    const viaje = await this.prisma.viaje.findUnique({
+      where: { id: viajeId },
+      select: { creador_id: true, estado: true },
+    })
+    if (!viaje) {
+      throw new HttpError(404, 'Viaje no encontrado', 'VIAJE_NOT_FOUND')
+    }
+    if (viaje.creador_id !== usuarioId) {
+      throw new HttpError(403, 'Solo el líder puede gestionar las alertas', 'FORBIDDEN')
+    }
+    if (viaje.estado !== 'en_curso') {
+      throw new HttpError(409, 'El viaje no está en curso', 'INVALID_STATE')
+    }
+
+    const actual = await this.prisma.alerta.findFirst({
+      where: { id: alertaId, viaje_id: viajeId },
+      select: { estado: true },
+    })
+    if (!actual) {
+      throw new HttpError(404, 'Alerta no encontrada', 'ALERTA_NOT_FOUND')
+    }
+    if (!TRANSICIONES[actual.estado].includes(input.estado)) {
+      throw new HttpError(
+        409,
+        `Una alerta ${actual.estado} no puede pasar a ${input.estado}`,
+        'INVALID_TRANSITION'
+      )
+    }
+
+    const cerrada = input.estado === 'cancelada' || input.estado === 'resuelta'
+    const alerta = await this.prisma.alerta.update({
+      where: { id: alertaId },
+      data: { estado: input.estado, resolved_at: cerrada ? new Date() : null },
+      include: { creada_por: { select: { nombre: true, apellido: true } } },
+    })
+
+    const mapeada = this.mapAlerta(alerta)
+    this.emitirActualizacion(viajeId, mapeada.id, mapeada.estado, alerta.resolved_at)
+    return mapeada
+  }
+
   /** Historial completo del viaje, más reciente primero. */
   async listar(usuarioId: string, viajeId: string) {
     await this.assertPuedeVerAlertas(viajeId, usuarioId)
@@ -152,6 +220,24 @@ export class AlertasService {
     }
   }
 
+  private emitirActualizacion(
+    viajeId: string,
+    alertaId: string,
+    estado: string,
+    resolvedAt: Date | null
+  ): void {
+    try {
+      getIo().to(`viaje:${viajeId}`).emit('viaje:alerta_actualizada', {
+        viajeId,
+        alertaId,
+        estado,
+        resolvedAt: resolvedAt ? resolvedAt.toISOString() : null,
+      })
+    } catch (e) {
+      console.warn('[alertas] No se pudo emitir viaje:alerta_actualizada:', e)
+    }
+  }
+
   /** RN-040: push a todos los integrantes del viaje, salvo quien la creó. */
   private async notificar(
     viajeId: string,
@@ -160,12 +246,23 @@ export class AlertasService {
     mensaje: string | null
   ): Promise<void> {
     try {
-      const integrantes = await this.prisma.viajeIntegrante.findMany({
-        where: { viaje_id: viajeId, estado: 'confirmado' },
-        select: { usuario: { select: { id: true, push_token: true } } },
-      })
+      const [integrantes, viaje] = await Promise.all([
+        this.prisma.viajeIntegrante.findMany({
+          where: { viaje_id: viajeId, estado: 'confirmado' },
+          select: { usuario: { select: { id: true, push_token: true } } },
+        }),
+        // El creador de un viaje legacy puede no tener fila en viaje_integrante:
+        // una alerta de un integrante tiene que llegarle igual al líder.
+        this.prisma.viaje.findUnique({
+          where: { id: viajeId },
+          select: { creador_id: true, creador: { select: { push_token: true } } },
+        }),
+      ])
 
       const destinos = new Map<string, string>()
+      if (viaje?.creador?.push_token && viaje.creador_id !== autorId) {
+        destinos.set(viaje.creador_id, viaje.creador.push_token)
+      }
       for (const i of integrantes) {
         if (i.usuario.id !== autorId && i.usuario.push_token) {
           destinos.set(i.usuario.id, i.usuario.push_token)

@@ -21,16 +21,19 @@ import {
   crearViaje,
   listarViajesPlanificados,
   listarViajesFinalizados,
+  type ParametrosViajeInput,
   type TipoActividadApi,
 } from '@/lib/viajesApi'
 import { ajustarSiQuedoEnPasado, esFechaFutura } from '@/lib/fechaProgramada'
 import { aCamposArg, ahoraEnCamposArg, desdeCamposArg, formatearEnArg } from '@/lib/tiempoArg'
 import {
   ACTIVIDADES,
+  RANGO_PARAMETROS,
   actividadInicialDesdePerfil,
+  parametrosPorActividad,
   textoParametrosActividad,
 } from '@/lib/activityDefaults'
-import { Btn, ActivityTile, useTheme } from '@/components/MeshUI'
+import { Btn, ActivityTile, Field, useTheme } from '@/components/MeshUI'
 import { Collapsible } from '@/components/Collapsible'
 
 const MSG_FECHA_PASADA = 'La fecha y hora programadas deben ser futuras.'
@@ -80,6 +83,13 @@ export default function CrearViajeScreen() {
     tipoDesdePlantilla ?? actividadInicialDesdePerfil(profile?.actividadPreferida)
   )
   const [esGrupal, setEsGrupal] = useState(true)
+  // RN-065: entrenamiento muestra ritmo en vivo y métricas de sesión al cerrar.
+  const [modo, setModo] = useState<'recreativo' | 'entrenamiento' | 'competitivo'>('recreativo')
+  // RN-071 / RN-070: competir exige grupo y nunca moto.
+  const puedeCompetir = esGrupal && tipoActividad !== 'moto'
+  useEffect(() => {
+    if (!puedeCompetir && modo === 'competitivo') setModo('recreativo')
+  }, [puedeCompetir, modo])
   const [gruposSeleccionados, setGruposSeleccionados] = useState<Set<string>>(new Set())
   const [amigosSeleccionados, setAmigosSeleccionados] = useState<Set<string>>(new Set())
   const [fecha, setFecha] = useState<Date>(fechaPorDefecto)
@@ -88,6 +98,14 @@ export default function CrearViajeScreen() {
   const [guardando, setGuardando] = useState(false)
   // Con plantilla ya hay una ruta precargada: se va directo a revisarla/ajustarla.
   const [conRecorrido, setConRecorrido] = useState(() => Boolean(plantillaId))
+  // RN-025: overrides del líder sobre los defaults de la actividad. Como texto,
+  // para que el usuario pueda borrar y reescribir; se valida al crear.
+  const [paramsEdit, setParamsEdit] = useState<{
+    velocidad: string
+    separacion: string
+    tolerancia: string
+  } | null>(null)
+  const defaultsActividad = parametrosPorActividad(tipoActividad)
 
   const nombrePorDefectoAplicado = useRef(false)
 
@@ -203,9 +221,38 @@ export default function CrearViajeScreen() {
 
   const fechaInvalida = !esFechaFutura(fecha)
 
+  /** RN-025: solo viaja lo que el líder cambió respecto del default; el resto lo pone el backend. */
+  const resolverParametros = (): ParametrosViajeInput | 'invalido' => {
+    if (!paramsEdit) return {}
+    const leer = (txt: string, rango: { min: number; max: number }, entero: boolean) => {
+      const n = Number(txt.replace(',', '.'))
+      if (!Number.isFinite(n) || n < rango.min || n > rango.max || (entero && !Number.isInteger(n))) return null
+      return n
+    }
+    const velocidad = leer(paramsEdit.velocidad, RANGO_PARAMETROS.velocidadEsperada, false)
+    const separacion = leer(paramsEdit.separacion, RANGO_PARAMETROS.distanciaMaxSeparacion, true)
+    const tolerancia = leer(paramsEdit.tolerancia, RANGO_PARAMETROS.toleranciaAtrasoMin, true)
+    if (velocidad == null || separacion == null || tolerancia == null) return 'invalido'
+    return {
+      velocidadEsperada: velocidad !== defaultsActividad.velocidadEsperada ? velocidad : undefined,
+      distanciaMaxSeparacion:
+        separacion !== defaultsActividad.distanciaMaxSeparacion ? separacion : undefined,
+      toleranciaAtrasoMin: tolerancia !== defaultsActividad.toleranciaAtrasoMin ? tolerancia : undefined,
+    }
+  }
+
   const handleCrear = async () => {
     if (!nombre.trim()) {
       meshAlert('Campo requerido', 'El nombre del viaje es obligatorio.')
+      return
+    }
+
+    const parametros = resolverParametros()
+    if (parametros === 'invalido') {
+      meshAlert(
+        'Parámetros inválidos',
+        `Velocidad ${RANGO_PARAMETROS.velocidadEsperada.min}–${RANGO_PARAMETROS.velocidadEsperada.max} km/h, separación ${RANGO_PARAMETROS.distanciaMaxSeparacion.min}–${RANGO_PARAMETROS.distanciaMaxSeparacion.max} m y tolerancia ${RANGO_PARAMETROS.toleranciaAtrasoMin.min}–${RANGO_PARAMETROS.toleranciaAtrasoMin.max} min.`
+      )
       return
     }
 
@@ -232,8 +279,10 @@ export default function CrearViajeScreen() {
           grupoIds: esGrupal ? [...gruposSeleccionados] : [],
           amigoIds: esGrupal ? [...amigosSeleccionados] : [],
           tipoActividad,
+          modo,
           fechaProgramada: fecha,
           rutaPlantillaId: plantillaId,
+          ...parametros,
         },
         userId
       )
@@ -359,7 +408,11 @@ export default function CrearViajeScreen() {
           return (
             <Pressable
               key={a.id}
-              onPress={() => setTipoActividad(a.id)}
+              onPress={() => {
+                setTipoActividad(a.id)
+                // Cambiar de actividad vuelve a los defaults: los ajustes eran para la otra.
+                setParamsEdit(null)
+              }}
               style={[
                 styles.activityItem,
                 a.id === 'otro' && styles.activityItemFull,
@@ -389,6 +442,59 @@ export default function CrearViajeScreen() {
       <Text style={[styles.paramHint, { color: theme.textDim }]}>
         {textoParametrosActividad(tipoActividad)}
       </Text>
+
+      {/* RN-025 (SCRUM-26): el líder ajusta los parámetros del grupo. */}
+      <Collapsible title="Ajustar parámetros del grupo" icon="sliders">
+        <Text style={[styles.paramHint, { color: theme.textDim, marginTop: 0 }]}>
+          Si los dejás como están, el viaje usa los valores de la actividad.
+        </Text>
+        <Field
+          label="Velocidad esperada (km/h)"
+          leading="trending-up"
+          keyboardType="decimal-pad"
+          value={paramsEdit?.velocidad ?? String(defaultsActividad.velocidadEsperada)}
+          onChangeText={(t) =>
+            setParamsEdit((prev) => ({
+              velocidad: t,
+              separacion: prev?.separacion ?? String(defaultsActividad.distanciaMaxSeparacion),
+              tolerancia: prev?.tolerancia ?? String(defaultsActividad.toleranciaAtrasoMin),
+            }))
+          }
+        />
+        <Field
+          label="Separación máxima del grupo (m)"
+          leading="maximize-2"
+          keyboardType="number-pad"
+          value={paramsEdit?.separacion ?? String(defaultsActividad.distanciaMaxSeparacion)}
+          onChangeText={(t) =>
+            setParamsEdit((prev) => ({
+              velocidad: prev?.velocidad ?? String(defaultsActividad.velocidadEsperada),
+              separacion: t,
+              tolerancia: prev?.tolerancia ?? String(defaultsActividad.toleranciaAtrasoMin),
+            }))
+          }
+        />
+        <Field
+          label="Tolerancia de atraso (min)"
+          leading="clock"
+          keyboardType="number-pad"
+          value={paramsEdit?.tolerancia ?? String(defaultsActividad.toleranciaAtrasoMin)}
+          onChangeText={(t) =>
+            setParamsEdit((prev) => ({
+              velocidad: prev?.velocidad ?? String(defaultsActividad.velocidadEsperada),
+              separacion: prev?.separacion ?? String(defaultsActividad.distanciaMaxSeparacion),
+              tolerancia: t,
+            }))
+          }
+        />
+        {paramsEdit ? (
+          <Pressable onPress={() => setParamsEdit(null)} hitSlop={6}>
+            <Text style={[styles.paramHint, { color: theme.accent, marginTop: 4 }]}>
+              Volver a los valores de la actividad
+            </Text>
+          </Pressable>
+        ) : null}
+      </Collapsible>
 
       <Text style={[styles.seccion, { color: theme.text }]}>Modalidad</Text>
       <View style={styles.filaModalidad}>
@@ -423,6 +529,59 @@ export default function CrearViajeScreen() {
           <Text style={[styles.opcionHint, { color: theme.textDim }]}>Invitar grupos / amigos</Text>
         </Pressable>
       </View>
+
+      {/* RN-065 (SCRUM-48): modo del viaje. Competitivo llega con E07. */}
+      <Text style={[styles.seccion, { color: theme.text }]}>Modo</Text>
+      <View style={styles.filaModalidad}>
+        <Pressable
+          style={[
+            styles.opcionModalidad,
+            { backgroundColor: theme.surface, borderColor: theme.border },
+            modo === 'recreativo' && { borderColor: theme.accentLine, backgroundColor: theme.accentWeak },
+          ]}
+          onPress={() => setModo('recreativo')}
+        >
+          <Text style={[styles.opcionTitulo, { color: modo === 'recreativo' ? theme.accent : theme.text }]}>
+            Recreativo
+          </Text>
+          <Text style={[styles.opcionHint, { color: theme.textDim }]}>Navegación y alertas, sin comparaciones</Text>
+        </Pressable>
+        <Pressable
+          style={[
+            styles.opcionModalidad,
+            { backgroundColor: theme.surface, borderColor: theme.border },
+            modo === 'entrenamiento' && { borderColor: theme.accentLine, backgroundColor: theme.accentWeak },
+          ]}
+          onPress={() => setModo('entrenamiento')}
+        >
+          <Text style={[styles.opcionTitulo, { color: modo === 'entrenamiento' ? theme.accent : theme.text }]}>
+            Entrenamiento
+          </Text>
+          <Text style={[styles.opcionHint, { color: theme.textDim }]}>
+            {tipoActividad === 'moto' ? 'Splits y evolución de tus sesiones' : 'Ritmo en vivo, splits y evolución'}
+          </Text>
+        </Pressable>
+        {puedeCompetir ? (
+          <Pressable
+            style={[
+              styles.opcionModalidad,
+              { backgroundColor: theme.surface, borderColor: theme.border },
+              modo === 'competitivo' && { borderColor: theme.accentLine, backgroundColor: theme.accentWeak },
+            ]}
+            onPress={() => setModo('competitivo')}
+          >
+            <Text style={[styles.opcionTitulo, { color: modo === 'competitivo' ? theme.accent : theme.text }]}>
+              Competitivo
+            </Text>
+            <Text style={[styles.opcionHint, { color: theme.textDim }]}>Clasificación en vivo y recap con puestos</Text>
+          </Pressable>
+        ) : null}
+      </View>
+      {tipoActividad === 'moto' ? (
+        <Text style={[styles.paramHint, { color: theme.textDim }]}>
+          En moto no hay modo competitivo ni comparaciones de velocidad (seguridad vial).
+        </Text>
+      ) : null}
 
       {plantillaId ? null : (
         <>

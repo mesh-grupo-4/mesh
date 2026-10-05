@@ -322,6 +322,26 @@ export default function PerfilScreen() {
           <Feather name="chevron-right" size={20} color={theme.textMute} />
         </Pressable>
 
+        <Pressable
+          style={({ pressed }) => [
+            styles.linkAmigos,
+            {
+              backgroundColor: pressed ? theme.surface2 : theme.surface,
+              borderColor: theme.border,
+              marginTop: 10,
+            },
+          ]}
+          onPress={() => router.push('/privacidad')}
+        >
+          <View style={styles.linkAmigosContent}>
+            <Feather name="shield" size={18} color={theme.accent} style={styles.amigosIcon} />
+            <Text style={[styles.linkAmigosText, { color: theme.text }]}>
+              Privacidad y ubicación
+            </Text>
+          </View>
+          <Feather name="chevron-right" size={20} color={theme.textMute} />
+        </Pressable>
+
         {/* Botones de acción */}
         <View style={styles.actions}>
           {modoEdicion ? (

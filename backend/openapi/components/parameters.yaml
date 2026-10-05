@@ -106,6 +106,16 @@ ChecklistItemId:
     format: uuid
   example: 5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f
 
+AlertaId:
+  name: alertaId
+  in: path
+  required: true
+  description: UUID de la alerta del viaje.
+  schema:
+    type: string
+    format: uuid
+  example: 7e8f90a1-bc2d-4e3f-8a4b-5c6d7e8f90a1
+
 GastoId:
   name: gastoId
   in: path

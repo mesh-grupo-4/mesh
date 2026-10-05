@@ -171,6 +171,11 @@ Solo el líder puede transicionar estos estados (RN-030).
 [pausada] → [cancelada]
 ```
 
+### Privacidad y geolocalización — RN-110 a RN-114
+- **Consentimiento informado** con versión del texto aceptado (RN-110). Sin consentimiento vigente el backend **no publica** la posición, aunque los permisos del sistema estén otorgados. Si cambia el texto de `frontend/components/AvisoUbicacion.tsx`, hay que subir `VERSION_CONSENTIMIENTO_UBICACION`.
+- **Compartir ubicación es por viaje y lo decide cada persona** (RN-111). Con el compartir apagado el GPS se sigue guardando en `registro_gps` (RN-038) pero no se publica, no aparece en mapa ni leaderboard, y el motor de eventos deja de evaluar a esa persona. El punto de control único es `backend/src/modules/privacidad/privacidad.acceso.ts`: cualquier lectura o publicación de posición nueva tiene que pasar por ahí.
+- **Registro de accesos** agregado por (viaje, observado, observador), ventana de 10 min (RN-112). Nunca un log por lectura: con 200 integrantes no escala.
+
 ### Autenticación
 - Email único por usuario (RN-001).
 - Contraseña mínimo 8 caracteres (RN-003).
@@ -359,6 +364,7 @@ Antes de generar o modificar código, verificar:
 - [ ] ¿Uso PostGIS para cálculos espaciales en lugar de JS?
 - [ ] ¿Los tipos espaciales son POINT/LINESTRING de PostGIS?
 - [ ] ¿Toda fecha/hora mostrada pasa por `lib/tiempoArg.ts` (UTC-3, RN-105)?
+- [ ] ¿Toda publicación o lectura de posición respeta el compartir ubicación (RN-111)?
 - [ ] ¿Validé la entrada con Zod?
 - [ ] ¿Documenté en el spec OpenAPI (`backend/openapi/`) todo endpoint nuevo o modificado, y corrí `npm run docs:lint` + `npm test`?
 - [ ] ¿Respeté la arquitectura de capas? (Controller → Service → Repository)

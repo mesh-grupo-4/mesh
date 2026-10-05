@@ -9,13 +9,15 @@ import { uiConfigPorActividad } from '@/lib/activityUi'
 import type { TipoActividadApi } from '@/lib/viajesApi'
 
 import { ParadaActionsBar } from './ParadaActionsBar'
-import { TripMetricsPanel } from './TripMetricsPanel'
+import { TripMetricsPanel, type EntrenamientoEnVivo } from './TripMetricsPanel'
 
 const HANDLE_HEIGHT = 20
 
 type Props = {
   elapsedLabel: string
   distanceLabel: string
+  /** RN-065: fila de ritmo/velocidad, solo en modo entrenamiento. */
+  entrenamiento?: EntrenamientoEnVivo | null
   enCurso: boolean
   esLider: boolean
   accion: boolean
@@ -37,6 +39,7 @@ type Props = {
 export function LiveBottomPanel({
   elapsedLabel,
   distanceLabel,
+  entrenamiento,
   enCurso,
   esLider,
   accion,
@@ -111,6 +114,7 @@ export function LiveBottomPanel({
         <TripMetricsPanel
           elapsedLabel={elapsedLabel}
           distanceLabel={distanceLabel}
+          entrenamiento={entrenamiento}
           onLayout={onMetricsLayout}
         />
 

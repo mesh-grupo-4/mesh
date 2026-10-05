@@ -120,6 +120,7 @@ ViajesPlanificados:
                 nombre: Alta Gracia y vuelta
                 es_grupal: true
                 tipo_actividad: moto
+                modo: recreativo
                 velocidad_esperada: 85
                 distancia_max_separacion: 500
                 fecha_programada: '2026-09-06T12:30:00.000Z'
@@ -131,6 +132,7 @@ ViajesPlanificados:
                 nombre: Subida al Cerro Champaquí
                 es_grupal: true
                 tipo_actividad: trekking
+                modo: recreativo
                 velocidad_esperada: 4.5
                 distancia_max_separacion: 150
                 fecha_programada: '2026-08-24T10:00:00.000Z'
@@ -170,6 +172,7 @@ ViajesFinalizados:
                 nombre: Costanera al atardecer
                 es_grupal: true
                 tipo_actividad: bici
+                modo: recreativo
                 velocidad_esperada: 24
                 distancia_max_separacion: 300
                 fecha_programada: '2026-08-16T21:00:00.000Z'
@@ -185,6 +188,7 @@ ViajesFinalizados:
                 nombre: null
                 es_grupal: false
                 tipo_actividad: running
+                modo: recreativo
                 velocidad_esperada: 11
                 distancia_max_separacion: 100
                 fecha_programada: '2026-08-09T10:30:00.000Z'
@@ -919,6 +923,10 @@ UbicacionVivaViaje:
 
       Alternativa a `POST /posiciones` para el envío de a una lectura. Requiere el viaje
       en curso.
+
+      RN-111: si el usuario tiene apagado el compartir ubicación en este viaje —o no
+      otorgó el consentimiento de geolocalización (RN-110)— el punto se persiste igual
+      pero no se publica, y la respuesta trae `compartida: false` con `ubicacion: null`.
     tags:
       - Viajes
     parameters:
@@ -931,11 +939,20 @@ UbicacionVivaViaje:
             $ref: '../components/schemas.yaml#/UbicacionVivaRequest'
     responses:
       '200':
-        description: Ubicación viva actualizada.
+        description: Posición persistida; `compartida` indica si además se publicó al grupo.
         content:
           application/json:
             schema:
-              $ref: '../components/schemas.yaml#/UbicacionVivaFila'
+              $ref: '../components/schemas.yaml#/UbicacionVivaRespuesta'
+            example:
+              compartida: true
+              ubicacion:
+                usuario_id: 8f14e45f-ceea-4c1e-9b1a-3d5c7a2e6b04
+                viaje_id: 3f2a1c4e-5b6d-4e7f-8a9b-0c1d2e3f4a5b
+                lat: -31.4201
+                lng: -64.1888
+                precision_m: 8.4
+                updated_at: '2026-09-01T13:05:00.000Z'
       '400':
         $ref: '../components/responses.yaml#/BadRequest'
       '401':
@@ -1276,5 +1293,74 @@ SalirViaje:
             example:
               error: Un viaje individual no se abandona, se finaliza
               code: INDIVIDUAL_TRIP
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+LeaderboardViaje:
+  get:
+    operationId: obtenerLeaderboard
+    summary: Leaderboard en vivo del modo competitivo (RN-071)
+    description: |
+      Foto actual de la clasificación: integrantes ordenados por progreso sobre la
+      ruta planificada, con la diferencia con el líder en metros y en segundos (a la
+      velocidad esperada del viaje). Sirve para cargar la tabla al entrar; después el
+      motor de eventos la re-emite por Socket.io (`viaje:leaderboard`) con cada ping,
+      como máximo cada 3 s por viaje. Solo con `modo: competitivo`, viaje en curso y
+      nunca en moto (RN-070).
+    tags:
+      - Viajes
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '200':
+        description: Clasificación actual.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Leaderboard'
+            example:
+              viaje_id: 3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d
+              generado_en: '2026-09-01T13:20:00.000Z'
+              filas:
+                - usuarioId: 9d8c7b6a-5f4e-4d3c-8b2a-1f0e9d8c7b6a
+                  nombre: Ana Pérez
+                  progresoM: 5420
+                  lat: -31.41
+                  lng: -64.18
+                  actualizadoEn: '2026-09-01T13:19:58.000Z'
+                  puesto: 1
+                  deltaM: 0
+                  gapSeg: 0
+                - usuarioId: 7e8f90a1-bc2d-4e3f-8a4b-5c6d7e8f90a1
+                  nombre: Juan Gómez
+                  progresoM: 5100
+                  lat: -31.412
+                  lng: -64.183
+                  actualizadoEn: '2026-09-01T13:19:57.000Z'
+                  puesto: 2
+                  deltaM: 320
+                  gapSeg: 32.9
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: No es creador ni integrante confirmado (`FORBIDDEN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Sin acceso a este viaje
+              code: FORBIDDEN
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '409':
+        description: No es competitivo o es moto (`MODO_INVALIDO`), o no está en curso (`INVALID_STATE`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: El viaje no está en modo competitivo
+              code: MODO_INVALIDO
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'

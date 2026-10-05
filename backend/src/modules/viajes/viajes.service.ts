@@ -1,4 +1,4 @@
-import type { Prisma } from '@prisma/client'
+import type { Prisma, TipoActividad as TipoActividadEnum } from '@prisma/client'
 import type { PrismaClient } from '@prisma/client'
 import { getIo } from '../../realtime/ioRegistry'
 import { HttpError } from '../../lib/httpError'
@@ -7,6 +7,7 @@ import {
   computeLineStringLengthMeters,
   computeMetricasGpsPorUsuario,
   computePerfilVelocidad,
+  computeSplitsPorKm,
   computeTrazaRecorrido,
 } from '../../lib/postgis'
 import { filtrosGpsPorActividad } from '../../lib/gpsFilters'
@@ -19,11 +20,25 @@ import type {
   ResponderInvitacionViajeInput,
   UpsertUbicacionVivaInput,
 } from './viajes.schemas'
-import { parametrosPorActividad } from './activityDefaults'
-import { minutosIncidenteEfectivo } from '../motor-eventos/motorEventos.config'
+import { parametrosPorActividad, toleranciaAtrasoEfectiva } from './activityDefaults'
+import {
+  minutosIncidenteEfectivo,
+  prefijoAlertaAfectado,
+} from '../motor-eventos/motorEventos.config'
 import { aplicarPuestosRanking } from './ranking'
+import { armarLeaderboard, type IntegranteEnRuta } from './leaderboard'
+import { computeProgresoEnRutaM } from '../../lib/postgis'
+import type { GeoJsonLineString } from '../../lib/geo'
 import { RutasCompartidasService } from '../rutas-compartidas/rutas-compartidas.service'
-import { MotorEventosService } from '../motor-eventos/motorEventos.service'
+import {
+  obtenerMotorEventos,
+  type MotorEventosService,
+} from '../motor-eventos/motorEventos.service'
+import {
+  comparteUbicacion,
+  filtrarQuienesComparten,
+  registrarAccesosUbicacion,
+} from '../privacidad/privacidad.acceso'
 
 export class ViajesService {
   private readonly rutasCompartidas: RutasCompartidasService
@@ -31,7 +46,8 @@ export class ViajesService {
 
   constructor(private readonly prisma: PrismaClient) {
     this.rutasCompartidas = new RutasCompartidasService(prisma)
-    this.motor = new MotorEventosService(prisma)
+    // Compartido entre el router REST y los sockets: el motor guarda estado en memoria.
+    this.motor = obtenerMotorEventos(prisma)
   }
 
   async crearViaje(creadorId: string, input: CreateViajeInput) {
@@ -122,6 +138,20 @@ export class ViajesService {
       tipoActividad = plantilla.tipo_actividad
     }
 
+    // RN-071 / RN-070 / RN-072: competir exige grupo y nunca en moto.
+    if (input.modo === 'competitivo') {
+      if (!input.esGrupal) {
+        throw new HttpError(400, 'El modo competitivo requiere un viaje grupal', 'MODO_INVALIDO')
+      }
+      if (tipoActividad === 'moto') {
+        throw new HttpError(
+          400,
+          'La modalidad moto no admite modo competitivo (RN-070)',
+          'MODO_INVALIDO'
+        )
+      }
+    }
+
     const params = parametrosPorActividad(tipoActividad)
 
     return this.prisma.$transaction(async (tx) => {
@@ -131,8 +161,11 @@ export class ViajesService {
           nombre: input.nombre,
           es_grupal: input.esGrupal,
           tipo_actividad: tipoActividad,
-          velocidad_esperada: params.velocidadEsperada,
-          distancia_max_separacion: params.distanciaMaxSeparacion,
+          modo: input.modo ?? 'recreativo',
+          // RN-025: el líder puede ajustar los parámetros; si no, defaults de la actividad (RN-021).
+          velocidad_esperada: input.velocidadEsperada ?? params.velocidadEsperada,
+          distancia_max_separacion: input.distanciaMaxSeparacion ?? params.distanciaMaxSeparacion,
+          tolerancia_atraso_min: input.toleranciaAtrasoMin ?? null,
           fecha_programada: input.fechaProgramada,
           alerta_incidente_habilitada: input.esGrupal,
         },
@@ -221,6 +254,7 @@ export class ViajesService {
         nombre: true,
         es_grupal: true,
         tipo_actividad: true,
+        modo: true,
         velocidad_esperada: true,
         distancia_max_separacion: true,
         fecha_programada: true,
@@ -239,6 +273,7 @@ export class ViajesService {
       nombre: v.nombre,
       es_grupal: v.es_grupal,
       tipo_actividad: v.tipo_actividad,
+      modo: v.modo,
       velocidad_esperada: v.velocidad_esperada,
       distancia_max_separacion: v.distancia_max_separacion,
       fecha_programada: v.fecha_programada,
@@ -624,6 +659,7 @@ export class ViajesService {
         nombre: true,
         es_grupal: true,
         tipo_actividad: true,
+        modo: true,
         velocidad_esperada: true,
         distancia_max_separacion: true,
         fecha_programada: true,
@@ -653,6 +689,7 @@ export class ViajesService {
         nombre: v.nombre,
         es_grupal: v.es_grupal,
         tipo_actividad: v.tipo_actividad,
+      modo: v.modo,
         velocidad_esperada: v.velocidad_esperada,
         distancia_max_separacion: v.distancia_max_separacion,
         fecha_programada: v.fecha_programada,
@@ -684,7 +721,18 @@ export class ViajesService {
       alerta_incidente_habilitada?: boolean
       alerta_incidente_minutos?: number | null
       alertas_solo_lider?: boolean
+      velocidad_esperada?: number
+      distancia_max_separacion?: number
+      tolerancia_atraso_min?: number | null
     } = {}
+
+    // RN-025: parámetros del grupo. Editables en planificado y en curso: el motor
+    // relee el viaje en cada ping, así que un ajuste en vivo aplica al instante.
+    if (input.velocidadEsperada != null) data.velocidad_esperada = input.velocidadEsperada
+    if (input.distanciaMaxSeparacion != null) {
+      data.distancia_max_separacion = input.distanciaMaxSeparacion
+    }
+    if (input.toleranciaAtrasoMin !== undefined) data.tolerancia_atraso_min = input.toleranciaAtrasoMin
 
     if (input.fechaProgramada != null) {
       if (viaje.estado !== 'planificado') {
@@ -739,6 +787,13 @@ export class ViajesService {
         actualizado.alerta_incidente_minutos
       ),
       alertas_solo_lider: actualizado.alertas_solo_lider,
+      velocidad_esperada: actualizado.velocidad_esperada,
+      distancia_max_separacion: actualizado.distancia_max_separacion,
+      tolerancia_atraso_min: actualizado.tolerancia_atraso_min,
+      tolerancia_atraso_min_efectivo: toleranciaAtrasoEfectiva(
+        actualizado.tipo_actividad,
+        actualizado.tolerancia_atraso_min
+      ),
     }
   }
 
@@ -817,16 +872,62 @@ export class ViajesService {
       throw new HttpError(403, 'No sos participante confirmado de este viaje', 'NOT_PARTICIPANT')
     }
 
+    const ahora = new Date()
     await this.prisma.viajeIntegrante.update({
       where: { viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId } },
-      data: { estado: 'salido', fecha_salida: new Date() },
+      data: { estado: 'salido', fecha_salida: ahora },
     })
 
     if (viaje.estado === 'en_curso') {
+      // Quien se va deja de figurar en el mapa: sin esto su última posición seguía
+      // apareciendo en cada refresco por REST, y su parada abierta o su alerta de
+      // desvío/atraso quedaban "vivas" sin nadie que pudiera cerrarlas.
+      await this.cerrarSituacionEnVivo(viajeId, ahora, usuarioId)
+      this.motor.limpiarIntegrante(viajeId, usuarioId)
       getIo().to(`viaje:${viajeId}`).emit('viaje:participante_salio', { viajeId, usuarioId })
     }
 
     return { viaje_id: viajeId, accion: 'salido' as const }
+  }
+
+  /**
+   * Cierra lo que no tiene sentido fuera de un viaje en curso: paradas abiertas,
+   * alertas activas y posiciones vivas. Sin `usuarioId` aplica a todo el viaje
+   * (finalizar); con él, solo a ese integrante (salir).
+   */
+  private async cerrarSituacionEnVivo(viajeId: string, fin: Date, usuarioId?: string) {
+    const porUsuario = usuarioId ? { usuario_id: usuarioId } : {}
+    await this.prisma.parada.updateMany({
+      where: { viaje_id: viajeId, fin: null, ...porUsuario },
+      data: { fin },
+    })
+
+    const alertasAbiertas = await this.prisma.alerta.findMany({
+      where: {
+        viaje_id: viajeId,
+        estado: { in: ['activa', 'pausada'] },
+        ...(usuarioId
+          ? { origen: 'sistema', mensaje: { startsWith: prefijoAlertaAfectado(usuarioId) } }
+          : {}),
+      },
+      select: { id: true },
+    })
+    if (alertasAbiertas.length > 0) {
+      await this.prisma.alerta.updateMany({
+        where: { id: { in: alertasAbiertas.map((a) => a.id) } },
+        data: { estado: 'resuelta', resolved_at: fin },
+      })
+      for (const a of alertasAbiertas) {
+        getIo().to(`viaje:${viajeId}`).emit('viaje:alerta_actualizada', {
+          viajeId,
+          alertaId: a.id,
+          estado: 'resuelta' as const,
+          resolvedAt: fin.toISOString(),
+        })
+      }
+    }
+
+    await this.prisma.ubicacionViva.deleteMany({ where: { viaje_id: viajeId, ...porUsuario } })
   }
 
   async finalizar(creadorId: string, viajeId: string) {
@@ -862,6 +963,16 @@ export class ViajesService {
       estado: actualizado.estado,
       fechaFinReal: actualizado.fecha_fin_real?.toISOString() ?? null,
     })
+
+    // Paradas abiertas, alertas activas y posiciones vivas no sobreviven al cierre:
+    // sin esto quedaban integrantes "detenidos" para siempre y alertas activas
+    // en un viaje que ya terminó.
+    try {
+      await this.cerrarSituacionEnVivo(viajeId, fechaFin)
+    } catch (err) {
+      console.error('[finalizar] No se pudo cerrar la situación en vivo:', err)
+    }
+    this.motor.limpiarViaje(viajeId)
 
     // Agregar cientos de miles de filas GPS puede tardar; si falla, el viaje ya
     // quedó cerrado igual y el GET /resumen lo recalcula (backfill perezoso).
@@ -957,6 +1068,7 @@ export class ViajesService {
         nombre: true,
         es_grupal: true,
         tipo_actividad: true,
+        modo: true,
         estado: true,
         fecha_inicio_real: true,
         fecha_fin_real: true,
@@ -1025,8 +1137,8 @@ export class ViajesService {
         sali_antes: miIntegrante?.estado === 'salido',
         fecha_salida: miIntegrante?.fecha_salida ?? null,
       },
-      // RN-070: compuerta única para cualquier feature comparativa futura.
-      ranking_habilitado: viaje.tipo_actividad !== 'moto',
+      // RN-070 + RN-072: comparar solo en modo competitivo, y nunca en moto.
+      ranking_habilitado: viaje.tipo_actividad !== 'moto' && viaje.modo === 'competitivo',
       generado_en: resumen?.generado_en ?? null,
     }
   }
@@ -1043,6 +1155,7 @@ export class ViajesService {
       select: {
         id: true,
         tipo_actividad: true,
+        modo: true,
         estado: true,
         es_grupal: true,
         creador_id: true,
@@ -1140,9 +1253,9 @@ export class ViajesService {
         velocidad_maxima_kmh: null as number | null,
       }))
 
-    // Recap RN-063: puestos solo en viaje grupal no moto. Los números siguen
-    // siendo los de metrica_viaje; acá solo se ordena (no se recalcula GPS).
-    const rankingHabilitado = viaje.es_grupal && !esMoto
+    // Recap RN-063: puestos solo en viaje grupal, competitivo (RN-072) y no moto
+    // (RN-070). Los números siguen siendo los de metrica_viaje; acá solo se ordena.
+    const rankingHabilitado = viaje.es_grupal && !esMoto && viaje.modo === 'competitivo'
     const por_integrante = aplicarPuestosRanking(
       [...porIntegrante, ...sinGps],
       rankingHabilitado
@@ -1192,6 +1305,7 @@ export class ViajesService {
         id: true,
         nombre: true,
         tipo_actividad: true,
+        modo: true,
         es_grupal: true,
         estado: true,
         fecha_inicio_real: true,
@@ -1204,13 +1318,19 @@ export class ViajesService {
     }
 
     const esMoto = viaje.tipo_actividad === 'moto'
+    const esEntrenamiento = viaje.modo === 'entrenamiento'
 
-    const [resumen, miMetrica, perfil] = await Promise.all([
+    const [resumen, miMetrica, perfil, splits, entrenamiento] = await Promise.all([
       this.prisma.resumenViaje.findUnique({ where: { viaje_id: viajeId } }),
       this.prisma.metricaViaje.findUnique({
         where: { viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId } },
       }),
       computePerfilVelocidad(this.prisma, viajeId, usuarioId),
+      // RN-070: en moto no se exponen ritmos ni velocidades, tampoco por kilómetro.
+      esMoto ? Promise.resolve([]) : computeSplitsPorKm(this.prisma, viajeId, usuarioId),
+      esEntrenamiento
+        ? this.evolucionEntrenamiento(usuarioId, viajeId, viaje.tipo_actividad)
+        : Promise.resolve(null),
     ])
 
     const paceMinKm =
@@ -1228,6 +1348,7 @@ export class ViajesService {
         id: viaje.id,
         nombre: viaje.nombre,
         tipo_actividad: viaje.tipo_actividad,
+        modo: viaje.modo,
         es_grupal: viaje.es_grupal,
         fecha_inicio_real: viaje.fecha_inicio_real,
         fecha_fin_real: viaje.fecha_fin_real,
@@ -1246,6 +1367,78 @@ export class ViajesService {
       perfil_velocidad: esMoto
         ? []
         : perfil.map((p) => ({ t_seg: Number(p.t_seg), velocidad_kmh: Number(p.velocidad_kmh) })),
+      // RN-065: tiempo por kilómetro. El último split puede ser parcial.
+      splits_km: splits.map((sp) => ({
+        km: sp.km,
+        metros: sp.metros,
+        segundos: sp.segundos,
+        pace_min_km: sp.metros > 0 ? (sp.segundos / 60) / (sp.metros / 1000) : null,
+      })),
+      entrenamiento,
+    }
+  }
+
+  /**
+   * RN-065: cómo viene esta sesión de entrenamiento respecto de las anteriores
+   * del mismo usuario y actividad. Todo sale de `metrica_viaje`; no recalcula GPS.
+   */
+  private async evolucionEntrenamiento(
+    usuarioId: string,
+    viajeId: string,
+    tipoActividad: TipoActividadEnum
+  ) {
+    const esMoto = tipoActividad === 'moto'
+    const filas = await this.prisma.metricaViaje.findMany({
+      where: {
+        usuario_id: usuarioId,
+        viaje: { estado: 'finalizado', modo: 'entrenamiento', tipo_actividad: tipoActividad },
+      },
+      select: {
+        viaje_id: true,
+        distancia_m: true,
+        tiempo_movimiento_seg: true,
+        velocidad_promedio_kmh: true,
+        viaje: { select: { nombre: true, fecha_fin_real: true } },
+      },
+      orderBy: { viaje: { fecha_fin_real: 'asc' } },
+    })
+
+    const sesiones = filas.map((f) => ({
+      viaje_id: f.viaje_id,
+      nombre: f.viaje.nombre,
+      fecha_fin_real: f.viaje.fecha_fin_real,
+      distancia_m: f.distancia_m,
+      tiempo_movimiento_seg: f.tiempo_movimiento_seg,
+      velocidad_promedio_kmh: esMoto ? null : f.velocidad_promedio_kmh,
+      pace_min_km:
+        !esMoto && f.tiempo_movimiento_seg > 0 && f.distancia_m > 0
+          ? (f.tiempo_movimiento_seg / 60) / (f.distancia_m / 1000)
+          : null,
+    }))
+
+    const idx = sesiones.findIndex((s) => s.viaje_id === viajeId)
+    const actual = idx >= 0 ? sesiones[idx]! : null
+    const anteriores = idx >= 0 ? sesiones.slice(0, idx) : sesiones
+    const anterior = anteriores[anteriores.length - 1] ?? null
+
+    const conPace = sesiones.filter((s) => s.pace_min_km != null)
+    const mejorPace = conPace.length > 0 ? Math.min(...conPace.map((s) => s.pace_min_km!)) : null
+    const mejorDistancia = sesiones.length > 0 ? Math.max(...sesiones.map((s) => s.distancia_m)) : null
+
+    return {
+      numero_sesion: idx >= 0 ? idx + 1 : sesiones.length + 1,
+      total_sesiones: sesiones.length,
+      mejor_pace_min_km: mejorPace,
+      es_mejor_pace: actual?.pace_min_km != null && mejorPace != null && actual.pace_min_km <= mejorPace,
+      mejor_distancia_m: mejorDistancia,
+      es_mejor_distancia: actual != null && mejorDistancia != null && actual.distancia_m >= mejorDistancia,
+      delta_distancia_m: actual && anterior ? actual.distancia_m - anterior.distancia_m : null,
+      delta_pace_min_km:
+        actual?.pace_min_km != null && anterior?.pace_min_km != null
+          ? actual.pace_min_km - anterior.pace_min_km
+          : null,
+      // Últimas 6 sesiones (incluida la actual), de la más vieja a la más nueva, para graficar la evolución.
+      evolucion: (idx >= 0 ? sesiones.slice(0, idx + 1) : sesiones).slice(-6),
     }
   }
 
@@ -1346,6 +1539,9 @@ export class ViajesService {
    * Autoriza el envío de GPS y devuelve la fila de viaje ya consultada (con
    * `tipo_actividad`) para que el caller no tenga que pedirla de nuevo con un
    * segundo `findUnique` solo para saber los umbrales de filtrado GPS.
+   *
+   * También resuelve acá si la persona comparte su ubicación (RN-111), porque
+   * los tres puntos de entrada de GPS lo necesitan y así se pide una sola vez.
    */
   private async assertPuedeEnviarGps(viajeId: string, usuarioId: string) {
     const viaje = await this.prisma.viaje.findUnique({
@@ -1364,17 +1560,20 @@ export class ViajesService {
       throw new HttpError(409, 'El viaje no admite envío de GPS en este estado', 'INVALID_STATE')
     }
 
-    if (viaje.creador_id === usuarioId) return viaje
+    if (viaje.creador_id !== usuarioId) {
+      const integrante = await this.prisma.viajeIntegrante.findUnique({
+        where: {
+          viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId },
+        },
+        select: { estado: true },
+      })
+      if (integrante?.estado !== 'confirmado') {
+        throw new HttpError(403, 'Sin acceso a este viaje', 'FORBIDDEN')
+      }
+    }
 
-    const integrante = await this.prisma.viajeIntegrante.findUnique({
-      where: {
-        viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId },
-      },
-      select: { estado: true },
-    })
-    if (integrante?.estado === 'confirmado') return viaje
-
-    throw new HttpError(403, 'Sin acceso a este viaje', 'FORBIDDEN')
+    const comparte = await comparteUbicacion(this.prisma, viajeId, usuarioId)
+    return { ...viaje, comparte }
   }
 
   /** RN-021: precisión mala (`accuracy`/`precision_m` por encima del umbral de la
@@ -1396,7 +1595,15 @@ export class ViajesService {
    */
   private async publicarUbicacionViva(
     tipoActividad: string,
-    args: { viajeId: string; usuarioId: string; lat: number; lng: number; precision: number | null }
+    args: {
+      viajeId: string
+      usuarioId: string
+      lat: number
+      lng: number
+      precision: number | null
+      recordedAt: Date
+      source: 'live' | 'offline_sync'
+    }
   ) {
     if (this.esGpsPreciso(tipoActividad, args.precision)) {
       return this.upsertUbicacionVivaSnapshot(args)
@@ -1405,6 +1612,64 @@ export class ViajesService {
       where: { usuario_id: args.usuarioId },
     })
     return existente ?? (await this.upsertUbicacionVivaSnapshot(args))
+  }
+
+  /**
+   * RN-071 (SCRUM-51): foto actual del leaderboard, para cargar la tabla al
+   * entrar; las actualizaciones siguen por `viaje:leaderboard` (motor de eventos).
+   */
+  async obtenerLeaderboard(usuarioId: string, viajeId: string) {
+    await this.assertPuedeVerEnVivo(viajeId, usuarioId)
+    const viaje = await this.prisma.viaje.findUnique({
+      where: { id: viajeId },
+      select: {
+        estado: true,
+        modo: true,
+        tipo_actividad: true,
+        velocidad_esperada: true,
+        creador_id: true,
+        ruta: { select: { linestring_geojson: true } },
+        integrantes: { where: { estado: 'confirmado' }, select: { usuario_id: true } },
+      },
+    })
+    if (!viaje) throw new HttpError(404, 'Viaje no encontrado', 'VIAJE_NOT_FOUND')
+    if (viaje.modo !== 'competitivo' || viaje.tipo_actividad === 'moto') {
+      throw new HttpError(409, 'El viaje no está en modo competitivo', 'MODO_INVALIDO')
+    }
+    if (viaje.estado !== 'en_curso') {
+      throw new HttpError(409, 'El viaje no está en curso', 'INVALID_STATE')
+    }
+    const linestring = viaje.ruta?.linestring_geojson as unknown as GeoJsonLineString | null
+    if (!linestring) return { viaje_id: viajeId, filas: [], generado_en: new Date().toISOString() }
+
+    const activos = new Set(viaje.integrantes.map((i) => i.usuario_id))
+    activos.add(viaje.creador_id)
+    // RN-111: quien apagó el compartir no aparece en la tabla — su posición es
+    // justamente lo que el leaderboard expone (progreso sobre la ruta).
+    const comparten = await filtrarQuienesComparten(this.prisma, viajeId, [...activos])
+    const posiciones = await this.prisma.ubicacionViva.findMany({
+      where: { viaje_id: viajeId, usuario_id: { in: [...comparten] } },
+      include: { usuario: { select: { nombre: true, apellido: true } } },
+    })
+
+    const integrantes: IntegranteEnRuta[] = []
+    for (const p of posiciones) {
+      const progresoM = await computeProgresoEnRutaM(this.prisma, p.lat, p.lng, linestring)
+      if (progresoM == null) continue
+      integrantes.push({
+        usuarioId: p.usuario_id,
+        nombre: [p.usuario.nombre, p.usuario.apellido].filter(Boolean).join(' ').trim(),
+        progresoM,
+        lat: p.lat,
+        lng: p.lng,
+        actualizadoEn: p.updated_at.toISOString(),
+      })
+    }
+    return {
+      viaje_id: viajeId,
+      filas: armarLeaderboard(integrantes, viaje.velocidad_esperada),
+      generado_en: new Date().toISOString(),
+    }
   }
 
   async detalleParaUsuario(usuarioId: string, viajeId: string) {
@@ -1437,39 +1702,69 @@ export class ViajesService {
         resto.tipo_actividad,
         resto.alerta_incidente_minutos
       ),
+      tolerancia_atraso_min_efectivo: toleranciaAtrasoEfectiva(
+        resto.tipo_actividad,
+        resto.tolerancia_atraso_min
+      ),
       mi_participacion: miParticipacion,
     }
   }
 
   async ingresarPosiciones(usuarioId: string, viajeId: string, input: PostPosicionesInput) {
-    await this.assertPuedeEnviarGps(viajeId, usuarioId)
-    const rows = input.posiciones.map((p) => ({
-      viaje_id: viajeId,
-      usuario_id: usuarioId,
-      lat: p.lat,
-      lng: p.lng,
-      precision_m: p.precision ?? null,
-      timestamp: p.timestamp,
-      source: input.source,
-    }))
+    const viaje = await this.assertPuedeEnviarGps(viajeId, usuarioId)
+    // El lote llega en el orden en que se encoló en el dispositivo, no
+    // necesariamente cronológico: ordenar acá es lo que garantiza que "la última"
+    // sea de verdad la más nueva (RN-038: no romper la secuencia temporal).
+    const rows = [...input.posiciones]
+      .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
+      .map((p) => ({
+        viaje_id: viajeId,
+        usuario_id: usuarioId,
+        lat: p.lat,
+        lng: p.lng,
+        precision_m: p.precision ?? null,
+        timestamp: p.timestamp,
+        source: input.source,
+      }))
+
+    // Antes de insertar: qué es lo más nuevo que ya sabíamos de este integrante.
+    // Un lote offline suele ser más viejo que los pings en vivo que ya llegaron
+    // tras reconectar; si se publicara igual, el marcador saltaría hacia atrás.
+    const ultimoConocido = await this.prisma.registroGPS.findFirst({
+      where: { viaje_id: viajeId, usuario_id: usuarioId },
+      orderBy: { timestamp: 'desc' },
+      select: { timestamp: true },
+    })
+
     // RN-038: cero pérdida de GPS. `skipDuplicates` es la red de seguridad ante el
     // punto que ya llegó por el canal en vivo (@@unique viaje_id+usuario_id+timestamp):
     // se insertan los que no chocan y se ignoran en silencio los que sí, sin 500.
     await this.prisma.registroGPS.createMany({ data: rows, skipDuplicates: true })
-    for (const row of rows) {
-      this.dispatchMotorPing(viajeId, usuarioId, row.lat, row.lng, row.timestamp)
-    }
+
     const last = rows[rows.length - 1]
-    if (last) {
-      await this.upsertUbicacionVivaSnapshot({
+    const esMasNuevo =
+      last != null &&
+      (ultimoConocido == null || last.timestamp.getTime() > ultimoConocido.timestamp.getTime())
+
+    // RN-111: con el compartir apagado el lote se guarda igual (RN-038, cero
+    // pérdida: es historial propio y alimenta las métricas personales), pero no
+    // se publica al grupo ni se evalúa en el motor.
+    if (last && esMasNuevo && viaje.comparte) {
+      await this.publicarUbicacionViva(viaje.tipo_actividad, {
         viajeId,
         usuarioId,
         lat: last.lat,
         lng: last.lng,
         precision: last.precision_m,
+        recordedAt: last.timestamp,
+        source: input.source,
       })
+      // El motor evalúa solo la posición más nueva: pasarle las 2000 filas de un
+      // lote disparaba miles de consultas PostGIS en paralelo y mezclaba el
+      // estado de detención con puntos viejos.
+      this.dispatchMotorPing(viajeId, usuarioId, last.lat, last.lng, last.timestamp)
     }
-    return { insertados: rows.length }
+    return { insertados: rows.length, compartida: viaje.comparte }
   }
 
   async upsertUbicacionViva(usuarioId: string, viajeId: string, input: UpsertUbicacionVivaInput) {
@@ -1485,20 +1780,26 @@ export class ViajesService {
         source: 'live',
       },
     })
+    // RN-111: el punto queda en `registro_gps` igual, pero sin compartir no se
+    // publica al grupo ni dispara alertas del motor sobre esta persona.
+    if (!viaje.comparte) return { compartida: false, ubicacion: null }
+
     const row = await this.publicarUbicacionViva(viaje.tipo_actividad, {
       viajeId,
       usuarioId,
       lat: input.lat,
       lng: input.lng,
       precision: input.precision ?? null,
+      recordedAt: input.recordedAt,
+      source: 'live',
     })
     this.dispatchMotorPing(viajeId, usuarioId, input.lat, input.lng, input.recordedAt)
-    return row
+    return { compartida: true, ubicacion: row }
   }
 
   async listarUbicacionesVivas(usuarioId: string, viajeId: string) {
     await this.assertPuedeVerEnVivo(viajeId, usuarioId)
-    const [rows, paradasAbiertas] = await Promise.all([
+    const [filas, paradasAbiertas, viaje] = await Promise.all([
       this.prisma.ubicacionViva.findMany({
         where: { viaje_id: viajeId },
         include: {
@@ -1512,7 +1813,39 @@ export class ViajesService {
         where: { viaje_id: viajeId, fin: null },
         select: { usuario_id: true, inicio: true, categoria: true, tipo: true },
       }),
+      this.prisma.viaje.findUnique({
+        where: { id: viajeId },
+        select: {
+          creador_id: true,
+          integrantes: { where: { estado: 'confirmado' }, select: { usuario_id: true } },
+        },
+      }),
     ])
+
+    // Solo quienes siguen en el viaje: el creador y los confirmados. Quien salió
+    // ya no comparte ubicación y no tiene que reaparecer en el mapa del grupo.
+    const activos = new Set(viaje?.integrantes.map((i) => i.usuario_id) ?? [])
+    if (viaje) activos.add(viaje.creador_id)
+    const enViaje = viaje ? filas.filter((r) => activos.has(r.usuario_id)) : filas
+
+    // RN-111: red de seguridad además del filtro de publicación. Una fila de
+    // `ubicacion_viva` puede sobrevivir a que la persona apague el compartir
+    // (carrera con un ping en vuelo), y no tiene que llegar al mapa del grupo.
+    const comparten = await filtrarQuienesComparten(
+      this.prisma,
+      viajeId,
+      enViaje.map((r) => r.usuario_id)
+    )
+    const rows = enViaje.filter((r) => comparten.has(r.usuario_id))
+
+    // RN-112: queda constancia de quién vio la posición de quién. No bloquea la
+    // respuesta: el mapa no tiene por qué esperar a que se escriba la auditoría.
+    void registrarAccesosUbicacion(
+      this.prisma,
+      viajeId,
+      usuarioId,
+      rows.map((r) => r.usuario_id)
+    ).catch((e) => console.warn('[viajes] registro de accesos a ubicación:', e))
 
     const paradaPorUsuario = new Map(paradasAbiertas.map((p) => [p.usuario_id, p]))
 
@@ -1563,12 +1896,16 @@ export class ViajesService {
         source,
       },
     })
+    if (!viaje.comparte) return
+
     await this.publicarUbicacionViva(viaje.tipo_actividad, {
       viajeId,
       usuarioId,
       lat,
       lng,
       precision: accuracy ?? null,
+      recordedAt: ts,
+      source,
     })
     this.dispatchMotorPing(viajeId, usuarioId, lat, lng, ts)
   }
@@ -1591,7 +1928,8 @@ export class ViajesService {
     lat: number,
     lng: number,
     precision: number | null,
-    recordedAt: Date
+    recordedAt: Date,
+    source: 'live' | 'offline_sync'
   ) {
     getIo().to(`viaje:${viajeId}`).emit('viaje:ubicacion', {
       viajeId,
@@ -1600,7 +1938,7 @@ export class ViajesService {
       lng,
       precision,
       recordedAt: recordedAt.toISOString(),
-      source: 'live',
+      source,
     })
   }
 
@@ -1610,6 +1948,8 @@ export class ViajesService {
     lat: number
     lng: number
     precision: number | null
+    recordedAt: Date
+    source: 'live' | 'offline_sync'
   }) {
     const row = await this.prisma.ubicacionViva.upsert({
       where: { usuario_id: input.usuarioId },
@@ -1633,7 +1973,8 @@ export class ViajesService {
       input.lat,
       input.lng,
       input.precision,
-      row.updated_at
+      input.recordedAt,
+      input.source
     )
     return row
   }

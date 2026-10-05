@@ -178,15 +178,33 @@ export class ParadasService {
       include: { usuario: { select: { id: true, nombre: true, apellido: true } } },
     })
 
-    await this.prisma.alerta.updateMany({
+    // Cierra la alerta de posible incidente (y cualquier otra del sistema sobre
+    // este integrante) y avisa a la sala para que el mapa y el historial se
+    // actualicen sin esperar un refresco.
+    const alertasAbiertas = await this.prisma.alerta.findMany({
       where: {
         viaje_id: viajeId,
         origen: 'sistema',
         estado: 'activa',
         mensaje: { startsWith: prefijoAlertaAfectado(usuarioId) },
       },
-      data: { estado: 'resuelta', resolved_at: fin },
+      select: { id: true },
     })
+    if (alertasAbiertas.length > 0) {
+      await this.prisma.alerta.updateMany({
+        where: { id: { in: alertasAbiertas.map((a) => a.id) } },
+        data: { estado: 'resuelta', resolved_at: fin },
+      })
+      for (const a of alertasAbiertas) {
+        this.emitir(viajeId, 'viaje:alerta_actualizada', {
+          viajeId,
+          alertaId: a.id,
+          estado: 'resuelta' as const,
+          resolvedAt: fin.toISOString(),
+        })
+      }
+    }
+    // RN-036: si había pedido ayuda ("Estoy mal"), esa alerta también queda resuelta.
     if (abierta.confirmado_bien === false) {
       await this.cerrarAlertaAyuda(viajeId, usuarioId, 'resuelta', fin)
     }
@@ -299,14 +317,15 @@ export class ParadasService {
     })
     if (!alerta) return
 
-    const actualizada = await this.prisma.alerta.update({
+    await this.prisma.alerta.update({
       where: { id: alerta.id },
       data: { estado, resolved_at: cuando },
-      include: { creada_por: { select: { nombre: true, apellido: true } } },
     })
     this.emitir(viajeId, 'viaje:alerta_actualizada', {
       viajeId,
-      alerta: this.mapAlerta(actualizada, null),
+      alertaId: alerta.id,
+      estado,
+      resolvedAt: cuando.toISOString(),
     })
   }
 

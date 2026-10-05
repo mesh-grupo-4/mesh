@@ -2,8 +2,8 @@
 # Router: montado sobre viajesRouter (alertas.router.ts) · Controller: alertas.controller.ts
 #
 # Alertas que el líder envía al grupo durante el viaje (RN-030, RN-040, RN-041, RN-043).
-# `tipo` es el tema que elige el líder; `origen` distingue al líder del motor de
-# eventos, que todavía no crea alertas por su cuenta.
+# `tipo` es el tema que elige el líder; `origen` distingue al líder, a un integrante
+# y al motor de eventos (`sistema`: desvío, atraso y posible incidente).
 
 AlertasColeccion:
   get:
@@ -89,5 +89,82 @@ AlertasColeccion:
             example:
               error: El viaje no está en curso
               code: INVALID_STATE
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+AlertaItem:
+  patch:
+    operationId: cambiarEstadoAlerta
+    summary: Pausar, reactivar, cancelar o resolver una alerta (RN-042)
+    description: |
+      RN-030: solo el creador del viaje, y solo con el viaje `en_curso`. Transiciones
+      válidas: `activa → pausada | cancelada | resuelta` y `pausada → activa | cancelada`;
+      cualquier otra responde `409 INVALID_TRANSITION`. Emite `viaje:alerta_actualizada`
+      a la sala del viaje con `{ viajeId, alertaId, estado, resolvedAt }`.
+    tags:
+      - Alertas
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+      - $ref: '../components/parameters.yaml#/AlertaId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/CambiarEstadoAlertaRequest'
+          example:
+            estado: pausada
+    responses:
+      '200':
+        description: Alerta actualizada.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Alerta'
+            example:
+              id: 7e8f90a1-bc2d-4e3f-8a4b-5c6d7e8f90a1
+              viaje_id: 3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d
+              creada_por_id: 9d8c7b6a-5f4e-4d3c-8b2a-1f0e9d8c7b6a
+              creada_por_nombre: Juan Pérez
+              tipo: combustible
+              origen: lider
+              mensaje: Paramos en la próxima estación de servicio
+              lat: -31.4201
+              lng: -64.1888
+              estado: pausada
+              created_at: '2026-09-01T13:05:00.000Z'
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: Quien pide no es el líder del viaje (`FORBIDDEN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Solo el líder puede gestionar las alertas
+              code: FORBIDDEN
+      '404':
+        description: Viaje o alerta inexistente (`VIAJE_NOT_FOUND` / `ALERTA_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Alerta no encontrada
+              code: ALERTA_NOT_FOUND
+      '409':
+        description: |
+          El viaje no está en curso (`INVALID_STATE`) o la transición no es válida
+          (`INVALID_TRANSITION`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Una alerta resuelta no puede pasar a activa
+              code: INVALID_TRANSITION
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'

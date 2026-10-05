@@ -17,6 +17,7 @@ import { meshAlert } from '@/lib/meshAlert';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { Feather } from '@expo/vector-icons'
 
+import { AvisoUbicacion, textoPermisoSistema } from '@/components/AvisoUbicacion'
 import { DEV_USER_ID } from '@/constants/Config'
 import { useAuth } from '@/context/AuthContext'
 import { useTripRealtime } from '@/context/TripRealtimeContext'
@@ -35,6 +36,7 @@ import {
   actualizarViaje,
   listarParticipantesViaje,
   responderInvitacionViaje,
+  type ParametrosViajeInput,
   type ViajeDetalleApi,
   type ViajeParticipanteApi,
 } from '@/lib/viajesApi'
@@ -48,6 +50,8 @@ import { ajustarSiQuedoEnPasado, esFechaFutura } from '@/lib/fechaProgramada'
 import { aCamposArg, ahoraEnCamposArg, desdeCamposArg, formatearEnArg } from '@/lib/tiempoArg'
 import { RouteMapView } from '@/components/route-config/RouteMapView'
 import { RecorridoMapView } from '@/components/RecorridoMapView'
+import { ClimaViajeCard } from '@/components/ClimaViajeCard'
+import { ParametrosGrupoCard } from '@/components/ParametrosGrupoCard'
 import {
   REGION_FALLBACK,
   waypointTieneCoords,
@@ -148,6 +152,7 @@ export default function ViajeDetalleScreen() {
   const [fechaEdit, setFechaEdit] = useState<Date>(() => new Date())
   const [guardandoFecha, setGuardandoFecha] = useState(false)
   const [guardandoAlertaConfig, setGuardandoAlertaConfig] = useState(false)
+  const [guardandoParametros, setGuardandoParametros] = useState(false)
   const [alertaConfigAbierta, setAlertaConfigAbierta] = useState(false)
   const [participantesAbierto, setParticipantesAbierto] = useState(false)
 
@@ -326,6 +331,35 @@ export default function ViajeDetalleScreen() {
       }
     },
     [viajeId, userId, puedeConfigurarAlertas]
+  )
+
+  // RN-025 / RN-030: el líder ajusta los parámetros mientras el viaje no esté finalizado.
+  const puedeEditarParametros = esLider && viaje?.estado !== 'finalizado'
+
+  const guardarParametros = useCallback(
+    async (input: ParametrosViajeInput) => {
+      if (!viajeId || !userId || !puedeEditarParametros) return
+      setGuardandoParametros(true)
+      try {
+        const actualizado = await actualizarViaje(viajeId, userId, input)
+        setViaje((prev) =>
+          prev
+            ? {
+                ...prev,
+                velocidad_esperada: actualizado.velocidad_esperada,
+                distancia_max_separacion: actualizado.distancia_max_separacion,
+                tolerancia_atraso_min: actualizado.tolerancia_atraso_min,
+                tolerancia_atraso_min_efectivo: actualizado.tolerancia_atraso_min_efectivo,
+              }
+            : prev
+        )
+      } catch (e) {
+        meshAlert('Error', e instanceof Error ? e.message : 'No se pudieron guardar los parámetros')
+      } finally {
+        setGuardandoParametros(false)
+      }
+    },
+    [viajeId, userId, puedeEditarParametros]
   )
 
   const abrirPicker = (mode: 'date' | 'time') => {
@@ -611,6 +645,8 @@ export default function ViajeDetalleScreen() {
                 <Badge tone={viaje.estado === 'en_curso' ? 'live' : viaje.estado === 'planificado' ? 'accent' : 'mute'} pulse={viaje.estado === 'en_curso'}>
                   {viaje.estado === 'en_curso' ? 'En vivo' : viaje.estado === 'planificado' ? 'Planificado' : 'Finalizado'}
                 </Badge>
+                {viaje.modo === 'entrenamiento' ? <Badge tone="good">Entrenamiento</Badge> : null}
+                {viaje.modo === 'competitivo' ? <Badge tone="warning">Competitivo</Badge> : null}
                 <ActivityTile activity={viaje.tipo_actividad} size={28} />
               </View>
               <View style={styles.titleRow}>
@@ -694,6 +730,13 @@ export default function ViajeDetalleScreen() {
               )}
             </Pressable>
 
+            {/* SCRUM-27: pronóstico sobre la ruta antes de salir (y durante). */}
+            <ClimaViajeCard
+              viajeId={viajeId}
+              habilitado={viaje.estado !== 'finalizado'}
+              claveRefresco={`${viaje.fecha_programada}:${viaje.ruta?.id ?? ''}:${rutaMapa?.waypoints.length ?? 0}`}
+            />
+
             {/* Stats row */}
             <View style={styles.statsRow}>
               <View style={[styles.statCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
@@ -751,6 +794,13 @@ export default function ViajeDetalleScreen() {
 
             {(puedeConfigurarAlertas || viaje.es_grupal) && (
             <View style={styles.collapsibleGroup}>
+            {/* SCRUM-26: parámetros del grupo (RN-025). */}
+            <ParametrosGrupoCard
+              viaje={viaje}
+              editable={puedeEditarParametros}
+              guardando={guardandoParametros}
+              onGuardar={(input) => void guardarParametros(input)}
+            />
             {puedeConfigurarAlertas && viaje ? (
               <View style={[styles.alertConfigCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                 <Pressable
@@ -1090,6 +1140,22 @@ export default function ViajeDetalleScreen() {
               </View>
             )}
 
+            {/* RN-111/112: siempre visible, también con el viaje finalizado —
+                el registro de quién vio tu posición se consulta después. */}
+            <View style={styles.optionsBlock}>
+              <Btn
+                variant="secondary"
+                block
+                size="sm"
+                icon="shield"
+                onPress={() =>
+                  router.push({ pathname: '/viaje/[viajeId]/privacidad', params: { viajeId } })
+                }
+              >
+                Privacidad y ubicación
+              </Btn>
+            </View>
+
             {puedeCompartirRuta && (
               <View style={styles.optionsBlock}>
                 <Btn
@@ -1186,15 +1252,14 @@ export default function ViajeDetalleScreen() {
       <Modal visible={modalPermisos} transparent animationType="fade">
         <View style={[styles.modalBg, { backgroundColor: theme.scrim }]}>
           <View style={[styles.modalCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>Ubicación necesaria</Text>
-            <Text style={[styles.modalBody, { color: theme.textDim }]}>
-              {Platform.OS === 'ios'
-                ? 'Mesh necesita tu ubicación para compartirla con el grupo cada 5 segundos. Para seguir transmitiendo con la pantalla apagada, elegí "Siempre" cuando iOS lo pregunte (o en Ajustes → Mesh → Ubicación).'
-                : 'Para iniciar el viaje, Mesh necesita ubicación precisa y permiso en segundo plano para la notificación fija y envíos cada 5 segundos.'}
+            <Text style={[styles.modalTitle, { color: theme.text }]}>Cómo usa Mesh tu ubicación</Text>
+            <AvisoUbicacion />
+            <Text style={[styles.modalBody, { color: theme.textMute, marginTop: 10 }]}>
+              {textoPermisoSistema()}
             </Text>
             <View style={{ gap: 8, marginTop: 12 }}>
               <Btn variant="primary" block onPress={() => void ejecutarIniciar()} disabled={accion} loading={accion}>
-                Permitir e Iniciar
+                Acepto e inicio el viaje
               </Btn>
               <Btn variant="secondary" block onPress={abrirAjustes}>
                 Abrir ajustes de Android/iOS

@@ -12,11 +12,24 @@ export type LiveMember = {
   enMapa: boolean
   /** Está en el mapa pero su última posición quedó vieja (perdió señal). */
   sinSenal?: boolean
+  /** RN-035 / SCRUM-33: separación respecto de mí, en metros, en tiempo real. */
+  distanciaM?: number | null
+  /** Supera la separación máxima configurada en el viaje (RN-025). */
+  lejos?: boolean
 }
 
-function estadoDe(m: LiveMember): { texto: string; tono: 'good' | 'dim' | 'mute' } {
+export function textoDistancia(m: number): string {
+  return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`
+}
+
+function estadoDe(m: LiveMember): { texto: string; tono: 'good' | 'dim' | 'mute' | 'danger' } {
   if (!m.enMapa) return { texto: 'Sin ubicación', tono: 'mute' }
   if (m.sinSenal) return { texto: 'Sin señal', tono: 'dim' }
+  if (m.distanciaM != null) {
+    return m.lejos
+      ? { texto: `A ${textoDistancia(m.distanciaM)} · fuera del rango del grupo`, tono: 'danger' }
+      : { texto: `A ${textoDistancia(m.distanciaM)}`, tono: 'good' }
+  }
   return { texto: 'En el mapa', tono: 'good' }
 }
 
@@ -49,10 +62,22 @@ export function LiveMembersBar({ members, currentUserId }: Props) {
               style={[
                 styles.avatarWrap,
                 m.id === currentUserId && { borderColor: theme.good, borderWidth: 2 },
+                m.lejos && { borderColor: theme.danger, borderWidth: 2 },
                 (!m.enMapa || m.sinSenal) && styles.avatarOffline,
               ]}
             >
               <AvatarFallback nombre={m.nombre} size={32} />
+              {m.distanciaM != null && m.id !== currentUserId ? (
+                <Text
+                  style={[
+                    styles.avatarDist,
+                    { color: m.lejos ? theme.danger : theme.textDim },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {textoDistancia(m.distanciaM)}
+                </Text>
+              ) : null}
             </View>
           ))}
         </ScrollView>
@@ -84,7 +109,13 @@ export function LiveMembersBar({ members, currentUserId }: Props) {
             {members.map((m) => {
               const estado = estadoDe(m)
               const colorEstado =
-                estado.tono === 'good' ? theme.good : estado.tono === 'dim' ? theme.textDim : theme.textMute
+                estado.tono === 'good'
+                  ? theme.good
+                  : estado.tono === 'danger'
+                    ? theme.danger
+                    : estado.tono === 'dim'
+                      ? theme.textDim
+                      : theme.textMute
               return (
                 <View
                   key={m.id}
@@ -137,6 +168,13 @@ const styles = StyleSheet.create({
   avatarWrap: {
     borderRadius: 18,
     padding: 1,
+    alignItems: 'center',
+  },
+  avatarDist: {
+    fontSize: 10,
+    fontWeight: '700',
+    marginTop: 1,
+    maxWidth: 48,
   },
   avatarOffline: {
     opacity: 0.55,
