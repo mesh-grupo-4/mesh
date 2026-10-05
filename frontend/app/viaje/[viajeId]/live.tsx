@@ -10,7 +10,7 @@ import {
   Text,
   View,
 } from 'react-native'
-import { meshAlert } from '@/lib/meshAlert';
+import { meshAlert, meshConfirmDestructive } from '@/lib/meshAlert';
 
 import { AlertaGrupalBanner } from '@/components/live/AlertaGrupalBanner'
 import { AlertasButton } from '@/components/live/AlertasButton'
@@ -215,6 +215,8 @@ export default function ViajeLiveScreen() {
     registrarParada,
     retomarViaje,
     confirmarBien,
+    confirmarMal,
+    deshacerMal,
     pedirParada,
     responderSolicitud,
     descartarResultado,
@@ -563,6 +565,34 @@ export default function ViajeLiveScreen() {
     })()
   }
 
+  /** RN-036: avisa al grupo que no está bien. Volver a tocar deshace, con confirmación. */
+  const handleEstoyMal = () => {
+    if (paradaActiva?.necesita_ayuda) {
+      meshConfirmDestructive({
+        title: '¿Deshacer el pedido de ayuda?',
+        message: 'Le vamos a avisar al grupo que cancelaste el aviso.',
+        confirmLabel: 'Deshacer',
+        cancelLabel: 'Seguir pidiendo ayuda',
+        onConfirm: async () => {
+          try {
+            await deshacerMal()
+          } catch (e) {
+            meshAlert('No se pudo deshacer', mensajeDeError(e))
+          }
+        },
+      })
+      return
+    }
+    void (async () => {
+      try {
+        await confirmarMal()
+        meshAlert('Aviso enviado', 'Todo el grupo sabe que necesitás ayuda.')
+      } catch (e) {
+        meshAlert('No se pudo avisar al grupo', mensajeDeError(e))
+      }
+    })()
+  }
+
   /** US2 */
   const handleSolicitar = () => {
     if (miSolicitud?.estado === 'pendiente') {
@@ -663,7 +693,7 @@ export default function ViajeLiveScreen() {
   useHapticaAlEntrar(Boolean(llegada), tipoActividad, 'exito')
   useHapticaAlEntrar(incidentePropio, tipoActividad, 'alerta')
   const bottomCentrar = (altoBotonera || 130) + 12
-  const bottomCentrarMapa = bottomCentrar + (incidentePropio ? 168 : 0)
+  const bottomCentrarMapa = bottomCentrar + (incidentePropio ? 236 : 0)
 
   /** Reactiva el modo "seguirme" y centra ya mismo con la posición que ya tenemos
    * en memoria — sin pedir una lectura GPS nueva y aislada. */
@@ -821,6 +851,8 @@ export default function ViajeLiveScreen() {
           ocupado={paradaEnCurso || !!accion}
           bottomOffset={bottomCentrar}
           onConfirmar={handleEstoyBien}
+          necesitaAyuda={Boolean(paradaActiva.necesita_ayuda)}
+          onEstoyMal={handleEstoyMal}
         />
       ) : null}
 

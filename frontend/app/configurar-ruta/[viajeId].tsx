@@ -105,11 +105,10 @@ export default function ConfigurarRutaScreen() {
     centroMapaPendiente,
     nameModalVisible,
     nameModalInitial,
-    nameModalLoading,
     actualizarWaypoint,
     agregarParada,
     eliminarParada,
-    moverParada,
+    reordenarParada,
     iniciarSeleccionMapa,
     cancelarSeleccionMapa,
     onRegionChangeComplete,
@@ -180,7 +179,7 @@ export default function ConfigurarRutaScreen() {
           <MapPickOverlay
             lat={centroMapaPendiente?.lat ?? null}
             lon={centroMapaPendiente?.lon ?? null}
-            onConfirm={() => void confirmarCentroMapa()}
+            onConfirm={confirmarCentroMapa}
             onCancel={cancelarSeleccionMapa}
           />
         ) : null}
@@ -204,7 +203,7 @@ export default function ConfigurarRutaScreen() {
           onUpdateWaypoint={actualizarWaypoint}
           onAgregarParada={agregarParada}
           onEliminarParada={eliminarParada}
-          onMoverParada={moverParada}
+          onReordenarParada={reordenarParada}
           onPickOnMap={iniciarSeleccionMapa}
           onGuardar={() => void guardar()}
         />
@@ -212,7 +211,6 @@ export default function ConfigurarRutaScreen() {
         <WaypointNameModal
           visible={nameModalVisible}
           initialName={nameModalInitial}
-          loadingName={nameModalLoading}
           onConfirm={aplicarNombreMapa}
           onCancel={cancelarNombreMapa}
         />

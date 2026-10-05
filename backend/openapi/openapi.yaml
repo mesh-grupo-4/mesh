@@ -247,6 +247,10 @@ paths:
     $ref: './paths/paradas.yaml#/FinalizarParada'
   /api/viajes/{viajeId}/paradas/confirmar-bien:
     $ref: './paths/paradas.yaml#/ConfirmarEstoyBien'
+  /api/viajes/{viajeId}/paradas/confirmar-mal:
+    $ref: './paths/paradas.yaml#/ConfirmarEstoyMal'
+  /api/viajes/{viajeId}/paradas/deshacer-mal:
+    $ref: './paths/paradas.yaml#/DeshacerEstoyMal'
   /api/viajes/{viajeId}/paradas/activa:
     $ref: './paths/paradas.yaml#/ParadaActiva'
   /api/viajes/{viajeId}/solicitudes-parada:

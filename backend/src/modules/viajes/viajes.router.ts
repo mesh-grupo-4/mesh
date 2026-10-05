@@ -47,6 +47,8 @@ viajesRouter.get('/:viajeId/paradas/activa', ...paradasHandlers.activa)
 viajesRouter.post('/:viajeId/paradas', ...paradasHandlers.iniciar)
 viajesRouter.post('/:viajeId/paradas/finalizar', ...paradasHandlers.finalizar)
 viajesRouter.post('/:viajeId/paradas/confirmar-bien', ...paradasHandlers.confirmarBien)
+viajesRouter.post('/:viajeId/paradas/confirmar-mal', ...paradasHandlers.confirmarMal)
+viajesRouter.post('/:viajeId/paradas/deshacer-mal', ...paradasHandlers.deshacerMal)
 viajesRouter.get('/:viajeId/solicitudes-parada', ...paradasHandlers.listarSolicitudes)
 viajesRouter.post('/:viajeId/solicitudes-parada', ...paradasHandlers.solicitar)
 viajesRouter.post(

@@ -10,7 +10,6 @@ import {
   perfilOsrmDesdeActividad,
   type OsrmRouteResult,
 } from '@/lib/osrm'
-import { reverseGeocode } from '@/lib/nominatim'
 import { toPutRutaBody, waypointsFromRutaDetalle } from '@/lib/routePayload'
 import { guardarRutaEnBackend, obtenerRuta } from '@/lib/viajesApi'
 import type { TipoActividadApi } from '@/lib/viajesApi'
@@ -133,7 +132,6 @@ export function useRoutePlanner({
   )
   const [nameModalVisible, setNameModalVisible] = useState(false)
   const [nameModalInitial, setNameModalInitial] = useState('Punto en mapa')
-  const [nameModalLoading, setNameModalLoading] = useState(false)
   const pendingPickRef = useRef<{ waypointId: string; lat: number; lon: number } | null>(null)
 
   useEffect(() => {
@@ -205,6 +203,24 @@ export function useRoutePlanner({
       cancel = true
     }
   }, [viajeId, userId])
+
+  // Viaje sin ruta previa: el origen arranca en la ubicación actual del usuario.
+  // Solo si el origen sigue vacío, para no pisar lo que ya haya cargado o escrito.
+  const origenPorDefectoAplicadoRef = useRef(false)
+  useEffect(() => {
+    if (origenPorDefectoAplicadoRef.current || cargandoRuta || !ubicacionActual) return
+    origenPorDefectoAplicadoRef.current = true
+    setOrigen((prev) =>
+      waypointTieneCoords(prev) || prev.name.trim()
+        ? prev
+        : {
+            ...prev,
+            lat: ubicacionActual.latitude,
+            lon: ubicacionActual.longitude,
+            name: 'Tu ubicación actual',
+          }
+    )
+  }, [cargandoRuta, ubicacionActual])
 
   const waypointsOrdenados = useMemo(
     () => [origen, ...paradas, destino],
@@ -372,16 +388,14 @@ export function useRoutePlanner({
     setParadas((prev) => prev.filter((p) => p.id !== id))
   }, [])
 
-  const moverParada = useCallback((id: string, dir: 'up' | 'down') => {
+  const reordenarParada = useCallback((desde: number, hasta: number) => {
     setParadas((prev) => {
-      const idx = prev.findIndex((p) => p.id === id)
-      if (idx < 0) return prev
-      const next = dir === 'up' ? idx - 1 : idx + 1
-      if (next < 0 || next >= prev.length) return prev
+      if (desde === hasta || desde < 0 || hasta < 0 || desde >= prev.length || hasta >= prev.length) {
+        return prev
+      }
       const copy = [...prev]
-      const tmp = copy[idx]
-      copy[idx] = copy[next]
-      copy[next] = tmp
+      const [movida] = copy.splice(desde, 1)
+      copy.splice(hasta, 0, movida!)
       return copy
     })
   }, [])
@@ -420,7 +434,7 @@ export function useRoutePlanner({
     setCentroMapaPendiente({ lat: region.latitude, lon: region.longitude })
   }, [modoSeleccionMapa])
 
-  const confirmarCentroMapa = useCallback(async () => {
+  const confirmarCentroMapa = useCallback(() => {
     if (!modoSeleccionMapa || !centroMapaPendiente) return
 
     pendingPickRef.current = {
@@ -429,19 +443,24 @@ export function useRoutePlanner({
       lon: centroMapaPendiente.lon,
     }
 
-    setNameModalVisible(true)
-    setNameModalInitial('Punto en mapa')
-    setNameModalLoading(true)
-
-    try {
-      const nombre = await reverseGeocode(centroMapaPendiente.lat, centroMapaPendiente.lon)
-      setNameModalInitial(nombre)
-    } catch {
-      setNameModalInitial('Punto en mapa')
-    } finally {
-      setNameModalLoading(false)
+    // Nombre por defecto según el rol del punto; si ya tenía uno, se conserva.
+    const { waypointId } = modoSeleccionMapa
+    const wp = waypointsOrdenados.find((w) => w.id === waypointId)
+    let nombre = 'Punto en mapa'
+    if (wp?.name.trim()) {
+      nombre = wp.name
+    } else if (waypointId === origen.id) {
+      nombre = 'Salida'
+    } else if (waypointId === destino.id) {
+      nombre = 'Llegada'
+    } else {
+      const idx = paradas.findIndex((p) => p.id === waypointId)
+      if (idx >= 0) nombre = `Parada ${idx + 1}`
     }
-  }, [modoSeleccionMapa, centroMapaPendiente])
+
+    setNameModalInitial(nombre)
+    setNameModalVisible(true)
+  }, [modoSeleccionMapa, centroMapaPendiente, waypointsOrdenados, origen.id, destino.id, paradas])
 
   const aplicarNombreMapa = useCallback(
     (name: string) => {
@@ -525,11 +544,10 @@ export function useRoutePlanner({
     centroMapaPendiente,
     nameModalVisible,
     nameModalInitial,
-    nameModalLoading,
     actualizarWaypoint,
     agregarParada,
     eliminarParada,
-    moverParada,
+    reordenarParada,
     iniciarSeleccionMapa,
     cancelarSeleccionMapa,
     onRegionChangeComplete,

@@ -50,7 +50,7 @@ export function WaypointNameModal({
         >
           <Text style={[styles.title, { color: theme.text }]}>Nombre del punto</Text>
           <Text style={[styles.subtitle, { color: theme.textDim }]}>
-            Podés personalizarlo (ej. Kiosquito de la esquina)
+            Tocá el nombre si querés cambiarlo (ej. Kiosquito de la esquina)
           </Text>
 
           {loadingName ? (
@@ -69,7 +69,7 @@ export function WaypointNameModal({
                   color: theme.text,
                 },
               ]}
-              autoFocus
+              selectTextOnFocus
               autoCorrect={false}
             />
           )}

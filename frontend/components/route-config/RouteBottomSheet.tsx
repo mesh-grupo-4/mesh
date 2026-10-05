@@ -9,6 +9,7 @@ import {
 } from '@/lib/activityDefaults'
 import type { TipoActividadApi } from '@/lib/viajesApi'
 
+import { ParadasReordenables } from './ParadasReordenables'
 import { RouteTimelineConnector } from './RouteTimelineConnector'
 import { RouteWaypointRow } from './RouteWaypointRow'
 import type { RouteWaypoint } from './routeTypes'
@@ -35,7 +36,7 @@ type Props = {
   ) => void
   onAgregarParada: () => void
   onEliminarParada: (id: string) => void
-  onMoverParada: (id: string, dir: 'up' | 'down') => void
+  onReordenarParada: (desde: number, hasta: number) => void
   onPickOnMap: (waypointId: string) => void
   onGuardar: () => void
 }
@@ -59,7 +60,7 @@ export const RouteBottomSheet = forwardRef<RouteBottomSheetHandle, Props>(functi
     onUpdateWaypoint,
     onAgregarParada,
     onEliminarParada,
-    onMoverParada,
+    onReordenarParada,
     onPickOnMap,
     onGuardar,
   },
@@ -70,8 +71,11 @@ export const RouteBottomSheet = forwardRef<RouteBottomSheetHandle, Props>(functi
   const sheetRef = useRef<BottomSheet>(null)
   const scrollRef = useRef<ElementRef<typeof BottomSheetScrollView>>(null)
   const rowOffsetsRef = useRef<Map<string, number>>(new Map())
+  const paradasListaYRef = useRef(0)
+  const paradasItemYRef = useRef<Map<string, number>>(new Map())
   const sugerenciasAbiertas = useRef(new Set<string>())
   const [scrollSheetHabilitado, setScrollSheetHabilitado] = useState(true)
+  const [arrastrandoParada, setArrastrandoParada] = useState(false)
   const [keyboardHeight, setKeyboardHeight] = useState(0)
 
   useImperativeHandle(ref, () => ({
@@ -111,7 +115,9 @@ export const RouteBottomSheet = forwardRef<RouteBottomSheetHandle, Props>(functi
 
   const onInputFocus = useCallback((waypointId: string) => {
     sheetRef.current?.snapToIndex(2)
-    const y = rowOffsetsRef.current.get(waypointId)
+    const yParada = paradasItemYRef.current.get(waypointId)
+    const y =
+      yParada != null ? paradasListaYRef.current + yParada : rowOffsetsRef.current.get(waypointId)
     if (y == null) return
     setTimeout(() => {
       scrollRef.current?.scrollTo({ y: Math.max(0, y - 12), animated: true })
@@ -130,10 +136,6 @@ export const RouteBottomSheet = forwardRef<RouteBottomSheetHandle, Props>(functi
         stopIndex={stopIndex}
         onUpdate={onUpdateWaypoint}
         onRemove={waypoint.type === 'STOP' ? onEliminarParada : undefined}
-        onMoveUp={waypoint.type === 'STOP' ? (id) => onMoverParada(id, 'up') : undefined}
-        onMoveDown={waypoint.type === 'STOP' ? (id) => onMoverParada(id, 'down') : undefined}
-        canMoveUp={waypoint.type === 'STOP' && (stopIndex ?? 0) > 0}
-        canMoveDown={waypoint.type === 'STOP' && (stopIndex ?? 0) < paradas.length - 1}
         onSuggestionsOpenChange={(open) => onSuggestionsOpenChange(waypoint.id, open)}
         onInputFocus={() => onInputFocus(waypoint.id)}
         onPickOnMap={() => onPickOnMap(waypoint.id)}
@@ -153,16 +155,19 @@ export const RouteBottomSheet = forwardRef<RouteBottomSheetHandle, Props>(functi
       ref={sheetRef}
       index={1}
       snapPoints={snapPoints}
+      // v5 activa el auto-tamaño por defecto: la hoja crecía con cada parada y
+      // el scroll interno quedaba sin efecto. Con alturas fijas, el contenido scrollea.
+      enableDynamicSizing={false}
       backgroundStyle={{ backgroundColor: theme.surface }}
       handleIndicatorStyle={{ backgroundColor: theme.textMute, width: 40 }}
       keyboardBehavior="extend"
       keyboardBlurBehavior="restore"
       android_keyboardInputMode="adjustResize"
-      enableContentPanningGesture={!mapPickMode}
+      enableContentPanningGesture={!mapPickMode && !arrastrandoParada}
     >
       <BottomSheetScrollView
         ref={scrollRef}
-        scrollEnabled={scrollSheetHabilitado && !mapPickMode}
+        scrollEnabled={scrollSheetHabilitado && !mapPickMode && !arrastrandoParada}
         contentContainerStyle={[
           styles.content,
           keyboardHeight > 0 && { paddingBottom: keyboardHeight + (Platform.OS === 'ios' ? 24 : 16) },
@@ -195,7 +200,16 @@ export const RouteBottomSheet = forwardRef<RouteBottomSheetHandle, Props>(functi
 
         {renderRow(origen)}
 
-        {paradas.map((p, i) => renderRow(p, i))}
+        <View onLayout={(e) => (paradasListaYRef.current = e.nativeEvent.layout.y)}>
+          <ParadasReordenables
+            items={paradas}
+            renderItem={(p, i) => renderRow(p, i)}
+            onReordenar={onReordenarParada}
+            onArrastreChange={setArrastrandoParada}
+            onItemLayout={(id, y) => paradasItemYRef.current.set(id, y)}
+            deshabilitado={mapPickMode}
+          />
+        </View>
 
         <View style={styles.addStopWrap}>
           <Btn

@@ -1,5 +1,6 @@
 import type { PrismaClient } from '@prisma/client'
 import { HttpError } from '../../lib/httpError'
+import { sendExpoPush } from '../../lib/expoPush'
 import { unirUsuarioAlGrupo } from './grupos.membership'
 import type {
   AbandonarGrupoInput,
@@ -606,6 +607,8 @@ export class GruposService {
       }
     })
 
+    void this.notificarInvitaciones(actorId, grupoDestinoId, idsUnicos)
+
     const invitados = idsUnicos
       .map((id) => invitables.get(id)!)
       .map((c) => ({ id: c.id, nombre: c.nombre }))
@@ -756,10 +759,46 @@ export class GruposService {
       }
     })
 
+    void this.notificarInvitaciones(actorId, grupoDestinoId, [...procesados])
+
     return {
       invitaciones_creadas: totalCreadas,
       omitidos_ya_miembros: totalOmitidosYaMiembros,
       grupos_origen: gruposOrigenResult,
+    }
+  }
+
+  /**
+   * Push a los invitados para que el badge de pendientes se actualice al
+   * instante. Best-effort: un fallo acá no afecta a la invitación ya creada.
+   */
+  private async notificarInvitaciones(
+    actorId: string,
+    grupoId: string,
+    usuarioIds: string[]
+  ): Promise<void> {
+    if (usuarioIds.length === 0) return
+    try {
+      const [grupo, actor, invitados] = await Promise.all([
+        this.prisma.grupo.findUnique({ where: { id: grupoId }, select: { nombre: true } }),
+        this.prisma.usuario.findUnique({ where: { id: actorId }, select: { nombre: true } }),
+        this.prisma.usuario.findMany({
+          where: { id: { in: usuarioIds }, push_token: { not: null } },
+          select: { push_token: true },
+        }),
+      ])
+      const quien = actor?.nombre ?? 'Alguien'
+      await sendExpoPush(
+        invitados.map((u) => ({
+          to: u.push_token!,
+          title: 'Nueva invitación a grupo',
+          body: `${quien} te invitó a "${grupo?.nombre ?? 'un grupo'}".`,
+          data: { tipo: 'invitacion_grupo', grupoId },
+          sound: 'default' as const,
+        }))
+      )
+    } catch (e) {
+      console.warn('[grupos] notificarInvitaciones falló:', e)
     }
   }
 

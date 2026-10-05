@@ -341,6 +341,95 @@ describe('RN-036 — confirmar estoy bien', () => {
   })
 })
 
+describe('RN-036 — confirmar estoy mal / deshacer', () => {
+  const inicio = new Date('2026-08-21T14:00:00.000Z')
+  const incidente = (confirmado_bien: boolean | null) => ({
+    id: paradaId,
+    viaje_id: viajeId,
+    usuario_id: integranteId,
+    lat: -31.42,
+    lng: -64.18,
+    categoria: null,
+    tipo: 'incidente_detectado',
+    inicio,
+    fin: null,
+    confirmado_bien,
+    usuario,
+  })
+  const alertaAyuda = (estado: string) => ({
+    id: 'alerta-ayuda',
+    viaje_id: viajeId,
+    creada_por_id: integranteId,
+    tipo: 'peligro',
+    origen: 'integrante',
+    mensaje: `[afectado:${integranteId}]Necesita ayuda — Ana Pérez confirmó que necesita ayuda`,
+    lat: -31.42,
+    lng: -64.18,
+    estado,
+    created_at: inicio,
+    creada_por: usuario,
+  })
+
+  it('deja la parada abierta, marca necesita_ayuda y alerta al grupo', async () => {
+    const m = armarPrisma()
+    m.paradaFindFirst.mockResolvedValue(incidente(null))
+    m.paradaUpdate.mockResolvedValue(incidente(false))
+    const alertaCreate = vi.fn().mockResolvedValue(alertaAyuda('activa'))
+    m.prisma.alerta = { create: alertaCreate } as never
+
+    const parada = await new ParadasService(m.prisma).confirmarEstoyMal(integranteId, viajeId)
+
+    expect(parada.fin).toBeNull()
+    expect(parada.necesita_ayuda).toBe(true)
+    expect(m.paradaUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { confirmado_bien: false } })
+    )
+    expect(alertaCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ tipo: 'peligro', origen: 'integrante' }),
+      })
+    )
+    expect(eventos()).toContain('viaje:alerta')
+  })
+
+  it('no duplica el pedido de ayuda', async () => {
+    const m = armarPrisma()
+    m.paradaFindFirst.mockResolvedValue(incidente(false))
+
+    await expect(
+      new ParadasService(m.prisma).confirmarEstoyMal(integranteId, viajeId)
+    ).rejects.toMatchObject({ status: 409, code: 'AYUDA_YA_PEDIDA' })
+  })
+
+  it('deshacer cancela la alerta y vuelve a posible incidente', async () => {
+    const m = armarPrisma()
+    m.paradaFindFirst.mockResolvedValue(incidente(false))
+    m.paradaUpdate.mockResolvedValue(incidente(null))
+    const alertaUpdate = vi.fn().mockResolvedValue(alertaAyuda('cancelada'))
+    m.prisma.alerta = {
+      findFirst: vi.fn().mockResolvedValue(alertaAyuda('activa')),
+      update: alertaUpdate,
+    } as never
+
+    const parada = await new ParadasService(m.prisma).deshacerEstoyMal(integranteId, viajeId)
+
+    expect(parada.necesita_ayuda).toBe(false)
+    expect(alertaUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ estado: 'cancelada' }) })
+    )
+    expect(eventos()).toContain('viaje:alerta_actualizada')
+  })
+
+  it('deshacer falla si no había pedido de ayuda', async () => {
+    const m = armarPrisma()
+    m.paradaFindFirst.mockResolvedValue(incidente(null))
+
+    await expect(
+      new ParadasService(m.prisma).deshacerEstoyMal(integranteId, viajeId)
+    ).rejects.toMatchObject({ status: 409, code: 'SIN_PEDIDO_AYUDA' })
+  })
+})
+
 // ------------------------------------------------------------------------ US2
 
 describe('US2 — solicitar parada al líder', () => {

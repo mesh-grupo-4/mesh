@@ -1,9 +1,15 @@
 import 'react-native-gesture-handler';
 import '@/tasks/locationTask';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { DarkTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
-import { Stack, useGlobalSearchParams, useRouter, useSegments } from 'expo-router';
+import {
+  DarkTheme,
+  Stack,
+  ThemeProvider,
+  useGlobalSearchParams,
+  useRouter,
+  useSegments,
+} from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import 'react-native-reanimated';

@@ -224,6 +224,18 @@ ruta OSRM hasta el punto y dibuja una guía índigo en el mapa.
 Las alertas del sistema incluyen el prefijo interno `[afectado:{usuarioId}]` en
 `mensaje` para deduplicar por integrante; el frontend lo oculta al mostrar.
 
+"Estoy mal" (RN-036, `ParadasService.confirmarEstoyMal()`) también emite `viaje:alerta`:
+`tipo: "peligro"`, `origen: "integrante"`, con la ubicación del incidente y el mismo
+prefijo `[afectado:{usuarioId}]`.
+
+### `viaje:alerta_actualizada`
+
+Emitido cuando cambia el estado de una alerta ya publicada. Hoy lo usa el pedido de
+ayuda de RN-036: pasa a `cancelada` al deshacer "Estoy mal" (`deshacerEstoyMal()`) y a
+`resuelta` si luego el integrante confirma "Estoy bien". Mismo payload que
+`viaje:alerta`; el frontend reemplaza la alerta por `id` y la saca de los banners si
+dejó de estar `activa`.
+
 ### Paradas voluntarias e incidentes (`paradas.service.ts`, `motorEventos.service.ts`)
 
 | Evento | Cuándo |
@@ -265,6 +277,7 @@ Para paradas voluntarias, `estado` es `detenido_voluntario`. El frontend en `liv
 | `viaje:ubicacion` | servidor → sala | — | — |
 | `viaje:participante_salio` | servidor → sala | — | — |
 | `viaje:alerta` | servidor → sala | — | — |
+| `viaje:alerta_actualizada` | servidor → sala | — | — |
 | `viaje:parada_iniciada` | servidor → sala | — | — |
 | `viaje:parada_finalizada` | servidor → sala | — | — |
 | `viaje:solicitud_parada` | servidor → sala | — | — |

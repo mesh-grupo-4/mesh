@@ -108,8 +108,19 @@ export function useAlertas({
             })
           }
         }
+        const onAlertaActualizada = (p: { viajeId: string; alerta: AlertaApi }) => {
+          if (p.viajeId !== viajeId) return
+          setAlertas((prev) => prev.map((a) => (a.id === p.alerta.id ? p.alerta : a)))
+          if (p.alerta.estado !== 'activa') {
+            setAlertasEntrantes((prev) => prev.filter((a) => a.id !== p.alerta.id))
+          }
+        }
         sock.on('viaje:alerta', onAlerta)
-        cleanup = () => sock.off('viaje:alerta', onAlerta)
+        sock.on('viaje:alerta_actualizada', onAlertaActualizada)
+        cleanup = () => {
+          sock.off('viaje:alerta', onAlerta)
+          sock.off('viaje:alerta_actualizada', onAlertaActualizada)
+        }
       } catch {
         /* sin socket queda el refresco manual */
       }

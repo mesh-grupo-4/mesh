@@ -26,6 +26,8 @@ export type ParadaApi = {
   inicio: string
   fin: string | null
   duracion_segundos: number | null
+  /** RN-036: el integrante confirmó que NO está bien ante un posible incidente. */
+  necesita_ayuda?: boolean
 }
 
 export type SolicitudParadaApi = {
@@ -65,6 +67,22 @@ export async function finalizarParada(viajeId: string): Promise<ParadaApi> {
 /** RN-036: confirma que estás bien tras un posible incidente detectado por el sistema. */
 export async function confirmarEstoyBien(viajeId: string): Promise<ParadaApi> {
   const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}/paradas/confirmar-bien`), {
+    method: 'POST',
+  })
+  return parseJson<ParadaApi>(res)
+}
+
+/** RN-036: confirma que NO estás bien; avisa a todo el grupo. */
+export async function confirmarEstoyMal(viajeId: string): Promise<ParadaApi> {
+  const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}/paradas/confirmar-mal`), {
+    method: 'POST',
+  })
+  return parseJson<ParadaApi>(res)
+}
+
+/** Deshace `confirmarEstoyMal`: cancela el pedido de ayuda. */
+export async function deshacerEstoyMal(viajeId: string): Promise<ParadaApi> {
+  const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}/paradas/deshacer-mal`), {
     method: 'POST',
   })
   return parseJson<ParadaApi>(res)

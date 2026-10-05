@@ -19,6 +19,9 @@ const ETIQUETA_CATEGORIA: Record<string, string> = {
   otro: 'una parada',
 }
 
+/** Distingue la alerta de "estoy mal" de las demás alertas del integrante. */
+const MARCA_PEDIDO_AYUDA = 'Necesita ayuda — '
+
 function nombreDe(u: { nombre: string; apellido: string | null }): string {
   return [u.nombre, u.apellido].filter(Boolean).join(' ').trim() || 'Un integrante'
 }
@@ -184,6 +187,9 @@ export class ParadasService {
       },
       data: { estado: 'resuelta', resolved_at: fin },
     })
+    if (abierta.confirmado_bien === false) {
+      await this.cerrarAlertaAyuda(viajeId, usuarioId, 'resuelta', fin)
+    }
 
     this.emitir(viajeId, 'viaje:parada_finalizada', {
       viajeId,
@@ -197,6 +203,111 @@ export class ParadasService {
     })
 
     return this.mapParada(parada)
+  }
+
+  /**
+   * RN-036: ante un posible incidente, el integrante confirma que NO está bien
+   * (p. ej. un accidente). La parada sigue abierta, se marca `confirmado_bien = false`
+   * y se avisa a todo el grupo con una alerta de peligro + push.
+   */
+  async confirmarEstoyMal(usuarioId: string, viajeId: string) {
+    await this.assertParticipaEnViajeEnCurso(viajeId, usuarioId)
+
+    const abierta = await this.incidenteAbierto(viajeId, usuarioId)
+    if (abierta.confirmado_bien === false) {
+      throw new HttpError(409, 'Ya avisaste al grupo que necesitás ayuda', 'AYUDA_YA_PEDIDA')
+    }
+
+    const parada = await this.prisma.parada.update({
+      where: { id: abierta.id },
+      data: { confirmado_bien: false },
+      include: { usuario: { select: { id: true, nombre: true, apellido: true } } },
+    })
+
+    const nombre = nombreDe(parada.usuario)
+    const alerta = await this.prisma.alerta.create({
+      data: {
+        viaje_id: viajeId,
+        creada_por_id: usuarioId,
+        tipo: 'peligro',
+        origen: 'integrante',
+        mensaje: `${prefijoAlertaAfectado(usuarioId)}${MARCA_PEDIDO_AYUDA}${nombre} confirmó que necesita ayuda`,
+        lat: parada.lat,
+        lng: parada.lng,
+      },
+      include: { creada_por: { select: { nombre: true, apellido: true } } },
+    })
+    this.emitir(viajeId, 'viaje:alerta', { viajeId, alerta: this.mapAlerta(alerta, nombre) })
+    void this.notificarGrupo(viajeId, usuarioId, 'Necesita ayuda', `${nombre} confirmó que necesita ayuda.`)
+
+    return this.mapParada(parada)
+  }
+
+  /** Deshace `confirmarEstoyMal`: cancela la alerta y vuelve a "posible incidente". */
+  async deshacerEstoyMal(usuarioId: string, viajeId: string) {
+    await this.assertParticipaEnViajeEnCurso(viajeId, usuarioId)
+
+    const abierta = await this.incidenteAbierto(viajeId, usuarioId)
+    if (abierta.confirmado_bien !== false) {
+      throw new HttpError(409, 'No hay un pedido de ayuda para deshacer', 'SIN_PEDIDO_AYUDA')
+    }
+
+    const parada = await this.prisma.parada.update({
+      where: { id: abierta.id },
+      data: { confirmado_bien: null },
+      include: { usuario: { select: { id: true, nombre: true, apellido: true } } },
+    })
+
+    await this.cerrarAlertaAyuda(viajeId, usuarioId, 'cancelada', new Date())
+    const nombre = nombreDe(parada.usuario)
+    void this.notificarGrupo(viajeId, usuarioId, 'Aviso cancelado', `${nombre} canceló el pedido de ayuda.`)
+
+    return this.mapParada(parada)
+  }
+
+  private async incidenteAbierto(viajeId: string, usuarioId: string) {
+    const abierta = await this.prisma.parada.findFirst({
+      where: {
+        viaje_id: viajeId,
+        usuario_id: usuarioId,
+        fin: null,
+        tipo: 'incidente_detectado',
+      },
+      orderBy: { inicio: 'desc' },
+    })
+    if (!abierta) {
+      throw new HttpError(409, 'No hay un posible incidente abierto', 'SIN_INCIDENTE_ABIERTO')
+    }
+    return abierta
+  }
+
+  /** Cierra la alerta de pedido de ayuda activa del integrante y avisa a la sala. */
+  private async cerrarAlertaAyuda(
+    viajeId: string,
+    usuarioId: string,
+    estado: 'cancelada' | 'resuelta',
+    cuando: Date
+  ): Promise<void> {
+    const alerta = await this.prisma.alerta.findFirst({
+      where: {
+        viaje_id: viajeId,
+        creada_por_id: usuarioId,
+        estado: 'activa',
+        mensaje: { startsWith: `${prefijoAlertaAfectado(usuarioId)}${MARCA_PEDIDO_AYUDA}` },
+      },
+      orderBy: { created_at: 'desc' },
+    })
+    if (!alerta) return
+
+    const actualizada = await this.prisma.alerta.update({
+      where: { id: alerta.id },
+      data: { estado, resolved_at: cuando },
+      include: { creada_por: { select: { nombre: true, apellido: true } } },
+    })
+    this.emitir(viajeId, 'viaje:alerta_actualizada', {
+      viajeId,
+      alerta: this.mapAlerta(actualizada, null),
+    })
   }
 
   /** Parada abierta del usuario, para rehidratar la pantalla al volver a entrar. */
@@ -375,6 +486,7 @@ export class ParadasService {
     tipo?: string
     inicio: Date
     fin: Date | null
+    confirmado_bien?: boolean | null
   }) {
     return {
       id: p.id,
@@ -387,6 +499,7 @@ export class ParadasService {
       inicio: p.inicio.toISOString(),
       fin: p.fin ? p.fin.toISOString() : null,
       duracion_segundos: p.fin ? duracionSeg(p.inicio, p.fin) : null,
+      necesita_ayuda: p.confirmado_bien === false,
     }
   }
 
@@ -413,6 +526,38 @@ export class ParadasService {
       estado: s.estado,
       created_at: s.created_at.toISOString(),
       resolved_at: s.resolved_at ? s.resolved_at.toISOString() : null,
+    }
+  }
+
+  /** Misma forma que `AlertasService` para que el frontend las trate igual. */
+  private mapAlerta(
+    a: {
+      id: string
+      viaje_id: string
+      creada_por_id: string | null
+      tipo: string
+      origen: string
+      mensaje: string | null
+      lat: number | null
+      lng: number | null
+      estado: string
+      created_at: Date
+      creada_por?: { nombre: string; apellido: string | null } | null
+    },
+    nombreFallback: string | null
+  ) {
+    return {
+      id: a.id,
+      viaje_id: a.viaje_id,
+      creada_por_id: a.creada_por_id,
+      creada_por_nombre: a.creada_por ? nombreDe(a.creada_por) : nombreFallback,
+      tipo: a.tipo,
+      origen: a.origen,
+      mensaje: a.mensaje,
+      lat: a.lat,
+      lng: a.lng,
+      estado: a.estado,
+      created_at: a.created_at.toISOString(),
     }
   }
 
@@ -450,20 +595,7 @@ export class ParadasService {
         include: { creada_por: { select: { nombre: true, apellido: true } } },
       })
 
-      const mapeada = {
-        id: alerta.id,
-        viaje_id: alerta.viaje_id,
-        creada_por_id: alerta.creada_por_id,
-        creada_por_nombre: nombreDe(alerta.creada_por ?? { nombre: nombre, apellido: null }),
-        tipo: alerta.tipo,
-        origen: alerta.origen,
-        mensaje: alerta.mensaje,
-        lat: alerta.lat,
-        lng: alerta.lng,
-        estado: alerta.estado,
-        created_at: alerta.created_at.toISOString(),
-      }
-      this.emitir(viajeId, 'viaje:alerta', { viajeId, alerta: mapeada })
+      this.emitir(viajeId, 'viaje:alerta', { viajeId, alerta: this.mapAlerta(alerta, nombre) })
 
       const integrantes = await this.prisma.viajeIntegrante.findMany({
         where: { viaje_id: viajeId, estado: 'confirmado' },
@@ -496,6 +628,48 @@ export class ParadasService {
       )
     } catch (e) {
       console.warn('[paradas] alertarAccidente falló:', e)
+    }
+  }
+
+  /** Push a líder e integrantes confirmados, menos el autor. */
+  private async notificarGrupo(
+    viajeId: string,
+    autorId: string,
+    title: string,
+    body: string
+  ): Promise<void> {
+    try {
+      const viaje = await this.prisma.viaje.findUnique({
+        where: { id: viajeId },
+        select: { creador_id: true, creador: { select: { push_token: true } } },
+      })
+      const integrantes = await this.prisma.viajeIntegrante.findMany({
+        where: { viaje_id: viajeId, estado: 'confirmado' },
+        select: { usuario: { select: { id: true, push_token: true } } },
+      })
+      const destinos = new Map<string, string>()
+      if (viaje && viaje.creador_id !== autorId && viaje.creador.push_token) {
+        destinos.set(viaje.creador_id, viaje.creador.push_token)
+      }
+      for (const i of integrantes) {
+        if (i.usuario.id !== autorId && i.usuario.push_token) {
+          destinos.set(i.usuario.id, i.usuario.push_token)
+        }
+      }
+      if (destinos.size === 0) return
+
+      const { sendExpoPush } = await import('../../lib/expoPush')
+      await sendExpoPush(
+        [...destinos.values()].map((to) => ({
+          to,
+          title,
+          body,
+          data: { viajeId, tipo: 'alerta' },
+          sound: 'default' as const,
+        }))
+      )
+    } catch (e) {
+      console.warn(`[paradas] notificarGrupo "${title}" falló:`, e)
     }
   }
 

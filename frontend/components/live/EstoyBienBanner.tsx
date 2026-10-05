@@ -2,12 +2,15 @@ import { useEffect, useState } from 'react'
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
 
 /** RN-036: confirmación visible cuando el motor detecta posible incidente.
- *  Vive fuera del panel desplegable para que siempre esté al alcance. */
+ *  Vive fuera del panel desplegable para que siempre esté al alcance.
+ *  "Estoy mal" avisa a todo el grupo; volver a tocarlo deshace (con confirmación). */
 type Props = {
   paradaDesde: string
   ocupado: boolean
   bottomOffset: number
   onConfirmar: () => void
+  necesitaAyuda: boolean
+  onEstoyMal: () => void
 }
 
 function transcurrido(desde: string): string {
@@ -21,7 +24,14 @@ function transcurrido(desde: string): string {
     : `${dosDigitos(m)}:${dosDigitos(s)}`
 }
 
-export function EstoyBienBanner({ paradaDesde, ocupado, bottomOffset, onConfirmar }: Props) {
+export function EstoyBienBanner({
+  paradaDesde,
+  ocupado,
+  bottomOffset,
+  onConfirmar,
+  necesitaAyuda,
+  onEstoyMal,
+}: Props) {
   const [, forzarRender] = useState(0)
 
   useEffect(() => {
@@ -32,9 +42,11 @@ export function EstoyBienBanner({ paradaDesde, ocupado, bottomOffset, onConfirma
   return (
     <View style={[styles.wrap, { bottom: bottomOffset }]} pointerEvents="box-none">
       <View style={styles.banner}>
-        <Text style={styles.titulo}>¿Estás bien?</Text>
+        <Text style={styles.titulo}>{necesitaAyuda ? 'Pediste ayuda' : '¿Estás bien?'}</Text>
         <Text style={styles.subtitulo}>
-          Detectamos que llevás un rato detenido. Confirmá si no necesitás ayuda.
+          {necesitaAyuda
+            ? 'Todo el grupo fue avisado. Tocá el botón rojo de nuevo si querés deshacerlo.'
+            : 'Detectamos que llevás un rato detenido. Confirmá si estás bien o avisá si necesitás ayuda.'}
         </Text>
 
         <Pressable
@@ -56,6 +68,26 @@ export function EstoyBienBanner({ paradaDesde, ocupado, bottomOffset, onConfirma
               <Text style={styles.cronometro}>{transcurrido(paradaDesde)}</Text>
             </>
           )}
+        </Pressable>
+
+        <Pressable
+          style={({ pressed }) => [
+            styles.botonMal,
+            necesitaAyuda && styles.botonMalActivo,
+            pressed && styles.presionado,
+            ocupado && styles.deshabilitado,
+          ]}
+          onPress={onEstoyMal}
+          disabled={ocupado}
+          accessibilityRole="button"
+          accessibilityState={{ selected: necesitaAyuda }}
+          accessibilityLabel={
+            necesitaAyuda ? 'Deshacer el pedido de ayuda' : 'Avisar al grupo que necesito ayuda'
+          }
+        >
+          <Text style={[styles.botonMalTxt, necesitaAyuda && styles.botonMalActivoTxt]}>
+            {necesitaAyuda ? 'Ayuda pedida · Deshacer' : 'Estoy mal · Pedir ayuda'}
+          </Text>
         </Pressable>
       </View>
     </View>
@@ -116,6 +148,28 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#fecaca',
     fontVariant: ['tabular-nums'],
+  },
+  botonMal: {
+    marginTop: 10,
+    minHeight: 56,
+    borderRadius: 14,
+    backgroundColor: '#fff',
+    borderWidth: 2,
+    borderColor: '#991b1b',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  botonMalActivo: {
+    backgroundColor: '#991b1b',
+  },
+  botonMalTxt: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#991b1b',
+  },
+  botonMalActivoTxt: {
+    color: '#fff',
   },
   presionado: {
     opacity: 0.85,

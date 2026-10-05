@@ -68,6 +68,8 @@ ErrorCode:
     - SIN_PARADA_ABIERTA
     - USAR_CONFIRMAR_BIEN
     - SIN_INCIDENTE_ABIERTO
+    - AYUDA_YA_PEDIDA
+    - SIN_PEDIDO_AYUDA
     - ES_LIDER
     - SOLICITUD_PENDIENTE
     - SOLICITUD_RESUELTA
@@ -1338,7 +1340,7 @@ Viaje:
     alerta_incidente_minutos:
       type: integer
       nullable: true
-      minimum: 2
+      minimum: 1
       maximum: 30
       description: |
         Minutos quieto sin parada manual antes de marcar posible incidente.
@@ -1346,7 +1348,7 @@ Viaje:
       example: null
     alerta_incidente_minutos_efectivo:
       type: integer
-      minimum: 2
+      minimum: 1
       maximum: 30
       description: Umbral resuelto que usa el motor (custom o por actividad).
       example: 5
@@ -1667,7 +1669,7 @@ ActualizarViajeRequest:
     alertaIncidenteMinutos:
       type: integer
       nullable: true
-      minimum: 2
+      minimum: 1
       maximum: 30
       description: Minutos quieto sin parada manual; `null` restaura el umbral por actividad.
       example: 5
@@ -2665,6 +2667,11 @@ Parada:
       type: integer
       nullable: true
       description: Segundos entre `inicio` y `fin`. `null` mientras la parada sigue abierta.
+    necesita_ayuda:
+      type: boolean
+      description: |
+        RN-036: `true` si el integrante confirmó que NO está bien ante un posible
+        incidente (`confirmarEstoyMal`). Siempre `false` en paradas voluntarias.
   additionalProperties: false
 
 EstadoSolicitudParada:

@@ -36,6 +36,7 @@ import {
   type SolicitudAmistadPendienteApi,
   type UsuarioBusquedaAmistadApi,
 } from '@/lib/amistadesApi';
+import { setSolicitudesPendientesCount } from '@/lib/pendientesStore';
 
 type TabAmigos = 'amigos' | 'solicitudes';
 
@@ -58,6 +59,10 @@ export function AmigosTabPanel() {
     new Map()
   );
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!loading) setSolicitudesPendientesCount(solicitudes.length);
+  }, [solicitudes, loading]);
 
   useFocusEffect(
     useCallback(() => {

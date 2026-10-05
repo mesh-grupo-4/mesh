@@ -8,6 +8,8 @@ import type { TipoActividadApi } from '@/lib/viajesApi'
 import {
   cancelarSolicitudParada,
   confirmarEstoyBien,
+  confirmarEstoyMal,
+  deshacerEstoyMal,
   finalizarParada,
   iniciarParada,
   listarSolicitudesParada,
@@ -365,6 +367,29 @@ export function useParadas({
     }
   }, [viajeId, userId])
 
+  /** RN-036: pedido de ayuda; la parada sigue abierta. */
+  const confirmarMal = useCallback(async () => {
+    setEnviando(true)
+    try {
+      const parada = await confirmarEstoyMal(viajeId)
+      setParadaActiva(parada)
+      return parada
+    } finally {
+      setEnviando(false)
+    }
+  }, [viajeId])
+
+  const deshacerMal = useCallback(async () => {
+    setEnviando(true)
+    try {
+      const parada = await deshacerEstoyMal(viajeId)
+      setParadaActiva(parada)
+      return parada
+    } finally {
+      setEnviando(false)
+    }
+  }, [viajeId])
+
   /** US2 */
   const pedirParada = useCallback(
     async (input: { lat?: number; lng?: number; motivo?: string }) => {
@@ -414,6 +439,8 @@ export function useParadas({
     registrarParada,
     retomarViaje,
     confirmarBien,
+    confirmarMal,
+    deshacerMal,
     pedirParada,
     responderSolicitud,
     cancelarMiSolicitud,
