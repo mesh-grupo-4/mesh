@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -14,11 +15,14 @@ import {
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 
 import { DragToDismiss } from '@/components/DragToDismiss'
+import { useTheme } from '@/components/MeshUI'
+import { mensajeErrorBusqueda } from '@/components/route-config/RouteWaypointRow'
 import {
   MENSAJE_PREDETERMINADO,
   TIPOS_ALERTA,
   type TipoAlertaApi,
 } from '@/lib/alertasApi'
+import { buscarLugares, type LugarHit } from '@/lib/nominatim'
 
 import { AlertaMapPickModal } from './AlertaMapPickModal'
 
@@ -48,22 +52,85 @@ export function CrearAlertaSheet({
   const [mensajeEditado, setMensajeEditado] = useState(false)
   const [ubicacion, setUbicacion] = useState<UbicacionAlerta | null>(null)
   const [eligiendoMapa, setEligiendoMapa] = useState(false)
+  const [nombreUbicacion, setNombreUbicacion] = useState<string | null>(null)
+  const [busqueda, setBusqueda] = useState('')
+  const [busquedaDebounced, setBusquedaDebounced] = useState('')
+  const [hits, setHits] = useState<LugarHit[]>([])
+  const [buscando, setBuscando] = useState(false)
+  const [errorBusqueda, setErrorBusqueda] = useState<string | null>(null)
   const tipoAnterior = useRef(tipo)
+  const theme = useTheme()
+  const styles = useMemo(() => crearEstilos(theme), [theme])
+
+  const limpiarBusqueda = () => {
+    setBusqueda('')
+    setBusquedaDebounced('')
+    setHits([])
+    setErrorBusqueda(null)
+  }
+
+  const quitarUbicacion = () => {
+    setUbicacion(null)
+    setNombreUbicacion(null)
+  }
 
   useEffect(() => {
     if (!visible) return
     setTipo('informacion')
     setMensaje(MENSAJE_PREDETERMINADO.informacion)
     setMensajeEditado(false)
-    setUbicacion(null)
+    quitarUbicacion()
+    limpiarBusqueda()
     tipoAnterior.current = 'informacion'
   }, [visible])
+
+  useEffect(() => {
+    const t = setTimeout(() => setBusquedaDebounced(busqueda.trim()), 500)
+    return () => clearTimeout(t)
+  }, [busqueda])
+
+  useEffect(() => {
+    let cancel = false
+    async function run() {
+      if (busquedaDebounced.length < 3) {
+        setHits([])
+        setErrorBusqueda(null)
+        return
+      }
+      setBuscando(true)
+      setErrorBusqueda(null)
+      try {
+        const r = await buscarLugares(busquedaDebounced)
+        if (!cancel) setHits(r)
+      } catch (e) {
+        if (!cancel) {
+          setHits([])
+          setErrorBusqueda(mensajeErrorBusqueda(e))
+        }
+      } finally {
+        if (!cancel) setBuscando(false)
+      }
+    }
+    void run()
+    return () => {
+      cancel = true
+    }
+  }, [busquedaDebounced])
+
+  const elegirHit = (hit: LugarHit) => {
+    if (Number.isNaN(hit.lat) || Number.isNaN(hit.lng)) return
+    setUbicacion({ lat: hit.lat, lng: hit.lng })
+    setNombreUbicacion(hit.nombre)
+    limpiarBusqueda()
+    Keyboard.dismiss()
+  }
 
   const cerrar = () => {
     setMensaje(MENSAJE_PREDETERMINADO.informacion)
     setMensajeEditado(false)
     setTipo('informacion')
-    setUbicacion(null)
+    quitarUbicacion()
+    limpiarBusqueda()
     onCancelar()
   }
 
@@ -81,7 +148,8 @@ export function CrearAlertaSheet({
     setMensaje(MENSAJE_PREDETERMINADO.informacion)
     setMensajeEditado(false)
     setTipo('informacion')
-    setUbicacion(null)
+    quitarUbicacion()
+    limpiarBusqueda()
   }
 
   return (
@@ -129,7 +197,7 @@ export function CrearAlertaSheet({
                 setMensajeEditado(true)
               }}
               placeholder="Podés editar el mensaje predeterminado"
-              placeholderTextColor="#9ca3af"
+              placeholderTextColor={theme.textMute}
               multiline
               numberOfLines={3}
               maxLength={MAX_MENSAJE}
@@ -141,22 +209,58 @@ export function CrearAlertaSheet({
             <Text style={styles.label}>Dónde paran (opcional)</Text>
             {ubicacion ? (
               <View style={styles.ubicacionRow}>
-                <Text style={styles.ubicacionTxt}>
-                  {ubicacion.lat.toFixed(5)}, {ubicacion.lng.toFixed(5)}
+                <Text style={styles.ubicacionTxt} numberOfLines={2}>
+                  {nombreUbicacion ?? `${ubicacion.lat.toFixed(5)}, ${ubicacion.lng.toFixed(5)}`}
                 </Text>
-                <Pressable onPress={() => setUbicacion(null)} hitSlop={8}>
+                <Pressable onPress={quitarUbicacion} hitSlop={8}>
                   <Text style={styles.quitarUbicacion}>Quitar</Text>
                 </Pressable>
               </View>
             ) : (
-              <Pressable
-                style={({ pressed }) => [styles.marcarMapa, pressed && styles.presionado]}
-                onPress={() => setEligiendoMapa(true)}
-                accessibilityRole="button"
-                accessibilityLabel="Marcar en el mapa dónde van a parar"
-              >
-                <Text style={styles.marcarMapaTxt}>📍 Marcar en el mapa</Text>
-              </Pressable>
+              <>
+                <TextInput
+                  style={styles.inputBusqueda}
+                  value={busqueda}
+                  onChangeText={setBusqueda}
+                  placeholder="Buscar lugar (ej. YPF Ruta 20)"
+                  placeholderTextColor={theme.textMute}
+                  autoCorrect={false}
+                  autoCapitalize="none"
+                  returnKeyType="search"
+                  accessibilityLabel="Buscar el lugar donde van a parar"
+                />
+                {busquedaDebounced.length >= 3 ? (
+                  <View style={styles.sugerencias}>
+                    {buscando ? (
+                      <ActivityIndicator size="small" color={theme.accent} style={styles.sugerenciaInfo} />
+                    ) : errorBusqueda ? (
+                      <Text style={[styles.sugerenciaInfo, styles.sugerenciaError]}>{errorBusqueda}</Text>
+                    ) : hits.length === 0 ? (
+                      <Text style={styles.sugerenciaInfo}>Sin resultados. Probá otro texto o el mapa.</Text>
+                    ) : (
+                      hits.map((hit, i) => (
+                        <Pressable
+                          key={`${hit.lat},${hit.lng}-${i}`}
+                          style={({ pressed }) => [styles.sugerencia, pressed && styles.presionado]}
+                          onPress={() => elegirHit(hit)}
+                        >
+                          <Text style={styles.sugerenciaTxt} numberOfLines={2}>
+                            {hit.nombre}
+                          </Text>
+                        </Pressable>
+                      ))
+                    )}
+                  </View>
+                ) : null}
+                <Pressable
+                  style={({ pressed }) => [styles.marcarMapa, pressed && styles.presionado]}
+                  onPress={() => setEligiendoMapa(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Marcar en el mapa dónde van a parar"
+                >
+                  <Text style={styles.marcarMapaTxt}>📍 Marcar en el mapa</Text>
+                </Pressable>
+              </>
             )}
 
             <View style={styles.acciones}>
@@ -180,7 +284,7 @@ export function CrearAlertaSheet({
                 accessibilityLabel="Enviar alerta a todos los integrantes"
               >
                 {enviando ? (
-                  <ActivityIndicator color="#fff" />
+                  <ActivityIndicator color={theme.onAccent} />
                 ) : (
                   <Text style={styles.enviarTxt}>Enviar a todos</Text>
                 )}
@@ -196,6 +300,8 @@ export function CrearAlertaSheet({
         initialCenter={centroMapaInicial}
         onConfirm={(punto) => {
           setUbicacion(punto)
+          setNombreUbicacion(null)
+          limpiarBusqueda()
           setEligiendoMapa(false)
         }}
         onCancel={() => setEligiendoMapa(false)}
@@ -204,20 +310,23 @@ export function CrearAlertaSheet({
   )
 }
 
-const styles = StyleSheet.create({
+type Tema = ReturnType<typeof useTheme>
+
+const crearEstilos = (theme: Tema) =>
+  StyleSheet.create({
   root: {
     flex: 1,
   },
   fondo: {
     flex: 1,
     justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: theme.scrim,
   },
   fondoTap: {
     flex: 1,
   },
   hoja: {
-    backgroundColor: '#fff',
+    backgroundColor: theme.surface,
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,
     paddingHorizontal: 16,
@@ -229,20 +338,20 @@ const styles = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#d1d5db',
+    backgroundColor: theme.borderStrong,
     marginBottom: 14,
   },
   titulo: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#111827',
+    color: theme.text,
   },
   label: {
     marginTop: 16,
     marginBottom: 8,
     fontSize: 13,
     fontWeight: '700',
-    color: '#6b7280',
+    color: theme.textDim,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -259,8 +368,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#f9fafb',
+    borderColor: theme.border,
+    backgroundColor: theme.surface2,
   },
   tipoEmoji: {
     fontSize: 16,
@@ -268,38 +377,75 @@ const styles = StyleSheet.create({
   tipoTxt: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#4b5563',
+    color: theme.textDim,
   },
   input: {
     minHeight: 88,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#f9fafb',
+    borderColor: theme.border,
+    backgroundColor: theme.surface2,
     padding: 12,
     fontSize: 16,
-    color: '#111827',
+    color: theme.text,
     textAlignVertical: 'top',
   },
   contador: {
     alignSelf: 'flex-end',
     marginTop: 4,
     fontSize: 12,
-    color: '#9ca3af',
+    color: theme.textMute,
+  },
+  inputBusqueda: {
+    minHeight: 48,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: theme.border,
+    backgroundColor: theme.surface2,
+    paddingHorizontal: 12,
+    fontSize: 16,
+    color: theme.text,
+  },
+  sugerencias: {
+    marginTop: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.border,
+    backgroundColor: theme.surface,
+    overflow: 'hidden',
+  },
+  sugerencia: {
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: theme.border,
+  },
+  sugerenciaTxt: {
+    fontSize: 15,
+    color: theme.text,
+  },
+  sugerenciaInfo: {
+    padding: 12,
+    fontSize: 14,
+    color: theme.textDim,
+  },
+  sugerenciaError: {
+    color: theme.danger,
   },
   marcarMapa: {
+    marginTop: 8,
     minHeight: 52,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: '#c7d2fe',
-    backgroundColor: '#eef2ff',
+    borderColor: theme.accentLine,
+    backgroundColor: theme.accentWeak,
     alignItems: 'center',
     justifyContent: 'center',
   },
   marcarMapaTxt: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#4338ca',
+    color: theme.accent,
   },
   ubicacionRow: {
     flexDirection: 'row',
@@ -309,18 +455,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: '#c7d2fe',
-    backgroundColor: '#eef2ff',
+    borderColor: theme.accentLine,
+    backgroundColor: theme.accentWeak,
   },
   ubicacionTxt: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#3730a3',
+    color: theme.text,
   },
   quitarUbicacion: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#dc2626',
+    color: theme.danger,
   },
   acciones: {
     flexDirection: 'row',
@@ -336,22 +482,22 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
   },
   cancelar: {
-    backgroundColor: '#fff',
-    borderColor: '#e5e7eb',
+    backgroundColor: theme.surface,
+    borderColor: theme.border,
   },
   cancelarTxt: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#6b7280',
+    color: theme.textDim,
   },
   enviar: {
-    backgroundColor: '#4338ca',
-    borderColor: '#4338ca',
+    backgroundColor: theme.accent,
+    borderColor: theme.accent,
   },
   enviarTxt: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#fff',
+    color: theme.onAccent,
   },
   presionado: {
     opacity: 0.75,

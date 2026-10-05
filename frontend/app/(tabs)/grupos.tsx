@@ -37,6 +37,7 @@ import { meshAlert, meshConfirmDestructive, meshError, meshSuccess, meshWarning 
 import { Feather } from '@expo/vector-icons';
 import { SegmentTabs } from '@/components/SegmentTabs';
 import { AmigosTabPanel } from '@/components/tabs/AmigosTabPanel';
+import { setInvitacionesPendientesCount } from '@/lib/pendientesStore';
 
 type SeccionGruposAmigos = 'grupos' | 'amigos';
 
@@ -75,6 +76,10 @@ export default function GruposScreen() {
   const [loading, setLoading] = useState(false);
   const [respondiendoId, setRespondiendoId] = useState<string | null>(null);
   const [eliminandoBulk, setEliminandoBulk] = useState(false);
+
+  useEffect(() => {
+    if (!cargandoLista) setInvitacionesPendientesCount(invitaciones.length);
+  }, [invitaciones, cargandoLista]);
 
   useFocusEffect(
     useCallback(() => {

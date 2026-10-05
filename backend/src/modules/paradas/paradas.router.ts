@@ -15,6 +15,8 @@ export const paradasHandlers = {
   finalizar: [requireUser, c.finalizar] as const,
   activa: [requireUser, c.activa] as const,
   confirmarBien: [requireUser, c.confirmarBien] as const,
+  confirmarMal: [requireUser, c.confirmarMal] as const,
+  deshacerMal: [requireUser, c.deshacerMal] as const,
   solicitar: [requireUser, c.solicitar] as const,
   listarSolicitudes: [requireUser, c.listarSolicitudes] as const,
   responderSolicitud: [requireUser, c.responderSolicitud] as const,

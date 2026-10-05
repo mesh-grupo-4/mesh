@@ -16,11 +16,12 @@ import { useTheme } from '@/components/MeshUI'
 import { MeshApiError } from '@/lib/apiClient'
 import { buscarLugares, type LugarHit } from '@/lib/nominatim'
 
+import { ManijaArrastre } from './ParadasReordenables'
 import { StopCategoryPicker } from './StopCategoryPicker'
 import { labelTipoWaypoint, type RouteWaypoint, type StopCategory } from './routeTypes'
 
 /** Traduce la falla real del buscador a algo accionable, en vez de siempre "sin conexión". */
-function mensajeErrorBusqueda(e: unknown): string {
+export function mensajeErrorBusqueda(e: unknown): string {
   if (e instanceof MeshApiError) {
     if (e.code === 'GEOCODING_TIMEOUT') {
       return 'El buscador tardó demasiado en responder. Reintentá o probá el mapa.'
@@ -44,10 +45,6 @@ type Props = {
     patch: Partial<Pick<RouteWaypoint, 'lat' | 'lon' | 'name' | 'category'>>
   ) => void
   onRemove?: (id: string) => void
-  onMoveUp?: (id: string) => void
-  onMoveDown?: (id: string) => void
-  canMoveUp?: boolean
-  canMoveDown?: boolean
   onSuggestionsOpenChange?: (open: boolean) => void
   onInputFocus?: () => void
   onPickOnMap: () => void
@@ -60,10 +57,6 @@ export function RouteWaypointRow({
   stopIndex,
   onUpdate,
   onRemove,
-  onMoveUp,
-  onMoveDown,
-  canMoveUp,
-  canMoveDown,
   onSuggestionsOpenChange,
   onInputFocus,
   onPickOnMap,
@@ -151,9 +144,26 @@ export function RouteWaypointRow({
     setSearchError(null)
   }
 
+  const esParada = waypoint.type === 'STOP'
+
   return (
-    <View style={styles.wrap}>
-      <Text style={[styles.label, { color: theme.textDim }]}>{label}</Text>
+    <View
+      style={[
+        styles.wrap,
+        esParada && [styles.card, { backgroundColor: theme.surface, borderColor: theme.border }],
+      ]}
+    >
+      {esParada ? (
+        <ManijaArrastre>
+          <View style={styles.cardHeader} accessibilityHint="Mantené presionado y arrastrá para cambiar el orden">
+            <Ionicons name="reorder-three" size={20} color={theme.textMute} />
+            <Text style={[styles.label, styles.labelCard, { color: theme.textDim }]}>{label}</Text>
+            <Text style={[styles.dragHint, { color: theme.textMute }]}>Mantené para mover</Text>
+          </View>
+        </ManijaArrastre>
+      ) : (
+        <Text style={[styles.label, { color: theme.textDim }]}>{label}</Text>
+      )}
       <View style={styles.inputRow}>
         <InputComponent
           {...({
@@ -226,37 +236,6 @@ export function RouteWaypointRow({
         />
       ) : null}
 
-      {waypoint.type === 'STOP' && (onMoveUp || onMoveDown) ? (
-        <View style={styles.reorderRow}>
-          {onMoveUp ? (
-            <Pressable
-              onPress={() => onMoveUp(waypoint.id)}
-              disabled={!canMoveUp}
-              style={[
-                styles.reorderBtn,
-                { backgroundColor: theme.surface3 },
-                !canMoveUp && styles.reorderBtnOff,
-              ]}
-            >
-              <Ionicons name="arrow-up" size={16} color={theme.text} />
-            </Pressable>
-          ) : null}
-          {onMoveDown ? (
-            <Pressable
-              onPress={() => onMoveDown(waypoint.id)}
-              disabled={!canMoveDown}
-              style={[
-                styles.reorderBtn,
-                { backgroundColor: theme.surface3 },
-                !canMoveDown && styles.reorderBtnOff,
-              ]}
-            >
-              <Ionicons name="arrow-down" size={16} color={theme.text} />
-            </Pressable>
-          ) : null}
-        </View>
-      ) : null}
-
       {suggestionsVisibles ? (
         <View
           style={[
@@ -304,6 +283,25 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 4,
   },
+  card: {
+    borderWidth: 1.2,
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 0,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingBottom: 6,
+  },
+  labelCard: {
+    flex: 1,
+    marginBottom: 0,
+  },
+  dragHint: {
+    fontSize: 11,
+  },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -339,19 +337,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  reorderRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 6,
-  },
-  reorderBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  reorderBtnOff: { opacity: 0.35 },
   suggestions: {
     marginTop: 4,
     borderWidth: 1,

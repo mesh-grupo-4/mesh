@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { BottomTabBar, type BottomTabBarProps } from '@react-navigation/bottom-tabs'
+import { BottomTabBar, type BottomTabBarProps } from 'expo-router/js-tabs'
 import { Platform, StyleSheet, useWindowDimensions, View } from 'react-native'
 import Svg, { Path } from 'react-native-svg'
 import { useTheme } from '@/components/MeshUI'

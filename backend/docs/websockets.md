@@ -267,6 +267,10 @@ ruta OSRM hasta el punto y dibuja una guía índigo en el mapa.
 Las alertas del sistema incluyen el prefijo interno `[afectado:{usuarioId}]` en
 `mensaje` para deduplicar por integrante; el frontend lo oculta al mostrar.
 
+"Estoy mal" (RN-036, `ParadasService.confirmarEstoyMal()`) también emite `viaje:alerta`:
+`tipo: "peligro"`, `origen: "integrante"`, con la ubicación del incidente y el mismo
+prefijo `[afectado:{usuarioId}]`.
+
 Mientras un integrante tiene una alerta `activa` de un tipo, el motor no genera otra del
 mismo tipo para él. Una parada voluntaria fuera del trazado no cuenta como desvío.
 
@@ -279,7 +283,9 @@ Cambio de estado de una alerta ya emitida. Lo disparan:
 - `MotorEventosService`: resolución automática de `desvio` cuando el integrante vuelve a
   menos de la **mitad** del umbral de separación, y de `atraso` cuando su atraso baja de la
   mitad de la tolerancia (histéresis para no oscilar en el borde).
-- `ParadasService.confirmarEstoyBien()`: resuelve las alertas del sistema del integrante.
+- `ParadasService.confirmarEstoyBien()`: resuelve las alertas del sistema del integrante y,
+  si había pedido ayuda (RN-036), también esa alerta de `peligro`.
+- `ParadasService.deshacerEstoyMal()`: cancela el pedido de ayuda de RN-036.
 - `ViajesService.salirViaje()` y `finalizar()`: resuelven las que quedaban abiertas.
 
 ```jsonc

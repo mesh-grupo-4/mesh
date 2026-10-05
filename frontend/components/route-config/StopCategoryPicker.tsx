@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons'
-import { Pressable, ScrollView, StyleSheet, Text } from 'react-native'
+import { Pressable, StyleSheet, Text, View } from 'react-native'
 
 import { useTheme } from '@/components/MeshUI'
 
@@ -28,12 +28,9 @@ export function StopCategoryPicker({ value, onChange }: Props) {
   const theme = useTheme()
 
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.row}
-      keyboardShouldPersistTaps="handled"
-    >
+    // Sin scroll horizontal: dentro del bottom sheet el gesto lateral lo captura
+    // la hoja y los chips del final quedaban inalcanzables. Se acomodan en varias líneas.
+    <View style={styles.row}>
       {OPTIONS.map((opt) => {
         const selected = value === opt.value
         return (
@@ -65,13 +62,14 @@ export function StopCategoryPicker({ value, onChange }: Props) {
           </Pressable>
         )
       })}
-    </ScrollView>
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
     paddingVertical: 6,
   },

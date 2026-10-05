@@ -4,6 +4,8 @@ import { Tabs } from 'expo-router';
 import { useTheme } from '@/components/MeshUI';
 import { CenterViajesTabButton } from '@/components/CenterViajesTabButton';
 import { MeshTabBar } from '@/components/MeshTabBar';
+import { useAuth } from '@/context/AuthContext';
+import { usePendientesBadge } from '@/lib/pendientesStore';
 
 function TabBarIcon(props: {
   name: React.ComponentProps<typeof FontAwesome>['name'];
@@ -14,6 +16,8 @@ function TabBarIcon(props: {
 
 export default function TabLayout() {
   const theme = useTheme();
+  const { backendUserId } = useAuth();
+  const pendientes = usePendientesBadge(backendUserId);
   return (
     <Tabs
       tabBar={(props) => <MeshTabBar {...props} />}
@@ -46,6 +50,9 @@ export default function TabLayout() {
         options={{
           title: 'Grupos',
           tabBarIcon: ({ color }) => <TabBarIcon name="users" color={color} />,
+          // Invitaciones a grupos + solicitudes de amistad pendientes.
+          tabBarBadge: pendientes > 0 ? (pendientes > 99 ? '99+' : pendientes) : undefined,
+          tabBarBadgeStyle: { backgroundColor: theme.danger, color: '#fff', fontSize: 11 },
         }}
       />
       <Tabs.Screen

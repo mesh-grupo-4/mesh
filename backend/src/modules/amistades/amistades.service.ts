@@ -1,5 +1,6 @@
 import type { PrismaClient } from '@prisma/client'
 import { HttpError } from '../../lib/httpError'
+import { sendExpoPush } from '../../lib/expoPush'
 import type {
   ResponderSolicitudAmistadInput,
   SolicitarAmistadInput,
@@ -102,10 +103,40 @@ export class AmistadesService {
       },
     })
 
+    void this.notificarSolicitud(solicitanteId, destinatarioId)
+
     return {
       id: solicitud.id,
       created_at: solicitud.created_at,
       destinatario: solicitud.destinatario,
+    }
+  }
+
+  /**
+   * Push al destinatario para que el badge de pendientes se actualice al
+   * instante. Best-effort: un fallo acá no afecta a la solicitud ya creada.
+   */
+  private async notificarSolicitud(solicitanteId: string, destinatarioId: string): Promise<void> {
+    try {
+      const [solicitante, destinatario] = await Promise.all([
+        this.prisma.usuario.findUnique({ where: { id: solicitanteId }, select: { nombre: true } }),
+        this.prisma.usuario.findUnique({
+          where: { id: destinatarioId },
+          select: { push_token: true },
+        }),
+      ])
+      if (!destinatario?.push_token) return
+      await sendExpoPush([
+        {
+          to: destinatario.push_token,
+          title: 'Nueva solicitud de amistad',
+          body: `${solicitante?.nombre ?? 'Alguien'} quiere ser tu amigo en Mesh.`,
+          data: { tipo: 'solicitud_amistad' },
+          sound: 'default',
+        },
+      ])
+    } catch (e) {
+      console.warn('[amistades] notificarSolicitud falló:', e)
     }
   }
 

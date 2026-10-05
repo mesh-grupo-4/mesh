@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, View, Platform } from 'react-native';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Feather } from '@expo/vector-icons';
-import type { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
+import type { BottomTabBarButtonProps } from 'expo-router/js-tabs';
 import { useRouter } from 'expo-router';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {

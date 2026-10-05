@@ -31,9 +31,11 @@ import {
   eliminarViaje,
   obtenerViaje,
   obtenerRuta,
+  obtenerRecorrido,
   actualizarFechaViaje,
   actualizarViaje,
   listarParticipantesViaje,
+  responderInvitacionViaje,
   type ParametrosViajeInput,
   type ViajeDetalleApi,
   type ViajeParticipanteApi,
@@ -47,6 +49,7 @@ import { waypointsFromRutaDetalle } from '@/lib/routePayload'
 import { ajustarSiQuedoEnPasado, esFechaFutura } from '@/lib/fechaProgramada'
 import { aCamposArg, ahoraEnCamposArg, desdeCamposArg, formatearEnArg } from '@/lib/tiempoArg'
 import { RouteMapView } from '@/components/route-config/RouteMapView'
+import { RecorridoMapView } from '@/components/RecorridoMapView'
 import { ClimaViajeCard } from '@/components/ClimaViajeCard'
 import { ParametrosGrupoCard } from '@/components/ParametrosGrupoCard'
 import {
@@ -137,6 +140,9 @@ export default function ViajeDetalleScreen() {
   const [viaje, setViaje] = useState<ViajeDetalleApi | null>(null)
   const [participantes, setParticipantes] = useState<ViajeParticipanteApi[]>([])
   const [rutaMapa, setRutaMapa] = useState<RutaMapa | null>(null)
+  /** Traza GPS realmente recorrida; solo se carga cuando el viaje está finalizado. */
+  const [recorrido, setRecorrido] = useState<[number, number][][]>([])
+  const [cargandoRecorrido, setCargandoRecorrido] = useState(false)
   const [loading, setLoading] = useState(true)
   const [accion, setAccion] = useState(false)
   const [modalPermisos, setModalPermisos] = useState(false)
@@ -151,6 +157,9 @@ export default function ViajeDetalleScreen() {
   const [participantesAbierto, setParticipantesAbierto] = useState(false)
 
   const esLider = viaje != null && userId === viaje.creador_id
+  /** Invitado (por grupo o amigo) que todavía no confirmó ni rechazó (RN-028). */
+  const invitacionPendiente =
+    !esLider && viaje?.estado === 'planificado' && viaje.mi_participacion?.estado === 'pendiente'
   const puedeCompartirRuta =
     !!rutaMapa &&
     (esLider || viaje?.mi_participacion?.estado === 'confirmado')
@@ -185,6 +194,17 @@ export default function ViajeDetalleScreen() {
     try {
       const v = await obtenerViaje(viajeId, userId)
       setViaje(v)
+
+      if (v.estado === 'finalizado') {
+        setCargandoRecorrido(true)
+        void obtenerRecorrido(viajeId)
+          .then((r) => setRecorrido(r.segmentos))
+          .catch((e) => {
+            console.warn('No se pudo cargar el recorrido realizado:', e)
+            setRecorrido([])
+          })
+          .finally(() => setCargandoRecorrido(false))
+      }
 
       try {
         const parts = await listarParticipantesViaje(viajeId, userId)
@@ -527,6 +547,30 @@ export default function ViajeDetalleScreen() {
     }
   }
 
+  const responderInvitacion = async (respuesta: 'aceptar' | 'rechazar') => {
+    if (!viajeId || !userId) return
+    setAccion(true)
+    try {
+      await responderInvitacionViaje(viajeId, respuesta, userId)
+      if (respuesta === 'rechazar') {
+        router.replace('/(tabs)')
+        return
+      }
+      await cargar()
+    } catch (e) {
+      meshAlert('Error', e instanceof Error ? e.message : 'No se pudo responder la invitación')
+    } finally {
+      setAccion(false)
+    }
+  }
+
+  const confirmarRechazo = () => {
+    meshAlert('Rechazar invitación', '¿Seguro que no vas a participar de este viaje?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Rechazar', style: 'destructive', onPress: () => void responderInvitacion('rechazar') },
+    ])
+  }
+
   const irLive = () => {
     if (!viajeId) return
     router.push({ pathname: '/viaje/[viajeId]/live', params: { viajeId } })
@@ -544,7 +588,13 @@ export default function ViajeDetalleScreen() {
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <TopBar
-        title={viaje?.estado === 'planificado' ? 'Configurando viaje' : 'Viaje'}
+        title={
+          viaje?.estado === 'planificado'
+            ? 'Configurando viaje'
+            : viaje?.estado === 'finalizado'
+              ? 'Finalizado'
+              : 'Viaje'
+        }
         sub={!viaje ? 'Cargando...' : undefined}
         onBack={() => router.back()}
         bordered={false}
@@ -626,7 +676,9 @@ export default function ViajeDetalleScreen() {
               accessibilityRole="button"
               accessibilityLabel="Configurar recorrido"
             >
-              {rutaMapa ? (
+              {viaje.estado === 'finalizado' ? (
+                <RecorridoMapView segmentos={recorrido} cargando={cargandoRecorrido} altura={180} />
+              ) : rutaMapa ? (
                 <>
                   <View>
                     <RutaMapaPreview ruta={rutaMapa} />
@@ -662,11 +714,15 @@ export default function ViajeDetalleScreen() {
                   <View style={styles.noRouteOverlay} pointerEvents="none">
                     <View style={[styles.noRoutePanel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                       <Feather name="map" size={24} color={theme.textMute} style={{ marginBottom: 6 }} />
-                      <Text style={[styles.noRouteTitle, { color: theme.text }]}>Recorrido sin configurar</Text>
+                      <Text style={[styles.noRouteTitle, { color: theme.text }]}>
+                        {viaje.estado === 'en_curso' ? 'Viaje sin recorrido iniciado' : 'Recorrido sin configurar'}
+                      </Text>
                       <Text style={[styles.noRouteBody, { color: theme.textDim }]}>
-                        {puedeEditarPlan
-                          ? 'Tocá acá para definir el trayecto y habilitar la guía GPS en vivo.'
-                          : 'Definí el trayecto para habilitar la guía GPS en vivo.'}
+                        {viaje.estado === 'en_curso'
+                          ? 'El viaje se inició sin un trayecto planificado.'
+                          : puedeEditarPlan
+                            ? 'Tocá acá para definir el trayecto y habilitar la guía GPS en vivo.'
+                            : 'Definí el trayecto para habilitar la guía GPS en vivo.'}
                       </Text>
                     </View>
                   </View>
@@ -814,13 +870,17 @@ export default function ViajeDetalleScreen() {
                         onPress={() => {
                           const base =
                             viaje.alerta_incidente_minutos ?? viaje.alerta_incidente_minutos_efectivo
-                          if (base <= 2) return
+                          if (base <= 1) return
                           void guardarConfigAlerta({ alertaIncidenteMinutos: base - 1 })
                         }}
-                        disabled={guardandoAlertaConfig}
+                        disabled={guardandoAlertaConfig || viaje.alerta_incidente_minutos_efectivo <= 1}
                         style={[styles.alertStepBtn, { borderColor: theme.border }]}
                       >
-                        <Feather name="minus" size={16} color={theme.text} />
+                        <Feather
+                          name="minus"
+                          size={16}
+                          color={viaje.alerta_incidente_minutos_efectivo <= 1 ? theme.textDim : theme.text}
+                        />
                       </Pressable>
                       <Text style={[styles.alertMinutosValue, { color: theme.text }]}>
                         {viaje.alerta_incidente_minutos_efectivo} min
@@ -1040,6 +1100,46 @@ export default function ViajeDetalleScreen() {
               )
             })()}
 
+            {viaje.estado === 'finalizado' && (
+              <View style={styles.preTripActions}>
+                <Btn
+                  variant="secondary"
+                  block
+                  size="sm"
+                  icon="bar-chart-2"
+                  onPress={() =>
+                    router.push({ pathname: '/viaje/[viajeId]/resumen', params: { viajeId } })
+                  }
+                >
+                  Ver resumen del recorrido
+                </Btn>
+                {viaje.es_grupal && (
+                  <Btn
+                    variant="secondary"
+                    block
+                    size="sm"
+                    icon="dollar-sign"
+                    onPress={() =>
+                      router.push({ pathname: '/viaje/[viajeId]/gastos', params: { viajeId } })
+                    }
+                  >
+                    Ver balance de gastos
+                  </Btn>
+                )}
+                <Btn
+                  variant="secondary"
+                  block
+                  size="sm"
+                  icon="trending-up"
+                  onPress={() =>
+                    router.push({ pathname: '/viaje/[viajeId]/metricas', params: { viajeId } })
+                  }
+                >
+                  Mis métricas detalladas
+                </Btn>
+              </View>
+            )}
+
             {/* RN-111/112: siempre visible, también con el viaje finalizado —
                 el registro de quién vio tu posición se consulta después. */}
             <View style={styles.optionsBlock}>
@@ -1087,7 +1187,8 @@ export default function ViajeDetalleScreen() {
 
           </ScrollView>
 
-          {/* Sticky Bottom Actions */}
+          {/* Sticky Bottom Actions (un viaje finalizado no tiene acciones fijas) */}
+          {viaje.estado !== 'finalizado' && (
           <View style={[styles.bottomPad, { backgroundColor: theme.background, borderTopColor: theme.border }]}>
             {viaje.estado === 'planificado' && esLider && (
               <Btn variant="primary" block icon="play" onPress={confirmarIniciar} disabled={accion} loading={accion}>
@@ -1095,7 +1196,28 @@ export default function ViajeDetalleScreen() {
               </Btn>
             )}
 
-            {viaje.estado === 'planificado' && !esLider && (
+            {invitacionPendiente && (
+              <View style={{ gap: 10 }}>
+                <Text style={[styles.invitacionTexto, { color: theme.textDim }]}>
+                  Te invitaron a este viaje. ¿Vas a participar?
+                </Text>
+                <Btn
+                  variant="primary"
+                  block
+                  icon="check"
+                  onPress={() => void responderInvitacion('aceptar')}
+                  disabled={accion}
+                  loading={accion}
+                >
+                  Aceptar invitación
+                </Btn>
+                <Btn variant="ghost" block icon="x" onPress={confirmarRechazo} disabled={accion}>
+                  Rechazar
+                </Btn>
+              </View>
+            )}
+
+            {viaje.estado === 'planificado' && !esLider && !invitacionPendiente && (
               <Btn variant="ghost" block icon="log-out" onPress={confirmarSalir} disabled={accion} loading={accion}>
                 Salir del viaje
               </Btn>
@@ -1117,44 +1239,8 @@ export default function ViajeDetalleScreen() {
                 )}
               </View>
             )}
-
-            {viaje.estado === 'finalizado' && (
-              <View style={{ gap: 10 }}>
-                <Btn
-                  variant="secondary"
-                  block
-                  icon="bar-chart-2"
-                  onPress={() =>
-                    router.push({ pathname: '/viaje/[viajeId]/resumen', params: { viajeId } })
-                  }
-                >
-                  Ver resumen del recorrido
-                </Btn>
-                {viaje.es_grupal && (
-                  <Btn
-                    variant="ghost"
-                    block
-                    icon="dollar-sign"
-                    onPress={() =>
-                      router.push({ pathname: '/viaje/[viajeId]/gastos', params: { viajeId } })
-                    }
-                  >
-                    Ver balance de gastos
-                  </Btn>
-                )}
-                <Btn
-                  variant="ghost"
-                  block
-                  icon="trending-up"
-                  onPress={() =>
-                    router.push({ pathname: '/viaje/[viajeId]/metricas', params: { viajeId } })
-                  }
-                >
-                  Mis métricas detalladas
-                </Btn>
-              </View>
-            )}
           </View>
+          )}
         </>
       ) : (
         <View style={styles.center}>
@@ -1429,6 +1515,11 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14.5,
     fontWeight: '600',
+  },
+  invitacionTexto: {
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   bottomPad: {
     paddingHorizontal: 20,

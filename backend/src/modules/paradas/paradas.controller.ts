@@ -30,6 +30,16 @@ export function crearParadasController(service: ParadasService) {
       res.json(parada)
     }),
 
+    confirmarMal: asyncHandler(async (req, res) => {
+      const parada = await service.confirmarEstoyMal(req.userId!, (req.params.viajeId as string))
+      res.json(parada)
+    }),
+
+    deshacerMal: asyncHandler(async (req, res) => {
+      const parada = await service.deshacerEstoyMal(req.userId!, (req.params.viajeId as string))
+      res.json(parada)
+    }),
+
     activa: asyncHandler(async (req, res) => {
       const parada = await service.miParadaActiva(req.userId!, (req.params.viajeId as string))
       res.json(parada)

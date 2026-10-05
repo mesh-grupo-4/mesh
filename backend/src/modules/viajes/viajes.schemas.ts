@@ -97,7 +97,7 @@ export const actualizarViajeSchema = z
   .object({
     fechaProgramada: fechaProgramadaFuturaSchema.optional(),
     alertaIncidenteHabilitada: z.boolean().optional(),
-    alertaIncidenteMinutos: z.number().int().min(2).max(30).nullable().optional(),
+    alertaIncidenteMinutos: z.number().int().min(1).max(30).nullable().optional(),
     alertasSoloLider: z.boolean().optional(),
     velocidadEsperada: velocidadEsperadaSchema.optional(),
     distanciaMaxSeparacion: distanciaMaxSeparacionSchema.optional(),
