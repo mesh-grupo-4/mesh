@@ -3,6 +3,7 @@ import * as Location from 'expo-location'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
   ActivityIndicator,
   Platform,
@@ -78,20 +79,12 @@ function mensajeDeError(e: unknown): string {
   return e instanceof Error ? e.message : 'Intentá de nuevo en unos segundos.'
 }
 
-function duracionLegible(segundos: number): string {
-  if (segundos < 60) return `${segundos} s`
-  const min = Math.floor(segundos / 60)
-  if (min < 60) return `${min} min`
-  const h = Math.floor(min / 60)
-  const resto = min % 60
-  return resto > 0 ? `${h} h ${resto} min` : `${h} h`
-}
-
 export default function ViajeLiveScreen() {
   const router = useRouter()
   const { backendUserId } = useAuth()
   const params = useLocalSearchParams<{ viajeId: string | string[]; userId?: string | string[] }>()
   const mapRef = useRef<LiveMapViewHandle>(null)
+  const insets = useSafeAreaInsets()
 
   const viajeId = useMemo(() => {
     const v = params.viajeId
@@ -613,9 +606,7 @@ export default function ViajeLiveScreen() {
   const handleRetomar = () => {
     void (async () => {
       try {
-        const parada = await retomarViaje()
-        const seg = parada.duracion_segundos ?? 0
-        meshAlert('Retomaste el viaje', `Parada de ${duracionLegible(seg)} registrada.`)
+        await retomarViaje()
       } catch (e) {
         meshAlert('No se pudo retomar', mensajeDeError(e))
       }
@@ -627,7 +618,6 @@ export default function ViajeLiveScreen() {
     void (async () => {
       try {
         await confirmarBien()
-        meshAlert('Confirmado', 'Volviste a figurar en movimiento en el mapa del grupo.')
       } catch (e) {
         meshAlert('No se pudo confirmar', mensajeDeError(e))
       }
@@ -655,7 +645,6 @@ export default function ViajeLiveScreen() {
     void (async () => {
       try {
         await confirmarMal()
-        meshAlert('Aviso enviado', 'Todo el grupo sabe que necesitás ayuda.')
       } catch (e) {
         meshAlert('No se pudo avisar al grupo', mensajeDeError(e))
       }
@@ -675,7 +664,6 @@ export default function ViajeLiveScreen() {
       const pos = await posicionActual()
       try {
         await pedirParada({ lat: pos?.lat, lng: pos?.lng })
-        meshAlert('Solicitud enviada', 'El líder recibió tu pedido de parada.')
       } catch (e) {
         meshAlert('No se pudo enviar', mensajeDeError(e))
       }
@@ -862,16 +850,6 @@ export default function ViajeLiveScreen() {
           <FantasmaPanel fantasma={fantasma} onPausar={pausarFantasma} onQuitar={quitarFantasma} />
         ) : null}
 
-        {alertaEntrante ? (
-          <AlertaGrupalBanner
-            alerta={alertaEntrante}
-            restantes={alertasEntrantes.length}
-            ocupado={calculandoSeguirAlerta}
-            onSeguir={() => void activarSeguirAlerta()}
-            onIgnorar={ignorarAlertaEntrante}
-          />
-        ) : null}
-
         {llegada ? (
           <LlegadaDestinoBanner
             destinoNombre={destinoNombre}
@@ -962,6 +940,20 @@ export default function ViajeLiveScreen() {
         tipoActividad={tipoActividad}
       />
 
+      {/* La alerta entrante va en su propia capa, arriba de todo (header,
+          banners, botones flotantes): es lo primero que tiene que verse. */}
+      {alertaEntrante ? (
+        <View style={[styles.alertaCapa, { top: insets.top + 8 }]} pointerEvents="box-none">
+          <AlertaGrupalBanner
+            alerta={alertaEntrante}
+            restantes={alertasEntrantes.length}
+            ocupado={calculandoSeguirAlerta}
+            onSeguir={() => void activarSeguirAlerta()}
+            onIgnorar={ignorarAlertaEntrante}
+          />
+        </View>
+      ) : null}
+
       <CategoriaParadaSheet
         visible={eligiendoCategoria}
         onSeleccionar={handleCategoriaElegida}
@@ -1008,6 +1000,13 @@ const styles = StyleSheet.create({
     right: 12,
     gap: 8,
     zIndex: 30,
+  },
+  alertaCapa: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    zIndex: 100,
+    elevation: 100,
   },
   warnBanner: {
     padding: 10,

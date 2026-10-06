@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { Platform, StyleSheet, Text, View } from 'react-native'
 
 import { getMapStyle, type MapStyleId } from '@/components/route-config/mapStyles'
@@ -18,6 +18,9 @@ import { memberMarkerHtml, MEMBER_MARKER_BOX } from './memberMarker'
 import { paradaMarkerHtml, paradaMarkerPopup } from './paradaMarker'
 import type { CategoriaParadaApi } from '@/lib/paradasApi'
 import { motivoParadaLegible } from '@/lib/paradasApi'
+
+/** Zoom con el que se centra el mapa en tu posición al entrar. */
+const ZOOM_INICIAL = 17
 
 export type LiveMapViewHandle = {
   focusOnCoordinate: (lat: number, lng: number) => void
@@ -48,6 +51,9 @@ type Props = {
   mapStyle: MapStyleId
   /** El usuario arrastró el mapa a mano — señal para pausar el modo "seguirme". */
   onUserDrag?: () => void
+  /** false = mapa de solo lectura (sin arrastre ni zoom), p. ej. una miniatura. */
+  interactive?: boolean
+  onReady?: () => void
 }
 
 export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMapView(
@@ -63,12 +69,15 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
     initialCenter,
     mapStyle,
     onUserDrag,
+    interactive = true,
+    onReady,
   },
   ref
 ) {
   const mapRef = useRef<WebMapViewHandle>(null)
   const capa = getMapStyle(mapStyle)
   const centeredOnce = useRef(false)
+  const [mapaListo, setMapaListo] = useState(false)
 
   useImperativeHandle(ref, () => ({
     focusOnCoordinate(lat, lng) {
@@ -85,11 +94,13 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
     },
   }))
 
+  // Espera a que el mapa esté listo: antes de eso el WebView descarta el
+  // animateTo y el mapa quedaba con el zoom alejado del arranque.
   useEffect(() => {
-    if (!initialCenter || centeredOnce.current) return
+    if (!initialCenter || !mapaListo || centeredOnce.current) return
     centeredOnce.current = true
-    mapRef.current?.animateTo(initialCenter, 15)
-  }, [initialCenter])
+    mapRef.current?.animateTo(initialCenter, ZOOM_INICIAL)
+  }, [initialCenter, mapaListo])
 
   const fallbackCenter = initialCenter ?? { latitude: -31.4167, longitude: -64.1833 }
   const fallbackZoom = zoomFromLatDelta(initialCenter ? 0.04 : 0.08)
@@ -222,6 +233,11 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
         markers={markers}
         polylines={polylines}
         onUserDrag={onUserDrag}
+        interactive={interactive}
+        onReady={() => {
+          setMapaListo(true)
+          onReady?.()
+        }}
       />
       <View
         style={[

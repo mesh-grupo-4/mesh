@@ -287,14 +287,6 @@ export default function CrearViajeScreen() {
         userId
       )
 
-      const msg =
-        viaje.invitaciones_enviadas && viaje.invitaciones_enviadas > 0
-          ? `Viaje creado. Se enviaron ${viaje.invitaciones_enviadas} invitaciones pendientes.`
-          : viaje.ruta_precargada
-            ? 'Viaje creado con la ruta de tu plantilla. Podés ajustarla antes de iniciar.'
-            : 'Viaje creado correctamente.'
-
-      meshAlert('Listo', msg)
       if (conRecorrido) {
         router.replace({
           pathname: '/configurar-ruta/[viajeId]',

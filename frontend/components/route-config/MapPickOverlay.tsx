@@ -55,7 +55,7 @@ export function MapPickOverlay({ lat, lon, onConfirm, onCancel }: Props) {
 
 const styles = StyleSheet.create({
   root: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 20,
   },
   cancelWrap: {

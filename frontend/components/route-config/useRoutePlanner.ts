@@ -510,7 +510,7 @@ export function useRoutePlanner({
     try {
       const body = toPutRutaBody(origen, paradas, destino, rutaOk)
       await guardarRutaEnBackend(viajeId, userId.trim(), body)
-      meshAlert('Listo', 'La ruta se guardó correctamente.', [{ text: 'OK', onPress: onSaved }])
+      onSaved?.()
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Error al guardar'
       meshAlert('Error', msg)

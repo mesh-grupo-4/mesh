@@ -178,10 +178,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   camera: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   overlayContainer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: 'space-between',
     zIndex: 10,
   },

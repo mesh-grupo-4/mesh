@@ -46,7 +46,7 @@ export function useBreadcrumbTrail({
     }
     let cancelled = false
     setSegmentos([])
-    void obtenerRecorrido(viajeId, userId.trim())
+    void obtenerRecorrido(viajeId)
       .then((r) => {
         if (!cancelled) setSegmentos(r.segmentos)
       })

@@ -31,7 +31,7 @@ const POLL_DEGRADED_MS = 8000
 /** Cada cuánto reevaluamos la frescura de las posiciones. */
 const STALE_CHECK_MS = 10000
 /** Seis ciclos GPS perdidos (RN-031: un ping cada 5 s). */
-const STALE_AFTER_MS = 30000
+export const STALE_AFTER_MS = 30000
 
 type Options = {
   viajeId: string
@@ -51,7 +51,7 @@ type LocationTick = {
   recordedAt: string
 }
 
-function rowToMember(row: UbicacionVivaSnapshotApi, names: Record<string, string>): MemberSnapshot {
+export function rowToMember(row: UbicacionVivaSnapshotApi, names: Record<string, string>): MemberSnapshot {
   return {
     usuarioId: row.usuarioId,
     lat: row.lat,
