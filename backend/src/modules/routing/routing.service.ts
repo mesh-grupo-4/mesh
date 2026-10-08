@@ -11,8 +11,22 @@ import type { CalcularRutaInput, PerfilRuta } from './routing.schemas'
  * `geocoding.service.ts` (ver el comentario ahí). En Node el fetch saliente
  * es confiable, así que el dispositivo solo habla con nuestro backend.
  */
+const GOOGLE_ROUTES_URL = 'https://routes.googleapis.com/directions/v2:computeRoutes'
 const OSRM_BASE = 'https://router.project-osrm.org'
 const VALHALLA_BASE = 'https://valhalla1.openstreetmap.de'
+
+/** Routes API admite hasta 25 paradas intermedias (sin contar origen y destino). */
+const GOOGLE_MAX_INTERMEDIOS = 25
+
+// Solo los campos que usamos: con este field mask y sin tráfico en vivo la
+// llamada se factura como "Compute Routes Essentials" (el SKU más barato).
+const GOOGLE_FIELD_MASK = 'routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline'
+
+const GOOGLE_TRAVEL_MODE: Record<PerfilRuta, string> = {
+  driving: 'DRIVE',
+  cycling: 'BICYCLE',
+  walking: 'WALK',
+}
 
 const TIMEOUT_BASE_MS = 8000
 const TIMEOUT_MAX_MS = 20000
@@ -28,6 +42,15 @@ export type RutaCalculada = {
   linestring: GeoJsonLineString
   distancia_m: number
   duracion_seg: number
+}
+
+type GoogleRoutesResponse = {
+  routes?: Array<{
+    distanceMeters?: number
+    /** Duración en formato protobuf, ej. "1750s". */
+    duration?: string
+    polyline?: { encodedPolyline?: string }
+  }>
 }
 
 type OsrmResponse = {
@@ -93,6 +116,72 @@ function esReintentable(e: unknown): boolean {
     e instanceof HttpError &&
     (e.code === 'ROUTING_TIMEOUT' || e.code === 'ROUTING_UPSTREAM_ERROR')
   )
+}
+
+/**
+ * Google Routes API: proveedor principal cuando hay API key. Devuelve la
+ * polyline con la misma precisión (5) que OSRM. Si Google no tiene ruta para
+ * ese modo (p. ej. bici o a pie en zonas sin cobertura) responde `{}`: se
+ * trata como `no_route` y `calcularRuta` sigue con los proveedores OSM.
+ */
+async function calcularConGoogle(
+  apiKey: string,
+  perfil: PerfilRuta,
+  puntos: CalcularRutaInput['puntos'],
+  timeoutMs: number
+): Promise<RutaCalculada> {
+  if (puntos.length - 2 > GOOGLE_MAX_INTERMEDIOS) {
+    throw new HttpError(
+      502,
+      'La ruta supera las paradas intermedias que admite Google',
+      'ROUTING_UPSTREAM_ERROR'
+    )
+  }
+
+  const waypoint = (p: { lat: number; lng: number }) => ({
+    location: { latLng: { latitude: p.lat, longitude: p.lng } },
+  })
+  const body = {
+    origin: waypoint(puntos[0]!),
+    destination: waypoint(puntos[puntos.length - 1]!),
+    intermediates: puntos.slice(1, -1).map(waypoint),
+    travelMode: GOOGLE_TRAVEL_MODE[perfil],
+    languageCode: 'es-419',
+    regionCode: 'AR',
+  }
+
+  const res = await fetchConTimeout(
+    GOOGLE_ROUTES_URL,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask': GOOGLE_FIELD_MASK,
+      },
+      body: JSON.stringify(body),
+    },
+    timeoutMs
+  )
+  assertOk(res)
+
+  const json = (await res.json()) as GoogleRoutesResponse
+  const route = json.routes?.[0]
+  const encoded = route?.polyline?.encodedPolyline
+  if (!route || !encoded) {
+    throw new HttpError(422, 'No hay una ruta transitable entre esos puntos', 'ROUTING_NO_ROUTE')
+  }
+
+  const decoded = polyline.decode(encoded)
+  if (decoded.length < 2) {
+    throw new HttpError(422, 'No hay una ruta transitable entre esos puntos', 'ROUTING_NO_ROUTE')
+  }
+
+  return {
+    linestring: { type: 'LineString', coordinates: decoded.map(([lat, lng]): [number, number] => [lng, lat]) },
+    distancia_m: route.distanceMeters ?? 0,
+    duracion_seg: Number.parseFloat(route.duration ?? '0') || 0,
+  }
 }
 
 async function calcularConOsrm(
@@ -178,9 +267,20 @@ type Proveedor = (
   timeoutMs: number
 ) => Promise<RutaCalculada>
 
-const PROVEEDORES: Proveedor[] = [calcularConOsrm, calcularConValhalla]
-
 export class RoutingService {
+  private readonly proveedores: Proveedor[]
+
+  /**
+   * @param googleApiKey Si viene, Google Routes es el primer proveedor y los de
+   * OpenStreetMap quedan como respaldo. Sin key se usan solo OSRM y Valhalla.
+   */
+  constructor(googleApiKey?: string) {
+    const osm: Proveedor[] = [calcularConOsrm, calcularConValhalla]
+    this.proveedores = googleApiKey
+      ? [(perfil, puntos, timeoutMs) => calcularConGoogle(googleApiKey, perfil, puntos, timeoutMs), ...osm]
+      : osm
+  }
+
   /**
    * Prueba cada proveedor una vez; si falla de forma transitoria (timeout o
    * error de upstream), pasa al siguiente antes de rendirse. Son
@@ -192,7 +292,7 @@ export class RoutingService {
     const timeoutMs = timeoutParaRuta(input.puntos)
 
     let ultimoError: unknown
-    for (const proveedor of PROVEEDORES) {
+    for (const proveedor of this.proveedores) {
       try {
         return await proveedor(input.perfil, input.puntos, timeoutMs)
       } catch (e) {

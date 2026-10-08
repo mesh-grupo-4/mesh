@@ -1,16 +1,16 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
-import { Platform, StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, View } from 'react-native'
 
 import { useTheme } from '@/components/MeshUI'
 import {
-  WebMapView,
+  MeshMapView,
   zoomFromLatDelta,
-  type WebMapViewHandle,
+  type MeshMapViewHandle,
   type MarkerSpec,
   type PolylineSpec,
   type LatLng,
-} from '@/components/maps/WebMapView'
-import { pinMarkerHtml, PIN_SIZE, PIN_ANCHOR } from '@/components/maps/pinMarker'
+} from '@/components/maps/MeshMapView'
+import { PinMarker, PIN_ANCHOR } from '@/components/maps/PinMarker'
 
 import { getMapStyle, type MapStyleId } from './mapStyles'
 import {
@@ -67,7 +67,7 @@ export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function Route
   ref
 ) {
   const theme = useTheme()
-  const mapRef = useRef<WebMapViewHandle>(null)
+  const mapRef = useRef<MeshMapViewHandle>(null)
   const capa = getMapStyle(mapStyle)
 
   useImperativeHandle(ref, () => ({
@@ -125,56 +125,25 @@ export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function Route
       id: w.id,
       lat: w.lat,
       lng: w.lon,
-      html: pinMarkerHtml(colorMarcador(w.type, theme)),
-      size: PIN_SIZE,
+      content: <PinMarker color={colorMarcador(w.type, theme)} />,
+      contentKey: colorMarcador(w.type, theme),
       anchor: PIN_ANCHOR,
-      popup: w.name || undefined,
+      popup: w.name ? { title: w.name } : undefined,
     }))
   }, [waypoints, mapPickMode, theme])
 
   return (
     <View style={StyleSheet.absoluteFillObject}>
-      <WebMapView
+      <MeshMapView
         ref={mapRef}
         initialCenter={{ latitude: initialRegion.latitude, longitude: initialRegion.longitude }}
         initialZoom={zoomFromLatDelta(initialRegion.latitudeDelta)}
-        tile={capa}
+        mapStyle={capa}
         markers={markers}
         polylines={polylines}
         userLocation={userLocation}
         onRegionChangeComplete={onRegionChangeComplete}
       />
-
-      <View
-        style={[
-          styles.attribution,
-          {
-            backgroundColor: theme.surface,
-            borderColor: theme.border,
-          },
-        ]}
-        pointerEvents="none"
-      >
-        <Text style={[styles.attributionTxt, { color: theme.textDim }]} numberOfLines={1}>
-          {capa.attribution}
-        </Text>
-      </View>
     </View>
   )
-})
-
-const styles = StyleSheet.create({
-  attribution: {
-    position: 'absolute',
-    left: 8,
-    top: Platform.OS === 'ios' ? 96 : 72,
-    borderWidth: 1,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    maxWidth: '55%',
-  },
-  attributionTxt: {
-    fontSize: 10,
-  },
 })

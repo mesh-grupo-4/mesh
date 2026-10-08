@@ -2,13 +2,13 @@ import { useEffect, useMemo, useRef } from 'react'
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
 
 import { useTheme } from '@/components/MeshUI'
-import { WebMapView, zoomFromLatDelta, type WebMapViewHandle, type MarkerSpec } from '@/components/maps/WebMapView'
-import { pinMarkerHtml, PIN_SIZE, PIN_ANCHOR } from '@/components/maps/pinMarker'
+import { MeshMapView, zoomFromLatDelta, type MeshMapViewHandle, type MarkerSpec } from '@/components/maps/MeshMapView'
+import { PinMarker, PIN_ANCHOR } from '@/components/maps/PinMarker'
 import { getMapStyle } from '@/components/route-config/mapStyles'
 
 /**
  * US2: dibuja la traza GPS realmente recorrida en un viaje finalizado.
- * OpenStreetMap vía Leaflet embebido, igual que el resto de los mapas de la app.
+ * Google Maps nativo (`MeshMapView`), igual que el resto de los mapas de la app.
  *
  * `segmentos` viene partido en tramos contiguos (un hueco de señal largo o un
  * salto de posición imposible entre pings corta la traza en un tramo nuevo): cada
@@ -25,22 +25,19 @@ const PADDING_FIT = { top: 40, right: 40, bottom: 40, left: 40 }
 
 export function RecorridoMapView({ segmentos, cargando = false, altura = 220 }: Props) {
   const theme = useTheme()
-  const mapRef = useRef<WebMapViewHandle>(null)
+  const mapRef = useRef<MeshMapViewHandle>(null)
   const capa = getMapStyle('standard')
   const puntos = useMemo(() => segmentos.flat(), [segmentos])
   const hayTraza = puntos.length > 1
 
   useEffect(() => {
     if (!hayTraza) return
-    // Un frame de gracia: el WebView todavía puede no estar listo si el fit se pide de inmediato.
-    const id = setTimeout(() => {
-      mapRef.current?.fitBounds(
-        puntos.map(([lat, lng]) => ({ latitude: lat, longitude: lng })),
-        PADDING_FIT,
-        false
-      )
-    }, 350)
-    return () => clearTimeout(id)
+    // Si el mapa todavía no está listo, MeshMapView aplica el fit en onMapReady.
+    mapRef.current?.fitBounds(
+      puntos.map(([lat, lng]) => ({ latitude: lat, longitude: lng })),
+      PADDING_FIT,
+      false
+    )
   }, [puntos, hayTraza])
 
   const polylines = useMemo(
@@ -60,19 +57,19 @@ export function RecorridoMapView({ segmentos, cargando = false, altura = 220 }: 
         id: 'inicio',
         lat: inicio[0],
         lng: inicio[1],
-        html: pinMarkerHtml('#15803d'),
-        size: PIN_SIZE,
+        content: <PinMarker color="#15803d" />,
+        contentKey: 'inicio',
         anchor: PIN_ANCHOR,
-        popup: 'Inicio',
+        popup: { title: 'Inicio' },
       },
       {
         id: 'fin',
         lat: fin[0],
         lng: fin[1],
-        html: pinMarkerHtml('#dc2626'),
-        size: PIN_SIZE,
+        content: <PinMarker color="#dc2626" />,
+        contentKey: 'fin',
         anchor: PIN_ANCHOR,
-        popup: 'Fin',
+        popup: { title: 'Fin' },
       },
     ]
   }, [puntos, hayTraza])
@@ -99,11 +96,11 @@ export function RecorridoMapView({ segmentos, cargando = false, altura = 220 }: 
 
   return (
     <View style={[styles.caja, { height: altura }]} pointerEvents="none">
-      <WebMapView
+      <MeshMapView
         ref={mapRef}
         initialCenter={{ latitude: inicio[0], longitude: inicio[1] }}
         initialZoom={zoomFromLatDelta(0.08)}
-        tile={capa}
+        mapStyle={capa}
         interactive={false}
         markers={markers}
         polylines={polylines}

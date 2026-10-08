@@ -1,7 +1,9 @@
 # Módulo Geocoding — src/modules/geocoding/
 # Router: geocoding.router.ts · Controller: geocoding.controller.ts · Service: geocoding.service.ts
 #
-# Proxy hacia Nominatim/OpenStreetMap. Existe porque Nominatim exige un
+# Proxy hacia Google Places / Geocoding (si GOOGLE_MAPS_API_KEY está
+# configurada) con Nominatim/OpenStreetMap como respaldo. La API key de Google
+# nunca sale del backend. Nominatim pasa por acá porque Nominatim exige un
 # User-Agent identificable (su política de uso lo requiere) y en React
 # Native/Android el stack nativo (OkHttp) suele ignorar el header seteado vía
 # fetch(), lo que hacía fallar la búsqueda desde el cliente móvil siempre. El
@@ -14,10 +16,14 @@ BuscarLugares:
     operationId: buscarLugares
     summary: Buscar lugares por texto
     description: |
-      Geocodifica un texto libre (dirección, ciudad, punto de interés) contra
-      Nominatim, acotado a Argentina, y devuelve hasta 5 resultados.
+      Geocodifica un texto libre (dirección, ciudad, punto de interés), acotado a
+      Argentina, y devuelve hasta 5 resultados.
 
-      El backend antepone el header `User-Agent` que exige la política de uso de
+      Si el servidor tiene `GOOGLE_MAPS_API_KEY`, busca primero con **Google
+      Places API (Text Search)**; si Google falla, cae a Nominatim. Los errores
+      documentados abajo corresponden a Nominatim (último proveedor).
+
+      Para Nominatim, el backend antepone el header `User-Agent` que exige la política de uso de
       Nominatim y aplica un throttle interno de mínimo 1000ms entre requests
       salientes hacia ese servicio (compartido con `GET /api/geocoding/reverse`).
     tags:
@@ -83,8 +89,9 @@ ReverseGeocoding:
     description: |
       Devuelve el nombre del lugar más cercano a una coordenada, para mostrar
       una etiqueta legible cuando el usuario elige un punto directamente en el
-      mapa. Si Nominatim no devuelve un `display_name`, se usa `Punto en mapa`
-      como fallback.
+      mapa. Si el servidor tiene `GOOGLE_MAPS_API_KEY` usa primero **Google
+      Geocoding API** y, si falla, cae a Nominatim. Si no se encuentra un nombre
+      para la coordenada, se usa `Punto en mapa` como fallback.
 
       Nominatim usa el parámetro `lon`; este endpoint expone `lng` por
       consistencia con el resto del contrato y el backend hace la conversión al

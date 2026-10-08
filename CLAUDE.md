@@ -79,7 +79,7 @@ Capas de responsabilidad: **Controller/Socket → Service → Repository**. Toda
 | Navegación | Expo Router v6 (file-based routing, `typedRoutes: true`) |
 | Animaciones | react-native-reanimated v4 |
 | Íconos | @expo/vector-icons |
-| Mapas | OpenStreetMap (NO Google Maps ni Mapbox salvo orden explícita) |
+| Mapas | Google Maps nativo (`react-native-maps`, `components/maps/MeshMapView.tsx`) |
 
 ```bash
 npm start            # dev server (Expo Go)
@@ -212,7 +212,10 @@ npm run docs:preview   # previsualiza la documentación
 ```
 
 ### Mapas
-**OpenStreetMap** exclusivamente. Sin dependencia de APIs comerciales (Google Maps, Mapbox). Costo de carga: $0.
+**Google Maps Platform** (decisión del 08/10/2026, ver `tesis-brain/adr-mapas-google.md`):
+- Mapa nativo: Maps SDK for Android/iOS vía `react-native-maps`. Toda pantalla usa `MeshMapView`; key del build en `GOOGLE_MAPS_ANDROID_API_KEY` / `GOOGLE_MAPS_IOS_API_KEY` (`frontend/app.config.ts`).
+- Búsqueda (Places), geocodificación inversa (Geocoding) y rutas (Routes) se llaman **solo desde el backend** con `GOOGLE_MAPS_API_KEY`. Nunca exponer esa key al dispositivo.
+- Los servicios OpenStreetMap (Nominatim, OSRM, Valhalla) quedan como **respaldo automático**: si Google falla o no hay key, el backend cae a ellos sin cambiar el contrato.
 
 ### Base de datos geoespacial
 **Supabase** como proveedor administrado de **PostgreSQL + PostGIS**. PostGIS está habilitado como extensión en el proyecto Supabase.
@@ -368,7 +371,7 @@ Antes de generar o modificar código, verificar:
 - [ ] ¿Validé la entrada con Zod?
 - [ ] ¿Documenté en el spec OpenAPI (`backend/openapi/`) todo endpoint nuevo o modificado, y corrí `npm run docs:lint` + `npm test`?
 - [ ] ¿Respeté la arquitectura de capas? (Controller → Service → Repository)
-- [ ] ¿Mapas usan OpenStreetMap, no Google Maps ni Mapbox?
+- [ ] ¿Los mapas usan `MeshMapView` y las APIs de Google se llaman desde el backend (key fuera del dispositivo)?
 - [ ] ¿No toqué `.env` ni credenciales sin permiso?
 - [ ] ¿No introduje mocks en código de producción?
 - [ ] ¿Solo uso los roles `líder` y `participante`?

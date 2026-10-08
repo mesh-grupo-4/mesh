@@ -1,0 +1,190 @@
+# Módulo Lugares — src/modules/lugares/
+# Router: lugares.router.ts · Controller: lugares.controller.ts · Service: lugares.service.ts
+#
+# Sugerencias de lugares por categoría de parada (RN-022) con Google Places API
+# (New). La API key vive solo en el backend (GOOGLE_MAPS_API_KEY). No hay
+# respaldo OpenStreetMap: sin key responde 503.
+
+LugaresEnRuta:
+  post:
+    operationId: buscarLugaresEnRuta
+    summary: Sugerir lugares a lo largo de una ruta
+    description: |
+      Busca lugares de la categoría pedida a lo largo del trazado de la ruta
+      (Places Text Search con `searchAlongRouteParameters`). Lo usa el planificador
+      para sugerir paradas intermedias.
+    tags:
+      - Lugares
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/LugaresEnRutaInput'
+          example:
+            categoria: combustible
+            trazado:
+              - lat: -31.4201
+                lng: -64.1888
+              - lat: -31.41
+                lng: -64.175
+    responses:
+      '200':
+        description: Hasta 10 lugares sugeridos; puede ser un array vacío.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/LugarSugerido'
+            example:
+              - id: ChIJN1t_tDeuEmsRUsoyG83frY4
+                nombre: YPF Centro
+                direccion: Av. Colón 100, X5000 Córdoba, Argentina
+                lat: -31.41
+                lng: -64.18
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '429':
+        description: Google Places respondió `429 Too Many Requests` (`LUGARES_RATE_LIMIT`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Demasiadas búsquedas de lugares, esperá un momento
+              code: LUGARES_RATE_LIMIT
+      '502':
+        description: No se pudo contactar a Google Places o respondió con error (`LUGARES_UPSTREAM_ERROR`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: El servicio de lugares respondió con un error
+              code: LUGARES_UPSTREAM_ERROR
+      '503':
+        description: El servidor no tiene `GOOGLE_MAPS_API_KEY` configurada (`LUGARES_NO_DISPONIBLE`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: La búsqueda de lugares no está configurada en el servidor
+              code: LUGARES_NO_DISPONIBLE
+      '504':
+        description: Google Places no respondió dentro del timeout de 8s (`LUGARES_TIMEOUT`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: El servicio de lugares no respondió a tiempo
+              code: LUGARES_TIMEOUT
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+LugaresCercanos:
+  get:
+    operationId: buscarLugaresCercanos
+    summary: Sugerir lugares cerca de una posición
+    description: |
+      Busca lugares de la categoría pedida dentro de un radio alrededor de una
+      posición, ordenados por distancia (Places Nearby Search). Lo usa el mapa en
+      vivo ("Cerca mío"). La posición solo se usa para esta búsqueda: no se
+      publica al grupo ni se guarda (RN-111).
+    tags:
+      - Lugares
+    parameters:
+      - name: categoria
+        in: query
+        required: true
+        schema:
+          $ref: '../components/schemas.yaml#/CategoriaLugar'
+      - name: lat
+        in: query
+        required: true
+        schema:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+        example: -31.4201
+      - name: lng
+        in: query
+        required: true
+        schema:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+        example: -64.1888
+      - name: radio_m
+        in: query
+        required: false
+        description: Radio de búsqueda en metros (default 5000).
+        schema:
+          type: integer
+          minimum: 100
+          maximum: 50000
+          default: 5000
+        example: 5000
+    responses:
+      '200':
+        description: Hasta 10 lugares sugeridos; puede ser un array vacío.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/LugarSugerido'
+            example:
+              - id: ChIJN1t_tDeuEmsRUsoyG83frY4
+                nombre: YPF Centro
+                direccion: Av. Colón 100, X5000 Córdoba, Argentina
+                lat: -31.41
+                lng: -64.18
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '429':
+        description: Google Places respondió `429 Too Many Requests` (`LUGARES_RATE_LIMIT`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Demasiadas búsquedas de lugares, esperá un momento
+              code: LUGARES_RATE_LIMIT
+      '502':
+        description: No se pudo contactar a Google Places o respondió con error (`LUGARES_UPSTREAM_ERROR`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: El servicio de lugares respondió con un error
+              code: LUGARES_UPSTREAM_ERROR
+      '503':
+        description: El servidor no tiene `GOOGLE_MAPS_API_KEY` configurada (`LUGARES_NO_DISPONIBLE`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: La búsqueda de lugares no está configurada en el servidor
+              code: LUGARES_NO_DISPONIBLE
+      '504':
+        description: Google Places no respondió dentro del timeout de 8s (`LUGARES_TIMEOUT`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: El servicio de lugares no respondió a tiempo
+              code: LUGARES_TIMEOUT
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'

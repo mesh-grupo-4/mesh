@@ -17,6 +17,8 @@ import { AlertasButton } from '@/components/live/AlertasButton'
 import { CategoriaParadaSheet } from '@/components/live/CategoriaParadaSheet'
 import { CrearAlertaSheet } from '@/components/live/CrearAlertaSheet'
 import { CenterLocationButton } from '@/components/live/CenterLocationButton'
+import { CercaMioButton } from '@/components/live/CercaMioButton'
+import { LugaresSugeridosModal } from '@/components/lugares/LugaresSugeridosModal'
 import { ParadaVoluntariaBanner } from '@/components/live/ParadaVoluntariaBanner'
 import { SolicitudParadaBanner } from '@/components/live/SolicitudParadaBanner'
 import { LlegadaDestinoBanner } from '@/components/live/LlegadaDestinoBanner'
@@ -46,6 +48,8 @@ import { useTripMetrics } from '@/hooks/useTripMetrics'
 import { uiConfigPorActividad } from '@/lib/activityUi'
 import type { RouteStop } from '@/lib/geo/nextStop'
 import { haversineDistanceM } from '@/lib/geo/haversine'
+import { buscarLugaresCercanos, type CategoriaLugar, type LugarSugerido } from '@/lib/lugaresApi'
+import { calcularGuiaHastaDestino } from '@/lib/osrmGuia'
 import { dividirRutaPorAvance } from '@/lib/geo/routeProgress'
 import { useHapticaAlEntrar } from '@/lib/haptics'
 import { formatPaceMinKm, formatSpeedKmh } from '@/lib/format'
@@ -123,6 +127,11 @@ export default function ViajeLiveScreen() {
   const [eligiendoCategoria, setEligiendoCategoria] = useState(false)
   const [componiendoAlerta, setComponiendoAlerta] = useState(false)
   const [eligiendoFantasma, setEligiendoFantasma] = useState(false)
+  const [buscandoCerca, setBuscandoCerca] = useState(false)
+  const [guiaLugar, setGuiaLugar] = useState<{
+    coords: [number, number][]
+    destino: { lat: number; lng: number; nombre: string }
+  } | null>(null)
   /** Alto real de la pila de banners: los botones flotantes se corren debajo. */
   const [altoBanners, setAltoBanners] = useState(0)
   /** Alto real de la botonera inferior, que creció con la fila de paradas. */
@@ -298,6 +307,27 @@ export default function ViajeLiveScreen() {
       color: '#4338ca',
     }
   }, [seguirAlerta])
+
+  // "Cerca mío": la posición viaja al backend solo para esta búsqueda; no se
+  // publica al grupo (RN-111) y se usa la que ya tiene el dispositivo.
+  const buscarCercaMio = (categoria: CategoriaLugar): Promise<LugarSugerido[]> => {
+    if (!myPosition) return Promise.resolve([])
+    return buscarLugaresCercanos(categoria, myPosition.lat, myPosition.lng)
+  }
+
+  const distanciaHastaLugar = (lugar: LugarSugerido): string | null => {
+    if (!myPosition) return null
+    const m = haversineDistanceM(myPosition.lat, myPosition.lng, lugar.lat, lugar.lng)
+    return m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`
+  }
+
+  const irALugar = async (lugar: LugarSugerido) => {
+    setBuscandoCerca(false)
+    if (!myPosition) return
+    const coords = await calcularGuiaHastaDestino(myPosition, lugar, tipoActividad)
+    setGuiaLugar({ coords, destino: { lat: lugar.lat, lng: lugar.lng, nombre: lugar.nombre } })
+    mapRef.current?.fitBoundsToCoords(coords)
+  }
 
   const puedeCrearAlertas =
     viaje?.estado === 'en_curso' &&
@@ -801,6 +831,7 @@ export default function ViajeLiveScreen() {
         alertasEnMapa={alertasEnMapa}
         guiaParada={guiaParada}
         guiaAlerta={guiaAlerta}
+        guiaLugar={guiaLugar}
         fantasma={
           fantasma
             ? { ...fantasma.posicion, nombre: fantasma.nombre, pausado: fantasma.pausado, traza: fantasma.traza }
@@ -919,6 +950,15 @@ export default function ViajeLiveScreen() {
           />
 
           <MapStylePicker value={mapStyle} onChange={setMapStyle} topAbsolute={topFlotantes + 14} light />
+
+          {viaje?.estado === 'en_curso' ? (
+            <CercaMioButton
+              topOffset={topFlotantes + 14 + 44 + 10}
+              guiaActiva={guiaLugar != null}
+              onPress={() => (guiaLugar ? setGuiaLugar(null) : setBuscandoCerca(true))}
+              tipoActividad={tipoActividad}
+            />
+          ) : null}
         </>
       ) : null}
 
@@ -967,6 +1007,17 @@ export default function ViajeLiveScreen() {
         onSeleccionar={handleCategoriaElegida}
         onCancelar={() => setEligiendoCategoria(false)}
         tipoActividad={tipoActividad}
+      />
+
+      <LugaresSugeridosModal
+        visible={buscandoCerca}
+        titulo="Cerca mío"
+        subtitulo="Lugares a menos de 5 km"
+        accionLabel="Ir"
+        buscar={buscarCercaMio}
+        detalle={distanciaHastaLugar}
+        onElegir={(lugar) => void irALugar(lugar)}
+        onCerrar={() => setBuscandoCerca(false)}
       />
 
       <FantasmaPickerModal

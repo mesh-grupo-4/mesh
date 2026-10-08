@@ -86,9 +86,11 @@ tags:
   - name: Amistades
     description: Búsqueda de personas, solicitudes de amistad y listado de amigos.
   - name: Geocoding
-    description: Búsqueda de lugares y geocodificación inversa vía Nominatim/OpenStreetMap, proxiado por el backend.
+    description: Búsqueda de lugares y geocodificación inversa vía Google Places/Geocoding, con Nominatim/OpenStreetMap de respaldo, proxiado por el backend.
   - name: Routing
-    description: Cálculo de ruta por calles/senderos vía OSRM/Valhalla, proxiado por el backend.
+    description: Cálculo de ruta por calles/senderos vía Google Routes, con OSRM/Valhalla de respaldo, proxiado por el backend.
+  - name: Lugares
+    description: Sugerencias de lugares por categoría de parada (RN-022) vía Google Places, a lo largo de la ruta o cerca de una posición.
   - name: Grupos
     description: |
       Grupos persistentes, sus integrantes e invitaciones.
@@ -172,6 +174,12 @@ paths:
   # ── Routing ────────────────────────────────────────────────────────────────
   /api/routing/calcular:
     $ref: './paths/routing.yaml#/CalcularRuta'
+
+  # ── Lugares ────────────────────────────────────────────────────────────────
+  /api/lugares/en-ruta:
+    $ref: './paths/lugares.yaml#/LugaresEnRuta'
+  /api/lugares/cercanos:
+    $ref: './paths/lugares.yaml#/LugaresCercanos'
 
   # ── Grupos ─────────────────────────────────────────────────────────────────
   /api/grupos:

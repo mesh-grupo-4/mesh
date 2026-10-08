@@ -1,12 +1,11 @@
 # Módulo Routing — src/modules/routing/
 # Router: routing.router.ts · Controller: routing.controller.ts · Service: routing.service.ts
 #
-# Proxy hacia OSRM/Valhalla (routers públicos basados en OpenStreetMap). Existe
-# porque React Native en Android (OkHttp) falla de forma intermitente al pegarle
-# directo a estos hosts desde el dispositivo — el mismo problema que ya se
-# resolvió para Nominatim en el módulo Geocoding. El backend prueba primero el
-# demo de OSRM y, si no responde, reintenta con Valhalla (infraestructura
-# distinta) antes de rendirse.
+# Proxy hacia Google Routes API (si GOOGLE_MAPS_API_KEY está configurada) y,
+# como respaldo, OSRM/Valhalla (routers públicos basados en OpenStreetMap). La
+# API key de Google nunca sale del backend. Además existe porque React Native en
+# Android (OkHttp) falla de forma intermitente al pegarle directo a los demos de
+# OSM desde el dispositivo — el mismo problema que se resolvió en Geocoding.
 
 CalcularRuta:
   post:
@@ -14,9 +13,16 @@ CalcularRuta:
     summary: Calcular ruta por calles/senderos entre waypoints
     description: |
       Calcula el trazado real (no línea recta) entre 2 o más puntos, en el orden
-      dado, para el perfil de movilidad indicado. Internamente prueba primero el
-      demo público de OSRM y, si falla de forma transitoria (timeout o error de
-      upstream), reintenta con Valhalla antes de devolver el error.
+      dado, para el perfil de movilidad indicado. Internamente prueba los
+      proveedores en orden y pasa al siguiente si uno falla o no encuentra ruta:
+
+      1. **Google Routes API** (solo si el servidor tiene `GOOGLE_MAPS_API_KEY`
+         y la ruta tiene como máximo 25 paradas intermedias). `driving` → `DRIVE`,
+         `cycling` → `BICYCLE`, `walking` → `WALK`.
+      2. Demo público de **OSRM**.
+      3. **Valhalla** (infraestructura distinta de OSRM).
+
+      Si todos fallan se devuelve el error del último.
     tags:
       - Routing
     requestBody:

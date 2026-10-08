@@ -17,6 +17,7 @@ const CATEGORY_TO_API: Record<StopCategory, CategoriaParada> = {
   gastronomia: 'gastronomia',
   combustible: 'combustible',
   descanso: 'descanso',
+  sanitario: 'sanitario',
   punto_control: 'punto_control',
   otro: 'otro',
 }
@@ -28,7 +29,7 @@ const CATEGORY_TO_UI: Record<CategoriaParada, StopCategory> = {
   descanso: 'descanso',
   gastronomia: 'gastronomia',
   punto_control: 'punto_control',
-  sanitario: 'otro',
+  sanitario: 'sanitario',
   otro: 'otro',
 }
 

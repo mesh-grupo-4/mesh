@@ -97,15 +97,20 @@ ErrorCode:
     - SHARE_SNAPSHOT_INVALID
     - RUTA_INCOMPLETA
     - ROUTE_COMPUTE_FAILED
-    # Geocoding — proxy a Nominatim/OpenStreetMap (src/modules/geocoding/)
+    # Geocoding — proxy a Google Places/Geocoding con Nominatim de respaldo (src/modules/geocoding/)
     - GEOCODING_TIMEOUT
     - GEOCODING_UPSTREAM_ERROR
     - GEOCODING_RATE_LIMIT
-    # Routing — proxy a OSRM/Valhalla (src/modules/routing/)
+    # Routing — proxy a Google Routes con OSRM/Valhalla de respaldo (src/modules/routing/)
     - ROUTING_TIMEOUT
     - ROUTING_UPSTREAM_ERROR
     - ROUTING_RATE_LIMIT
     - ROUTING_NO_ROUTE
+    # Lugares — Google Places (src/modules/lugares/)
+    - LUGARES_RATE_LIMIT
+    - LUGARES_UPSTREAM_ERROR
+    - LUGARES_NO_DISPONIBLE
+    - LUGARES_TIMEOUT
     - MODO_INVALIDO
     - FANTASMA_NO_DISPONIBLE
     - FANTASMA_SIN_TRAZA
@@ -3675,8 +3680,9 @@ BalanceGastos:
 GeocodingHit:
   type: object
   description: |
-    Resultado de una búsqueda de lugares, mapeado desde la respuesta cruda de
-    Nominatim (`display_name` → `nombre`, `lat`/`lon` de string a number).
+    Resultado de una búsqueda de lugares, mapeado desde Google Places
+    (`displayName` + `formattedAddress`) o, de respaldo, desde Nominatim
+    (`display_name`, `lat`/`lon` de string a number).
   required:
     - nombre
     - lat
@@ -3748,6 +3754,68 @@ CalcularRutaInput:
             maximum: 180
         additionalProperties: false
   additionalProperties: false
+
+CategoriaLugar:
+  type: string
+  description: |
+    Categoría de parada (RN-022) buscable en Google Places. `accidente`,
+    `punto_control` y `otro` no aplican porque no corresponden a un tipo de lugar.
+  enum: [combustible, gastronomia, descanso, sanitario]
+  example: combustible
+
+LugaresEnRutaInput:
+  type: object
+  required: [categoria, trazado]
+  properties:
+    categoria:
+      $ref: '#/CategoriaLugar'
+    trazado:
+      type: array
+      description: |
+        Trazado de la ruta en orden (el `linestring` de `POST /api/routing/calcular`
+        como `{lat, lng}`). El backend lo submuestrea a 400 puntos antes de
+        mandarlo a Google.
+      minItems: 2
+      maxItems: 20000
+      items:
+        type: object
+        required: [lat, lng]
+        properties:
+          lat:
+            type: number
+            format: double
+            minimum: -90
+            maximum: 90
+          lng:
+            type: number
+            format: double
+            minimum: -180
+            maximum: 180
+  additionalProperties: false
+
+LugarSugerido:
+  type: object
+  required: [id, nombre, direccion, lat, lng]
+  properties:
+    id:
+      type: string
+      description: Place ID de Google.
+      example: ChIJN1t_tDeuEmsRUsoyG83frY4
+    nombre:
+      type: string
+      example: YPF Centro
+    direccion:
+      type: string
+      nullable: true
+      example: Av. Colón 100, X5000 Córdoba, Argentina
+    lat:
+      type: number
+      format: double
+      example: -31.41
+    lng:
+      type: number
+      format: double
+      example: -64.18
 
 RutaCalculada:
   type: object

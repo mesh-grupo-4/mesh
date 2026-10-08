@@ -185,3 +185,86 @@ describe('GeocodingService — throttle global (1 req/seg hacia Nominatim)', () 
     await Promise.all([p1, p2])
   })
 })
+
+describe('GeocodingService — Google (con API key)', () => {
+  it('buscar usa Places Text Search y arma "nombre, dirección"', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      okResponse({
+        places: [
+          {
+            displayName: { text: 'Plaza San Martín' },
+            formattedAddress: 'X5000 Córdoba, Argentina',
+            location: { latitude: -31.4167, longitude: -64.1836 },
+          },
+          {
+            displayName: { text: 'Córdoba' },
+            formattedAddress: 'Córdoba, Argentina',
+            location: { latitude: -31.42, longitude: -64.19 },
+          },
+          { displayName: { text: 'Sin ubicación' } },
+        ],
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const resultados = await new GeocodingService('KEY_TEST').buscar('plaza san martin')
+
+    expect(resultados).toEqual([
+      { nombre: 'Plaza San Martín, X5000 Córdoba, Argentina', lat: -31.4167, lng: -64.1836 },
+      { nombre: 'Córdoba, Argentina', lat: -31.42, lng: -64.19 },
+    ])
+    const [url, init] = fetchMock.mock.calls[0]! as [string, RequestInit]
+    expect(url).toBe('https://places.googleapis.com/v1/places:searchText')
+    expect((init.headers as Record<string, string>)['X-Goog-Api-Key']).toBe('KEY_TEST')
+    const body = JSON.parse(init.body as string)
+    expect(body).toMatchObject({ textQuery: 'plaza san martin', regionCode: 'AR', pageSize: 5 })
+  })
+
+  it('buscar cae a Nominatim si Google falla', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(errorResponse(403))
+      .mockResolvedValueOnce(okResponse([{ display_name: 'Córdoba, Argentina', lat: '-31.4201', lon: '-64.1888' }]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const resultados = await new GeocodingService('KEY_TEST').buscar('cordoba')
+
+    expect(resultados).toEqual([{ nombre: 'Córdoba, Argentina', lat: -31.4201, lng: -64.1888 }])
+    expect(fetchMock.mock.calls[1]![0]).toContain('https://nominatim.openstreetmap.org/search?')
+  })
+
+  it('reverseGeocode usa Google Geocoding', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(okResponse({ status: 'OK', results: [{ formatted_address: 'Av. Colón 100, Córdoba' }] }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const r = await new GeocodingService('KEY_TEST').reverseGeocode(-31.41, -64.18)
+
+    expect(r).toEqual({ nombre: 'Av. Colón 100, Córdoba' })
+    expect(fetchMock.mock.calls[0]![0]).toContain('https://maps.googleapis.com/maps/api/geocode/json?')
+    expect(fetchMock.mock.calls[0]![0]).toContain('latlng=-31.41%2C-64.18')
+  })
+
+  it('reverseGeocode con ZERO_RESULTS devuelve "Punto en mapa" sin llamar a Nominatim', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okResponse({ status: 'ZERO_RESULTS', results: [] }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const r = await new GeocodingService('KEY_TEST').reverseGeocode(-31.41, -64.18)
+
+    expect(r).toEqual({ nombre: 'Punto en mapa' })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('reverseGeocode cae a Nominatim si Google responde REQUEST_DENIED', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(okResponse({ status: 'REQUEST_DENIED' }))
+      .mockResolvedValueOnce(okResponse({ display_name: 'Plaza San Martín, Córdoba' }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const r = await new GeocodingService('KEY_TEST').reverseGeocode(-31.41, -64.18)
+
+    expect(r).toEqual({ nombre: 'Plaza San Martín, Córdoba' })
+  })
+})

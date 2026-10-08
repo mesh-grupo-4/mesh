@@ -37,7 +37,7 @@ Compartir ruta planificada por link e importarla como plantilla en el perfil
 **Incluye**
 
 - Snapshot: origen/destino (coords + nombres), `linestring_geojson`, paradas (orden, coords, nombre, categoría), `distancia_planeada_m`, `tiempo_estimado_seg`, `tipo_actividad` del viaje fuente.
-- Preview en mapa (OpenStreetMap) antes de guardar.
+- Preview en mapa (Google Maps) antes de guardar.
 - Lista “Mis rutas” en perfil.
 - Al crear viaje: elegir plantilla → precargar configurar-ruta (el receptor define nombre, fecha, invitados).
 - Token opaco único por ruta de viaje (no el UUID del viaje). Mismo link para todos los que pueden compartir.

@@ -124,6 +124,7 @@ Crear un `.env` en `backend/` con los valores del entorno.
 | `CORS_ORIGIN` | no | Origen permitido en producción. Solo aplica a Socket.io |
 | `DOCS_ENABLED` | no | `false` apaga Swagger UI en `/api/docs`, el login incluido |
 | `FIREBASE_WEB_API_KEY` | no | Habilita `POST /api/docs/login`. Es la Web API key del proyecto Firebase, la misma que ya viaja en el bundle del frontend (pública por diseño). Sin ella el login responde 503 |
+| `GOOGLE_MAPS_API_KEY` | no | Key de Google Maps Platform con **Routes API**, **Places API (New)** y **Geocoding API** habilitadas. Si está, `/api/routing/calcular` y `/api/geocoding/*` usan Google primero; sin ella (o si Google falla) se usan OSRM/Valhalla/Nominatim. Restringirla por IP del servidor, nunca exponerla al frontend |
 
 ### Supabase (entorno del equipo)
 

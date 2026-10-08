@@ -76,7 +76,7 @@ A diferencia de soluciones existentes (Strava, Garmin, Google Maps, Life360) que
 | RN-021 | Los tipos de actividad disponibles son: **moto**, **bici**, **running**, **trekking**, **otro**. Cada uno tiene parámetros por defecto diferentes. |
 | RN-022 | Las categorías de parada son: **accidente**, **combustible**, **descanso**, **gastronomía**, **punto de control**, **sanitario**, **otro**. `accidente` solo aplica a paradas voluntarias del viaje en vivo (se muestra destacada en el selector "¿por qué parás?") y además genera una alerta de peligro para todo el grupo. Las paradas planificadas de la ruta no usan `accidente`. |
 | RN-023 | La estimación de tiempos depende del tipo de actividad seleccionado y la distancia, más el tiempo configurable de cada parada. |
-| RN-024 | Las rutas se trazan sobre OpenStreetMap; las paradas son reordenables. |
+| RN-024 | Las rutas se trazan sobre Google Maps (Routes API, con OSRM/Valhalla de respaldo); las paradas son reordenables. Ver [[adr-mapas-google]]. |
 | RN-025 | Los parámetros configurables por el líder son: velocidad promedio esperada (1–300 km/h), distancia máxima de separación del grupo (10–20 000 m) y tiempo de tolerancia de atraso (1–60 min). Nacen con los defaults de la actividad (RN-021) y se ajustan al crear (`POST /api/viajes`) o después con `PATCH /api/viajes/{id}` mientras el viaje no esté finalizado; un cambio en curso aplica al próximo ping del motor. `tolerancia_atraso_min = NULL` significa "default de la actividad". |
 | RN-026 | El checklist de preparativos es **personal**: cada integrante tiene el suyo dentro del viaje, con su propio estado de completado. El sistema **sugiere** ítems según el `tipo_actividad` la primera vez que el integrante lo abre (`origen: sugerido`, borrables). Cada uno puede **agregar** ítems propios (`origen: personal`). El **creador del viaje** puede definir ítems **base para todo el grupo** (`origen: lider`, RN-030): se copian al checklist de cada integrante confirmado, que los marca pero no los edita ni los borra; si el creador los renombra o borra, el cambio se propaga. Los checklists son **reutilizables**: se pueden importar los ítems propios de otro viaje del que se participó, sin duplicar los que ya están. El checklist se edita en `planificado` y `en_curso`; en `finalizado` queda de solo lectura. |
 
@@ -325,7 +325,7 @@ Si el PO prefiere un criterio más conservador, la alternativa es devolver
     │     └── [Si grupal] Seleccionar 1+ grupos (solo donde soy miembro) ──► RN-028/029
     │
     ├── Crear ruta
-    │     ├── Marcar origen en mapa (OpenStreetMap)
+    │     ├── Marcar origen en mapa (Google Maps)
     │     ├── Marcar destino
     │     ├── Agregar paradas intermedias (reordenables)
     │     │     └── Categorizar: combustible / descanso / gastronomía / sanitario / otro
@@ -742,7 +742,7 @@ RachaActividad
 ### 6.5 Arquitectura
 
 - **API-First** con API RESTful documentada bajo OpenAPI.
-- Mapas: **OpenStreetMap** (costo $0, sin dependencia de APIs comerciales).
+- Mapas: **Google Maps Platform** (mapa nativo, Places, Routes) con servicios OpenStreetMap como respaldo automático. Ver [[adr-mapas-google]].
 - Base de datos: **Supabase** (PostgreSQL + PostGIS administrado, extensión PostGIS habilitada).
 - Tiempo real: **WebSockets** vía **Socket.io**.
 - Hosting: **VPS** (DigitalOcean / Donweb) con CI/CD.
@@ -805,7 +805,7 @@ Valores por defecto asignados al crear el viaje (RN-021, SCRUM-25). Unidades: ve
 | Interfaz | Pantalla completa, alto contraste, botones grandes | Estándar outdoor | Háptica + visual | Háptica + visual | Estándar outdoor |
 | Ranking competitivo | **PROHIBIDO** | Sí | Sí | Sí | Sí |
 | Tabla de posiciones global | **EXCLUIDA** | Sí | Sí | Sí | Sí |
-| Perfil OSRM (cálculo de ruta) | `driving` | `cycling` | `walking` | `walking` | `walking` |
+| Perfil de ruta (Google `DRIVE`/`BICYCLE`/`WALK`, OSRM de respaldo) | `driving` | `cycling` | `walking` | `walking` | `walking` |
 
 Implementación: el backend aplica estos defaults en `POST /api/viajes` según `tipo_actividad`; el líder puede sobreescribir los tres parámetros al crear o con `PATCH` (RN-025, SCRUM-26). La tolerancia vive en `motorEventos.config.ts` y `activityDefaults.ts` la reexpone, así el motor y la API leen la misma tabla.
 

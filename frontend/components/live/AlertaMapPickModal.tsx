@@ -3,7 +3,7 @@ import { Modal, StyleSheet, View } from 'react-native'
 
 import { getMapStyle } from '@/components/route-config/mapStyles'
 import { MapPickOverlay } from '@/components/route-config/MapPickOverlay'
-import { WebMapView, zoomFromLatDelta, type WebMapViewHandle } from '@/components/maps/WebMapView'
+import { MeshMapView, zoomFromLatDelta, type MeshMapViewHandle } from '@/components/maps/MeshMapView'
 
 type Props = {
   visible: boolean
@@ -14,7 +14,7 @@ type Props = {
 
 /** Selector de punto en el mapa para marcar dónde van a parar (opcional). */
 export function AlertaMapPickModal({ visible, initialCenter, onConfirm, onCancel }: Props) {
-  const mapRef = useRef<WebMapViewHandle>(null)
+  const mapRef = useRef<MeshMapViewHandle>(null)
   const capa = getMapStyle('standard')
   const [centro, setCentro] = useState(initialCenter)
 
@@ -31,11 +31,11 @@ export function AlertaMapPickModal({ visible, initialCenter, onConfirm, onCancel
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onCancel}>
       <View style={styles.root}>
-        <WebMapView
+        <MeshMapView
           ref={mapRef}
           initialCenter={initialCenter}
           initialZoom={zoomFromLatDelta(0.04)}
-          tile={capa}
+          mapStyle={capa}
           onRegionChangeComplete={setCentro}
         />
         <MapPickOverlay

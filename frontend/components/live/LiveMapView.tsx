@@ -1,23 +1,26 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
-import { Platform, StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, View } from 'react-native'
 
 import { getMapStyle, type MapStyleId } from '@/components/route-config/mapStyles'
+import { PinMarker, PIN_ANCHOR } from '@/components/maps/PinMarker'
 import {
-  WebMapView,
+  MeshMapView,
   zoomFromLatDelta,
   type PolylineSpec,
-  type WebMapViewHandle,
+  type MeshMapViewHandle,
   type MarkerSpec,
-} from '@/components/maps/WebMapView'
+} from '@/components/maps/MeshMapView'
 import type { MemberLocation } from '@/hooks/useLiveLocations'
 import type { AlertaApi } from '@/lib/alertasApi'
 
-import { alertMarkerHtml, alertMarkerPopup } from './alertMarker'
-import { GHOST_MARKER_BOX, GHOST_TRAIL_COLOR, ghostMarkerHtml } from './ghostMarker'
-import { memberMarkerHtml, MEMBER_MARKER_BOX } from './memberMarker'
-import { paradaMarkerHtml, paradaMarkerPopup } from './paradaMarker'
+import { AlertMarker, alertMarkerKey, alertMarkerPopup } from './AlertMarker'
+import { GHOST_TRAIL_COLOR, GhostMarker } from './GhostMarker'
+import { MemberMarker, memberMarkerKey } from './MemberMarker'
+import { ParadaMarker, paradaMarkerPopup } from './ParadaMarker'
 import type { CategoriaParadaApi } from '@/lib/paradasApi'
 import { motivoParadaLegible } from '@/lib/paradasApi'
+
+const COLOR_GUIA_LUGAR = '#0e7490'
 
 export type LiveMapViewHandle = {
   focusOnCoordinate: (lat: number, lng: number) => void
@@ -41,6 +44,8 @@ type Props = {
   alertasEnMapa?: AlertaApi[]
   guiaParada?: GuiaDestino | null
   guiaAlerta?: GuiaDestino | null
+  /** Guía hacia un lugar elegido en "Cerca mío" (Google Places). */
+  guiaLugar?: GuiaDestino | null
   /** RN-073: fantasma animado y su recorrido completo. */
   fantasma?: { lat: number; lng: number; nombre: string; pausado: boolean; traza: [number, number][] } | null
   currentUserId: string
@@ -58,6 +63,7 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
     alertasEnMapa = [],
     guiaParada = null,
     guiaAlerta = null,
+    guiaLugar = null,
     fantasma = null,
     currentUserId,
     initialCenter,
@@ -66,7 +72,7 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
   },
   ref
 ) {
-  const mapRef = useRef<WebMapViewHandle>(null)
+  const mapRef = useRef<MeshMapViewHandle>(null)
   const capa = getMapStyle(mapStyle)
   const centeredOnce = useRef(false)
 
@@ -99,10 +105,9 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
       id: m.usuarioId,
       lat: m.lat,
       lng: m.lng,
-      html: memberMarkerHtml(m, m.usuarioId === currentUserId),
-      size: [MEMBER_MARKER_BOX, MEMBER_MARKER_BOX],
-      anchor: [MEMBER_MARKER_BOX / 2, MEMBER_MARKER_BOX / 2],
-      zIndexOffset: m.usuarioId === currentUserId ? 1000 : 0,
+      content: <MemberMarker member={m} isMe={m.usuarioId === currentUserId} />,
+      contentKey: memberMarkerKey({ member: m, isMe: m.usuarioId === currentUserId }),
+      zIndex: m.usuarioId === currentUserId ? 1000 : 0,
     }))
 
     const alertas: MarkerSpec[] = alertasEnMapa
@@ -111,10 +116,9 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
         id: `alerta-${a.id}`,
         lat: a.lat!,
         lng: a.lng!,
-        html: alertMarkerHtml(a),
-        size: [36, 36],
-        anchor: [18, 18],
-        zIndexOffset: 500,
+        content: <AlertMarker alerta={a} />,
+        contentKey: alertMarkerKey(a),
+        zIndex: 500,
         popup: alertMarkerPopup(a),
       }))
 
@@ -124,10 +128,9 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
             id: `parada-guia-${guiaParada.destino.lat}-${guiaParada.destino.lng}`,
             lat: guiaParada.destino.lat,
             lng: guiaParada.destino.lng,
-            html: paradaMarkerHtml(),
-            size: [36, 36],
-            anchor: [18, 18],
-            zIndexOffset: 600,
+            content: <ParadaMarker />,
+            contentKey: 'parada',
+            zIndex: 600,
             popup: paradaMarkerPopup(
               guiaParada.destino.nombre,
               motivoParadaLegible(guiaParada.destino.categoria ?? null)
@@ -142,11 +145,25 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
             id: `alerta-guia-${guiaAlerta.destino.lat}-${guiaAlerta.destino.lng}`,
             lat: guiaAlerta.destino.lat,
             lng: guiaAlerta.destino.lng,
-            html: paradaMarkerHtml(),
-            size: [36, 36],
-            anchor: [18, 18],
-            zIndexOffset: 650,
+            content: <ParadaMarker />,
+            contentKey: 'parada',
+            zIndex: 650,
             popup: paradaMarkerPopup(guiaAlerta.destino.nombre, 'Punto de parada'),
+          },
+        ]
+      : []
+
+    const lugarGuia: MarkerSpec[] = guiaLugar
+      ? [
+          {
+            id: `lugar-guia-${guiaLugar.destino.lat}-${guiaLugar.destino.lng}`,
+            lat: guiaLugar.destino.lat,
+            lng: guiaLugar.destino.lng,
+            content: <PinMarker color={guiaLugar.color ?? COLOR_GUIA_LUGAR} />,
+            contentKey: guiaLugar.color ?? COLOR_GUIA_LUGAR,
+            anchor: PIN_ANCHOR,
+            zIndex: 640,
+            popup: { title: guiaLugar.destino.nombre },
           },
         ]
       : []
@@ -157,17 +174,16 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
             id: 'fantasma',
             lat: fantasma.lat,
             lng: fantasma.lng,
-            html: ghostMarkerHtml(fantasma.nombre, fantasma.pausado),
-            size: [GHOST_MARKER_BOX, GHOST_MARKER_BOX],
-            anchor: [GHOST_MARKER_BOX / 2, GHOST_MARKER_BOX / 2],
-            zIndexOffset: 900,
-            popup: `Fantasma: ${fantasma.nombre}`,
+            content: <GhostMarker pausado={fantasma.pausado} />,
+            contentKey: fantasma.pausado ? 'pausado' : 'activo',
+            zIndex: 900,
+            popup: { title: `Fantasma: ${fantasma.nombre}` },
           },
         ]
       : []
 
-    return [...alertaGuia, ...paradaGuia, ...alertas, ...ghost, ...integrantes]
-  }, [members, alertasEnMapa, guiaParada, guiaAlerta, fantasma, currentUserId])
+    return [...alertaGuia, ...paradaGuia, ...lugarGuia, ...alertas, ...ghost, ...integrantes]
+  }, [members, alertasEnMapa, guiaParada, guiaAlerta, guiaLugar, fantasma, currentUserId])
 
   const polylines = useMemo((): PolylineSpec[] => {
     const list: PolylineSpec[] = []
@@ -206,37 +222,31 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
         opacity: 0.95,
       })
     }
+    if (guiaLugar && guiaLugar.coords.length > 1) {
+      list.push({
+        coords: guiaLugar.coords,
+        color: guiaLugar.color ?? COLOR_GUIA_LUGAR,
+        width: 6,
+        opacity: 0.95,
+      })
+    }
     if (fantasma && fantasma.traza.length > 1) {
       list.push({ coords: fantasma.traza, color: GHOST_TRAIL_COLOR, width: 3, opacity: 0.35 })
     }
     return list
-  }, [breadcrumb, routeRemaining, guiaParada, guiaAlerta, fantasma, capa.routeStrokeColor])
+  }, [breadcrumb, routeRemaining, guiaParada, guiaAlerta, guiaLugar, fantasma, capa.routeStrokeColor])
 
   return (
     <View style={styles.container}>
-      <WebMapView
+      <MeshMapView
         ref={mapRef}
         initialCenter={fallbackCenter}
         initialZoom={fallbackZoom}
-        tile={capa}
+        mapStyle={capa}
         markers={markers}
         polylines={polylines}
         onUserDrag={onUserDrag}
       />
-      <View
-        style={[
-          styles.attribution,
-          mapStyle === 'dark' && styles.attributionDark,
-        ]}
-        pointerEvents="none"
-      >
-        <Text
-          style={[styles.attributionTxt, mapStyle === 'dark' && styles.attributionTxtDark]}
-          numberOfLines={1}
-        >
-          {capa.attribution}
-        </Text>
-      </View>
     </View>
   )
 })
@@ -244,25 +254,5 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  attribution: {
-    position: 'absolute',
-    left: 8,
-    top: Platform.OS === 'ios' ? 12 : 8,
-    backgroundColor: 'rgba(255,255,255,0.85)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    maxWidth: '55%',
-  },
-  attributionDark: {
-    backgroundColor: 'rgba(17,24,39,0.85)',
-  },
-  attributionTxt: {
-    fontSize: 10,
-    color: '#374151',
-  },
-  attributionTxtDark: {
-    color: '#e5e7eb',
   },
 })
