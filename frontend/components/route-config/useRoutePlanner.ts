@@ -318,12 +318,12 @@ export function useRoutePlanner({
       try {
         const res = await calcularRutaOsrm(movilidad, puntosRef.current)
         if (cancel) return
-        // El demo público de OSRM (router.project-osrm.org) sólo tiene el grafo
-        // de auto: ignora el perfil pedido y devuelve la misma duration para
-        // driving/cycling/walking. Recalculamos con la velocidad de la
-        // actividad para que la demora no salga siempre "a auto".
+        // La duración de Google Routes ya respeta el perfil (auto/bici/a pie) y
+        // se usa tal cual. Los respaldos OSM no: el demo público de OSRM sólo
+        // tiene el grafo de auto y devuelve la misma duration para cualquier
+        // perfil, así que ahí recalculamos con la velocidad de la actividad.
         const duracionCorregida =
-          velocidadEsperada && velocidadEsperada > 0
+          res.proveedor !== 'google' && velocidadEsperada && velocidadEsperada > 0
             ? (res.distanceM / 1000 / velocidadEsperada) * 3600
             : res.durationSec
         const resCorregido = { ...res, durationSec: duracionCorregida }

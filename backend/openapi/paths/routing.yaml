@@ -53,6 +53,7 @@ CalcularRuta:
                   - [-64.175, -31.41]
               distancia_m: 2728
               duracion_seg: 1750
+              proveedor: google
       '400':
         $ref: '../components/responses.yaml#/BadRequest'
       '401':

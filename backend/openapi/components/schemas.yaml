@@ -3846,6 +3846,7 @@ RutaCalculada:
     - linestring
     - distancia_m
     - duracion_seg
+    - proveedor
   properties:
     linestring:
       $ref: '#/GeoJsonLineString'
@@ -3859,6 +3860,15 @@ RutaCalculada:
       format: double
       description: Duración estimada del recorrido, en segundos, según el proveedor.
       example: 1750
+    proveedor:
+      type: string
+      enum: [google, osrm, valhalla]
+      description: |
+        Proveedor que calculó la ruta. Solo la duración de `google` respeta el
+        perfil pedido: el demo de OSRM usa el grafo de auto para todos los
+        perfiles, así que con `osrm`/`valhalla` el cliente recalcula la demora
+        con la velocidad esperada de la actividad.
+      example: google
   additionalProperties: false
 
 # --- Privacidad y permisos de geolocalización (RN-110 a RN-114) ---
