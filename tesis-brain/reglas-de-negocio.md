@@ -26,6 +26,7 @@ A diferencia de soluciones existentes (Strava, Garmin, Google Maps, Life360) que
 | **Integrante / Participante** | Miembro del grupo que participa en el viaje. Puede registrar paradas, solicitar detenciones y visualizar el mapa grupal. |
 | **Usuario no autenticado** | Solo puede registrarse o recuperar contraseña. |
 | **Sistema (motor de eventos)** | Lógica autónoma del backend que detecta desvíos, atrasos y detenciones sospechosas sin intervención humana. |
+| **Superadmin (backoffice)** | Rol de **plataforma**, no de grupo (RN-120). Gestiona cuentas, grupos y viajes de toda la plataforma desde el backoffice; cada acción queda auditada. No ve ubicaciones (RN-126). |
 
 ---
 
@@ -76,7 +77,7 @@ A diferencia de soluciones existentes (Strava, Garmin, Google Maps, Life360) que
 | RN-021 | Los tipos de actividad disponibles son: **moto**, **bici**, **running**, **trekking**, **otro**. Cada uno tiene parámetros por defecto diferentes. |
 | RN-022 | Las categorías de parada son: **accidente**, **combustible**, **descanso**, **gastronomía**, **punto de control**, **sanitario**, **otro**. `accidente` solo aplica a paradas voluntarias del viaje en vivo (se muestra destacada en el selector "¿por qué parás?") y además genera una alerta de peligro para todo el grupo. Las paradas planificadas de la ruta no usan `accidente`. |
 | RN-023 | La estimación de tiempos depende del tipo de actividad seleccionado y la distancia, más el tiempo configurable de cada parada. |
-| RN-024 | Las rutas se trazan sobre OpenStreetMap; las paradas son reordenables. |
+| RN-024 | Las rutas se trazan sobre Google Maps (Routes API, con OSRM/Valhalla de respaldo); las paradas son reordenables. Ver [[adr-mapas-google]]. |
 | RN-025 | Los parámetros configurables por el líder son: velocidad promedio esperada (1–300 km/h), distancia máxima de separación del grupo (10–20 000 m) y tiempo de tolerancia de atraso (1–60 min). Nacen con los defaults de la actividad (RN-021) y se ajustan al crear (`POST /api/viajes`) o después con `PATCH /api/viajes/{id}` mientras el viaje no esté finalizado; un cambio en curso aplica al próximo ping del motor. `tolerancia_atraso_min = NULL` significa "default de la actividad". |
 | RN-026 | El checklist de preparativos es **personal**: cada integrante tiene el suyo dentro del viaje, con su propio estado de completado. El sistema **sugiere** ítems según el `tipo_actividad` la primera vez que el integrante lo abre (`origen: sugerido`, borrables). Cada uno puede **agregar** ítems propios (`origen: personal`). El **creador del viaje** puede definir ítems **base para todo el grupo** (`origen: lider`, RN-030): se copian al checklist de cada integrante confirmado, que los marca pero no los edita ni los borra; si el creador los renombra o borra, el cambio se propaga. Los checklists son **reutilizables**: se pueden importar los ítems propios de otro viaje del que se participó, sin duplicar los que ya están. El checklist se edita en `planificado` y `en_curso`; en `finalizado` queda de solo lectura. |
 
@@ -258,6 +259,67 @@ Si el PO prefiere un criterio más conservador, la alternativa es devolver
   privacidad digan exactamente lo mismo — **si cambia ese texto, hay que subir
   `VERSION_CONSENTIMIENTO_UBICACION`** en `backend/src/modules/privacidad/privacidad.schemas.ts`.
 
+### 2.14 Reglas de Administración de la Plataforma (Superadmin)
+
+| ID | Regla |
+|---|---|
+| RN-120 | Existe un rol de **plataforma**, `superadmin` (`usuario.rol_sistema`, default `usuario`), **ortogonal a los roles de grupo**: no es un tercer rol dentro de un grupo y RN-011 sigue vigente (dentro de un grupo un superadmin es `lider` o `participante` como cualquiera). Habilita únicamente el backoffice `/api/admin`. El rol se resuelve desde la base en cada request (`requireUser` → `requireSuperadmin`), nunca desde un claim del token ni de algo que mande el cliente (RN-030). La app usa el rol solo para mostrar la entrada *Perfil → Administración*. |
+| RN-121 | **Toda acción del backoffice queda auditada** en `auditoria_admin` (quién, qué acción, sobre qué entidad, cuándo y una foto mínima de lo afectado: email, nombre, motivo, resultado). Es append-only y no tiene FK hacia la entidad afectada, para sobrevivir a su eliminación. Si se elimina la cuenta del superadmin que actuó, el registro queda con actor nulo. |
+| RN-122 | Solo un superadmin otorga o quita el rol superadmin, y **nadie cambia su propio rol**; como consecuencia siempre queda al menos un superadmin. El primero se nombra desde la consola del servidor (`npm run admin:promover -- <email>`), y eso también se audita (actor nulo, `origen: cli`). |
+| RN-123 | **Suspensión de cuenta.** Un superadmin puede suspender una cuenta indicando un motivo, y reactivarla. Mientras está suspendida, el backend responde `403 ACCOUNT_SUSPENDED` en toda la API y rechaza el handshake de Socket.io, aunque su token de Firebase siga vigente; además se cortan sus sockets abiertos y la cuenta se deshabilita en Firebase para que no pueda iniciar sesión. Los datos se conservan. Nadie puede suspenderse a sí mismo. |
+| RN-124 | **Eliminación de cuenta** (definitiva, solo superadmin). No se permite si la persona está en un viaje `en_curso` (como creadora o integrante confirmada): primero hay que finalizarlo. Los grupos que lideraba pasan al integrante más antiguo, o se eliminan si no queda nadie (RN-013); los viajes que creó pasan al integrante más antiguo que participó (`confirmado` o `salido`), o se eliminan si no hubo nadie más, para no borrar el historial ajeno. Todo lo demás de la persona (GPS, métricas, paradas, amistades, checklist, gastos) se borra en cascada. La cuenta de Firebase se elimina **antes** que la fila local: al revés, un login en el medio la recrearía vacía. Nadie puede eliminarse a sí mismo. |
+| RN-125 | **Gestión de grupos y viajes ajenos.** Un superadmin puede, sin ser líder ni creador: reasignar el líder de un grupo (sigue habiendo un único líder), quitar a un integrante (si es el líder aplica RN-013), eliminar un grupo, **forzar la finalización** de un viaje `en_curso` que quedó colgado (mismo cierre que hace el creador, con push a todos los confirmados) y eliminar un viaje `planificado` o `finalizado` (uno `en_curso` primero se finaliza). |
+| RN-126 | **El backoffice gestiona, no vigila.** Ningún endpoint de `/api/admin` expone posiciones GPS, ubicaciones vivas, recorridos ni velocidades: el superadmin no se salta las reglas de privacidad (RN-110 a RN-114) ni la exclusión de moto de toda comparación de velocidades (RN-070). Tampoco puede cambiar el consentimiento ni el compartir ubicación de otra persona (RN-111). |
+
+#### Implementación
+
+- **Backend:** módulo `backend/src/modules/admin/` montado en `/api/admin` con `requireUser` +
+  `requireSuperadmin` (`src/middleware/requireSuperadmin.ts`). El superadmin actúa a través de
+  estos endpoints y no con bypasses dentro de los servicios de dominio: así cada acción se audita
+  en un solo lugar y los chequeos de RN-030 de cada módulo quedan intactos. La finalización forzada
+  reutiliza el cierre de `ViajesService` (`finalizarComoAdmin`). El bloqueo de cuentas suspendidas
+  vive en `requireUser` y `sockets/auth.ts`. Bootstrap: `src/scripts/promover-superadmin.ts`.
+- **Tablas:** columnas `rol_sistema`, `suspendido_at`, `motivo_suspension` y `created_at` en
+  `usuario`, y la tabla `auditoria_admin` (migración `20261016120000_superadmin`).
+- **Contrato:** `backend/openapi/paths/admin.yaml` (tag `Admin`). `GET /api/usuarios/me` devuelve
+  `rol_sistema`.
+- **Frontend:** `frontend/lib/adminApi.ts`, pantallas en `frontend/app/admin/` (panel, usuarios,
+  grupos, viajes, auditoría) y componentes en `frontend/components/admin/AdminUI.tsx`.
+  `AuthContext` expone `esSuperadmin` y cierra la sesión si el backend responde
+  `ACCOUNT_SUSPENDED`.
+
+#### Reportería de negocio (RN-127 a RN-131)
+
+| ID | Regla |
+|---|---|
+| RN-127 | El superadmin tiene una sección de **reportería** para el PO y el directorio (`/api/admin/reportes/*`, *Perfil → Administración → Reportes*). Todos los reportes son **agregados**: ninguno devuelve nombres, emails, ids ni ningún dato que identifique a una persona. Cada reporte se puede exportar a CSV (separador `;`, coma decimal, UTF-8 con BOM, para Excel/Sheets en castellano). |
+| RN-128 | Los períodos se piden como **fechas calendario de Argentina** (`desde`/`hasta`, ambas inclusive) y las series se agrupan en baldes de día, semana (arranca el lunes) o mes **en hora argentina** (RN-105): un viaje que sale un lunes a las 22:00 cuenta para el lunes. Sin fechas: últimos 90 días. Rango máximo: 2 años. Los KPIs se comparan contra el período anterior de igual duración. |
+| RN-129 | La reportería **no expone velocidades de ninguna actividad** (RN-070): ni promedios por actividad ni comparaciones. Distancia y duración sí. Tampoco lee posiciones GPS, ubicaciones vivas ni recorridos (RN-126). Un test (`reportes.service.test.ts`) falla si el servicio llega a leer columnas de velocidad, posiciones o datos personales. |
+| RN-130 | **k-anonimato en lugares.** Los rankings de destinos y orígenes salen de los nombres de las rutas planificadas y un lugar solo aparece si lo usaron al menos **3 creadores distintos**: un destino que eligió una sola persona la identificaría. |
+| RN-131 | **Definiciones operativas** (ver tabla de abajo). Cualquier indicador nuevo tiene que sumar su definición acá antes de publicarse en un tablero. |
+
+| Indicador | Definición |
+|---|---|
+| Usuario activo | Persona que **participó** en al menos un viaje que **arrancó** en el período: el creador, o un integrante `confirmado` o `salido`. |
+| Alta | Cuenta creada en el período (`usuario.created_at`). Las cuentas existentes antes de la migración `20261016120000_superadmin` tienen esa fecha como alta, así que la retención de cohortes anteriores no es representativa. |
+| Activación | De las altas del período, cuántas ya participaron en algún viaje, y la mediana de días entre el alta y el primer viaje. |
+| Retención (cohortes) | Por mes de alta, proporción de la cohorte que participó en un viaje en el mes N desde el alta. Los meses que todavía no ocurrieron se informan vacíos, no en 0. |
+| Km recorridos | Suma de `resumen_viaje.distancia_real_m` de los viajes iniciados: **un valor por viaje** (traza del creador), no por persona. |
+| Tasa de realización | De los viajes con `fecha_programada` en el período y ya vencida, cuántos se iniciaron. Los que siguen `planificado` cuentan como "no realizados". |
+| Falsas alarmas | Posibles incidentes del motor de eventos (`parada.tipo = incidente_detectado`) en los que la persona confirmó "estoy bien". Una tasa alta en una actividad indica que conviene subir su umbral de detección. |
+| Aceptación de invitaciones | Aceptadas / (aceptadas + rechazadas); las pendientes no cuentan. En viajes, `confirmado` y `salido` cuentan como aceptadas. |
+| Canal de incorporación | `viaje_integrante.origen` de quienes se sumaron en el período, sin contar al creador (QR, link, grupo, amigo). |
+| Ubicación apagada | Participaciones en las que la persona tenía el compartir apagado: preferencia del viaje o, si no eligió, su default del perfil (RN-111). |
+| Gastos | Montos tal como se cargaron: la app no registra moneda. Promedio por persona = monto / personas que participaron en esos viajes. |
+
+- **Backend:** módulo `backend/src/modules/reportes/` montado en `/api/admin/reportes` (antes que
+  `/admin`) con `requireUser` + `requireSuperadmin`. El cálculo se hace en PostgreSQL con SQL
+  agregado; `reportes.periodo.ts` resuelve períodos, baldes y la matriz de cohortes (funciones puras,
+  con tests). Contrato: `backend/openapi/paths/reportes.yaml` (tag `Reportes`).
+- **Frontend:** `app/admin/reportes.tsx`, secciones en `components/admin/reportes/Secciones.tsx`,
+  gráficos en `components/admin/charts.tsx` (paleta validada para daltonismo, máximo 3 series por
+  gráfico, vista de tabla en cada uno), tablas y CSV en `lib/reportesTablas.ts`.
+
 ---
 
 ## 3. Flujos del Sistema
@@ -325,7 +387,7 @@ Si el PO prefiere un criterio más conservador, la alternativa es devolver
     │     └── [Si grupal] Seleccionar 1+ grupos (solo donde soy miembro) ──► RN-028/029
     │
     ├── Crear ruta
-    │     ├── Marcar origen en mapa (OpenStreetMap)
+    │     ├── Marcar origen en mapa (Google Maps)
     │     ├── Marcar destino
     │     ├── Agregar paradas intermedias (reordenables)
     │     │     └── Categorizar: combustible / descanso / gastronomía / sanitario / otro
@@ -484,6 +546,18 @@ Usuario
 ├── consentimiento_ubicacion_at (timestamp, nullable)       ← RN-110
 ├── consentimiento_ubicacion_version (text, nullable)       ← RN-110
 ├── comparte_ubicacion_default (bool, default true)         ← RN-111
+├── rol_sistema (enum: usuario, superadmin)                 ← RN-120
+├── suspendido_at (timestamp, nullable)                     ← RN-123
+├── motivo_suspension (text, nullable)                      ← RN-123
+└── created_at
+
+AuditoriaAdmin                                              ← RN-121
+├── id (PK)
+├── actor_id (FK → Usuario, nullable, SET NULL)
+├── accion (p. ej. usuario.suspender, viaje.finalizar)
+├── entidad (usuario | grupo | viaje)
+├── entidad_id (uuid, sin FK: sobrevive a la eliminación)
+├── detalle (json)
 └── created_at
 
 PrivacidadViaje                                             ← RN-111
@@ -742,7 +816,7 @@ RachaActividad
 ### 6.5 Arquitectura
 
 - **API-First** con API RESTful documentada bajo OpenAPI.
-- Mapas: **OpenStreetMap** (costo $0, sin dependencia de APIs comerciales).
+- Mapas: **Google Maps Platform** (mapa nativo, Places, Routes) con servicios OpenStreetMap como respaldo automático. Ver [[adr-mapas-google]].
 - Base de datos: **Supabase** (PostgreSQL + PostGIS administrado, extensión PostGIS habilitada).
 - Tiempo real: **WebSockets** vía **Socket.io**.
 - Hosting: **VPS** (DigitalOcean / Donweb) con CI/CD.
@@ -805,7 +879,7 @@ Valores por defecto asignados al crear el viaje (RN-021, SCRUM-25). Unidades: ve
 | Interfaz | Pantalla completa, alto contraste, botones grandes | Estándar outdoor | Háptica + visual | Háptica + visual | Estándar outdoor |
 | Ranking competitivo | **PROHIBIDO** | Sí | Sí | Sí | Sí |
 | Tabla de posiciones global | **EXCLUIDA** | Sí | Sí | Sí | Sí |
-| Perfil OSRM (cálculo de ruta) | `driving` | `cycling` | `walking` | `walking` | `walking` |
+| Perfil de ruta (Google `DRIVE`/`BICYCLE`/`WALK`, OSRM de respaldo) | `driving` | `cycling` | `walking` | `walking` | `walking` |
 
 Implementación: el backend aplica estos defaults en `POST /api/viajes` según `tipo_actividad`; el líder puede sobreescribir los tres parámetros al crear o con `PATCH` (RN-025, SCRUM-26). La tolerancia vive en `motorEventos.config.ts` y `activityDefaults.ts` la reexpone, así el motor y la API leen la misma tabla.
 

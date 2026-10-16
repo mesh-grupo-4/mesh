@@ -100,6 +100,19 @@ npm run web         # Abre en el navegador
 
 ---
 
+## Mapa (Google Maps)
+
+Los mapas usan Google Maps nativo (`react-native-maps`, componente `components/maps/MeshMapView.tsx`). La key del mapa se lee del entorno en `app.config.ts` y se embebe en el build nativo:
+
+| Variable | Uso |
+|---|---|
+| `GOOGLE_MAPS_ANDROID_API_KEY` | Maps SDK for Android. Restringir por package `com.frangiorda1.frontend` + huella SHA-1 |
+| `GOOGLE_MAPS_IOS_API_KEY` | Maps SDK for iOS. Restringir por bundle id. Sin ella, iPhone usa Apple Maps |
+
+La key se aplica al generar el build (`npm run android` / `eas build --profile development`); después de cambiarla hay que volver a buildear. Búsqueda de lugares y cálculo de rutas **no** usan estas keys: los resuelve el backend (`GOOGLE_MAPS_API_KEY`).
+
+---
+
 ## Desarrollo con celular físico
 
 La URL del backend se resuelve en `constants/Config.ts`. Por defecto **no hace falta** definir `EXPO_PUBLIC_API_URL` en `.env`: Expo Go expone la IP de la PC donde corre Metro y la app arma `http://<IP>:3000` automáticamente.

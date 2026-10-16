@@ -188,3 +188,85 @@ describe('RoutingService.calcularRuta — errores de upstream', () => {
     } satisfies Partial<HttpError>)
   })
 })
+
+describe('RoutingService.calcularRuta — Google Routes (con API key)', () => {
+  const googleOk = okResponse({
+    routes: [{ distanceMeters: 2728, duration: '1750s', polyline: { encodedPolyline: OSRM_GEOMETRY } }],
+  })
+
+  it('usa Google primero y mapea distanceMeters/duration', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(googleOk)
+    vi.stubGlobal('fetch', fetchMock)
+
+    const ruta = await new RoutingService('KEY_TEST').calcularRuta(input)
+
+    expect(ruta.distancia_m).toBe(2728)
+    expect(ruta.duracion_seg).toBe(1750)
+    expect(ruta.linestring.coordinates[0]).toEqual([-64.1888, -31.4201])
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    const [url, init] = fetchMock.mock.calls[0]! as [string, RequestInit]
+    expect(url).toBe('https://routes.googleapis.com/directions/v2:computeRoutes')
+    const headers = init.headers as Record<string, string>
+    expect(headers['X-Goog-Api-Key']).toBe('KEY_TEST')
+    expect(headers['X-Goog-FieldMask']).toContain('routes.polyline.encodedPolyline')
+    const body = JSON.parse(init.body as string)
+    expect(body.travelMode).toBe('WALK')
+    expect(body.intermediates).toEqual([])
+  })
+
+  it('manda los puntos del medio como intermediates', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(googleOk)
+    vi.stubGlobal('fetch', fetchMock)
+
+    await new RoutingService('KEY_TEST').calcularRuta({
+      perfil: 'cycling',
+      puntos: [
+        { lat: -31.4201, lng: -64.1888 },
+        { lat: -31.415, lng: -64.182 },
+        { lat: -31.41, lng: -64.175 },
+      ],
+    })
+
+    const body = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string)
+    expect(body.travelMode).toBe('BICYCLE')
+    expect(body.intermediates).toEqual([{ location: { latLng: { latitude: -31.415, longitude: -64.182 } } }])
+  })
+
+  it('si Google no tiene ruta ({}), cae a OSRM', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(okResponse({}))
+      .mockResolvedValueOnce(okResponse({ routes: [{ distance: 10, duration: 20, geometry: OSRM_GEOMETRY }] }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const ruta = await new RoutingService('KEY_TEST').calcularRuta(input)
+
+    expect(ruta.distancia_m).toBe(10)
+    expect(fetchMock.mock.calls[1]![0]).toContain('https://router.project-osrm.org/')
+  })
+
+  it('si Google responde 403 (key inválida), cae a OSRM', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(errorResponse(403))
+      .mockResolvedValueOnce(okResponse({ routes: [{ distance: 10, duration: 20, geometry: OSRM_GEOMETRY }] }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const ruta = await new RoutingService('KEY_TEST').calcularRuta(input)
+
+    expect(ruta.duracion_seg).toBe(20)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('sin API key no llama a Google', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(okResponse({ routes: [{ distance: 1, duration: 1, geometry: OSRM_GEOMETRY }] }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await new RoutingService().calcularRuta(input)
+
+    expect(fetchMock.mock.calls[0]![0]).toContain('https://router.project-osrm.org/')
+  })
+})

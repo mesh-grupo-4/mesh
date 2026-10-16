@@ -1,0 +1,686 @@
+# Módulo Admin — src/modules/admin/ (backoffice superadmin, RN-120 a RN-126)
+# Router: admin.router.ts · Controller: admin.controller.ts · Service: admin.service.ts
+# Todas las operaciones exigen rol de plataforma `superadmin` (requireSuperadmin).
+
+EstadisticasAdmin:
+  get:
+    operationId: adminEstadisticas
+    summary: Totales de la plataforma para el panel
+    description: |
+      Contadores para el panel del backoffice: usuarios (totales, superadmins, suspendidos), grupos y viajes por estado.
+    tags:
+      - Admin
+    responses:
+      '200':
+        description: Totales de la plataforma.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/EstadisticasAdmin'
+            example: {"usuarios": {"total": 184, "superadmins": 2, "suspendidos": 1}, "grupos": {"total": 23}, "viajes": {"planificado": 12, "en_curso": 1, "finalizado": 87, "total": 100}}
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/SuperadminRequerido'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+UsuariosAdmin:
+  get:
+    operationId: adminListarUsuarios
+    summary: Listar y buscar usuarios
+    description: |
+      Listado paginado de todas las cuentas, de la más nueva a la más vieja. `q` busca en nombre, apellido y email.
+    tags:
+      - Admin
+    parameters:
+      - $ref: '../components/parameters.yaml#/BusquedaAdmin'
+      - $ref: '../components/parameters.yaml#/Pagina'
+      - $ref: '../components/parameters.yaml#/Limite'
+      - name: rol
+        in: query
+        required: false
+        description: Filtra por rol de plataforma.
+        schema: {"type": "string", "enum": ["usuario", "superadmin"]}
+      - name: estado
+        in: query
+        required: false
+        description: Filtra cuentas activas o suspendidas.
+        schema: {"type": "string", "enum": ["activo", "suspendido"]}
+    responses:
+      '200':
+        description: Página de usuarios.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/PaginaUsuariosAdmin'
+            example: {"items": [{"id": "9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d", "email": "martina@example.com", "nombre": "Martina", "apellido": "Gómez", "rol_sistema": "usuario", "suspendido_at": null, "created_at": "2026-08-01T14:00:00.000Z"}], "total": 1, "pagina": 1, "limite": 20}
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/SuperadminRequerido'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+UsuarioAdmin:
+  parameters:
+    - $ref: '../components/parameters.yaml#/UsuarioId'
+  get:
+    operationId: adminDetalleUsuario
+    summary: Detalle de un usuario
+    description: |
+      Datos de la cuenta, grupos a los que pertenece con su rol, y totales de viajes creados y participaciones. Sin datos de ubicación (RN-126).
+    tags:
+      - Admin
+    responses:
+      '200':
+        description: Detalle de la cuenta.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/UsuarioAdminDetalle'
+            example: {"id": "9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d", "email": "martina@example.com", "nombre": "Martina", "apellido": "Gómez", "rol_sistema": "usuario", "suspendido_at": null, "created_at": "2026-08-01T14:00:00.000Z", "telefono": "+54 351 555 1234", "actividad_preferida": "bici", "motivo_suspension": null, "grupos": [{"id": "7a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d", "nombre": "Rodadores de las Sierras", "rol": "lider", "fecha_union": "2026-08-02T10:00:00.000Z"}], "totales": {"viajes_creados": 4, "participaciones_viaje": 9, "grupos_liderados": 1}}
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/SuperadminRequerido'
+      '404':
+        description: El usuario no existe (`USER_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example: {"error": "Usuario no encontrado", "code": "USER_NOT_FOUND"}
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+  patch:
+    operationId: adminActualizarUsuario
+    summary: Editar los datos de perfil de un usuario
+    description: |
+      Corrige nombre, apellido, teléfono o actividad preferida. El email no se edita (pertenece a Firebase, RN-001). Queda en la auditoría con la lista de campos tocados (RN-121).
+    tags:
+      - Admin
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/ActualizarUsuarioAdminRequest'
+          example: {"nombre": "Martina", "telefono": null}
+    responses:
+      '200':
+        description: Usuario actualizado.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/UsuarioAdminResumen'
+            example: {"id": "9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d", "email": "martina@example.com", "nombre": "Martina", "apellido": "Gómez", "rol_sistema": "usuario", "suspendido_at": null, "created_at": "2026-08-01T14:00:00.000Z"}
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/SuperadminRequerido'
+      '404':
+        description: El usuario no existe (`USER_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example: {"error": "Usuario no encontrado", "code": "USER_NOT_FOUND"}
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+  delete:
+    operationId: adminEliminarUsuario
+    summary: Eliminar una cuenta
+    description: |
+      Eliminación **definitiva** (RN-124). Antes de borrar:
+
+      - Si la persona está en un viaje en curso (como creadora o integrante confirmada) responde 409 `USER_IN_ACTIVE_TRIP`: primero hay que finalizarlo.
+      - Los grupos que lideraba pasan al integrante más antiguo, o se eliminan si no queda nadie (RN-013).
+      - Los viajes que creó pasan al integrante más antiguo que participó; si no hubo nadie más, se eliminan.
+      - Se borra la cuenta de Firebase **antes** que la fila local, para que no se recree en el próximo login. Si Firebase falla responde 502 `AUTH_PROVIDER_ERROR` y no se toca la base.
+
+      Nadie puede eliminarse a sí mismo (`CANNOT_DELETE_SELF`).
+    tags:
+      - Admin
+    responses:
+      '200':
+        description: Cuenta eliminada.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/UsuarioEliminadoAdmin'
+            example: {"usuario_id": "9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d", "accion": "eliminado", "grupos_transferidos": 1, "grupos_eliminados": 0, "viajes_transferidos": 2, "viajes_eliminados": 1}
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/SuperadminRequerido'
+      '404':
+        description: El usuario no existe (`USER_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example: {"error": "Usuario no encontrado", "code": "USER_NOT_FOUND"}
+      '409':
+        description: Está en un viaje en curso (`USER_IN_ACTIVE_TRIP`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example: {"error": "El usuario está en un viaje en curso. Finalizalo antes de eliminar la cuenta.", "code": "USER_IN_ACTIVE_TRIP"}
+      '502':
+        description: Firebase no pudo eliminar la cuenta (`AUTH_PROVIDER_ERROR`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example: {"error": "No se pudo eliminar la cuenta en el proveedor de autenticación. Reintentá.", "code": "AUTH_PROVIDER_ERROR"}
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+RolSistemaUsuarioAdmin:
+  put:
+    operationId: adminCambiarRolSistema
+    summary: Otorgar o quitar el rol superadmin
+    description: |
+      Cambia el rol de plataforma (RN-122). Nadie cambia su propio rol (`CANNOT_CHANGE_OWN_ROLE`), así que siempre queda al menos un superadmin. Si el rol ya era ese, responde 200 sin cambios. No afecta los roles de grupo (RN-011).
+    tags:
+      - Admin
+    parameters:
+      - $ref: '../components/parameters.yaml#/UsuarioId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/CambiarRolSistemaRequest'
+          example: {"rol_sistema": "superadmin"}
+    responses:
+      '200':
+        description: Rol actualizado.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/RolSistemaCambiado'
+            example: {"id": "9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d", "rol_sistema": "superadmin"}
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/SuperadminRequerido'
+      '404':
+        description: El usuario no existe (`USER_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example: {"error": "Usuario no encontrado", "code": "USER_NOT_FOUND"}
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+SuspenderUsuarioAdmin:
+  post:
+    operationId: adminSuspenderUsuario
+    summary: Suspender una cuenta
+    description: |
+      RN-123: desde ese momento la cuenta recibe 403 `ACCOUNT_SUSPENDED` en toda la API, se le cortan los sockets abiertos y se deshabilita en Firebase. Los datos se conservan. Nadie puede suspenderse a sí mismo (`CANNOT_SUSPEND_SELF`).
+    tags:
+      - Admin
+    parameters:
+      - $ref: '../components/parameters.yaml#/UsuarioId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/SuspenderUsuarioRequest'
+          example: {"motivo": "Uso indebido reiterado de alertas manuales"}
+    responses:
+      '200':
+        description: Cuenta suspendida.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/EstadoSuspension'
+            example: {"id": "9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d", "suspendido_at": "2026-10-16T15:00:00.000Z", "motivo_suspension": "Uso indebido reiterado de alertas manuales"}
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/SuperadminRequerido'
+      '404':
+        description: El usuario no existe (`USER_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example: {"error": "Usuario no encontrado", "code": "USER_NOT_FOUND"}
+      '409':
+        description: La cuenta ya estaba suspendida (`ALREADY_SUSPENDED`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example: {"error": "La cuenta ya está suspendida", "code": "ALREADY_SUSPENDED"}
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+ReactivarUsuarioAdmin:
+  post:
+    operationId: adminReactivarUsuario
+    summary: Reactivar una cuenta suspendida
+    description: |
+      Levanta la suspensión (RN-123) y rehabilita la cuenta en Firebase.
+    tags:
+      - Admin
+    parameters:
+      - $ref: '../components/parameters.yaml#/UsuarioId'
+    responses:
+      '200':
+        description: Cuenta reactivada.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/EstadoSuspension'
+            example: {"id": "9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d", "suspendido_at": null, "motivo_suspension": null}
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/SuperadminRequerido'
+      '404':
+        description: El usuario no existe (`USER_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example: {"error": "Usuario no encontrado", "code": "USER_NOT_FOUND"}
+      '409':
+        description: La cuenta no estaba suspendida (`NOT_SUSPENDED`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example: {"error": "La cuenta no está suspendida", "code": "NOT_SUSPENDED"}
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+GruposAdmin:
+  get:
+    operationId: adminListarGrupos
+    summary: Listar y buscar grupos
+    description: |
+      Listado paginado de todos los grupos, con su líder y cantidad de integrantes. `q` busca por nombre.
+    tags:
+      - Admin
+    parameters:
+      - $ref: '../components/parameters.yaml#/BusquedaAdmin'
+      - $ref: '../components/parameters.yaml#/Pagina'
+      - $ref: '../components/parameters.yaml#/Limite'
+    responses:
+      '200':
+        description: Página de grupos.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/PaginaGruposAdmin'
+            example: {"items": [{"id": "7a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d", "nombre": "Rodadores de las Sierras", "fecha_creacion": "2026-08-02T10:00:00.000Z", "lider": {"id": "9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d", "nombre": "Martina", "apellido": "Gómez", "email": "martina@example.com"}, "cantidad_miembros": 12}], "total": 1, "pagina": 1, "limite": 20}
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/SuperadminRequerido'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+GrupoAdmin:
+  parameters:
+    - $ref: '../components/parameters.yaml#/GrupoId'
+  get:
+    operationId: adminDetalleGrupo
+    summary: Detalle de un grupo
+    description: |
+      Integrantes con su rol y fecha de unión, y cantidad de viajes asociados. Sin necesidad de ser integrante.
+    tags:
+      - Admin
+    responses:
+      '200':
+        description: Detalle del grupo.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/GrupoAdminDetalle'
+            example: {"id": "7a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d", "nombre": "Rodadores de las Sierras", "fecha_creacion": "2026-08-02T10:00:00.000Z", "lider_id": "9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d", "cantidad_viajes": 5, "miembros": [{"id": "9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d", "nombre": "Martina", "apellido": "Gómez", "email": "martina@example.com", "rol": "lider", "fecha_union": "2026-08-02T10:00:00.000Z"}]}
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/SuperadminRequerido'
+      '404':
+        description: El grupo no existe (`GRUPO_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example: {"error": "Grupo no encontrado", "code": "GRUPO_NOT_FOUND"}
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+  delete:
+    operationId: adminEliminarGrupo
+    summary: Eliminar un grupo
+    description: |
+      Elimina cualquier grupo con sus membresías e invitaciones, sin ser su líder. Los viajes asociados no se borran: solo pierden el vínculo con el grupo.
+    tags:
+      - Admin
+    responses:
+      '200':
+        description: Grupo eliminado.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/GrupoEliminadoAdmin'
+            example: {"grupo_id": "7a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d", "accion": "grupo_eliminado"}
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/SuperadminRequerido'
+      '404':
+        description: El grupo no existe (`GRUPO_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example: {"error": "Grupo no encontrado", "code": "GRUPO_NOT_FOUND"}
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+LiderGrupoAdmin:
+  put:
+    operationId: adminReasignarLider
+    summary: Reasignar el líder de un grupo
+    description: |
+      RN-125: el integrante indicado pasa a `lider` y el líder anterior a `participante`. Sigue habiendo un único líder (RN-011).
+    tags:
+      - Admin
+    parameters:
+      - $ref: '../components/parameters.yaml#/GrupoId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/ReasignarLiderRequest'
+          example: {"usuario_id": "4b3a2c1d-0e9f-4a8b-9c7d-6e5f4a3b2c1d"}
+    responses:
+      '200':
+        description: Líder reasignado.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/LiderReasignado'
+            example: {"grupo_id": "7a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d", "lider_id": "4b3a2c1d-0e9f-4a8b-9c7d-6e5f4a3b2c1d"}
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/SuperadminRequerido'
+      '404':
+        description: El grupo no existe (`GRUPO_NOT_FOUND`) o la persona no es integrante (`MEMBER_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example: {"error": "Grupo no encontrado", "code": "GRUPO_NOT_FOUND"}
+      '409':
+        description: Esa persona ya es la líder (`ALREADY_LEADER`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example: {"error": "Esa persona ya es la líder del grupo", "code": "ALREADY_LEADER"}
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+MiembroGrupoAdmin:
+  delete:
+    operationId: adminQuitarMiembro
+    summary: Quitar a una persona de un grupo
+    description: |
+      Si la persona es la líder se aplica RN-013: el rol pasa al integrante más antiguo y, si no queda nadie, el grupo se elimina (`accion: grupo_eliminado`).
+    tags:
+      - Admin
+    parameters:
+      - $ref: '../components/parameters.yaml#/GrupoId'
+      - $ref: '../components/parameters.yaml#/UsuarioId'
+    responses:
+      '200':
+        description: Integrante quitado.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/MiembroQuitadoAdmin'
+            example: {"grupo_id": "7a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d", "usuario_id": "9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d", "accion": "quitado", "lider_id": null}
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/SuperadminRequerido'
+      '404':
+        description: El grupo no existe (`GRUPO_NOT_FOUND`) o la persona no es integrante (`MEMBER_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example: {"error": "Grupo no encontrado", "code": "GRUPO_NOT_FOUND"}
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+ViajesAdmin:
+  get:
+    operationId: adminListarViajes
+    summary: Listar y buscar viajes
+    description: |
+      Listado paginado de todos los viajes, del más nuevo al más viejo. `q` busca por nombre; `estado` filtra.
+    tags:
+      - Admin
+    parameters:
+      - $ref: '../components/parameters.yaml#/BusquedaAdmin'
+      - $ref: '../components/parameters.yaml#/Pagina'
+      - $ref: '../components/parameters.yaml#/Limite'
+      - name: estado
+        in: query
+        required: false
+        description: Filtra por estado del viaje.
+        schema: {"type": "string", "enum": ["planificado", "en_curso", "finalizado"]}
+    responses:
+      '200':
+        description: Página de viajes.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/PaginaViajesAdmin'
+            example: {"items": [{"id": "3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d", "nombre": "Altas Cumbres", "tipo_actividad": "bici", "es_grupal": true, "estado": "en_curso", "fecha_programada": "2026-10-16T11:00:00.000Z", "created_at": "2026-10-01T18:00:00.000Z", "creador": {"id": "9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d", "nombre": "Martina", "apellido": "Gómez", "email": "martina@example.com"}, "cantidad_integrantes": 8}], "total": 1, "pagina": 1, "limite": 20}
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/SuperadminRequerido'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+ViajeAdmin:
+  parameters:
+    - $ref: '../components/parameters.yaml#/ViajeId'
+  get:
+    operationId: adminDetalleViaje
+    summary: Detalle administrativo de un viaje
+    description: |
+      Estado, fechas, creador, integrantes, grupos y totales de alertas, paradas y gastos. **Sin posiciones GPS, ubicaciones vivas ni velocidades** (RN-126, RN-070).
+    tags:
+      - Admin
+    responses:
+      '200':
+        description: Detalle del viaje.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ViajeAdminDetalle'
+            example: {"id": "3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d", "nombre": "Altas Cumbres", "tipo_actividad": "bici", "modo": "recreativo", "es_grupal": true, "estado": "en_curso", "fecha_programada": "2026-10-16T11:00:00.000Z", "fecha_inicio_real": "2026-10-16T11:05:00.000Z", "fecha_fin_real": null, "created_at": "2026-10-01T18:00:00.000Z", "creador": {"id": "9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d", "nombre": "Martina", "apellido": "Gómez", "email": "martina@example.com"}, "ruta": {"origen_nombre": "Villa Carlos Paz", "destino_nombre": "Mina Clavero", "distancia_planeada_m": 98500}, "integrantes": [{"id": "9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d", "nombre": "Martina", "apellido": "Gómez", "email": "martina@example.com", "estado": "confirmado", "origen": "creador", "fecha_union": "2026-10-01T18:00:00.000Z"}], "grupos": [{"id": "7a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d", "nombre": "Rodadores de las Sierras"}], "totales": {"alertas": 2, "paradas": 5, "gastos": 3}}
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/SuperadminRequerido'
+      '404':
+        description: El viaje no existe (`VIAJE_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example: {"error": "Viaje no encontrado", "code": "VIAJE_NOT_FOUND"}
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+  delete:
+    operationId: adminEliminarViaje
+    summary: Eliminar un viaje
+    description: |
+      Elimina un viaje `planificado` o `finalizado` con todo su contenido (ruta, integrantes, GPS, métricas). Un viaje `en_curso` responde 409 `INVALID_STATE`: primero hay que finalizarlo.
+    tags:
+      - Admin
+    responses:
+      '200':
+        description: Viaje eliminado.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ViajeEliminadoAdmin'
+            example: {"viaje_id": "3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d", "accion": "eliminado"}
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/SuperadminRequerido'
+      '404':
+        description: El viaje no existe (`VIAJE_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example: {"error": "Viaje no encontrado", "code": "VIAJE_NOT_FOUND"}
+      '409':
+        description: El viaje está en curso (`INVALID_STATE`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example: {"error": "No se puede eliminar un viaje en curso. Finalizalo primero.", "code": "INVALID_STATE"}
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+FinalizarViajeAdmin:
+  post:
+    operationId: adminFinalizarViaje
+    summary: Forzar la finalización de un viaje en curso
+    description: |
+      RN-125: cierra un viaje que quedó colgado (p. ej. el creador perdió el teléfono). Es el mismo cierre que `POST /api/viajes/{viajeId}/finalizar` —emite `viaje:finalizado`, cierra paradas y alertas, borra ubicaciones vivas y genera el resumen— pero sin exigir ser el creador. El push de fin de viaje le llega a todos los confirmados, creador incluido.
+    tags:
+      - Admin
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '200':
+        description: Viaje finalizado.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ViajeFinalizadoAdmin'
+            example: {"viaje_id": "3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d", "estado": "finalizado", "fecha_fin_real": "2026-10-16T18:30:00.000Z"}
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/SuperadminRequerido'
+      '404':
+        description: El viaje no existe (`VIAJE_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example: {"error": "Viaje no encontrado", "code": "VIAJE_NOT_FOUND"}
+      '409':
+        description: El viaje no está en curso (`INVALID_STATE`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example: {"error": "El viaje no está en curso", "code": "INVALID_STATE"}
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+AuditoriaAdmin:
+  get:
+    operationId: adminListarAuditoria
+    summary: Consultar la auditoría del backoffice
+    description: |
+      Bitácora de cada acción de un superadmin (RN-121), de la más reciente a la más vieja. Se puede filtrar por acción, tipo de entidad o una entidad puntual (aunque ya no exista).
+    tags:
+      - Admin
+    parameters:
+      - $ref: '../components/parameters.yaml#/Pagina'
+      - $ref: '../components/parameters.yaml#/Limite'
+      - name: accion
+        in: query
+        required: false
+        description: Filtra por acción (p. ej. `usuario.eliminar`).
+        schema: {"type": "string", "maxLength": 60}
+      - name: entidad
+        in: query
+        required: false
+        description: Filtra por tipo de entidad.
+        schema: {"type": "string", "enum": ["usuario", "grupo", "viaje"]}
+      - name: entidad_id
+        in: query
+        required: false
+        description: Historial de una entidad puntual.
+        schema: {"type": "string", "format": "uuid"}
+    responses:
+      '200':
+        description: Página de la auditoría.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/PaginaAuditoriaAdmin'
+            example: {"items": [{"id": "0b1c2d3e-4f5a-4b6c-8d7e-9f0a1b2c3d4e", "accion": "usuario.suspender", "entidad": "usuario", "entidad_id": "4b3a2c1d-0e9f-4a8b-9c7d-6e5f4a3b2c1d", "detalle": {"email": "juan@example.com", "motivo": "Uso indebido reiterado de alertas manuales"}, "created_at": "2026-10-16T15:00:00.000Z", "actor": {"id": "9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d", "nombre": "Martina", "apellido": "Gómez", "email": "martina@example.com"}}], "total": 1, "pagina": 1, "limite": 20}
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/SuperadminRequerido'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'

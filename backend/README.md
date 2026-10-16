@@ -124,6 +124,7 @@ Crear un `.env` en `backend/` con los valores del entorno.
 | `CORS_ORIGIN` | no | Origen permitido en producción. Solo aplica a Socket.io |
 | `DOCS_ENABLED` | no | `false` apaga Swagger UI en `/api/docs`, el login incluido |
 | `FIREBASE_WEB_API_KEY` | no | Habilita `POST /api/docs/login`. Es la Web API key del proyecto Firebase, la misma que ya viaja en el bundle del frontend (pública por diseño). Sin ella el login responde 503 |
+| `GOOGLE_MAPS_API_KEY` | no | Key de Google Maps Platform con **Routes API**, **Places API (New)** y **Geocoding API** habilitadas. Si está, `/api/routing/calcular` y `/api/geocoding/*` usan Google primero; sin ella (o si Google falla) se usan OSRM/Valhalla/Nominatim. Restringirla por IP del servidor, nunca exponerla al frontend |
 
 ### Supabase (entorno del equipo)
 
@@ -336,6 +337,33 @@ Authorization: Bearer <Firebase ID token>
 El backend verifica el token contra Firebase, resuelve el `Usuario` local a partir del
 `firebase_uid` y expone su UUID como `req.userId`. Los WebSockets usan el mismo token en el
 handshake (ver [`docs/websockets.md`](docs/websockets.md)).
+
+Una cuenta suspendida recibe `403 ACCOUNT_SUSPENDED` en cualquier endpoint (RN-123).
+
+### Superadmin y backoffice (RN-120 a RN-126)
+
+Además de los roles de grupo (`lider` / `participante`, RN-011) existe un rol de
+**plataforma**, `usuario.rol_sistema = superadmin`, que habilita `/api/admin`:
+gestión de cuentas (editar, suspender, reactivar, eliminar, otorgar/quitar el rol),
+grupos (reasignar líder, quitar integrantes, eliminar), viajes (forzar finalización,
+eliminar) y la auditoría de cada acción (`auditoria_admin`). Módulo:
+`src/modules/admin/`; guard: `src/middleware/requireSuperadmin.ts`.
+
+El primer superadmin se nombra desde la terminal (la persona tiene que haber iniciado
+sesión al menos una vez):
+
+```bash
+npm run admin:promover -- persona@mail.com           # otorga el rol
+npm run admin:promover -- persona@mail.com --quitar  # lo quita
+```
+
+La **reportería** (`/api/admin/reportes/*`, módulo `src/modules/reportes/`) da KPIs,
+crecimiento, retención por cohortes, uso, comunidad, seguridad, destinos, adopción y
+gastos. Todo agregado y en hora argentina; definiciones en
+`tesis-brain/reglas-de-negocio.md` (RN-127 a RN-131).
+
+A partir de ahí, cualquier superadmin otorga o quita el rol desde la app
+(*Perfil → Administración → Usuarios*) o con `PUT /api/admin/usuarios/{id}/rol`.
 
 ### GeoJSON (contrato)
 

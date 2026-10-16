@@ -1,0 +1,271 @@
+﻿"id","prioridad","nombre del CP","precondiciones","pasos","resultado esperado","resultado obtenido (lo que debo llenar yo)","estado (lo que debo llenar yo)","razon la que no se pudo ejecutar (lo que debo llenar yo)"
+"CP-AUTH-001","Crítica","Registro exitoso de nuevo usuario con datos válidos y número argentino","App instalada en el dispositivo. No haber iniciado sesión. Email y teléfono no registrados previamente en la base de datos.","1. Abrir la aplicación y presionar 'Crear cuenta' en la pantalla de bienvenida.
+2. Ingresar Nombre ('Juan'), Apellido ('Pérez').
+3. Ingresar un teléfono argentino válido (ej: '351 123-4567' o '+54 9 351 1234567').
+4. Ingresar un email con formato correcto (ej: 'juan.perez@test.com').
+5. Ingresar una contraseña de al menos 8 caracteres y confirmarla idénticamente.
+6. Presionar 'Siguiente'.
+7. Seleccionar una actividad deportiva preferida (ej: 'Ciclismo').
+8. Presionar 'Registrarse'.","La cuenta se crea en Firebase y se sincroniza en el backend (POST /api/usuarios/sync). El usuario es redirigido a la pantalla principal (Inicio/Dashboard) con su sesión activa y perfil cargado.","","",""
+"CP-AUTH-002","Alta","Registro fallido al ingresar un email ya existente (RN-001)","Existe previamente una cuenta creada con el email 'usuario.existente@test.com'.","1. Ir a la pantalla de Registro.
+2. Completar todos los datos requeridos utilizando el email 'usuario.existente@test.com'.
+3. Presionar 'Siguiente' y luego 'Registrarse'.","El sistema bloquea el registro mostrando un mensaje claro indicando que el correo electrónico ya se encuentra registrado (RN-001: unicidad de email). No se crea una cuenta duplicada.","","",""
+"CP-AUTH-003","Alta","Registro fallido al ingresar un teléfono sin formato de Argentina (RN-002)","Estar en la pantalla de Registro (Paso 1).","1. Ingresar Nombre, Apellido e Email válidos.
+2. En el campo Teléfono ingresar un formato no argentino o con cantidad incorrecta de dígitos (ej: '12345' o '+1 555 123456').
+3. Ingresar contraseña válida y confirmarla.
+4. Presionar el botón 'Siguiente'.","La aplicación muestra un diálogo de alerta de validación: 'Teléfono inválido. Ingresá un número de teléfono argentino válido (Ej: 351 123-4567 o +54 9 11 4567-8901)'. No permite avanzar al paso 2.","","",""
+"CP-AUTH-004","Alta","Registro fallido al ingresar una contraseña de menos de 8 caracteres (RN-003)","Estar en la pantalla de Registro (Paso 1).","1. Completar Nombre, Apellido, Teléfono argentino válido y Email.
+2. En el campo Contraseña ingresar '1234567' (7 caracteres).
+3. En Confirmar Contraseña ingresar '1234567'.
+4. Presionar 'Siguiente'.","Se muestra un error: 'Contraseña corta. La contraseña debe tener al menos 8 caracteres'. No se avanza de pantalla ni se envía petición al servidor.","","",""
+"CP-AUTH-005","Media","Registro fallido por discrepancia entre contraseña y confirmación","Estar en la pantalla de Registro.","1. Completar datos personales y teléfono válido.
+2. En Contraseña ingresar 'ClaveSegura123'.
+3. En Confirmar Contraseña ingresar 'ClaveDiferente456'.
+4. Presionar 'Siguiente'.","Se bloquea el avance y se muestra un mensaje de advertencia indicando que las contraseñas no coinciden.","","",""
+"CP-AUTH-006","Crítica","Inicio de sesión exitoso con credenciales correctas","Cuenta registrada y confirmada previamente con email 'usuario.activo@test.com' y contraseña 'Password123!'.","1. Abrir la app e ir a la pantalla de 'Iniciar sesión'.
+2. Ingresar email 'usuario.activo@test.com'.
+3. Ingresar contraseña 'Password123!'.
+4. Presionar el botón 'Iniciar sesión'.","Autenticación satisfactoria. Se obtiene el Firebase ID token, se sincroniza con el backend (GET /api/usuarios/me), se almacenan credenciales de sesión y se accede al Dashboard.","","",""
+"CP-AUTH-007","Alta","Bloqueo temporal de cuenta tras 5 intentos fallidos consecutivos de login (RN-005)","Existe una cuenta creada 'victima.bloqueo@test.com'.","1. En la pantalla de login ingresar el email 'victima.bloqueo@test.com'.
+2. Ingresar una contraseña incorrecta y presionar 'Iniciar sesión'.
+3. Repetir el intento fallido consecutivamente 5 veces.","Al quinto intento fallido el sistema bloquea temporalmente el acceso a la cuenta mostrando mensaje de alerta de bloqueo por motivos de seguridad (RN-005).","","",""
+"CP-AUTH-008","Media","Recuperación de contraseña vía email (RN-007)","Existe cuenta con email 'olvido@test.com'.","1. En pantalla de login presionar '¿Olvidaste tu contraseña?'.
+2. Ingresar el email 'olvido@test.com'.
+3. Presionar 'Enviar enlace de recuperación'.","Se muestra confirmación de envío. El usuario recibe un correo con enlace seguro de recuperación que expira a las 24 horas. Al resetear la contraseña, todas las sesiones previas quedan invalidadas (RN-007).","","",""
+"CP-AUTH-009","Alta","Cierre de sesión seguro y limpieza de estado local (RN-006)","Usuario con sesión iniciada en la app.","1. Ir a la pestaña 'Perfil'.
+2. Deslizar hasta el final y presionar 'Cerrar sesión'.
+3. Confirmar la acción en el diálogo emergente.","Se limpian tokens de autenticación y caché de estado local en AsyncStorage, se desconecta el socket de tiempo real y se redirige inmediatamente a la pantalla de bienvenida/login.","","",""
+"CP-PERF-001","Alta","Visualización de métricas y estadísticas acumuladas en el perfil","Usuario autenticado con historial de viajes realizados, grupos y amigos.","1. Navegar a la pestaña 'Perfil' en la barra de navegación inferior.
+2. Observar las tarjetas de estadísticas superiores.","Se muestran correctamente los contadores de: cantidad de viajes completados, cantidad de grupos a los que pertenece, cantidad de amigos confirmados y distancia total acumulada formateada en km.","","",""
+"CP-PERF-002","Alta","Edición de datos de perfil y cambio de actividad deportiva preferida","Usuario autenticado en la pestaña Perfil.","1. En la pantalla Perfil presionar 'Editar perfil'.
+2. Modificar Nombre ('Carlos') y Apellido ('Gómez').
+3. Modificar el teléfono con número argentino válido.
+4. Cambiar la actividad preferida de 'Bici' a 'Moto'.
+5. Presionar 'Guardar cambios'.","Se envía POST /api/usuarios/sync con los datos actualizados. La pantalla refleja inmediatamente los nuevos datos y muestra confirmación visual de guardado exitoso.","","",""
+"CP-AMIG-001","Alta","Búsqueda global de usuarios registrados","Usuario A autenticado. Existen en el sistema otros usuarios registrados (ej: 'Martina Rodríguez').","1. Ir a la pestaña 'Grupos' y presionar el segmento 'Amigos'.
+2. En el cuadro de búsqueda escribir 'Martina'.
+3. Esperar que se ejecute la consulta (GET /api/amistades/buscar).","Se listan las coincidencias encontradas con nombre, apellido y botón de acción correspondiente ('Agregar', 'Pendiente' o 'Ya son amigos').","","",""
+"CP-AMIG-002","Crítica","Envío de solicitud de amistad a otro usuario (RN-017)","Usuario A y Usuario B registrados. No son amigos ni hay solicitud previa entre ambos.","1. Usuario A busca a Usuario B por nombre o email.
+2. Presionar el botón 'Agregar amigo' junto al perfil de Usuario B.","Se envía POST /api/amistades/solicitar. El botón cambia su estado a 'Solicitud enviada' (o 'Pendiente') y se deshabilita para evitar peticiones duplicadas.","","",""
+"CP-AMIG-003","Crítica","Aceptación de solicitud de amistad recibida","Usuario B tiene una solicitud de amistad pendiente enviada por Usuario A.","1. Usuario B ingresa a la app e inicia sesión.
+2. En el badge de Perfil o en 'Grupos > Amigos' observa la sección 'Solicitudes pendientes'.
+3. Localiza la solicitud de Usuario A y presiona 'Aceptar'.","Se invoca POST /api/amistades/solicitudes/:id/responder con accion='aceptar'. La solicitud desaparece de pendientes y Usuario A aparece en la lista de amigos de Usuario B (y viceversa).","","",""
+"CP-AMIG-004","Media","Rechazo de solicitud de amistad recibida","Usuario B tiene una solicitud pendiente de Usuario C.","1. Usuario B accede a 'Solicitudes pendientes' en la pestaña Amigos.
+2. Presiona 'Rechazar' en la solicitud de Usuario C.","Se envía la respuesta con accion='rechazar'. La solicitud desaparece de la lista. No se establece la relación de amistad.","","",""
+"CP-AMIG-005","Alta","Eliminar un amigo existente de la lista de contactos","Usuario A y Usuario B son amigos confirmados.","1. Usuario A va a 'Grupos > Amigos' y localiza a Usuario B en su lista de amigos.
+2. Presiona el ícono de opciones / eliminar amigo.
+3. Confirma la eliminación en el diálogo de confirmación.","Se llama a DELETE /api/amistades/:usuarioId. Usuario B se remueve de la lista de amigos de Usuario A de inmediato y ya no podrá ser invitado individualmente a viajes como amigo.","","",""
+"CP-GRUP-001","Crítica","Creación de un nuevo grupo (creador asume rol Líder, RN-010)","Usuario autenticado en la app.","1. Ir a la pestaña 'Grupos'.
+2. Presionar el botón '+ Nuevo grupo'.
+3. Ingresar el nombre 'Ciclistas de las Sierras'.
+4. Presionar 'Crear grupo'.","Se ejecuta POST /api/grupos. El grupo se crea exitosamente, el creador queda asignado automáticamente con rol 'líder' (RN-010) y el grupo aparece en la lista de grupos.","","",""
+"CP-GRUP-002","Media","Validación de nombre requerido al crear un grupo","Estar en el formulario de creación de grupo.","1. Dejar el campo de nombre vacío (o solo con espacios).
+2. Presionar el botón 'Crear grupo'.","El sistema impide la creación mostrando un mensaje que indica que el nombre del grupo es obligatorio.","","",""
+"CP-GRUP-003","Alta","Visualización del detalle de grupo, miembros y viajes asociados (RN-027)","Grupo creado con miembros y al menos un viaje vinculado.","1. En la lista de grupos presionar sobre 'Ciclistas de las Sierras'.
+2. Observar la pantalla de detalle del grupo.","Se muestra el nombre del grupo, fecha de creación, quién es el líder, contador exacto de miembros y contador de viajes organizados desde este grupo (RN-027).","","",""
+"CP-GRUP-004","Crítica","Líder invita usuarios al grupo desde su lista de amigos (RN-018)","Usuario es líder del grupo. Tiene amigos confirmados que aún no son miembros del grupo.","1. En el detalle del grupo presionar 'Invitar miembros'.
+2. En la pestaña 'Amigos' seleccionar a uno o varios amigos disponibles.
+3. Presionar 'Enviar invitaciones'.","Se envía POST /api/grupos/:grupoId/invitar-usuarios. Se crean filas en grupo_invitacion con estado 'pendiente'. Los amigos reciben la invitación en su bandeja de entrada.","","",""
+"CP-GRUP-005","Alta","Líder invita usuarios al grupo por búsqueda global (RN-018)","Usuario es líder del grupo.","1. Ingresar a 'Invitar miembros' en el grupo.
+2. Ir a la opción de búsqueda global y buscar por nombre.
+3. Seleccionar un usuario registrado y enviar la invitación.","La invitación se registra como pendiente. La UI refleja 'Invitación enviada' deshabilitando el botón para evitar duplicados.","","",""
+"CP-GRUP-006","Media","Distinción UI entre 'Ya es miembro' e 'Invitación pendiente' al invitar (RN-018)","En un grupo, Usuario 1 es miembro confirmado y Usuario 2 tiene una invitación pendiente.","1. El líder abre la pantalla de invitar usuarios al grupo.
+2. Busca a Usuario 1 y Usuario 2.","La UI muestra claramente la etiqueta 'Ya es miembro' para Usuario 1 y 'Invitación enviada' para Usuario 2, impidiendo re-invitaciones redundantes sin estado previo finalizado.","","",""
+"CP-GRUP-007","Crítica","Usuario invitado acepta invitación pendiente a un grupo (RN-019)","Usuario tiene una invitación pendiente al grupo 'Ciclistas de las Sierras'.","1. El usuario va a la pestaña 'Grupos'.
+2. En la sección superior 'Invitaciones pendientes' observa la invitación.
+3. Presiona 'Aceptar'.","Se llama a POST /api/grupos/invitaciones/:invitacionId/responder con accion='aceptar'. La invitación se marca 'aceptada', el usuario se añade como 'participante' al grupo (RN-019) y el grupo aparece en su listado.","","",""
+"CP-GRUP-008","Alta","Usuario invitado rechaza invitación pendiente a un grupo (RN-019)","Usuario tiene una invitación pendiente a un grupo.","1. En la pestaña 'Grupos' localiza la invitación en 'Invitaciones pendientes'.
+2. Presiona 'Rechazar'.","La invitación pasa a estado 'rechazada' sin crear membresía. Desaparece de la lista de invitaciones pendientes.","","",""
+"CP-GRUP-009","Alta","Reinvitación exitosa a un usuario que abandonó el grupo previamente (RN-018)","Un usuario perteneció al grupo pero lo abandonó (la invitación previa quedó en 'aceptada').","1. El líder del grupo abre 'Invitar miembros'.
+2. Busca al usuario que había abandonado el grupo.
+3. Presiona 'Invitar'.","El backend realiza un upsert reabriendo el registro a estado 'pendiente' (RN-018). El usuario vuelve a recibir la invitación en su bandeja.","","",""
+"CP-GRUP-010","Alta","Cambio de rol de integrante: asignación de Líder por el creador (RN-011, RN-012)","Usuario Líder y Usuario Participante en el mismo grupo.","1. El líder ingresa al detalle del grupo y presiona en 'Miembros'.
+2. Toca sobre el participante y selecciona 'Hacer líder'.
+3. Confirma la acción.","El participante pasa a tener rol 'líder' (RN-012). Solo existen roles 'líder' y 'participante', sin roles intermedios (RN-011).","","",""
+"CP-GRUP-011","Alta","Participante abandona el grupo voluntariamente (RN-027b)","Usuario con rol 'participante' en el grupo.","1. Entrar al detalle del grupo y presionar el ícono de ajustes/editar grupo.
+2. Presionar el botón 'Abandonar grupo'.
+3. Confirmar la acción en el popup.","Se elimina la membresía del usuario en grupo_miembro. El grupo deja de aparecer en su listado. El resto del grupo continúa intacto.","","",""
+"CP-GRUP-012","Alta","Líder abandona grupo con miembros: transferencia al integrante más antiguo (RN-013)","Grupo con un líder y dos participantes con distinta fecha de unión.","1. El líder ingresa a la configuración del grupo y presiona 'Abandonar grupo'.
+2. Confirma la acción.","El líder abandona el grupo. El sistema transfiere automáticamente el rol de 'líder' al participante más antiguo (RN-013). El grupo no se elimina.","","",""
+"CP-GRUP-013","Media","Líder abandona grupo siendo el único integrante: eliminación del grupo (RN-013)","Grupo donde el líder es el único miembro.","1. El líder entra a la pantalla de edición del grupo y presiona 'Abandonar grupo'.
+2. Confirma la acción.","Al no haber más integrantes, el grupo se elimina de la base de datos de manera definitiva (RN-013).","","",""
+"CP-GRUP-014","Alta","Eliminación explícita de grupo por el líder con confirmación (RN-014, RN-027b)","Usuario con rol líder en el grupo.","1. Ingresar a la pantalla de edición del grupo.
+2. Presionar el botón destructivo 'Eliminar grupo'.
+3. En el diálogo de alerta presionar 'Eliminar'.","Se envía DELETE /api/grupos/:grupoId. El grupo se borra en cascada (membresías e invitaciones asociadas) y el usuario vuelve a la lista general.","","",""
+"CP-GRUP-015","Media","Eliminación masiva (Bulk Delete) de grupos seleccionados","Usuario es líder de múltiples grupos que desea eliminar.","1. En la pestaña Grupos mantener presionado un grupo para activar el modo selección.
+2. Seleccionar 2 o más grupos donde el usuario sea líder.
+3. Presionar el botón de eliminar de la barra de acciones inferior.
+4. Confirmar el borrado masivo.","Se procesa la eliminación masiva. Se muestra un resumen indicando la cantidad de grupos eliminados con éxito.","","",""
+"CP-VIAJ-001","Crítica","Creación de viaje individual con parámetros por defecto según actividad (RN-020, RN-021)","Usuario autenticado.","1. Presionar el botón '+' en el centro de la barra inferior o 'Crear viaje'.
+2. Ingresar el nombre 'Entrenamiento Individual Carlos Paz'.
+3. Seleccionar modalidad 'Individual'.
+4. Seleccionar tipo de actividad 'Bici'.
+5. Configurar una fecha futura (ej: dentro de 3 días a las 09:00).
+6. Presionar 'Crear viaje'.","Se crea el viaje en estado 'planificado'. El backend asigna automáticamente velocidad_esperada (35 km/h) y distancia_max_separacion (300 m) según RN-021. El creador queda como integrante confirmado.","","",""
+"CP-VIAJ-002","Crítica","Creación de viaje grupal invitando a un grupo completo en bloque (RN-028)","Usuario pertenece al grupo 'Ciclistas de las Sierras' con 4 miembros.","1. Ir a Crear Viaje.
+2. Ingresar nombre 'Salida Grupal Dique San Roque'.
+3. Seleccionar 'Grupal'.
+4. En la sección 'Grupos' desplegable marcar 'Ciclistas de las Sierras'.
+5. Fijar fecha futura y presionar 'Crear viaje'.","El viaje se crea en estado 'planificado'. Los 4 miembros del grupo quedan invitados con estado 'pendiente' y origen 'grupo'. Se registra la trazabilidad en la tabla viaje_grupo (RN-027).","","",""
+"CP-VIAJ-003","Alta","Creación de viaje grupal invitando amigos individuales (RN-028)","Usuario tiene amigos confirmados en la app.","1. En Crear Viaje seleccionar 'Grupal'.
+2. En la sección 'Amigos' marcar 2 amigos de la lista.
+3. Completar nombre y fecha futura.
+4. Presionar 'Crear viaje'.","El viaje se crea exitosamente. Los amigos seleccionados quedan registrados en viaje_integrante con estado 'pendiente' y origen 'amigo'.","","",""
+"CP-VIAJ-004","Alta","Deduplicación de invitaciones si un usuario coincide en grupo y amigo (RN-028)","Usuario B es miembro del 'Grupo A' y también amigo individual del Creador.","1. Creador arma un viaje grupal seleccionando el 'Grupo A' Y tildando a 'Usuario B' en Amigos.
+2. Presionar 'Crear viaje'.","Usuario B recibe una ÚNICA invitación al viaje, priorizando origen='grupo' (RN-028). El contador invitaciones_enviadas refleja el número sin duplicados.","","",""
+"CP-VIAJ-005","Crítica","Rechazo de creación de viaje con fecha y hora en el pasado (RN-107)","Estar en la pantalla de Crear Viaje.","1. Completar nombre y actividad.
+2. En el selector de fecha y hora programada seleccionar una hora anterior a la hora actual (ej: hace 2 horas o ayer).
+3. Intentar presionar 'Crear viaje'.","La UI bloquea la acción indicando 'La fecha y hora programadas deben ser futuras'. Si se envía por API, el backend responde 400 Bad Request con código 'FECHA_PASADA' (RN-107).","","",""
+"CP-VIAJ-006","Alta","Garantía de huso horario UTC-3 de Argentina en fecha/hora de viaje (RN-105, RN-106)","Dispositivo con zona horaria modificada (ej: UTC+1 o UTC-5).","1. Programar un viaje para las '10:00'.
+2. Guardar y observar cómo se muestra la hora programada en el detalle del viaje.","La hora mostrada se expresa invariablemente en hora de Argentina (UTC-3), utilizando lib/tiempoArg.ts (RN-105). En backend se persiste en UTC (RN-106).","","",""
+"CP-VIAJ-007","Crítica","Invitado a viaje acepta invitación pendiente (RN-029)","Usuario tiene una invitación pendiente a un viaje en la pestaña Viajes.","1. Ir a la pestaña 'Viajes'.
+2. En 'Invitaciones pendientes' presionar 'Aceptar'.","Se envía POST /api/viajes/:viajeId/invitacion/responder con accion='aceptar'. El estado del usuario en viaje_integrante pasa a 'confirmado' (RN-029). El viaje pasa a figurar en 'Viajes planificados'.","","",""
+"CP-VIAJ-008","Alta","Invitado a viaje rechaza invitación pendiente (RN-029)","Usuario tiene una invitación pendiente a un viaje.","1. En 'Invitaciones pendientes' de la pestaña Viajes presionar 'Rechazar'.","El estado pasa a 'rechazado'. La invitación se retira de la lista del usuario. El creador ve al usuario con estado 'Rechazado' en la lista de participantes.","","",""
+"CP-VIAJ-009","Crítica","Generación y visualización del código QR de invitación al viaje (RN-015)","Viaje en estado 'planificado'. Usuario es el creador o integrante confirmado.","1. Ingresar al detalle del viaje planificado.
+2. Presionar el botón 'Invitar por QR' o ícono de QR.","Se muestra en pantalla un código QR nítido con el deep link único de invitación al viaje (mesh://viaje/unirse?viajeId=...).","","",""
+"CP-VIAJ-010","Crítica","Unión directa al viaje escaneando el código QR (RN-016)","Viaje planificado. Usuario B no es miembro del viaje. App con permiso de cámara.","1. Usuario B abre la app y presiona 'Escanear QR' en Inicio o menú.
+2. Apunta la cámara al código QR generado por el Creador.
+3. El escáner detecta el código.","Se ejecuta POST /api/viajes/:viajeId/unirse-qr. Usuario B se incorpora DIRECTAMENTE como integrante 'confirmado' sin requerir aprobación del creador (RN-016) y se abre el detalle del viaje.","","",""
+"CP-VIAJ-011","Alta","Edición de parámetros y fecha en viaje planificado por el creador","Viaje en estado 'planificado'. Usuario es el creador.","1. En el detalle del viaje presionar 'Editar fecha/hora' o 'Configurar parámetros'.
+2. Modificar la fecha programada a un nuevo horario futuro.
+3. Modificar la distancia máxima de separación a 500 m.
+4. Guardar los cambios.","Se actualizan los valores mediante PATCH /api/viajes/:viajeId. Los participantes ven reflejados los nuevos parámetros.","","",""
+"CP-VIAJ-012","Alta","Eliminación de viaje planificado por el creador (RN-030b)","Viaje en estado 'planificado'. Usuario es el creador.","1. Ingresar al detalle del viaje planificado.
+2. Deslizar hasta el final y presionar 'Eliminar viaje'.
+3. Confirmar la acción en el diálogo de alerta destructivo.","Se ejecuta DELETE /api/viajes/:viajeId. El viaje y sus relaciones (rutas, invitaciones, checklists) se eliminan en cascada. El viaje desaparece de la app.","","",""
+"CP-VIAJ-013","Alta","Intento de eliminar un viaje por un usuario que no es el creador (RN-030b)","Usuario es un participante confirmado, no el creador.","1. El participante ingresa al detalle del viaje planificado.
+2. Verificar las opciones disponibles al pie de la pantalla.","El botón 'Eliminar viaje' NO está visible (solo se muestra 'Salir del viaje'). Si se intenta invocar DELETE por API, el backend responde 403 Forbidden.","","",""
+"CP-RUTA-001","Crítica","Búsqueda y selección de Origen y Destino con OSM Nominatim","Viaje planificado sin ruta configurada.","1. En el detalle del viaje presionar 'Configurar ruta'.
+2. En el campo 'Punto de partida' escribir 'Plaza San Martín, Córdoba'.
+3. Seleccionar el resultado sugerido de la lista.
+4. En el campo 'Destino' escribir 'Villa Carlos Paz'.
+5. Seleccionar el resultado sugerido.","Se posicionan los pines de Origen y Destino sobre el mapa de OpenStreetMap y se calcula la vista inicial centrada.","","",""
+"CP-RUTA-002","Alta","Selección de puntos tocando directamente sobre el mapa OSM","Estar en la pantalla de Configuración de Ruta.","1. Activar el modo de selección en mapa.
+2. Hacer un toque prolongado sobre una ubicación en el mapa para marcar Origen.
+3. Tocar en otro punto geográfico para marcar Destino.","Los waypoints se agregan con sus coordenadas geográficas exactas (lat, lng) y se actualiza el panel inferior.","","",""
+"CP-RUTA-003","Crítica","Trazado automático de ruta OSRM según perfil de actividad (RN-021)","Origen y destino marcados. Viaje con tipoActividad='moto'.","1. Con origen y destino seleccionados, observar el cálculo del trazado.","El motor OSRM genera la línea de ruta (LINESTRING) usando el perfil correspondiente ('driving' para moto, 'cycling' para bici, 'walking' para trekking) y calcula la distancia total en km y el tiempo estimado de viaje.","","",""
+"CP-RUTA-004","Alta","Agregar paradas intermedias categorizadas (combustible, descanso, etc., RN-022)","Ruta con origen y destino cargados.","1. Presionar '+ Agregar parada intermedia'.
+2. Marcar una ubicación (ej: La Calera).
+3. Seleccionar la categoría 'combustible'.
+4. Asignarle un nombre y un tiempo estimado de parada (ej: 15 min).
+5. Repetir agregando otra parada con categoría 'gastronomía'.","Las paradas intermedias se incorporan a la ruta. La ruta OSRM se recalcula pasando por las postas en orden y el tiempo total estimado suma los tiempos de parada (RN-023).","","",""
+"CP-RUTA-005","Alta","Verificación de que la categoría 'Accidente' NO esté disponible en ruta planificada (RN-022)","Estar configurando paradas intermedias de una ruta planificada.","1. Abrir el selector de categoría de una parada intermedia planificada.","Se listan combustible, descanso, gastronomía, sanitario, punto de control y otro. La categoría 'accidente' NO aparece en el selector (RN-022: accidente solo aplica a paradas voluntarias en vivo).","","",""
+"CP-RUTA-006","Media","Reordenamiento de paradas intermedias (RN-024)","Ruta con al menos 2 paradas intermedias agregadas (Parada A y Parada B).","1. En el panel de paradas intermedias arrastrar o usar las flechas para mover Parada B antes de Parada A.
+2. Observar la actualización de la ruta.","El orden se actualiza (RN-024). El trazado de la ruta en el mapa se recalcula en tiempo real reflejando la nueva secuencia de puntos.","","",""
+"CP-RUTA-007","Crítica","Guardado exitoso de la ruta configurada en el viaje","Ruta trazada satisfactoriamente con distancia y duración estimada calculada.","1. Presionar el botón 'Guardar ruta'.","Se envía PUT /api/viajes/:viajeId/ruta con la geometría (LINESTRING) y las paradas intermedias. La ruta queda guardada en base de datos y visible en el detalle del viaje.","","",""
+"CP-CHKL-001","Alta","Siembra sugerida automática de ítems al abrir el checklist por primera vez (RN-026)","Viaje con tipo_actividad='moto'. Integrante confirmado abre su checklist por primera vez.","1. En el detalle del viaje presionar 'Checklist de preparativos'.","El backend siembra automáticamente ítems sugeridos para la actividad (ej: 'Casco', 'Guantes', 'Documentación', 'Revisar presión de cubiertas') con origen='sugerido'.","","",""
+"CP-CHKL-002","Alta","Marcado y desmarcado de ítems de preparación personal","Estar en la pantalla de Checklist con ítems cargados.","1. Tocar sobre el checkbox de un ítem para marcarlo como completado.
+2. Tocar nuevamente para desmarcarlo.","El estado 'completado' cambia de false a true y viceversa (PATCH /api/viajes/:viajeId/checklist/:itemId). La barra de progreso de completitud se actualiza.","","",""
+"CP-CHKL-003","Alta","Agregar y eliminar ítems personales en el checklist (RN-026)","Checklist del viaje abierto.","1. En el campo 'Nuevo ítem' escribir 'Cámara de repuesto'.
+2. Dejar la opción 'Para todo el grupo' desmarcada y presionar '+'.
+3. Posteriormente presionar el botón de eliminar junto a dicho ítem.","El ítem se crea con origen='personal'. Al presionar eliminar, se borra exclusivamente del checklist del usuario sin afectar al resto del grupo.","","",""
+"CP-CHKL-004","Crítica","Creador define ítem base para todo el grupo y propagación a integrantes (RN-026)","Usuario es el creador del viaje. Hay otros participantes confirmados.","1. Creador entra al checklist.
+2. Escribe 'Botiquín de primeros auxilios'.
+3. Marca la casilla 'Para todo el grupo' y presiona '+'.
+4. Otro integrante del viaje abre su checklist.","El ítem se crea con origen='lider'. Se propaga al checklist de todos los participantes. El participante puede marcarlo como completado pero NO tiene opción de editar texto ni borrarlo (RN-026).","","",""
+"CP-CHKL-005","Media","Importación de checklist desde un viaje anterior (RN-026)","El usuario participó en viajes anteriores que tenían checklist completado.","1. En la pantalla de checklist presionar 'Importar de otro viaje'.
+2. Seleccionar un viaje del historial.
+3. Presionar 'Importar'.","Se incorporan los ítems propios del viaje seleccionado sin duplicar aquellos que ya existan en la lista actual (RN-026).","","",""
+"CP-CHKL-006","Media","Checklist de solo lectura cuando el viaje está finalizado (RN-026)","Viaje en estado 'finalizado'.","1. Abrir el checklist del viaje finalizado.
+2. Intentar agregar o modificar ítems.","El formulario de agregar está oculto o deshabilitado. La pantalla se presenta en modo solo lectura (409 INVALID_STATE si se envía petición, RN-026).","","",""
+"CP-GAST-001","Crítica","Registrar un gasto compartido prorrateado entre participantes seleccionados","Viaje planificado o en curso con al menos 3 participantes (A, B y C).","1. En el viaje ingresar a 'Gastos compartidos'.
+2. Presionar '+ Nuevo gasto'.
+3. Ingresar descripción 'Nafta y peajes'.
+4. Ingresar monto '9000'.
+5. Seleccionar que se divide entre Usuario A, Usuario B y Usuario C (3 personas).
+6. Presionar 'Guardar gasto'.","Se ejecuta POST /api/viajes/:viajeId/gastos. El gasto aparece en el listado mostrando el total ($9000) y el monto por persona calculado ($3000).","","",""
+"CP-GAST-002","Alta","Edición y eliminación de gasto exclusivamente por su autor (RN-030)","Usuario A cargó el gasto 'Almuerzo'. Usuario B también participa del viaje.","1. Usuario A ingresa a Gastos y presiona el ícono de editar en 'Almuerzo' (puede modificar monto y participantes).
+2. Usuario B ingresa a Gastos y visualiza el ítem 'Almuerzo'.","Usuario A puede editar y eliminar el gasto registrado por él. Para Usuario B los botones de edición/borrado no aparecen (puede_editar=false). Intentos directos por API responden 403 FORBIDDEN.","","",""
+"CP-GAST-003","Alta","Consulta de balance bloqueada antes de finalizar el viaje","Viaje en estado 'planificado' o 'en_curso' con gastos cargados.","1. Intentar consultar el balance de deudas (/api/viajes/:viajeId/gastos/balance).","El backend responde 409 Conflict con código 'INVALID_STATE'. La liquidación de deudas solo se calcula cuando el viaje está 'finalizado'.","","",""
+"CP-GAST-004","Crítica","Cálculo y visualización del balance y liquidaciones post-cierre de viaje","Viaje en estado 'finalizado' con múltiples gastos cargados por distintos participantes.","1. Ingresar a 'Gastos' en el viaje finalizado.
+2. Ver la sección 'Balance y liquidaciones'.","Se muestra el desglose simplificado de deudas: quién le debe a quién y los montos exactos a transferir para saldar las cuentas.","","",""
+"CP-LIVE-001","Crítica","Inicio de viaje por el creador y transición de estado (RN-030)","Viaje en estado 'planificado' con participantes confirmados. Usuario es el creador.","1. Ingresar al viaje planificado.
+2. Presionar el botón 'Iniciar viaje' (Play).
+3. Confirmar el inicio en el diálogo emergente.","El estado del viaje transiciona a 'en_curso'. Se emite el evento socket 'viaje:iniciado' a todos los participantes. Se habilita la recepción de GPS y se abre la pantalla de seguimiento en vivo (live.tsx).","","",""
+"CP-LIVE-002","Crítica","Vencimiento inmediato del código QR de invitación al iniciar el viaje (RN-015)","El creador acaba de iniciar el viaje (estado 'en_curso'). Usuario externo intenta unirse por QR.","1. Un usuario externo escanea el código QR del viaje que acaba de iniciar.","El backend rechaza la unión con error indicando que el QR ha caducado porque el viaje ya comenzó (RN-015).","","",""
+"CP-LIVE-003","Alta","Intento de inicio de viaje por un participante no creador (RN-030)","Usuario es un participante confirmado del viaje, no el creador.","1. El participante accede al detalle del viaje planificado.","El botón de iniciar viaje NO está disponible. Si se invoca POST /api/viajes/:viajeId/iniciar por API, el backend responde 403 FORBIDDEN (RN-030).","","",""
+"CP-LIVE-004","Crítica","Conexión a sala Socket.io y autorización estricta (RN-030, websockets.md)","Viaje 'en_curso'. Usuario A es participante confirmado. Usuario B no participa del viaje.","1. Usuario A emite evento 'join_viaje' con el viajeId.
+2. Usuario B emite evento 'join_viaje' con el viajeId.","Usuario A recibe ack { ok: true } y queda suscrito a la sala 'viaje:<uuid>'. Usuario B recibe ack { ok: false, error: 'FORBIDDEN' } y no recibe ningún dato de GPS.","","",""
+"CP-LIVE-005","Crítica","Emisión periódica de pings GPS cada 5 segundos (RN-031)","Viaje en curso. App en primer plano con permisos de geolocalización concedidos.","1. Mantener la pantalla de seguimiento en vivo abierta y desplazarse.
+2. Inspeccionar el tráfico de red / logs de tracking.","El servicio de tracking emite un evento 'viaje:gps_ping' cada 5 segundos con lat, lng, precisión y recordedAt (RN-031).","","",""
+"CP-LIVE-006","Crítica","Actualización de marcadores de integrantes en el mapa (< 10s de latencia, RN-032)","Dos usuarios (A y B) en el mismo viaje en curso con GPS activo.","1. Usuario A se desplaza geográficamente.
+2. Observar el mapa en el dispositivo de Usuario B.","El marcador de Usuario A en el mapa de Usuario B se desplaza con una latencia inferior a 10 segundos respecto al movimiento real (RN-032).","","",""
+"CP-LIVE-007","Alta","Visualización de breadcrumbs y progreso de ruta recorrida","Viaje en curso en movimiento sobre la ruta planificada.","1. Avanzar a lo largo del trazado de la ruta en la pantalla de live.","La ruta muestra en un color diferenciado el tramo ya transitado (breadcrumbs) respecto del tramo pendiente, y actualiza el ETA a la próxima parada.","","",""
+"CP-LIVE-008","Alta","Botón de recentrado de ubicación y vista de grupo","Pantalla de Live con múltiples participantes dispersos.","1. Desplazar manualmente el mapa alejándolo de la posición actual.
+2. Presionar el botón de recentrado de ubicación.
+3. Presionar nuevamente para vista grupal.","La cámara vuelve a centrarse suavemente sobre la posición del usuario en el primer toque, y ajusta el zoom para incluir a todos los integrantes en el segundo toque.","","",""
+"CP-PARA-001","Crítica","Registro de parada voluntaria y cambio de estado a 'detenido_voluntario' (RN-037)","Integrante transitando viaje en curso en estado 'en_movimiento'.","1. En la pantalla Live presionar el botón 'Parar'.
+2. En el bottom sheet seleccionar categoría 'descanso'.
+3. Presionar confirmar.","Se ejecuta POST /api/viajes/:viajeId/paradas. El estado del integrante pasa a 'detenido_voluntario' (RN-037). Se emite 'viaje:parada_iniciada' a todos los participantes.","","",""
+"CP-PARA-002","Crítica","Parada voluntaria con categoría 'accidente' genera alerta de peligro grupal (RN-022)","Viaje en curso con varios participantes.","1. Un participante presiona 'Parar'.
+2. Selecciona la categoría destacada 'accidente'.
+3. Confirma la parada.","El sistema registra la parada y dispara automáticamente una alerta de peligro ('tipo: peligro', 'origen: integrante') con notificación push urgente a todo el grupo (RN-022).","","",""
+"CP-PARA-003","Alta","Banner grupal de parada y trazado de guía OSRM 'Seguir parada'","Un participante inició una parada voluntaria.","1. Los demás participantes observan la aparición del banner en pantalla con nombre y motivo de la parada.
+2. Un participante presiona 'Seguir parada'.","El mapa calcula y dibuja una línea guía OSRM de color índigo desde la posición del usuario hacia el punto donde se encuentra detenido el compañero.","","",""
+"CP-PARA-004","Crítica","Retomar viaje y retorno a estado 'en_movimiento'","Integrante actualmente en estado 'detenido_voluntario'.","1. En la pantalla Live presionar el botón 'Retomar marcha' (o 'Continuar viaje').","Se invoca PATCH /api/viajes/:viajeId/paradas/:paradaId/finalizar. La parada se cierra con hora de fin, se computa la duración y el integrante vuelve a estado 'en_movimiento' en el mapa grupal.","","",""
+"CP-PARA-005","Alta","Solicitud de parada al líder por un participante (RN-044)","Viaje en curso. Usuario es participante, no líder.","1. El participante presiona 'Solicitar parada'.
+2. Ingresa motivo opcional ('Necesito cargar combustible') y presiona enviar.","Se emite 'viaje:solicitud_parada' (POST /solicitudes-parada). El líder recibe un banner en tiempo real con la solicitud y los botones 'Aprobar' y 'Rechazar' (RN-044).","","",""
+"CP-PARA-006","Alta","Líder aprueba solicitud de parada de un participante (RN-044)","Líder visualiza banner de solicitud de parada pendiente.","1. El líder presiona 'Aprobar' en el banner.","Se actualiza el estado de la solicitud a 'aprobada' (POST /solicitudes-parada/:id/responder). Se notifica al solicitante y al grupo con la confirmación de la detención.","","",""
+"CP-PARA-007","Crítica","Detección autónoma de detención sospechosa y posible incidente (RN-036)","Viaje en curso. Un integrante detiene su marcha completamente sin registrar parada manual.","1. El integrante permanece detenido por más de N minutos configurados (umbral de incidente).
+2. El motor de eventos del backend analiza los pings GPS entrantes.","El backend detecta la detención no registrada y dispara automáticamente el estado 'posible_incidente' (RN-036), emitiendo 'viaje:parada_iniciada' con alerta urgente al líder y al grupo.","","",""
+"CP-PARA-008","Crítica","Confirmación 'Estoy bien' resuelve alerta de incidente (RN-036)","El integrante tiene una alerta activa de 'posible incidente' en su pantalla.","1. El integrante presiona el botón prominente 'Estoy bien' en el banner de incidente.","Se llama a POST /api/viajes/:viajeId/paradas/:id/confirmar-bien. La alerta se resuelve de inmediato ('estado: resuelta'), se notifica al líder y al grupo que el usuario se encuentra bien (RN-036).","","",""
+"CP-ALER-001","Crítica","Detección automática de desvío de ruta por el motor de eventos (RN-034)","Viaje con ruta definida y distancia_max_separacion configurada (ej: 300 m).","1. Un integrante toma una calle o sendero alternativo y se aleja más de 300 m del trazado planificado.
+2. Envía su ping GPS.","El motor de eventos calcula la distancia ortogonal a la ruta mediante PostGIS (ST_DWithin/ST_Distance). Detecta que supera el umbral y emite alerta automática 'tipo: desvio' con el nombre del integrante (RN-034).","","",""
+"CP-ALER-002","Alta","Auto-resolución de desvío con histéresis al retornar a la ruta","Integrante con alerta activa de desvío generada por el sistema.","1. El integrante retoma el camino y se acerca a menos de la mitad del umbral de separación (ej: < 150 m).
+2. El backend procesa el nuevo ping GPS.","El motor de eventos resuelve automáticamente la alerta de desvío ('estado: resuelta') emitiendo 'viaje:alerta_actualizada' para evitar oscilaciones en el borde.","","",""
+"CP-ALER-003","Alta","Detección automática de atraso respecto al bloque principal (RN-035)","Grupo en movimiento. Un integrante reduce significativamente su velocidad y se rezaga más allá de la tolerancia.","1. El grupo avanza mientras el rezagado queda distanciado por encima del tiempo de atraso tolerado.","El motor compara el progreso del integrante con el bloque principal y dispara una alerta de 'atraso' (RN-035), mostrando la distancia de separación en el mapa.","","",""
+"CP-ALER-004","Alta","Creación de alerta manual por el líder con punto en el mapa (RN-041)","Viaje en curso. Usuario Líder.","1. Presionar el botón de Alertas > '+ Crear alerta'.
+2. Seleccionar tipo 'combustible'.
+3. Ingresar mensaje 'Cargamos nafta en la estación Shell a 5 km'.
+4. Marcar la ubicación de la estación en el mapa.
+5. Presionar 'Publicar alerta'.","Se crea la alerta en backend (POST /alertas) y se emite 'viaje:alerta'. Todos los integrantes reciben notificación y el punto de parada aparece marcado en el mapa con opción 'Seguir' (RN-041).","","",""
+"CP-ALER-005","Media","Permiso de creación de alertas según configuración alertas_solo_lider (RN-108)","Viaje con alertas_solo_lider=true. Participante no líder intenta crear alerta.","1. El participante busca la opción de crear alerta.","El botón de crear alerta no está habilitado para participantes comunes cuando la restricción está activa (RN-108). Si el líder desactiva esta opción, los participantes pueden publicar alertas.","","",""
+"CP-ALER-006","Alta","Gestión de alertas activas: pausar, cancelar y resolver por el líder (RN-042)","Existe una alerta activa en el viaje. Usuario Líder.","1. En la pantalla de Alertas tocar sobre la alerta activa.
+2. Presionar 'Pausar'. Verificar cambio de estado a 'pausada'.
+3. Presionar 'Reanudar'. Verificar vuelta a 'activa'.
+4. Presionar 'Resolver'.","Las transiciones de estado se ejecutan vía PATCH /alertas/:id (RN-042). El evento 'viaje:alerta_actualizada' notifica al grupo y quita el banner de la pantalla.","","",""
+"CP-OFFL-001","Crítica","Pérdida de conectividad y almacenamiento local en cola GPS (RN-038)","Viaje en curso con tracking activo.","1. Activar el Modo Avión en el dispositivo o apagar datos y WiFi.
+2. Desplazarse durante 2 minutos registrando nuevas coordenadas GPS.
+3. Verificar que la app no crashee.","La app detecta la falta de red. Cada lectura GPS se guarda en la cola local segura de almacenamiento en dispositivo (gpsQueue.ts) sin pérdidas (RN-038).","","",""
+"CP-OFFL-002","Crítica","Reconexión a internet y sincronización masiva en lotes sin pérdida (RN-038)","Dispositivo con múltiples posiciones GPS acumuladas en la cola offline.","1. Desactivar Modo Avión y restablecer conexión a internet.
+2. Mantener la app abierta y observar la sincronización.","El sincronizador background detecta conexión y envía las posiciones acumuladas en lotes a POST /api/viajes/:viajeId/posiciones con source='offline_sync'. La cola se vacía y el backend persiste la totalidad de los datos.","","",""
+"CP-OFFL-003","Alta","Sincronización offline no produce retrocesos en el marcador en vivo","Se sincroniza un lote offline_sync de un usuario.","1. Observar la emisión en tiempo real generada por upsertUbicacionVivaSnapshot.","El backend solo emite 'viaje:ubicacion' si la posición del lote es posterior a la última conocida del integrante, impidiendo que los marcadores en el mapa de los demás den saltos temporales hacia atrás.","","",""
+"CP-OFFL-004","Alta","Re-suscripción automática a salas Socket.io tras caída y recuperación de señal","Socket conectado a sala viaje:<id>. Se corta y recupera la conexión.","1. Forzar micro-corte de red y esperar reconexión automática de Socket.io.","meshSocket.ts re-emite 'join_viaje' automáticamente en el evento 'connect' para resuscribirse a la sala del viaje sin intervención del usuario.","","",""
+"CP-UI-001","Alta","Interfaz adaptativa en Modo MOTO: pantalla completa, botones grandes y alto contraste (RN-050)","Viaje en curso con tipo_actividad='moto'.","1. Entrar a la pantalla de seguimiento en vivo.","El layout se adapta a pantalla completa, elementos de alto contraste, botones de acción extra grandes aptos para manejo con una sola mano y guantes (RN-050).","","",""
+"CP-UI-002","Media","Retroalimentación háptica priorizada en Modo RUNNING y TREKKING (RN-051)","Viaje en curso con tipo_actividad='running' o 'trekking'. Dispositivo con vibración habilitada.","1. Recibir una alerta grupal o iniciar una parada.","El dispositivo emite patrones de vibración háptica prominentes (useHapticaAlEntrar) para notificar al usuario sin exigir que mire la pantalla de forma constante (RN-051).","","",""
+"CP-UI-003","Media","Legibilidad outdoor y tamaño de fuentes adaptado (RN-052)","App abierta en cualquier pantalla operativa de tracking.","1. Inspeccionar textos de velocidad, distancia, tiempo y banners.","Las tipografías cumplen con el tamaño mínimo para uso outdoor y visualización bajo luz solar directa (tamanoOutdoor, RN-052).","","",""
+"CP-CLOS-001","Alta","Participante abandona el viaje en curso ('Salir del viaje', RN-030)","Viaje en curso con varios participantes.","1. Un participante presiona 'Salir del viaje' y confirma la acción.","El participante pasa a estado 'salido'. Deja de enviar GPS y se retira de la sala ('viaje:participante_salio'). El viaje NO se finaliza para el resto de los participantes y las métricas parciales del usuario se conservan.","","",""
+"CP-CLOS-002","Crítica","Finalización de viaje por el creador y cómputo de métricas (RN-030, RN-060)","Viaje en curso. Usuario Creador.","1. En la pantalla Live presionar 'Finalizar viaje'.
+2. Confirmar la finalización.","El viaje pasa a 'finalizado'. Se emite 'viaje:finalizado', se detiene el tracking en todos los dispositivos, se cierran paradas abiertas, se resuelven alertas activas y se generan las métricas agregadas en PostGIS (RN-060).","","",""
+"CP-CLOS-003","Crítica","Visualización del Resumen del viaje con mapa de recorrido y métricas (RN-061, RN-062)","Viaje finalizado recientemente.","1. Ingresar a la pantalla de 'Resumen del viaje'.","Se muestra el mapa con la traza real recorrida (PostGIS ST_Distance + LAG). Se presentan métricas individuales: distancia recorrida, tiempo total, tiempo en movimiento, tiempo detenido y velocidad promedio (RN-061), más métricas grupales si corresponde (RN-062).","","",""
+"CP-CLOS-004","Crítica","REGLA INVIOLABLE RN-070: Modalidad MOTO excluida de rankings competitivos y gamificación de velocidad","Viaje finalizado con tipo_actividad='moto' (sea grupal o individual).","1. Acceder al Resumen del viaje.
+2. Revisar la sección de métricas y la presencia de botones de 'Recap' o 'Ranking'.","NO existe acceso a ranking ni tabla de posiciones (ranking_habilitado=false). No se muestra velocidad máxima. El rótulo es 'Ritmo promedio' con el pie informativo 'Dato informativo, no comparativo' (RN-070).","","",""
+"CP-CLOS-005","Crítica","Acceso a Recap y Ranking en viaje grupal de modalidades permitidas (RN-063)","Viaje grupal finalizado con tipo_actividad='bici' o 'running'. Al menos 2 participantes.","1. En el Resumen del viaje presionar 'Ver Recap / Ranking'.
+2. Alternar entre las pestañas 'Más kilómetros', 'Mejor ritmo' y 'Más tiempo en movimiento'.","Se muestra la pantalla de Recap (recap.tsx) con las posiciones y podio ordenado correctamente según el criterio seleccionado (RN-063).","","",""
+"CP-CLOS-006","Media","Viaje individual no habilita pestaña de ranking ni recap","Viaje finalizado con es_grupal=false.","1. Abrir el Resumen del viaje individual.","No se ofrece el botón de ranking o recap (no hay contra quién comparar). Solo se muestran las métricas personales del usuario.","","",""
+"CP-SOC-001","Alta","Compartir link de ruta planificada congelada con token opaco (RN-085, RN-088)","Viaje con ruta planificada trazada. Usuario es el creador o integrante confirmado.","1. En el viaje presionar 'Compartir ruta'.
+2. Copiar el link generado.","Se genera un token opaco único (POST /rutas-compartidas). El link comparte exclusivamente el snapshot planificado de la ruta (geometría + postas + actividad), sin exponer participantes ni ubicaciones en vivo (RN-085, RN-088).","","",""
+"CP-SOC-002","Alta","Apertura de deep link de ruta compartida y visualización de snapshot","Dispositivo con la app instalada. Enlace recibido 'mesh://ruta?token=...'.","1. Tocar el enlace en una conversación o navegador.
+2. La app abre la pantalla de preview (ruta.tsx).","Se visualiza el mapa con origen, destino, paradas intermedias, distancia y tiempo estimado del snapshot congelado.","","",""
+"CP-SOC-003","Crítica","Importar ruta compartida como plantilla copia en el perfil (RN-086)","Usuario visualizando el preview de una ruta compartida.","1. Presionar el botón 'Guardar en mis rutas'.","Se crea una copia independiente en el perfil del usuario (POST /rutas-compartidas/:token/importar). La plantilla queda accesible en 'Rutas > Guardadas' y no se verá alterada si el viaje original cambia (RN-086).","","",""
+"CP-SOC-004","Alta","Crear un nuevo viaje utilizando una ruta guardada como plantilla","Usuario tiene al menos una ruta plantilla en 'Rutas > Guardadas'.","1. En 'Rutas > Guardadas' tocar sobre una plantilla y presionar 'Crear viaje con esta ruta'.
+2. Completar nombre y fecha futura del viaje.","Se abre el formulario de crear viaje con la actividad y la ruta precargada automáticamente desde la plantilla (plantillaId).","","",""
+"CP-SOC-005","Alta","Exploración de rutas comunitarias y filtrado por actividad","Existen rutas compartidas por otros usuarios en el sistema.","1. Ir a la pestaña 'Rutas' y seleccionar el segmento 'Explorar'.
+2. Filtrar por actividad 'Moto'.","Se listan las rutas comunitarias correspondientes a motociclismo mostrando mapa en miniatura, distancia, tiempo y valoración positiva.","","",""
+"CP-SOC-006","Alta","Valoración binaria ('Recomiendo' / 'No recomiendo') en ruta comunitaria (RN-082, RN-083)","Usuario visualizando una ruta comunitaria.","1. Presionar el botón 'Recomiendo' (pulgar arriba).
+2. Observar el contador.
+3. Verificar la ausencia de caja de comentarios.","Se registra la valoración binaria (RN-082). No se permite agregar texto (RN-083: no se admiten comentarios de texto para evitar moderación). Si se presiona nuevamente, se actualiza de forma idempotente.","","",""
+"CP-SOC-007","Media","Revocación de link de ruta compartida por el creador (RN-087)","Creador compartió previamente el link de una ruta.","1. En el viaje presionar 'Revocar link de ruta'.
+2. Un tercero intenta acceder con el token previo.","El token queda revocado (DELETE /rutas-compartidas). Terceros ya no pueden ver el preview ni importar la ruta mediante ese enlace.","","",""
+"CP-HIST-001","Alta","Listado cronológico de viajes finalizados en la pestaña Viajes","Usuario tiene múltiples viajes finalizados registrados.","1. Ir a la pestaña central 'Viajes'.
+2. Deslizar a la sección 'Historial / Finalizados'.","Se muestran los viajes finalizados ordenados del más reciente al más antiguo, con fecha de realización, distancia recorrida y tiempo en movimiento personal.","","",""
+"CP-HIST-002","Alta","Inclusión en historial para participante que abandonó antes del cierre ('salido')","El usuario participó de un viaje pero usó 'Salir del viaje' antes de su finalización.","1. El usuario revisa su historial de viajes finalizados.","El viaje aparece en su historial con el badge 'Abandonaste' (estado: salido), mostrando sus métricas parciales registradas antes de salir.","","",""
+"CP-HIST-003","Media","Filtros de búsqueda por tipo de actividad y nombre en historial de viajes","Múltiples viajes en historial de distintas actividades.","1. Escribir en la barra de búsqueda de Viajes el nombre 'Altas Cumbres'.
+2. Filtrar por chip de actividad 'Trekking'.","La lista filtra dinámicamente mostrando solo los viajes que coinciden con el texto ingresado y el tipo de actividad seleccionado.","","",""
+"CP-HIST-004","Alta","Eliminación individual de un viaje finalizado del historial","Viaje finalizado visible en el listado.","1. Presionar el ícono de opciones / eliminar en la tarjeta del viaje.
+2. Confirmar la eliminación.","Se remueve el viaje del listado del usuario (o se elimina si es creador). La lista se refresca inmediatamente.","","",""
+"CP-HIST-005","Media","Eliminación masiva (Bulk Delete) de viajes en la pestaña Viajes","Múltiples viajes en la pestaña Viajes.","1. Mantener presionada una tarjeta de viaje para entrar en modo selección.
+2. Tildar 3 viajes.
+3. Presionar el botón de papelera en la barra inferior de selección.
+4. Confirmar la eliminación.","Se ejecuta runBulkDelete eliminando los viajes seleccionados y mostrando el resumen de elementos eliminados con éxito.","","",""
+"CP-HIST-006","Alta","Acceso directo a viaje en curso desde el Dashboard (Inicio)","Usuario tiene un viaje actualmente en estado 'en_curso'.","1. Abrir la app e ir a la pestaña 'Inicio'.","Aparece de manera prominente una tarjeta de 'Viaje en curso' con el nombre, tiempo transcurrido y un botón directo 'Continuar seguimiento' que ingresa a la pantalla live.","","",""

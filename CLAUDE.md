@@ -79,7 +79,7 @@ Capas de responsabilidad: **Controller/Socket → Service → Repository**. Toda
 | Navegación | Expo Router v6 (file-based routing, `typedRoutes: true`) |
 | Animaciones | react-native-reanimated v4 |
 | Íconos | @expo/vector-icons |
-| Mapas | OpenStreetMap (NO Google Maps ni Mapbox salvo orden explícita) |
+| Mapas | Google Maps nativo (`react-native-maps`, `components/maps/MeshMapView.tsx`) |
 
 ```bash
 npm start            # dev server (Expo Go)
@@ -115,6 +115,8 @@ El **backend valida cada acción**; el frontend solo orienta visualmente. Compro
 
 ### 4. Dos roles, sin excepciones — RN-011
 Solo existen `líder` y `participante` dentro de un grupo. No inventar roles intermedios como "moderador", "co-líder" o similares.
+El rol de **plataforma** `superadmin` (RN-120, `usuario.rol_sistema`) no es un rol de grupo: solo habilita el backoffice `/api/admin`, se audita cada acción (RN-121) y nunca expone ubicaciones (RN-126).
+Su reportería (`/api/admin/reportes`, RN-127 a RN-131) es solo agregada: sin datos personales, sin posiciones y **sin velocidades** (RN-070); lugares con k-anonimato (k = 3).
 
 ### 5. Secretos y `.env`
 **No** crear ni sobrescribir `.env`, `.env.local` ni archivos de credenciales sin confirmación explícita del usuario. `DATABASE_URL` y credenciales Firebase son intocables sin permiso.
@@ -212,7 +214,10 @@ npm run docs:preview   # previsualiza la documentación
 ```
 
 ### Mapas
-**OpenStreetMap** exclusivamente. Sin dependencia de APIs comerciales (Google Maps, Mapbox). Costo de carga: $0.
+**Google Maps Platform** (decisión del 08/10/2026, ver `tesis-brain/adr-mapas-google.md`):
+- Mapa nativo: Maps SDK for Android/iOS vía `react-native-maps`. Toda pantalla usa `MeshMapView`; key del build en `GOOGLE_MAPS_ANDROID_API_KEY` / `GOOGLE_MAPS_IOS_API_KEY` (`frontend/app.config.ts`).
+- Búsqueda (Places), geocodificación inversa (Geocoding) y rutas (Routes) se llaman **solo desde el backend** con `GOOGLE_MAPS_API_KEY`. Nunca exponer esa key al dispositivo.
+- Los servicios OpenStreetMap (Nominatim, OSRM, Valhalla) quedan como **respaldo automático**: si Google falla o no hay key, el backend cae a ellos sin cambiar el contrato.
 
 ### Base de datos geoespacial
 **Supabase** como proveedor administrado de **PostgreSQL + PostGIS**. PostGIS está habilitado como extensión en el proyecto Supabase.
@@ -281,6 +286,7 @@ Todos los textos superan el tamaño mínimo para uso outdoor (RN-052). La interf
 | **Participante** | Miembro del grupo. Puede registrar paradas, solicitar detenciones, ver mapa grupal. |
 | **Usuario no autenticado** | Solo puede registrarse o recuperar contraseña. |
 | **Motor de eventos** | Backend autónomo que detecta desvíos, atrasos y detenciones sospechosas sin intervención humana. |
+| **Superadmin** | Rol de plataforma (no de grupo). Gestiona cuentas, grupos y viajes desde el backoffice `/api/admin`, con auditoría. Ver RN-120 a RN-126. |
 
 ---
 
@@ -368,7 +374,7 @@ Antes de generar o modificar código, verificar:
 - [ ] ¿Validé la entrada con Zod?
 - [ ] ¿Documenté en el spec OpenAPI (`backend/openapi/`) todo endpoint nuevo o modificado, y corrí `npm run docs:lint` + `npm test`?
 - [ ] ¿Respeté la arquitectura de capas? (Controller → Service → Repository)
-- [ ] ¿Mapas usan OpenStreetMap, no Google Maps ni Mapbox?
+- [ ] ¿Los mapas usan `MeshMapView` y las APIs de Google se llaman desde el backend (key fuera del dispositivo)?
 - [ ] ¿No toqué `.env` ni credenciales sin permiso?
 - [ ] ¿No introduje mocks en código de producción?
 - [ ] ¿Solo uso los roles `líder` y `participante`?

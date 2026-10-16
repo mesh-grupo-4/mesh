@@ -35,6 +35,8 @@ type Props = {
     patch: Partial<Pick<RouteWaypoint, 'lat' | 'lon' | 'name' | 'category'>>
   ) => void
   onAgregarParada: () => void
+  /** Abre las sugerencias de paradas a lo largo de la ruta (Google Places). Solo con ruta calculada. */
+  onSugerirParadas?: () => void
   onEliminarParada: (id: string) => void
   onReordenarParada: (desde: number, hasta: number) => void
   onPickOnMap: (waypointId: string) => void
@@ -59,6 +61,7 @@ export const RouteBottomSheet = forwardRef<RouteBottomSheetHandle, Props>(functi
     mapPickMode,
     onUpdateWaypoint,
     onAgregarParada,
+    onSugerirParadas,
     onEliminarParada,
     onReordenarParada,
     onPickOnMap,
@@ -221,6 +224,17 @@ export const RouteBottomSheet = forwardRef<RouteBottomSheetHandle, Props>(functi
           >
             Agregar parada
           </Btn>
+          {onSugerirParadas ? (
+            <Btn
+              variant="outline"
+              size="sm"
+              icon="map-pin"
+              onPress={onSugerirParadas}
+              disabled={mapPickMode}
+            >
+              Sugerir paradas
+            </Btn>
+          ) : null}
         </View>
 
         {renderRow(destino, undefined, true)}
@@ -305,6 +319,9 @@ const styles = StyleSheet.create({
   addStopWrap: {
     marginLeft: 30,
     marginVertical: 8,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
     alignSelf: 'flex-start',
   },
   resumen: {

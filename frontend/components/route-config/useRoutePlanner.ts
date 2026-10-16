@@ -2,7 +2,8 @@ import * as Crypto from 'expo-crypto'
 import * as Location from 'expo-location'
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { meshAlert } from '@/lib/meshAlert'
-import type { LatLng } from '@/components/maps/WebMapView'
+import { haversineDistanceM } from '@/lib/geo/haversine'
+import type { LatLng } from '@/components/maps/MeshMapView'
 
 import {
   calcularRutaOsrm,
@@ -384,6 +385,46 @@ export function useRoutePlanner({
     })
   }, [])
 
+  /**
+   * Agrega un lugar sugerido (Google Places) como parada, insertándolo donde
+   * menos alarga el recorrido en línea recta: así queda en el orden en que se
+   * pasa por él sin que el líder tenga que reordenar a mano.
+   */
+  const agregarParadaDesdeLugar = useCallback(
+    (lugar: { lat: number; lng: number; nombre: string; categoria: StopCategory }): boolean => {
+      if (paradas.length >= MAX_PARADAS) {
+        meshAlert('Límite', `Máximo ${MAX_PARADAS} paradas intermedias.`)
+        return false
+      }
+      const secuencia = [origen, ...paradas, destino]
+      let mejorIndice = paradas.length
+      let menorDesvio = Number.POSITIVE_INFINITY
+      for (let i = 0; i < secuencia.length - 1; i++) {
+        const a = secuencia[i]!
+        const b = secuencia[i + 1]!
+        if (!waypointTieneCoords(a) || !waypointTieneCoords(b)) continue
+        const desvio =
+          haversineDistanceM(a.lat, a.lon, lugar.lat, lugar.lng) +
+          haversineDistanceM(lugar.lat, lugar.lng, b.lat, b.lon) -
+          haversineDistanceM(a.lat, a.lon, b.lat, b.lon)
+        if (desvio < menorDesvio) {
+          menorDesvio = desvio
+          mejorIndice = i
+        }
+      }
+      const nueva: RouteWaypoint = {
+        ...crearWaypoint('STOP', mejorIndice + 1),
+        lat: lugar.lat,
+        lon: lugar.lng,
+        name: lugar.nombre,
+        category: lugar.categoria,
+      }
+      setParadas((prev) => [...prev.slice(0, mejorIndice), nueva, ...prev.slice(mejorIndice)])
+      return true
+    },
+    [origen, destino, paradas]
+  )
+
   const eliminarParada = useCallback((id: string) => {
     setParadas((prev) => prev.filter((p) => p.id !== id))
   }, [])
@@ -546,6 +587,7 @@ export function useRoutePlanner({
     nameModalInitial,
     actualizarWaypoint,
     agregarParada,
+    agregarParadaDesdeLugar,
     eliminarParada,
     reordenarParada,
     iniciarSeleccionMapa,

@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler'
 
 import { TopBar, useTheme } from '@/components/MeshUI'
 import { CenterLocationButton } from '@/components/live/CenterLocationButton'
+import { LugaresSugeridosModal } from '@/components/lugares/LugaresSugeridosModal'
 import { MapPickOverlay } from '@/components/route-config/MapPickOverlay'
 import { RouteBottomSheet } from '@/components/route-config/RouteBottomSheet'
 import { MapStylePicker } from '@/components/route-config/MapStylePicker'
@@ -18,6 +19,7 @@ import { WaypointNameModal } from '@/components/route-config/WaypointNameModal'
 import { useAuth } from '@/context/AuthContext'
 import { parametrosPorActividad } from '@/lib/activityDefaults'
 import { resolveBackendUserId } from '@/lib/apiClient'
+import { buscarLugaresEnRuta, type CategoriaLugar, type LugarSugerido } from '@/lib/lugaresApi'
 import { obtenerViaje, type TipoActividadApi } from '@/lib/viajesApi'
 
 export default function ConfigurarRutaScreen() {
@@ -44,6 +46,7 @@ export default function ConfigurarRutaScreen() {
   const [distanciaMaxSeparacion, setDistanciaMaxSeparacion] = useState(300)
   const [cargandoViaje, setCargandoViaje] = useState(true)
   const [mapStyle, setMapStyle] = useState<MapStyleId>('standard')
+  const [sugiriendoParadas, setSugiriendoParadas] = useState(false)
 
   useEffect(() => {
     let cancel = false
@@ -107,6 +110,7 @@ export default function ConfigurarRutaScreen() {
     nameModalInitial,
     actualizarWaypoint,
     agregarParada,
+    agregarParadaDesdeLugar,
     eliminarParada,
     reordenarParada,
     iniciarSeleccionMapa,
@@ -128,6 +132,23 @@ export default function ConfigurarRutaScreen() {
   const onCameraTargetApplied = useCallback(() => {
     setCameraTarget(null)
   }, [setCameraTarget])
+
+  const buscarEnRuta = useCallback(
+    (categoria: CategoriaLugar) => buscarLugaresEnRuta(categoria, routeLineLatLng ?? []),
+    [routeLineLatLng]
+  )
+
+  const agregarLugar = useCallback(
+    (lugar: LugarSugerido, categoria: CategoriaLugar) => {
+      // La parada nueva aparece en la lista y en el mapa: eso ya es la confirmación.
+      if (agregarParadaDesdeLugar({ lat: lugar.lat, lng: lugar.lng, nombre: lugar.nombre, categoria })) {
+        setSugiriendoParadas(false)
+      }
+    },
+    [agregarParadaDesdeLugar]
+  )
+
+  const puedeSugerir = Boolean(routeLineLatLng && routeLineLatLng.length > 1)
 
   if (cargandoViaje || backendSyncing || cargandoRuta || !userId) {
     return (
@@ -202,10 +223,21 @@ export default function ConfigurarRutaScreen() {
           mapPickMode={Boolean(modoSeleccionMapa)}
           onUpdateWaypoint={actualizarWaypoint}
           onAgregarParada={agregarParada}
+          onSugerirParadas={puedeSugerir ? () => setSugiriendoParadas(true) : undefined}
           onEliminarParada={eliminarParada}
           onReordenarParada={reordenarParada}
           onPickOnMap={iniciarSeleccionMapa}
           onGuardar={() => void guardar()}
+        />
+
+        <LugaresSugeridosModal
+          visible={sugiriendoParadas}
+          titulo="Paradas sobre la ruta"
+          subtitulo="Lugares a lo largo del recorrido"
+          accionLabel="Agregar"
+          buscar={buscarEnRuta}
+          onElegir={agregarLugar}
+          onCerrar={() => setSugiriendoParadas(false)}
         />
 
         <WaypointNameModal

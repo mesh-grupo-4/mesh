@@ -22,6 +22,7 @@ ErrorCode:
     - UNAUTHENTICATED
     - INVALID_TOKEN
     - AUTH_RESOLUTION_FAILED
+    - ACCOUNT_SUSPENDED
     - INTERNAL_ERROR
     # Validación de entrada (src/middleware/errorHandler.ts)
     - VALIDATION_ERROR
@@ -37,6 +38,7 @@ ErrorCode:
     - NOT_FRIEND
     - FORBIDDEN
     - LEADER_CANNOT_LEAVE
+    - NOT_SUPERADMIN
     # Recursos inexistentes
     - USER_NOT_FOUND
     - GRUPO_NOT_FOUND
@@ -97,15 +99,20 @@ ErrorCode:
     - SHARE_SNAPSHOT_INVALID
     - RUTA_INCOMPLETA
     - ROUTE_COMPUTE_FAILED
-    # Geocoding — proxy a Nominatim/OpenStreetMap (src/modules/geocoding/)
+    # Geocoding — proxy a Google Places/Geocoding con Nominatim de respaldo (src/modules/geocoding/)
     - GEOCODING_TIMEOUT
     - GEOCODING_UPSTREAM_ERROR
     - GEOCODING_RATE_LIMIT
-    # Routing — proxy a OSRM/Valhalla (src/modules/routing/)
+    # Routing — proxy a Google Routes con OSRM/Valhalla de respaldo (src/modules/routing/)
     - ROUTING_TIMEOUT
     - ROUTING_UPSTREAM_ERROR
     - ROUTING_RATE_LIMIT
     - ROUTING_NO_ROUTE
+    # Lugares — Google Places (src/modules/lugares/)
+    - LUGARES_RATE_LIMIT
+    - LUGARES_UPSTREAM_ERROR
+    - LUGARES_NO_DISPONIBLE
+    - LUGARES_TIMEOUT
     - MODO_INVALIDO
     - FANTASMA_NO_DISPONIBLE
     - FANTASMA_SIN_TRAZA
@@ -117,6 +124,14 @@ ErrorCode:
     - TOO_MANY_ATTEMPTS
     - LOGIN_FAILED
     - DOCS_LOGIN_NOT_CONFIGURED
+    # Backoffice superadmin (RN-120 a RN-126, src/modules/admin/)
+    - CANNOT_SUSPEND_SELF
+    - CANNOT_DELETE_SELF
+    - ALREADY_SUSPENDED
+    - NOT_SUSPENDED
+    - USER_IN_ACTIVE_TRIP
+    - ALREADY_LEADER
+    - AUTH_PROVIDER_ERROR
   example: NOT_CREATOR
 
 Error:
@@ -290,6 +305,15 @@ GpsSource:
   enum: [live, offline_sync]
   example: live
 
+RolSistema:
+  type: string
+  description: |
+    Rol de **plataforma** (RN-120), independiente de los roles de grupo (RN-011).
+    `superadmin` habilita el backoffice `/api/admin`; la app lo usa solo para mostrar
+    la entrada al panel, nunca como fuente de verdad (RN-030).
+  enum: [usuario, superadmin]
+  example: usuario
+
 RolMiembro:
   type: string
   description: |
@@ -338,6 +362,7 @@ Usuario:
     - apellido
     - telefono
     - actividad_preferida
+    - rol_sistema
   properties:
     id:
       type: string
@@ -363,6 +388,8 @@ Usuario:
       allOf:
         - $ref: '#/TipoActividadNullable'
       description: Modalidad que la app propone por defecto al crear un viaje.
+    rol_sistema:
+      $ref: '#/RolSistema'
   additionalProperties: false
 
 SyncUsuarioRequest:
@@ -3675,8 +3702,9 @@ BalanceGastos:
 GeocodingHit:
   type: object
   description: |
-    Resultado de una búsqueda de lugares, mapeado desde la respuesta cruda de
-    Nominatim (`display_name` → `nombre`, `lat`/`lon` de string a number).
+    Resultado de una búsqueda de lugares, mapeado desde Google Places
+    (`displayName` + `formattedAddress`) o, de respaldo, desde Nominatim
+    (`display_name`, `lat`/`lon` de string a number).
   required:
     - nombre
     - lat
@@ -3748,6 +3776,68 @@ CalcularRutaInput:
             maximum: 180
         additionalProperties: false
   additionalProperties: false
+
+CategoriaLugar:
+  type: string
+  description: |
+    Categoría de parada (RN-022) buscable en Google Places. `accidente`,
+    `punto_control` y `otro` no aplican porque no corresponden a un tipo de lugar.
+  enum: [combustible, gastronomia, descanso, sanitario]
+  example: combustible
+
+LugaresEnRutaInput:
+  type: object
+  required: [categoria, trazado]
+  properties:
+    categoria:
+      $ref: '#/CategoriaLugar'
+    trazado:
+      type: array
+      description: |
+        Trazado de la ruta en orden (el `linestring` de `POST /api/routing/calcular`
+        como `{lat, lng}`). El backend lo submuestrea a 400 puntos antes de
+        mandarlo a Google.
+      minItems: 2
+      maxItems: 20000
+      items:
+        type: object
+        required: [lat, lng]
+        properties:
+          lat:
+            type: number
+            format: double
+            minimum: -90
+            maximum: 90
+          lng:
+            type: number
+            format: double
+            minimum: -180
+            maximum: 180
+  additionalProperties: false
+
+LugarSugerido:
+  type: object
+  required: [id, nombre, direccion, lat, lng]
+  properties:
+    id:
+      type: string
+      description: Place ID de Google.
+      example: ChIJN1t_tDeuEmsRUsoyG83frY4
+    nombre:
+      type: string
+      example: YPF Centro
+    direccion:
+      type: string
+      nullable: true
+      example: Av. Colón 100, X5000 Córdoba, Argentina
+    lat:
+      type: number
+      format: double
+      example: -31.41
+    lng:
+      type: number
+      format: double
+      example: -64.18
 
 RutaCalculada:
   type: object
@@ -3968,3 +4058,1337 @@ AccesoUbicacionGlobal:
       type: integer
       example: 8
   additionalProperties: false
+
+# ── Backoffice superadmin (RN-120 a RN-126) ─────────────────────────────────
+
+PersonaAdmin:
+  type: object
+  description: Datos mínimos para identificar a una persona en el backoffice.
+  required: [id, nombre, apellido, email]
+  properties:
+    id:
+      type: string
+      format: uuid
+      example: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d
+    nombre:
+      type: string
+      example: Martina
+    apellido:
+      type: string
+      nullable: true
+      example: Gómez
+    email:
+      type: string
+      format: email
+      example: martina@example.com
+
+UsuarioAdminResumen:
+  type: object
+  required: [id, email, nombre, apellido, rol_sistema, suspendido_at, created_at]
+  properties:
+    id:
+      type: string
+      format: uuid
+      example: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d
+    email:
+      type: string
+      format: email
+      example: martina@example.com
+    nombre:
+      type: string
+      example: Martina
+    apellido:
+      type: string
+      nullable: true
+      example: Gómez
+    rol_sistema:
+      $ref: '#/RolSistema'
+    suspendido_at:
+      type: string
+      format: date-time
+      nullable: true
+      description: Null = cuenta activa (RN-123).
+      example: null
+    created_at:
+      type: string
+      format: date-time
+      example: '2026-08-01T14:00:00.000Z'
+
+PaginaUsuariosAdmin:
+  type: object
+  required: [items, total, pagina, limite]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/UsuarioAdminResumen'
+    total:
+      type: integer
+      example: 1
+    pagina:
+      type: integer
+      example: 1
+    limite:
+      type: integer
+      example: 20
+
+UsuarioAdminDetalle:
+  allOf:
+    - $ref: '#/UsuarioAdminResumen'
+    - type: object
+      required: [telefono, actividad_preferida, motivo_suspension, grupos, totales]
+      properties:
+        telefono:
+          type: string
+          nullable: true
+          example: '+54 351 555 1234'
+        actividad_preferida:
+          $ref: '#/TipoActividadNullable'
+        motivo_suspension:
+          type: string
+          nullable: true
+          example: null
+        grupos:
+          type: array
+          items:
+            type: object
+            required: [id, nombre, rol, fecha_union]
+            properties:
+              id:
+                type: string
+                format: uuid
+              nombre:
+                type: string
+              rol:
+                $ref: '#/RolMiembro'
+              fecha_union:
+                type: string
+                format: date-time
+        totales:
+          type: object
+          required: [viajes_creados, participaciones_viaje, grupos_liderados]
+          properties:
+            viajes_creados:
+              type: integer
+              example: 4
+            participaciones_viaje:
+              type: integer
+              example: 9
+            grupos_liderados:
+              type: integer
+              example: 1
+
+ActualizarUsuarioAdminRequest:
+  type: object
+  description: |
+    Edición de datos de perfil por un superadmin. Todos los campos son opcionales
+    pero tiene que venir al menos uno; `null` limpia el campo. El email no se edita:
+    pertenece a Firebase (RN-001).
+  minProperties: 1
+  properties:
+    nombre:
+      type: string
+      minLength: 1
+      maxLength: 100
+    apellido:
+      type: string
+      nullable: true
+      maxLength: 100
+    telefono:
+      type: string
+      nullable: true
+      maxLength: 30
+    actividad_preferida:
+      $ref: '#/TipoActividadNullable'
+  additionalProperties: false
+
+CambiarRolSistemaRequest:
+  type: object
+  required: [rol_sistema]
+  properties:
+    rol_sistema:
+      $ref: '#/RolSistema'
+  additionalProperties: false
+
+RolSistemaCambiado:
+  type: object
+  required: [id, rol_sistema]
+  properties:
+    id:
+      type: string
+      format: uuid
+    rol_sistema:
+      $ref: '#/RolSistema'
+
+SuspenderUsuarioRequest:
+  type: object
+  required: [motivo]
+  properties:
+    motivo:
+      type: string
+      minLength: 3
+      maxLength: 500
+      description: Queda en la cuenta y en la auditoría.
+      example: Uso indebido reiterado de alertas manuales
+  additionalProperties: false
+
+EstadoSuspension:
+  type: object
+  required: [id, suspendido_at, motivo_suspension]
+  properties:
+    id:
+      type: string
+      format: uuid
+    suspendido_at:
+      type: string
+      format: date-time
+      nullable: true
+    motivo_suspension:
+      type: string
+      nullable: true
+
+UsuarioEliminadoAdmin:
+  type: object
+  description: |
+    Resultado de eliminar una cuenta (RN-124): cuántos grupos y viajes que
+    lideraba se transfirieron al integrante más antiguo y cuántos se eliminaron
+    por no tener a nadie más.
+  required:
+    - usuario_id
+    - accion
+    - grupos_transferidos
+    - grupos_eliminados
+    - viajes_transferidos
+    - viajes_eliminados
+  properties:
+    usuario_id:
+      type: string
+      format: uuid
+    accion:
+      type: string
+      enum: [eliminado]
+    grupos_transferidos:
+      type: integer
+    grupos_eliminados:
+      type: integer
+    viajes_transferidos:
+      type: integer
+    viajes_eliminados:
+      type: integer
+
+GrupoAdminResumen:
+  type: object
+  required: [id, nombre, fecha_creacion, lider, cantidad_miembros]
+  properties:
+    id:
+      type: string
+      format: uuid
+    nombre:
+      type: string
+      example: Rodadores de las Sierras
+    fecha_creacion:
+      type: string
+      format: date-time
+    lider:
+      $ref: '#/PersonaAdmin'
+    cantidad_miembros:
+      type: integer
+      example: 12
+
+PaginaGruposAdmin:
+  type: object
+  required: [items, total, pagina, limite]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/GrupoAdminResumen'
+    total:
+      type: integer
+    pagina:
+      type: integer
+    limite:
+      type: integer
+
+GrupoAdminDetalle:
+  type: object
+  required: [id, nombre, fecha_creacion, lider_id, cantidad_viajes, miembros]
+  properties:
+    id:
+      type: string
+      format: uuid
+    nombre:
+      type: string
+    fecha_creacion:
+      type: string
+      format: date-time
+    lider_id:
+      type: string
+      format: uuid
+    cantidad_viajes:
+      type: integer
+    miembros:
+      type: array
+      items:
+        allOf:
+          - $ref: '#/PersonaAdmin'
+          - type: object
+            required: [rol, fecha_union]
+            properties:
+              rol:
+                $ref: '#/RolMiembro'
+              fecha_union:
+                type: string
+                format: date-time
+
+ReasignarLiderRequest:
+  type: object
+  required: [usuario_id]
+  properties:
+    usuario_id:
+      type: string
+      format: uuid
+      description: Integrante actual del grupo que pasa a ser líder.
+  additionalProperties: false
+
+LiderReasignado:
+  type: object
+  required: [grupo_id, lider_id]
+  properties:
+    grupo_id:
+      type: string
+      format: uuid
+    lider_id:
+      type: string
+      format: uuid
+
+MiembroQuitadoAdmin:
+  type: object
+  required: [grupo_id, usuario_id, accion, lider_id]
+  properties:
+    grupo_id:
+      type: string
+      format: uuid
+    usuario_id:
+      type: string
+      format: uuid
+    accion:
+      type: string
+      enum: [quitado, grupo_eliminado]
+      description: '`grupo_eliminado` si se quitó al líder y no quedaba nadie (RN-013).'
+    lider_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: Nuevo líder si se quitó al líder y el rol se transfirió; si no, null.
+
+GrupoEliminadoAdmin:
+  type: object
+  required: [grupo_id, accion]
+  properties:
+    grupo_id:
+      type: string
+      format: uuid
+    accion:
+      type: string
+      enum: [grupo_eliminado]
+
+ViajeAdminResumen:
+  type: object
+  required:
+    - id
+    - nombre
+    - tipo_actividad
+    - es_grupal
+    - estado
+    - fecha_programada
+    - created_at
+    - creador
+    - cantidad_integrantes
+  properties:
+    id:
+      type: string
+      format: uuid
+    nombre:
+      type: string
+      nullable: true
+      example: Altas Cumbres
+    tipo_actividad:
+      $ref: '#/TipoActividad'
+    es_grupal:
+      type: boolean
+    estado:
+      $ref: '#/EstadoViaje'
+    fecha_programada:
+      type: string
+      format: date-time
+    created_at:
+      type: string
+      format: date-time
+    creador:
+      $ref: '#/PersonaAdmin'
+    cantidad_integrantes:
+      type: integer
+
+PaginaViajesAdmin:
+  type: object
+  required: [items, total, pagina, limite]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/ViajeAdminResumen'
+    total:
+      type: integer
+    pagina:
+      type: integer
+    limite:
+      type: integer
+
+ViajeAdminDetalle:
+  type: object
+  description: |
+    Detalle administrativo de un viaje. **No incluye posiciones GPS, ubicaciones
+    vivas ni velocidades** (RN-126 y RN-070): el backoffice gestiona, no vigila.
+  required:
+    - id
+    - nombre
+    - tipo_actividad
+    - modo
+    - es_grupal
+    - estado
+    - fecha_programada
+    - fecha_inicio_real
+    - fecha_fin_real
+    - created_at
+    - creador
+    - ruta
+    - integrantes
+    - grupos
+    - totales
+  properties:
+    id:
+      type: string
+      format: uuid
+    nombre:
+      type: string
+      nullable: true
+    tipo_actividad:
+      $ref: '#/TipoActividad'
+    modo:
+      $ref: '#/ModoViaje'
+    es_grupal:
+      type: boolean
+    estado:
+      $ref: '#/EstadoViaje'
+    fecha_programada:
+      type: string
+      format: date-time
+    fecha_inicio_real:
+      type: string
+      format: date-time
+      nullable: true
+    fecha_fin_real:
+      type: string
+      format: date-time
+      nullable: true
+    created_at:
+      type: string
+      format: date-time
+    creador:
+      $ref: '#/PersonaAdmin'
+    ruta:
+      type: object
+      nullable: true
+      required: [origen_nombre, destino_nombre, distancia_planeada_m]
+      properties:
+        origen_nombre:
+          type: string
+          nullable: true
+        destino_nombre:
+          type: string
+          nullable: true
+        distancia_planeada_m:
+          type: number
+          nullable: true
+    integrantes:
+      type: array
+      items:
+        allOf:
+          - $ref: '#/PersonaAdmin'
+          - type: object
+            required: [estado, origen, fecha_union]
+            properties:
+              estado:
+                $ref: '#/EstadoViajeIntegrante'
+              origen:
+                $ref: '#/OrigenViajeIntegrante'
+              fecha_union:
+                type: string
+                format: date-time
+    grupos:
+      type: array
+      items:
+        type: object
+        required: [id, nombre]
+        properties:
+          id:
+            type: string
+            format: uuid
+          nombre:
+            type: string
+    totales:
+      type: object
+      required: [alertas, paradas, gastos]
+      properties:
+        alertas:
+          type: integer
+        paradas:
+          type: integer
+        gastos:
+          type: integer
+
+ViajeFinalizadoAdmin:
+  type: object
+  required: [viaje_id, estado, fecha_fin_real]
+  properties:
+    viaje_id:
+      type: string
+      format: uuid
+    estado:
+      $ref: '#/EstadoViaje'
+    fecha_fin_real:
+      type: string
+      format: date-time
+      nullable: true
+
+ViajeEliminadoAdmin:
+  type: object
+  required: [viaje_id, accion]
+  properties:
+    viaje_id:
+      type: string
+      format: uuid
+    accion:
+      type: string
+      enum: [eliminado]
+
+EstadisticasAdmin:
+  type: object
+  required: [usuarios, grupos, viajes]
+  properties:
+    usuarios:
+      type: object
+      required: [total, superadmins, suspendidos]
+      properties:
+        total:
+          type: integer
+        superadmins:
+          type: integer
+        suspendidos:
+          type: integer
+    grupos:
+      type: object
+      required: [total]
+      properties:
+        total:
+          type: integer
+    viajes:
+      type: object
+      required: [planificado, en_curso, finalizado, total]
+      properties:
+        planificado:
+          type: integer
+        en_curso:
+          type: integer
+        finalizado:
+          type: integer
+        total:
+          type: integer
+
+AccionAdmin:
+  type: string
+  description: Acción registrada en la auditoría del backoffice (RN-121).
+  enum:
+    - usuario.editar
+    - usuario.cambiar_rol
+    - usuario.suspender
+    - usuario.reactivar
+    - usuario.eliminar
+    - grupo.reasignar_lider
+    - grupo.quitar_miembro
+    - grupo.eliminar
+    - viaje.finalizar
+    - viaje.eliminar
+  example: usuario.suspender
+
+EntradaAuditoriaAdmin:
+  type: object
+  required: [id, accion, entidad, entidad_id, detalle, created_at, actor]
+  properties:
+    id:
+      type: string
+      format: uuid
+    accion:
+      $ref: '#/AccionAdmin'
+    entidad:
+      type: string
+      enum: [usuario, grupo, viaje]
+    entidad_id:
+      type: string
+      format: uuid
+      description: Puede apuntar a una entidad ya eliminada; por eso no es FK.
+    detalle:
+      type: object
+      nullable: true
+      additionalProperties: true
+      description: Foto mínima de lo afectado (email, nombre, motivo, resultado).
+    created_at:
+      type: string
+      format: date-time
+    actor:
+      type: object
+      allOf:
+        - $ref: '#/PersonaAdmin'
+      nullable: true
+      description: Superadmin que actuó. Null si la acción vino del CLI de bootstrap o su cuenta ya no existe.
+
+PaginaAuditoriaAdmin:
+  type: object
+  required: [items, total, pagina, limite]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/EntradaAuditoriaAdmin'
+    total:
+      type: integer
+    pagina:
+      type: integer
+    limite:
+      type: integer
+
+# ── Reportería del backoffice (RN-127 a RN-131) ─────────────────────────────
+
+PeriodoReporte:
+  type: object
+  description: Período efectivo del reporte, en fechas calendario de Argentina (RN-105).
+  required: [desde, hasta, granularidad]
+  properties:
+    desde:
+      type: string
+      format: date
+      example: '2026-07-19'
+    hasta:
+      type: string
+      format: date
+      example: '2026-10-16'
+    granularidad:
+      type: string
+      enum: [dia, semana, mes]
+      example: semana
+
+Tasa:
+  type: number
+  nullable: true
+  minimum: 0
+  maximum: 1
+  description: Proporción entre 0 y 1 (4 decimales). Null si no hay base para calcularla.
+  example: 0.7926
+
+KpiComparado:
+  type: object
+  required: [actual, anterior, variacion_pct]
+  properties:
+    actual:
+      type: number
+      example: 76
+    anterior:
+      type: number
+      example: 52
+    variacion_pct:
+      type: number
+      nullable: true
+      description: Variación porcentual contra el período anterior. Null si antes era 0.
+      example: 46.2
+
+CantidadPorRango:
+  type: object
+  required: [rango, cantidad]
+  properties:
+    rango:
+      type: string
+      example: 2-5
+    cantidad:
+      type: integer
+      example: 32
+
+CantidadPorEstado:
+  type: object
+  required: [estado, cantidad]
+  properties:
+    estado:
+      type: string
+      example: aceptada
+    cantidad:
+      type: integer
+      example: 89
+
+ResumenEstados:
+  type: object
+  required: [por_estado, aceptadas, rechazadas, pendientes, tasa_aceptacion]
+  properties:
+    por_estado:
+      type: array
+      items:
+        $ref: '#/CantidadPorEstado'
+    aceptadas:
+      type: integer
+    rechazadas:
+      type: integer
+    pendientes:
+      type: integer
+    tasa_aceptacion:
+      $ref: '#/Tasa'
+
+ReporteResumen:
+  type: object
+  description: KPIs ejecutivos del período contra el período anterior de igual duración.
+  required: [periodo, periodo_anterior, kpis, tasa_realizacion]
+  properties:
+    periodo:
+      $ref: '#/PeriodoReporte'
+    periodo_anterior:
+      $ref: '#/PeriodoReporte'
+    kpis:
+      type: object
+      required:
+        - altas
+        - usuarios_activos
+        - viajes_iniciados
+        - viajes_finalizados
+        - km_recorridos
+        - horas_actividad
+        - grupos_creados
+        - incidentes_detectados
+      properties:
+        altas:
+          $ref: '#/KpiComparado'
+        usuarios_activos:
+          allOf:
+            - $ref: '#/KpiComparado'
+          description: Personas distintas que participaron en al menos un viaje iniciado en el período (RN-131).
+        viajes_iniciados:
+          $ref: '#/KpiComparado'
+        viajes_finalizados:
+          $ref: '#/KpiComparado'
+        km_recorridos:
+          allOf:
+            - $ref: '#/KpiComparado'
+          description: Suma de la distancia real de cada viaje (traza del creador, no por persona).
+        horas_actividad:
+          $ref: '#/KpiComparado'
+        grupos_creados:
+          $ref: '#/KpiComparado'
+        incidentes_detectados:
+          $ref: '#/KpiComparado'
+    tasa_realizacion:
+      type: object
+      description: De los viajes programados en el período (con fecha ya pasada), cuántos se iniciaron.
+      required: [actual, anterior, variacion_pp]
+      properties:
+        actual:
+          $ref: '#/Tasa'
+        anterior:
+          $ref: '#/Tasa'
+        variacion_pp:
+          type: number
+          nullable: true
+          description: Diferencia en puntos porcentuales.
+          example: 4.5
+
+ReporteCrecimiento:
+  type: object
+  required: [periodo, serie, activacion, actividad_preferida]
+  properties:
+    periodo:
+      $ref: '#/PeriodoReporte'
+    serie:
+      type: array
+      items:
+        type: object
+        required: [balde, altas, usuarios_activos, usuarios_totales]
+        properties:
+          balde:
+            type: string
+            format: date
+            description: Primer día del balde (hora argentina).
+          altas:
+            type: integer
+          usuarios_activos:
+            type: integer
+          usuarios_totales:
+            type: integer
+            description: Acumulado de cuentas al cierre del balde.
+    activacion:
+      type: object
+      description: De las cuentas creadas en el período, cuántas ya participaron en un viaje.
+      required: [altas, activados, tasa, mediana_dias_hasta_primer_viaje]
+      properties:
+        altas:
+          type: integer
+        activados:
+          type: integer
+        tasa:
+          $ref: '#/Tasa'
+        mediana_dias_hasta_primer_viaje:
+          type: number
+          nullable: true
+    actividad_preferida:
+      type: array
+      description: Foto actual de todas las cuentas (no depende del período).
+      items:
+        type: object
+        required: [actividad, cantidad]
+        properties:
+          actividad:
+            type: string
+            description: Tipo de actividad o `sin_definir`.
+          cantidad:
+            type: integer
+
+ReporteRetencion:
+  type: object
+  required: [meses, desde, hasta, cohortes]
+  properties:
+    meses:
+      type: integer
+      example: 6
+    desde:
+      type: string
+      description: Primer mes de alta incluido (AAAA-MM).
+      example: '2026-05'
+    hasta:
+      type: string
+      description: Mes actual (AAAA-MM).
+      example: '2026-10'
+    cohortes:
+      type: array
+      items:
+        type: object
+        required: [cohorte, tamano, retencion]
+        properties:
+          cohorte:
+            type: string
+            description: Mes de alta (AAAA-MM).
+          tamano:
+            type: integer
+            description: Cuentas creadas ese mes.
+          retencion:
+            type: array
+            description: |
+              Posición k = proporción de la cohorte que participó en un viaje en el
+              mes k desde su alta. Null = ese mes todavía no ocurrió.
+            items:
+              type: number
+              nullable: true
+
+ReporteViajes:
+  type: object
+  description: Uso del producto. Sin velocidades (RN-070).
+  required:
+    - periodo
+    - actividad
+    - serie
+    - por_actividad
+    - por_modo
+    - grupales_vs_individuales
+    - tamano_grupo
+    - embudo
+    - horarios
+  properties:
+    periodo:
+      $ref: '#/PeriodoReporte'
+    actividad:
+      type: string
+      nullable: true
+    serie:
+      type: array
+      items:
+        type: object
+        required: [balde, creados, iniciados, finalizados]
+        properties:
+          balde:
+            type: string
+            format: date
+          creados:
+            type: integer
+          iniciados:
+            type: integer
+          finalizados:
+            type: integer
+    por_actividad:
+      type: array
+      items:
+        type: object
+        required: [actividad, viajes, km_total, km_promedio, duracion_promedio_min, personas_promedio]
+        properties:
+          actividad:
+            type: string
+          viajes:
+            type: integer
+          km_total:
+            type: number
+            nullable: true
+          km_promedio:
+            type: number
+            nullable: true
+          duracion_promedio_min:
+            type: number
+            nullable: true
+          personas_promedio:
+            type: number
+            nullable: true
+    por_modo:
+      type: array
+      items:
+        type: object
+        required: [modo, cantidad]
+        properties:
+          modo:
+            $ref: '#/ModoViaje'
+          cantidad:
+            type: integer
+    grupales_vs_individuales:
+      type: object
+      required: [grupales, individuales]
+      properties:
+        grupales:
+          type: integer
+        individuales:
+          type: integer
+    tamano_grupo:
+      type: array
+      description: Viajes grupales por cantidad de personas que participaron.
+      items:
+        $ref: '#/CantidadPorRango'
+    embudo:
+      type: object
+      description: Viajes programados en el período con fecha ya pasada.
+      required: [programados, iniciados, finalizados, no_realizados, tasa_realizacion]
+      properties:
+        programados:
+          type: integer
+        iniciados:
+          type: integer
+        finalizados:
+          type: integer
+        no_realizados:
+          type: integer
+          description: Siguen `planificado` con la fecha vencida.
+        tasa_realizacion:
+          $ref: '#/Tasa'
+    horarios:
+      type: array
+      description: Mapa de calor de inicios por día de semana (1 = lunes) y hora, en hora argentina.
+      items:
+        type: object
+        required: [dia_semana, hora, cantidad]
+        properties:
+          dia_semana:
+            type: integer
+            minimum: 1
+            maximum: 7
+          hora:
+            type: integer
+            minimum: 0
+            maximum: 23
+          cantidad:
+            type: integer
+
+ReporteComunidad:
+  type: object
+  required:
+    - periodo
+    - serie
+    - grupos
+    - amistades
+    - invitaciones_grupo
+    - invitaciones_viaje
+    - canales_incorporacion
+  properties:
+    periodo:
+      $ref: '#/PeriodoReporte'
+    serie:
+      type: array
+      items:
+        type: object
+        required: [balde, grupos_creados, amistades_nuevas, rutas_compartidas, rutas_importadas]
+        properties:
+          balde:
+            type: string
+            format: date
+          grupos_creados:
+            type: integer
+          amistades_nuevas:
+            type: integer
+          rutas_compartidas:
+            type: integer
+          rutas_importadas:
+            type: integer
+    grupos:
+      type: object
+      required: [totales, activos_en_periodo, tasa_actividad, tamano_promedio, distribucion_tamano]
+      properties:
+        totales:
+          type: integer
+        activos_en_periodo:
+          type: integer
+          description: Grupos con al menos un viaje iniciado en el período.
+        tasa_actividad:
+          $ref: '#/Tasa'
+        tamano_promedio:
+          type: number
+          nullable: true
+        distribucion_tamano:
+          type: array
+          items:
+            $ref: '#/CantidadPorRango'
+    amistades:
+      type: object
+      required: [aceptadas_totales, amigos_promedio_por_usuario, solicitudes_periodo]
+      properties:
+        aceptadas_totales:
+          type: integer
+        amigos_promedio_por_usuario:
+          type: number
+          nullable: true
+        solicitudes_periodo:
+          $ref: '#/ResumenEstados'
+    invitaciones_grupo:
+      $ref: '#/ResumenEstados'
+    invitaciones_viaje:
+      allOf:
+        - $ref: '#/ResumenEstados'
+      description: Invitaciones a viajes por grupo o amigo. `confirmado` y `salido` cuentan como aceptadas.
+    canales_incorporacion:
+      type: array
+      description: Por qué canal se sumaron las personas a los viajes (sin contar al creador).
+      items:
+        type: object
+        required: [canal, cantidad]
+        properties:
+          canal:
+            $ref: '#/OrigenViajeIntegrante'
+          cantidad:
+            type: integer
+
+ReporteSeguridad:
+  type: object
+  required: [periodo, actividad, alertas, incidentes, solicitudes_parada, paradas_voluntarias]
+  properties:
+    periodo:
+      $ref: '#/PeriodoReporte'
+    actividad:
+      type: string
+      nullable: true
+    alertas:
+      type: object
+      required: [total, cada_100_viajes, por_tipo_y_origen, por_estado]
+      properties:
+        total:
+          type: integer
+        cada_100_viajes:
+          type: number
+          nullable: true
+        por_tipo_y_origen:
+          type: array
+          items:
+            type: object
+            required: [tipo, origen, cantidad]
+            properties:
+              tipo:
+                type: string
+              origen:
+                type: string
+              cantidad:
+                type: integer
+        por_estado:
+          type: array
+          items:
+            $ref: '#/CantidadPorEstado'
+    incidentes:
+      type: object
+      description: |
+        Posibles incidentes que detectó el motor de eventos (RN-036) y cómo terminaron.
+        `tasa_falsas_alarmas` alta en una actividad indica que conviene subir su umbral.
+      required:
+        - detectados
+        - falsas_alarmas
+        - pidieron_ayuda
+        - sin_respuesta
+        - tasa_falsas_alarmas
+        - cada_100_viajes
+        - por_actividad
+      properties:
+        detectados:
+          type: integer
+        falsas_alarmas:
+          type: integer
+          description: La persona confirmó "estoy bien".
+        pidieron_ayuda:
+          type: integer
+        sin_respuesta:
+          type: integer
+        tasa_falsas_alarmas:
+          $ref: '#/Tasa'
+        cada_100_viajes:
+          type: number
+          nullable: true
+        por_actividad:
+          type: array
+          items:
+            type: object
+            required: [actividad, detectados, falsas_alarmas, pidieron_ayuda, sin_respuesta, tasa_falsas_alarmas]
+            properties:
+              actividad:
+                type: string
+              detectados:
+                type: integer
+              falsas_alarmas:
+                type: integer
+              pidieron_ayuda:
+                type: integer
+              sin_respuesta:
+                type: integer
+              tasa_falsas_alarmas:
+                $ref: '#/Tasa'
+    solicitudes_parada:
+      type: object
+      required: [total, aprobadas, rechazadas, canceladas, pendientes, mediana_respuesta_seg, tasa_aprobacion]
+      properties:
+        total:
+          type: integer
+        aprobadas:
+          type: integer
+        rechazadas:
+          type: integer
+        canceladas:
+          type: integer
+        pendientes:
+          type: integer
+        mediana_respuesta_seg:
+          type: number
+          nullable: true
+          description: Cuánto tarda el líder en responder, en segundos (mediana).
+        tasa_aprobacion:
+          $ref: '#/Tasa'
+    paradas_voluntarias:
+      type: array
+      items:
+        type: object
+        required: [categoria, cantidad, duracion_promedio_min]
+        properties:
+          categoria:
+            type: string
+          cantidad:
+            type: integer
+          duracion_promedio_min:
+            type: number
+            nullable: true
+
+ReporteDestinos:
+  type: object
+  description: |
+    Lugares más usados según los nombres de las rutas planificadas. Un lugar aparece
+    solo si lo usaron al menos `umbral_k_anonimato` creadores distintos (RN-130).
+  required:
+    - periodo
+    - actividad
+    - umbral_k_anonimato
+    - top_destinos
+    - top_origenes
+    - distancia_planeada
+    - paradas_planificadas_por_categoria
+  properties:
+    periodo:
+      $ref: '#/PeriodoReporte'
+    actividad:
+      type: string
+      nullable: true
+    umbral_k_anonimato:
+      type: integer
+      example: 3
+    top_destinos:
+      type: array
+      maxItems: 10
+      items:
+        $ref: '#/LugarReporte'
+    top_origenes:
+      type: array
+      maxItems: 10
+      items:
+        $ref: '#/LugarReporte'
+    distancia_planeada:
+      type: array
+      items:
+        $ref: '#/CantidadPorRango'
+    paradas_planificadas_por_categoria:
+      type: array
+      items:
+        type: object
+        required: [categoria, cantidad]
+        properties:
+          categoria:
+            $ref: '#/CategoriaParada'
+          cantidad:
+            type: integer
+
+LugarReporte:
+  type: object
+  required: [lugar, viajes]
+  properties:
+    lugar:
+      type: string
+      example: Mina Clavero
+    viajes:
+      type: integer
+      example: 20
+
+ReporteAdopcion:
+  type: object
+  required: [periodo, viajes_iniciados, viajes_grupales, funcionalidades, usuarios, privacidad]
+  properties:
+    periodo:
+      $ref: '#/PeriodoReporte'
+    viajes_iniciados:
+      type: integer
+    viajes_grupales:
+      type: integer
+    funcionalidades:
+      type: array
+      description: Proporción de viajes iniciados en el período que usaron cada funcionalidad.
+      items:
+        type: object
+        required: [funcionalidad, viajes, tasa]
+        properties:
+          funcionalidad:
+            type: string
+            enum:
+              - ruta_planificada
+              - checklist
+              - paradas_voluntarias
+              - alertas_manuales
+              - solicitudes_parada
+              - gastos
+              - ruta_compartida
+              - modo_entrenamiento
+              - modo_competitivo
+          viajes:
+            type: integer
+          tasa:
+            $ref: '#/Tasa'
+    usuarios:
+      type: object
+      description: Foto actual de las cuentas no suspendidas.
+      required: [activos, indicadores]
+      properties:
+        activos:
+          type: integer
+        indicadores:
+          type: array
+          items:
+            type: object
+            required: [indicador, usuarios, tasa]
+            properties:
+              indicador:
+                type: string
+                enum: [consentimiento_vigente, comparte_por_defecto, notificaciones_push, actividad_preferida]
+              usuarios:
+                type: integer
+              tasa:
+                $ref: '#/Tasa'
+    privacidad:
+      type: object
+      description: En cuántas participaciones la persona tuvo el compartir ubicación apagado (RN-111). Indicador de confianza.
+      required: [participaciones, con_ubicacion_apagada, tasa_ubicacion_apagada]
+      properties:
+        participaciones:
+          type: integer
+        con_ubicacion_apagada:
+          type: integer
+        tasa_ubicacion_apagada:
+          $ref: '#/Tasa'
+
+ReporteGastos:
+  type: object
+  description: |
+    Gastos compartidos de los viajes iniciados en el período. Los montos se suman
+    tal como se cargaron: la app no registra moneda.
+  required: [periodo, actividad, resumen, por_actividad, serie]
+  properties:
+    periodo:
+      $ref: '#/PeriodoReporte'
+    actividad:
+      type: string
+      nullable: true
+    resumen:
+      type: object
+      required:
+        - viajes_iniciados
+        - viajes_con_gastos
+        - tasa_uso
+        - gastos_registrados
+        - monto_total
+        - promedio_por_viaje
+        - promedio_por_persona
+      properties:
+        viajes_iniciados:
+          type: integer
+        viajes_con_gastos:
+          type: integer
+        tasa_uso:
+          $ref: '#/Tasa'
+        gastos_registrados:
+          type: integer
+        monto_total:
+          type: number
+          nullable: true
+        promedio_por_viaje:
+          type: number
+          nullable: true
+        promedio_por_persona:
+          type: number
+          nullable: true
+    por_actividad:
+      type: array
+      items:
+        type: object
+        required: [actividad, viajes_con_gastos, gastos, monto_total, promedio_por_viaje, promedio_por_persona]
+        properties:
+          actividad:
+            type: string
+          viajes_con_gastos:
+            type: integer
+          gastos:
+            type: integer
+          monto_total:
+            type: number
+            nullable: true
+          promedio_por_viaje:
+            type: number
+            nullable: true
+          promedio_por_persona:
+            type: number
+            nullable: true
+    serie:
+      type: array
+      items:
+        type: object
+        required: [balde, monto]
+        properties:
+          balde:
+            type: string
+            format: date
+          monto:
+            type: number

@@ -27,6 +27,7 @@ UsuarioActual:
               apellido: Gómez
               telefono: '+54 351 555 1234'
               actividad_preferida: bici
+              rol_sistema: usuario
       '401':
         $ref: '../components/responses.yaml#/Unauthorized'
       '404':

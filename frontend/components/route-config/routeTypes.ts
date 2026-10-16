@@ -4,6 +4,7 @@ export type StopCategory =
   | 'gastronomia'
   | 'combustible'
   | 'descanso'
+  | 'sanitario'
   | 'punto_control'
   | 'otro'
 

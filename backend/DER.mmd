@@ -1,0 +1,344 @@
+erDiagram
+    RolMiembro {
+        lider lider
+        participante participante
+    }
+    TipoActividad {
+        moto moto
+        bici bici
+        running running
+        trekking trekking
+        otro otro
+    }
+    EstadoViaje {
+        planificado planificado
+        en_curso en_curso
+        finalizado finalizado
+    }
+    ModoViaje {
+        recreativo recreativo
+        competitivo competitivo
+        entrenamiento entrenamiento
+    }
+    CategoriaParada {
+        accidente accidente
+        combustible combustible
+        descanso descanso
+        gastronomia gastronomia
+        punto_control punto_control
+        sanitario sanitario
+        otro otro
+    }
+    OrigenChecklistItem {
+        sugerido sugerido
+        lider lider
+        personal personal
+    }
+    EstadoIntegranteViaje {
+        en_movimiento en_movimiento
+        detenido_voluntario detenido_voluntario
+        posible_incidente posible_incidente
+    }
+    TipoParada {
+        voluntaria voluntaria
+        incidente_detectado incidente_detectado
+    }
+    EstadoSolicitudParada {
+        pendiente pendiente
+        aprobada aprobada
+        rechazada rechazada
+        cancelada cancelada
+    }
+    TipoAlerta {
+        parada parada
+        combustible combustible
+        desvio desvio
+        peligro peligro
+        informacion informacion
+        atraso atraso
+    }
+    OrigenAlerta {
+        lider lider
+        integrante integrante
+        sistema sistema
+    }
+    EstadoAlerta {
+        activa activa
+        pausada pausada
+        cancelada cancelada
+        resuelta resuelta
+    }
+    GpsSource {
+        live live
+        offline_sync offline_sync
+    }
+    EstadoInvitacionGrupo {
+        pendiente pendiente
+        aceptada aceptada
+        rechazada rechazada
+    }
+    EstadoAmistad {
+        pendiente pendiente
+        aceptada aceptada
+        rechazada rechazada
+    }
+    EstadoViajeIntegrante {
+        pendiente pendiente
+        confirmado confirmado
+        rechazado rechazado
+        salido salido
+    }
+    OrigenViajeIntegrante {
+        creador creador
+        qr qr
+        link link
+        grupo grupo
+        amigo amigo
+    }
+    usuario {
+        String id "🗝️"
+        String firebase_uid
+        String email
+        String nombre
+        String apellido "❓"
+        String telefono "❓"
+        TipoActividad actividad_preferida "❓"
+        String push_token "❓"
+    }
+    grupo {
+        String id "🗝️"
+        String nombre
+        DateTime fecha_creacion
+    }
+    grupo_miembro {
+        RolMiembro rol
+        DateTime fecha_union
+    }
+    grupo_invitacion {
+        String id "🗝️"
+        EstadoInvitacionGrupo estado
+        DateTime created_at
+    }
+    amistad {
+        String id "🗝️"
+        EstadoAmistad estado
+        DateTime created_at
+    }
+    viaje {
+        String id "🗝️"
+        String nombre "❓"
+        Boolean es_grupal
+        TipoActividad tipo_actividad
+        ModoViaje modo
+        Float velocidad_esperada
+        Int distancia_max_separacion
+        Int tolerancia_atraso_min "❓"
+        Boolean alerta_incidente_habilitada
+        Int alerta_incidente_minutos "❓"
+        Boolean alertas_solo_lider
+        EstadoViaje estado
+        DateTime fecha_programada
+        DateTime fecha_inicio_real "❓"
+        DateTime fecha_fin_real "❓"
+        DateTime created_at
+    }
+    ubicacion_viva {
+        Float lat
+        Float lng
+        Float precision_m "❓"
+        DateTime updated_at
+    }
+    viaje_grupo {
+        DateTime created_at
+    }
+    viaje_integrante {
+        EstadoViajeIntegrante estado
+        OrigenViajeIntegrante origen
+        DateTime created_at
+        DateTime fecha_salida "❓"
+    }
+    registro_gps {
+        String id "🗝️"
+        Float lat
+        Float lng
+        Float precision_m "❓"
+        DateTime timestamp
+        GpsSource source
+        DateTime created_at
+    }
+    ruta {
+        String id "🗝️"
+        Float origen_lat
+        Float origen_lng
+        String origen_nombre "❓"
+        Float destino_lat
+        Float destino_lng
+        String destino_nombre "❓"
+        Json linestring_geojson
+        Float distancia_planeada_m "❓"
+        Int tiempo_estimado_seg "❓"
+    }
+    ruta_compartida {
+        String id "🗝️"
+        String token
+        Json snapshot
+        DateTime created_at
+        DateTime revocado_en "❓"
+    }
+    ruta_plantilla {
+        String id "🗝️"
+        String nombre
+        TipoActividad tipo_actividad
+        Float origen_lat
+        Float origen_lng
+        String origen_nombre "❓"
+        Float destino_lat
+        Float destino_lng
+        String destino_nombre "❓"
+        Json linestring_geojson
+        Float distancia_planeada_m "❓"
+        Int tiempo_estimado_seg "❓"
+        DateTime created_at
+    }
+    ruta_plantilla_parada {
+        String id "🗝️"
+        Int orden
+        Float lat
+        Float lng
+        String nombre "❓"
+        CategoriaParada categoria
+    }
+    parada_intermedia {
+        String id "🗝️"
+        Int orden
+        Float lat
+        Float lng
+        String nombre "❓"
+        CategoriaParada categoria
+    }
+    resumen_viaje {
+        String id "🗝️"
+        Int duracion_segundos "❓"
+        Float distancia_planeada_m "❓"
+        Float distancia_real_m "❓"
+        Int cantidad_paradas
+        DateTime generado_en
+    }
+    parada {
+        String id "🗝️"
+        Float lat
+        Float lng
+        TipoParada tipo
+        CategoriaParada categoria "❓"
+        DateTime inicio
+        DateTime fin "❓"
+        Boolean confirmado_bien "❓"
+    }
+    solicitud_parada {
+        String id "🗝️"
+        Float lat "❓"
+        Float lng "❓"
+        String motivo "❓"
+        EstadoSolicitudParada estado
+        DateTime created_at
+        DateTime resolved_at "❓"
+    }
+    alerta {
+        String id "🗝️"
+        TipoAlerta tipo
+        OrigenAlerta origen
+        String mensaje "❓"
+        Float lat "❓"
+        Float lng "❓"
+        EstadoAlerta estado
+        DateTime created_at
+        DateTime resolved_at "❓"
+    }
+    metrica_viaje {
+        String id "🗝️"
+        Float distancia_m
+        Int tiempo_movimiento_seg
+        Float velocidad_promedio_kmh "❓"
+        Float velocidad_maxima_kmh "❓"
+        DateTime generado_en
+    }
+    checklist_item {
+        String id "🗝️"
+        String texto
+        OrigenChecklistItem origen
+        Boolean completado
+        Int orden
+        DateTime created_at
+        DateTime updated_at
+    }
+    gasto {
+        String id "🗝️"
+        Float monto
+        String descripcion
+        DateTime created_at
+    }
+    gasto_participante {
+    }
+
+    usuario |o--o| TipoActividad : "enum:actividad_preferida"
+    grupo }o--|| usuario : "lider"
+    grupo_miembro |o--|| RolMiembro : "enum:rol"
+    grupo_miembro }o--|| grupo : "grupo"
+    grupo_miembro }o--|| usuario : "usuario"
+    grupo_invitacion |o--|| EstadoInvitacionGrupo : "enum:estado"
+    grupo_invitacion }o--|| grupo : "grupo"
+    grupo_invitacion }o--o| grupo : "grupo_origen"
+    grupo_invitacion }o--|| usuario : "usuario"
+    grupo_invitacion }o--|| usuario : "invitado_por"
+    amistad |o--|| EstadoAmistad : "enum:estado"
+    amistad }o--|| usuario : "solicitante"
+    amistad }o--|| usuario : "destinatario"
+    viaje |o--|| TipoActividad : "enum:tipo_actividad"
+    viaje |o--|| ModoViaje : "enum:modo"
+    viaje |o--|| EstadoViaje : "enum:estado"
+    viaje }o--|| usuario : "creador"
+    ubicacion_viva |o--|| usuario : "usuario"
+    ubicacion_viva }o--|| viaje : "viaje"
+    viaje_grupo }o--|| viaje : "viaje"
+    viaje_grupo }o--|| grupo : "grupo"
+    viaje_integrante |o--|| EstadoViajeIntegrante : "enum:estado"
+    viaje_integrante |o--|| OrigenViajeIntegrante : "enum:origen"
+    viaje_integrante }o--|| viaje : "viaje"
+    viaje_integrante }o--|| usuario : "usuario"
+    viaje_integrante }o--o| grupo : "grupo_origen"
+    registro_gps |o--|| GpsSource : "enum:source"
+    registro_gps }o--|| viaje : "viaje"
+    registro_gps }o--|| usuario : "usuario"
+    ruta |o--|| viaje : "viaje"
+    ruta_compartida |o--o| ruta : "ruta"
+    ruta_plantilla |o--|| TipoActividad : "enum:tipo_actividad"
+    ruta_plantilla }o--|| usuario : "usuario"
+    ruta_plantilla }o--|| ruta_compartida : "ruta_compartida"
+    ruta_plantilla_parada |o--|| CategoriaParada : "enum:categoria"
+    ruta_plantilla_parada }o--|| ruta_plantilla : "plantilla"
+    parada_intermedia |o--|| CategoriaParada : "enum:categoria"
+    parada_intermedia }o--|| ruta : "ruta"
+    resumen_viaje |o--|| viaje : "viaje"
+    parada |o--|| TipoParada : "enum:tipo"
+    parada |o--o| CategoriaParada : "enum:categoria"
+    parada }o--|| viaje : "viaje"
+    parada }o--|| usuario : "usuario"
+    solicitud_parada |o--|| EstadoSolicitudParada : "enum:estado"
+    solicitud_parada }o--|| viaje : "viaje"
+    solicitud_parada }o--|| usuario : "solicitante"
+    solicitud_parada }o--o| usuario : "resuelta_por"
+    alerta |o--|| TipoAlerta : "enum:tipo"
+    alerta |o--|| OrigenAlerta : "enum:origen"
+    alerta |o--|| EstadoAlerta : "enum:estado"
+    alerta }o--|| viaje : "viaje"
+    alerta }o--o| usuario : "creada_por"
+    metrica_viaje }o--|| viaje : "viaje"
+    metrica_viaje }o--|| usuario : "usuario"
+    checklist_item |o--|| OrigenChecklistItem : "enum:origen"
+    checklist_item }o--|| viaje : "viaje"
+    checklist_item }o--|| usuario : "usuario"
+    gasto }o--|| viaje : "viaje"
+    gasto }o--|| usuario : "usuario"
+    gasto_participante }o--|| gasto : "gasto"
+    gasto_participante }o--|| usuario : "usuario"
+    checklist_item |o--o| checklist_item : "origen_item"

@@ -15,6 +15,7 @@ const OPTIONS: CategoryOption[] = [
   { value: 'gastronomia', label: 'Restaurante', icon: 'restaurant-outline' },
   { value: 'combustible', label: 'Combustible', icon: 'car-outline' },
   { value: 'descanso', label: 'Descanso', icon: 'cafe-outline' },
+  { value: 'sanitario', label: 'Baño', icon: 'water-outline' },
   { value: 'punto_control', label: 'Punto de control', icon: 'flag-outline' },
   { value: 'otro', label: 'Otro', icon: 'ellipsis-horizontal' },
 ]

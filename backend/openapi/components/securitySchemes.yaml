@@ -11,7 +11,9 @@ BearerAuth:
     El backend verifica el token con `firebaseAuth.verifyIdToken()` y resuelve —o crea—
     el `Usuario` local a partir del `firebase_uid` (`findOrCreateByFirebaseUid`).
     El UUID resultante queda disponible como `req.userId` y es el que identifica
-    al usuario en todo el dominio.
+    al usuario en todo el dominio. Si la cuenta está suspendida (RN-123) responde
+    `403 ACCOUNT_SUSPENDED`; el rol de plataforma (RN-120) se resuelve desde la base,
+    nunca desde un claim del token.
 
     RN-030: la autorización siempre se valida en el backend. El frontend solo orienta
     visualmente; nunca es la fuente de verdad sobre permisos.

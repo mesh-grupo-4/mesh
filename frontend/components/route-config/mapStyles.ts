@@ -1,3 +1,5 @@
+import type { MapStyleElement, MapType } from 'react-native-maps'
+
 export type MapStyleId = 'standard' | 'dark' | 'satellite' | 'terrain'
 
 export type MapStyleConfig = {
@@ -5,64 +7,66 @@ export type MapStyleConfig = {
   label: string
   /** Nombre de ícono Feather (@expo/vector-icons) */
   icon: 'map' | 'moon' | 'globe' | 'layers'
-  urlTemplate: string
-  maximumZ: number
-  flipY: boolean
+  /** Tipo de mapa base de Google Maps (Maps SDK for Android/iOS). */
+  mapType: MapType
+  /** Estilo JSON de Google Maps aplicado sobre `mapType: 'standard'`. */
+  customMapStyle?: MapStyleElement[]
   routeStrokeColor: string
-  attribution: string
-  /** Filtro CSS aplicado sobre las teselas en el WebView (ver leafletHtml.ts). */
-  filter?: 'dark'
 }
 
-/** Capas de teselas open source — sin APIs comerciales (Google/Mapbox). */
+/** Estilo "noche" de Google Maps (paleta oficial de ejemplo de la documentación). */
+const ESTILO_OSCURO: MapStyleElement[] = [
+  { elementType: 'geometry', stylers: [{ color: '#242f3e' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#242f3e' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#746855' }] },
+  { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#d59563' }] },
+  { featureType: 'poi', elementType: 'labels.text.fill', stylers: [{ color: '#d59563' }] },
+  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#263c3f' }] },
+  { featureType: 'poi.park', elementType: 'labels.text.fill', stylers: [{ color: '#6b9a76' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#38414e' }] },
+  { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#212a37' }] },
+  { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#9ca5b3' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#746855' }] },
+  { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#1f2835' }] },
+  { featureType: 'road.highway', elementType: 'labels.text.fill', stylers: [{ color: '#f3d19c' }] },
+  { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#2f3948' }] },
+  { featureType: 'transit.station', elementType: 'labels.text.fill', stylers: [{ color: '#d59563' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#17263c' }] },
+  { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#515c6d' }] },
+  { featureType: 'water', elementType: 'labels.text.stroke', stylers: [{ color: '#17263c' }] },
+]
+
+/** Capas base de Google Maps. La atribución la dibuja el propio SDK (logo de Google). */
 export const MAP_STYLES: MapStyleConfig[] = [
   {
     id: 'standard',
     label: 'Mapa',
     icon: 'map',
-    // CARTO (basemaps.cartocdn.com) exige API key desde 2025 y sin ella
-    // devuelve una tesela fija con "API key required" — se usa el tile server
-    // oficial de OSM en su lugar.
-    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-    maximumZ: 19,
-    flipY: false,
+    mapType: 'standard',
     routeStrokeColor: '#2563eb',
-    attribution: '© OpenStreetMap contributors',
   },
   {
     id: 'dark',
     label: 'Oscuro',
     icon: 'moon',
-    // Mismo tile server que "standard": el modo oscuro se logra con un filtro
-    // CSS (ver leafletHtml.ts) porque no existe un tile server OSM oscuro
-    // gratuito sin API key.
-    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-    maximumZ: 19,
-    flipY: false,
+    mapType: 'standard',
+    customMapStyle: ESTILO_OSCURO,
     routeStrokeColor: '#60a5fa',
-    attribution: '© OpenStreetMap contributors',
-    filter: 'dark',
   },
   {
     id: 'satellite',
     label: 'Satélite',
     icon: 'globe',
-    urlTemplate:
-      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    maximumZ: 19,
-    flipY: false,
+    // Híbrido: imagen satelital con nombres de calles, más útil para orientarse.
+    mapType: 'hybrid',
     routeStrokeColor: '#fbbf24',
-    attribution: '© Esri · © OpenStreetMap',
   },
   {
     id: 'terrain',
     label: 'Terreno',
     icon: 'layers',
-    urlTemplate: 'https://tile.opentopomap.org/{z}/{x}/{y}.png',
-    maximumZ: 17,
-    flipY: false,
+    mapType: 'terrain',
     routeStrokeColor: '#dc2626',
-    attribution: '© OpenTopoMap · © OpenStreetMap',
   },
 ]
 
