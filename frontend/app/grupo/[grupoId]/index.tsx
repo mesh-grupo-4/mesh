@@ -16,7 +16,10 @@ import {
   obtenerGrupo,
   type GrupoDetalleApi,
 } from '@/lib/gruposApi';
+import { useCopilot } from 'react-native-copilot';
 import { Btn, TopBar, Badge, useTheme } from '@/components/MeshUI';
+import { PasoAyuda } from '@/components/ayuda/PasoAyuda';
+import { AYUDA_GRUPO_DETALLE } from '@/components/ayuda/contenidoAyuda';
 import { Feather } from '@expo/vector-icons';
 
 const MESES_ABREV = [
@@ -42,6 +45,7 @@ export default function GrupoDetalleScreen() {
   const { grupoId } = useLocalSearchParams<{ grupoId: string }>();
   const { backendUserId } = useAuth();
   const theme = useTheme();
+  const { start } = useCopilot();
 
   const [grupo, setGrupo] = useState<GrupoDetalleApi | null>(null);
   const [loading, setLoading] = useState(true);
@@ -91,7 +95,13 @@ export default function GrupoDetalleScreen() {
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      <TopBar title={grupo?.nombre ?? 'Grupo'} onBack={() => router.back()} bordered={false} right={headerRight} />
+      <TopBar
+        title={grupo?.nombre ?? 'Grupo'}
+        onBack={() => router.back()}
+        bordered={false}
+        right={headerRight}
+        onAyuda={() => start()}
+      />
 
       <ScrollView
         contentContainerStyle={styles.content}
@@ -110,6 +120,7 @@ export default function GrupoDetalleScreen() {
         ) : grupo ? (
           <>
             {/* Tarjeta principal con degradado/tinta según color del grupo */}
+            <PasoAyuda {...AYUDA_GRUPO_DETALLE[0]!}>
             <View
               style={[
                 styles.detailCard,
@@ -156,47 +167,26 @@ export default function GrupoDetalleScreen() {
                 </View>
               </View>
             </View>
+            </PasoAyuda>
 
             {/* Acciones principales */}
-            <View style={styles.actionsRow}>
-              <Btn
-                variant="primary"
-                block
-                icon="plus"
-                onPress={() => router.push({ pathname: '/viaje/crear', params: { grupo: grupo.id } })}
-                style={styles.actionBtn}
-              >
-                Nuevo viaje
-              </Btn>
-            </View>
+            <PasoAyuda {...AYUDA_GRUPO_DETALLE[1]!}>
+              <View style={styles.actionsRow}>
+                <Btn
+                  variant="primary"
+                  block
+                  icon="plus"
+                  onPress={() => router.push({ pathname: '/viaje/crear', params: { grupo: grupo.id } })}
+                  style={styles.actionBtn}
+                >
+                  Nuevo viaje
+                </Btn>
+              </View>
+            </PasoAyuda>
 
             {/* Enlaces de lista */}
             <View style={styles.linksContainer}>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.liLink,
-                  {
-                    backgroundColor: pressed ? theme.surface2 : theme.surface,
-                    borderColor: theme.border,
-                  },
-                ]}
-                onPress={() => router.push({ pathname: '/grupo/[grupoId]/miembros', params: { grupoId } })}
-              >
-                <View style={styles.liLinkContent}>
-                  <View style={[styles.liIconWrapper, { backgroundColor: theme.surface2 }]}>
-                    <Feather name="users" size={18} color={theme.text} />
-                  </View>
-                  <View style={styles.liLinkText}>
-                    <Text style={[styles.liLinkTitle, { color: theme.text }]}>Miembros</Text>
-                    <Text style={[styles.liLinkSub, { color: theme.textDim }]}>
-                      Ver roles y permisos
-                    </Text>
-                  </View>
-                </View>
-                <Feather name="chevron-right" size={18} color={theme.textMute} />
-              </Pressable>
-
-              {esLider && (
+              <PasoAyuda {...AYUDA_GRUPO_DETALLE[2]!}>
                 <Pressable
                   style={({ pressed }) => [
                     styles.liLink,
@@ -205,23 +195,51 @@ export default function GrupoDetalleScreen() {
                       borderColor: theme.border,
                     },
                   ]}
-                  onPress={() => router.push({ pathname: '/grupo/[grupoId]/invitar-desde-grupos', params: { grupoId } })}
+                  onPress={() => router.push({ pathname: '/grupo/[grupoId]/miembros', params: { grupoId } })}
                 >
                   <View style={styles.liLinkContent}>
-                    <View style={[styles.liIconWrapper, { backgroundColor: theme.accentWeak }]}>
-                      <Feather name="share-2" size={18} color={theme.accent} />
+                    <View style={[styles.liIconWrapper, { backgroundColor: theme.surface2 }]}>
+                      <Feather name="users" size={18} color={theme.text} />
                     </View>
                     <View style={styles.liLinkText}>
-                      <Text style={[styles.liLinkTitle, { color: theme.text }]}>
-                        Invitar personas
-                      </Text>
+                      <Text style={[styles.liLinkTitle, { color: theme.text }]}>Miembros</Text>
                       <Text style={[styles.liLinkSub, { color: theme.textDim }]}>
-                        Por usuario o desde otros grupos
+                        Ver roles y permisos
                       </Text>
                     </View>
                   </View>
                   <Feather name="chevron-right" size={18} color={theme.textMute} />
                 </Pressable>
+              </PasoAyuda>
+
+              {esLider && (
+                <PasoAyuda {...AYUDA_GRUPO_DETALLE[3]!}>
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.liLink,
+                      {
+                        backgroundColor: pressed ? theme.surface2 : theme.surface,
+                        borderColor: theme.border,
+                      },
+                    ]}
+                    onPress={() => router.push({ pathname: '/grupo/[grupoId]/invitar-desde-grupos', params: { grupoId } })}
+                  >
+                    <View style={styles.liLinkContent}>
+                      <View style={[styles.liIconWrapper, { backgroundColor: theme.accentWeak }]}>
+                        <Feather name="share-2" size={18} color={theme.accent} />
+                      </View>
+                      <View style={styles.liLinkText}>
+                        <Text style={[styles.liLinkTitle, { color: theme.text }]}>
+                          Invitar personas
+                        </Text>
+                        <Text style={[styles.liLinkSub, { color: theme.textDim }]}>
+                          Por usuario o desde otros grupos
+                        </Text>
+                      </View>
+                    </View>
+                    <Feather name="chevron-right" size={18} color={theme.textMute} />
+                  </Pressable>
+                </PasoAyuda>
               )}
             </View>
           </>

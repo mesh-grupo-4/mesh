@@ -13,10 +13,13 @@ import {
 } from 'react-native'
 import { router, useFocusEffect } from 'expo-router'
 import { Feather } from '@expo/vector-icons'
+import { useCopilot } from 'react-native-copilot'
 import { useAuth } from '@/context/AuthContext'
 import { useTripRealtime } from '@/context/TripRealtimeContext'
 import { resolveBackendUserId } from '@/lib/apiClient'
 import { Btn, TopBar, useTheme, Badge, ActivityTile } from '@/components/MeshUI'
+import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
+import { AYUDA_VIAJES } from '@/components/ayuda/contenidoAyuda'
 import { SelectableCard } from '@/components/SelectableCard'
 import { SelectionActionBar } from '@/components/SelectionActionBar'
 import { SelectionHeader } from '@/components/SelectionHeader'
@@ -289,6 +292,7 @@ export default function ViajesScreen() {
   const { backendUserId, backendSyncing } = useAuth()
   const { syncKnownTripIds } = useTripRealtime()
   const selection = useSelectionMode()
+  const { start } = useCopilot()
 
   const [tab, setTab] = useState<Tab>('mis_viajes')
   const [viajes, setViajes] = useState<ViajePlanificadoApi[]>([])
@@ -569,59 +573,65 @@ export default function ViajesScreen() {
       <TopBar
         title="Viajes"
         bordered={false}
+        onAyuda={() => start()}
         right={
-          <View style={styles.headerBtns}>
-            <Pressable
-              style={styles.headerBtn}
-              onPress={() => router.push('/escanear-qr')}
-              hitSlop={8}
-            >
-              <Feather name="camera" size={22} color={theme.text} />
-            </Pressable>
-            <Pressable
-              style={styles.headerBtn}
-              onPress={() => setModalInvitaciones(true)}
-              hitSlop={8}
-            >
-              <Feather
-                name="bell"
-                size={22}
-                color={invitaciones.length > 0 ? theme.accent : theme.text}
-              />
-              {invitaciones.length > 0 && (
-                <View style={[styles.bellBadge, { backgroundColor: theme.accent }]}>
-                  <Text style={styles.bellBadgeText}>
-                    {invitaciones.length > 9 ? '9+' : String(invitaciones.length)}
-                  </Text>
-                </View>
-              )}
-            </Pressable>
-          </View>
+          <PasoAyuda {...AYUDA_VIAJES[0]!}>
+            <View style={styles.headerBtns}>
+              <Pressable
+                style={styles.headerBtn}
+                onPress={() => router.push('/escanear-qr')}
+                hitSlop={8}
+              >
+                <Feather name="camera" size={22} color={theme.text} />
+              </Pressable>
+              <Pressable
+                style={styles.headerBtn}
+                onPress={() => setModalInvitaciones(true)}
+                hitSlop={8}
+              >
+                <Feather
+                  name="bell"
+                  size={22}
+                  color={invitaciones.length > 0 ? theme.accent : theme.text}
+                />
+                {invitaciones.length > 0 && (
+                  <View style={[styles.bellBadge, { backgroundColor: theme.accent }]}>
+                    <Text style={styles.bellBadgeText}>
+                      {invitaciones.length > 9 ? '9+' : String(invitaciones.length)}
+                    </Text>
+                  </View>
+                )}
+              </Pressable>
+            </View>
+          </PasoAyuda>
         }
       />
 
       {/* Tabs internos fijos */}
-      <View style={[styles.tabRow, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
-        {(['mis_viajes', 'pasados'] as Tab[]).map((t) => (
-          <Pressable
-            key={t}
-            style={styles.tabBtn}
-            onPress={() => {
-              selection.exit()
-              setTab(t)
-            }}
-          >
-            <Text style={[styles.tabBtnText, { color: tab === t ? theme.accent : theme.textDim }]}>
-              {t === 'mis_viajes' ? 'Mis viajes' : 'Viajes pasados'}
-            </Text>
-            {tab === t && (
-              <View style={[styles.tabUnderline, { backgroundColor: theme.accent }]} />
-            )}
-          </Pressable>
-        ))}
-      </View>
+      <PasoAyuda {...AYUDA_VIAJES[1]!}>
+        <View style={[styles.tabRow, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
+          {(['mis_viajes', 'pasados'] as Tab[]).map((t) => (
+            <Pressable
+              key={t}
+              style={styles.tabBtn}
+              onPress={() => {
+                selection.exit()
+                setTab(t)
+              }}
+            >
+              <Text style={[styles.tabBtnText, { color: tab === t ? theme.accent : theme.textDim }]}>
+                {t === 'mis_viajes' ? 'Mis viajes' : 'Viajes pasados'}
+              </Text>
+              {tab === t && (
+                <View style={[styles.tabUnderline, { backgroundColor: theme.accent }]} />
+              )}
+            </Pressable>
+          ))}
+        </View>
+      </PasoAyuda>
 
       {/* Barra de búsqueda y filtros (fija, no scrollea) */}
+      <PasoAyuda {...AYUDA_VIAJES[2]!}>
       <View style={[styles.filtersBar, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
         {/* Buscador */}
         <View style={[styles.searchBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
@@ -689,6 +699,7 @@ export default function ViajesScreen() {
           )}
         </ScrollView>
       </View>
+      </PasoAyuda>
 
       {cargando ? (
         <View style={styles.center}>
@@ -708,9 +719,11 @@ export default function ViajesScreen() {
           {/* ── MIS VIAJES ── */}
           {tab === 'mis_viajes' && (
             <>
-              <Btn block size="lg" icon="plus" onPress={() => router.push('/viaje/crear')}>
-                Nuevo viaje
-              </Btn>
+              <PasoAyuda {...AYUDA_VIAJES[3]!}>
+                <Btn block size="lg" icon="plus" onPress={() => router.push('/viaje/crear')}>
+                  Nuevo viaje
+                </Btn>
+              </PasoAyuda>
 
               <SelectionHeader
                 visible={selection.active}

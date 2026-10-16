@@ -18,6 +18,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider, useAuth } from '@/context/AuthContext';
+import { CopilotRoot } from '@/components/ayuda/CopilotRoot';
 import { MeshDialogProvider } from '@/context/MeshDialogContext';
 import { TripRealtimeProvider } from '@/context/TripRealtimeContext';
 import Colors from '@/constants/Colors';
@@ -125,10 +126,12 @@ function RootLayoutNav() {
 
   return (
     <ThemeProvider value={DarkTheme}>
-      <TripRealtimeProvider>
-        {user && <ViajeRealtimeBridge />}
-        <AppStack />
-      </TripRealtimeProvider>
+      <CopilotRoot>
+        <TripRealtimeProvider>
+          {user && <ViajeRealtimeBridge />}
+          <AppStack />
+        </TripRealtimeProvider>
+      </CopilotRoot>
     </ThemeProvider>
   );
 }

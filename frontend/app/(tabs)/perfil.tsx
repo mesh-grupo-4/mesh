@@ -9,12 +9,15 @@ import {
 import { meshAlert } from '@/lib/meshAlert';
 import { useAuth, ActividadPreferida } from '@/context/AuthContext';
 import { router, useFocusEffect } from 'expo-router';
+import { useCopilot } from 'react-native-copilot';
 import { resolveBackendUserId } from '@/lib/apiClient';
 import { listarAmigos, listarSolicitudesAmistadPendientes } from '@/lib/amistadesApi';
 import { listarGrupos } from '@/lib/gruposApi';
 import { obtenerEstadisticasUsuario } from '@/lib/viajesApi';
 import { formatKmCompact } from '@/lib/format';
 import { Btn, Field, Chip, ChipRow, Avatar, TopBar, useTheme } from '@/components/MeshUI';
+import { PasoAyuda } from '@/components/ayuda/PasoAyuda';
+import { AYUDA_PERFIL } from '@/components/ayuda/contenidoAyuda';
 import { Feather } from '@expo/vector-icons';
 
 const ACTIVIDADES: { valor: ActividadPreferida; etiqueta: string; icono: keyof typeof Feather.glyphMap }[] = [
@@ -35,6 +38,7 @@ type StatsPerfil = {
 export default function PerfilScreen() {
   const { user, profile, updateUserProfile, logout, backendUserId, esSuperadmin } = useAuth();
   const theme = useTheme();
+  const { start } = useCopilot();
 
   const [nombre, setNombre] = useState('');
   const [apellido, setApellido] = useState('');
@@ -160,8 +164,8 @@ export default function PerfilScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <TopBar title="Perfil" bordered={false} />
-      
+      <TopBar title="Perfil" bordered={false} onAyuda={() => start()} />
+
       <ScrollView contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
         {/* Cabecera del perfil */}
         <View style={styles.profileHeader}>
@@ -177,6 +181,7 @@ export default function PerfilScreen() {
         </View>
 
         {/* Bloque de estadísticas */}
+        <PasoAyuda {...AYUDA_PERFIL[0]!}>
         <View style={[styles.statsCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           {(
             [
@@ -225,6 +230,7 @@ export default function PerfilScreen() {
             </Pressable>
           ))}
         </View>
+        </PasoAyuda>
 
         {/* Datos Personales */}
         <View style={styles.section}>
@@ -322,25 +328,27 @@ export default function PerfilScreen() {
           <Feather name="chevron-right" size={20} color={theme.textMute} />
         </Pressable>
 
-        <Pressable
-          style={({ pressed }) => [
-            styles.linkAmigos,
-            {
-              backgroundColor: pressed ? theme.surface2 : theme.surface,
-              borderColor: theme.border,
-              marginTop: 10,
-            },
-          ]}
-          onPress={() => router.push('/privacidad')}
-        >
-          <View style={styles.linkAmigosContent}>
-            <Feather name="shield" size={18} color={theme.accent} style={styles.amigosIcon} />
-            <Text style={[styles.linkAmigosText, { color: theme.text }]}>
-              Privacidad y ubicación
-            </Text>
-          </View>
-          <Feather name="chevron-right" size={20} color={theme.textMute} />
-        </Pressable>
+        <PasoAyuda {...AYUDA_PERFIL[2]!}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.linkAmigos,
+              {
+                backgroundColor: pressed ? theme.surface2 : theme.surface,
+                borderColor: theme.border,
+                marginTop: 10,
+              },
+            ]}
+            onPress={() => router.push('/privacidad')}
+          >
+            <View style={styles.linkAmigosContent}>
+              <Feather name="shield" size={18} color={theme.accent} style={styles.amigosIcon} />
+              <Text style={[styles.linkAmigosText, { color: theme.text }]}>
+                Privacidad y ubicación
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={20} color={theme.textMute} />
+          </Pressable>
+        </PasoAyuda>
 
         {/* RN-120: entrada al backoffice, solo para superadmins (el backend valida igual). */}
         {esSuperadmin && (
@@ -364,6 +372,7 @@ export default function PerfilScreen() {
         )}
 
         {/* Botones de acción */}
+        <PasoAyuda {...AYUDA_PERFIL[1]!}>
         <View style={styles.actions}>
           {modoEdicion ? (
             <>
@@ -410,6 +419,7 @@ export default function PerfilScreen() {
             Cerrar sesión
           </Btn>
         </View>
+        </PasoAyuda>
 
         <Text style={[styles.footerText, { color: theme.textMute }]}>
           Mesh · v1.0 — Córdoba, AR

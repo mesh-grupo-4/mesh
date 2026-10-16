@@ -24,6 +24,9 @@ import {
   type InvitacionPendienteApi,
 } from '@/lib/gruposApi';
 import { Btn, Field, TopBar, useTheme } from '@/components/MeshUI';
+import { useCopilot } from 'react-native-copilot';
+import { PasoAyuda } from '@/components/ayuda/PasoAyuda';
+import { AYUDA_GRUPOS } from '@/components/ayuda/contenidoAyuda';
 import { SelectableCard } from '@/components/SelectableCard';
 import { SelectionActionBar } from '@/components/SelectionActionBar';
 import { SelectionHeader } from '@/components/SelectionHeader';
@@ -59,6 +62,7 @@ export default function GruposScreen() {
   const { tab } = useLocalSearchParams<{ tab?: string }>();
   const { backendUserId, backendSyncing } = useAuth();
   const theme = useTheme();
+  const { start } = useCopilot();
   const selection = useSelectionMode();
   const [seccion, setSeccion] = useState<SeccionGruposAmigos>(tab === 'amigos' ? 'amigos' : 'grupos');
 
@@ -262,21 +266,23 @@ export default function GruposScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <TopBar title="Grupos y amigos" bordered={false} />
-      <View style={styles.segmentWrap}>
-        <SegmentTabs
-          tabs={[
-            { key: 'grupos', label: 'Grupos' },
-            { key: 'amigos', label: 'Amigos' },
-          ]}
-          active={seccion}
-          onChange={(key) => {
-            selection.exit();
-            setSeccion(key as SeccionGruposAmigos);
-          }}
-          theme={theme}
-        />
-      </View>
+      <TopBar title="Grupos y amigos" bordered={false} onAyuda={() => start()} />
+      <PasoAyuda {...AYUDA_GRUPOS[0]!}>
+        <View style={styles.segmentWrap}>
+          <SegmentTabs
+            tabs={[
+              { key: 'grupos', label: 'Grupos' },
+              { key: 'amigos', label: 'Amigos' },
+            ]}
+            active={seccion}
+            onChange={(key) => {
+              selection.exit();
+              setSeccion(key as SeccionGruposAmigos);
+            }}
+            theme={theme}
+          />
+        </View>
+      </PasoAyuda>
 
       {seccion === 'amigos' ? (
         <AmigosTabPanel />
@@ -424,6 +430,7 @@ export default function GruposScreen() {
                   </Text>
                 </View>
               ) : (
+                <PasoAyuda {...AYUDA_GRUPOS[1]!}>
                 <View style={[styles.lista, selection.active && styles.listaConBarra]}>
                   {grupos.map((g) => {
                     const groupColor = getGroupColor(g.nombre);
@@ -478,6 +485,7 @@ export default function GruposScreen() {
                     );
                   })}
                 </View>
+                </PasoAyuda>
               )}
             </View>
           </>
@@ -486,19 +494,21 @@ export default function GruposScreen() {
 
       {/* Botón flotante FAB para crear grupo (solo visible si no se muestra el formulario) */}
       {!mostrarFormulario && seccion === 'grupos' && (
-        <Pressable
-          style={({ pressed }) => [
-            styles.fab,
-            {
-              backgroundColor: theme.accent,
-              transform: [{ scale: pressed ? 0.95 : 1 }],
-            },
-          ]}
-          onPress={() => setMostrarFormulario(true)}
-        >
-          <Feather name="plus" size={20} color={theme.onAccent} />
-          <Text style={[styles.fabText, { color: theme.onAccent }]}>Crear grupo</Text>
-        </Pressable>
+        <PasoAyuda {...AYUDA_GRUPOS[2]!} estilo={StyleSheet.absoluteFill} pointerEvents="box-none">
+          <Pressable
+            style={({ pressed }) => [
+              styles.fab,
+              {
+                backgroundColor: theme.accent,
+                transform: [{ scale: pressed ? 0.95 : 1 }],
+              },
+            ]}
+            onPress={() => setMostrarFormulario(true)}
+          >
+            <Feather name="plus" size={20} color={theme.onAccent} />
+            <Text style={[styles.fabText, { color: theme.onAccent }]}>Crear grupo</Text>
+          </Pressable>
+        </PasoAyuda>
       )}
 
       <SelectionActionBar
