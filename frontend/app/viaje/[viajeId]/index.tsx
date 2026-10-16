@@ -16,8 +16,11 @@ import {
 import { meshAlert } from '@/lib/meshAlert';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { Feather } from '@expo/vector-icons'
+import { useCopilot } from 'react-native-copilot'
 
 import { AvisoUbicacion, textoPermisoSistema } from '@/components/AvisoUbicacion'
+import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
+import { AYUDA_VIAJE_DETALLE } from '@/components/ayuda/contenidoAyuda'
 import { DEV_USER_ID } from '@/constants/Config'
 import { useAuth } from '@/context/AuthContext'
 import { useTripRealtime } from '@/context/TripRealtimeContext'
@@ -123,6 +126,7 @@ function RutaMapaPreview({ ruta }: { ruta: RutaMapa }) {
 export default function ViajeDetalleScreen() {
   const router = useRouter()
   const theme = useTheme()
+  const { start } = useCopilot()
   const { backendUserId, backendSyncing } = useAuth()
   const params = useLocalSearchParams<{ viajeId: string | string[]; userId?: string | string[] }>()
 
@@ -598,6 +602,7 @@ export default function ViajeDetalleScreen() {
         sub={!viaje ? 'Cargando...' : undefined}
         onBack={() => router.back()}
         bordered={false}
+        onAyuda={() => start()}
         right={
           viaje ? (
             <View style={styles.topBarActions}>
@@ -662,6 +667,7 @@ export default function ViajeDetalleScreen() {
             </View>
 
             {/* Mapa real de la ruta planificada */}
+            <PasoAyuda {...AYUDA_VIAJE_DETALLE[0]!}>
             <Pressable
               onPress={irConfigurarRecorrido}
               disabled={!puedeEditarPlan}
@@ -729,6 +735,7 @@ export default function ViajeDetalleScreen() {
                 </View>
               )}
             </Pressable>
+            </PasoAyuda>
 
             {/* SCRUM-27: pronóstico sobre la ruta antes de salir (y durante). */}
             <ClimaViajeCard
@@ -738,6 +745,7 @@ export default function ViajeDetalleScreen() {
             />
 
             {/* Stats row */}
+            <PasoAyuda {...AYUDA_VIAJE_DETALLE[1]!}>
             <View style={styles.statsRow}>
               <View style={[styles.statCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                 <Feather name="activity" size={16} color={theme.accent} style={{ marginBottom: 3 }} />
@@ -791,6 +799,7 @@ export default function ViajeDetalleScreen() {
                 <Text style={[styles.statLabel, { color: theme.textDim }]}>Fecha</Text>
               </Pressable>
             </View>
+            </PasoAyuda>
 
             {(puedeConfigurarAlertas || viaje.es_grupal) && (
             <View style={styles.collapsibleGroup}>
@@ -1056,6 +1065,7 @@ export default function ViajeDetalleScreen() {
                 (esLider || viaje.mi_participacion?.estado === 'confirmado')
               if (!puedeInvitar && !puedeChecklist && !puedeGastos) return null
               return (
+                <PasoAyuda {...AYUDA_VIAJE_DETALLE[2]!}>
                 <View style={styles.preTripActions}>
                   {puedeInvitar && (
                     <Btn
@@ -1097,6 +1107,7 @@ export default function ViajeDetalleScreen() {
                     </Btn>
                   )}
                 </View>
+                </PasoAyuda>
               )
             })()}
 
@@ -1189,6 +1200,7 @@ export default function ViajeDetalleScreen() {
 
           {/* Sticky Bottom Actions (un viaje finalizado no tiene acciones fijas) */}
           {viaje.estado !== 'finalizado' && (
+          <PasoAyuda {...AYUDA_VIAJE_DETALLE[3]!}>
           <View style={[styles.bottomPad, { backgroundColor: theme.background, borderTopColor: theme.border }]}>
             {viaje.estado === 'planificado' && esLider && (
               <Btn variant="primary" block icon="play" onPress={confirmarIniciar} disabled={accion} loading={accion}>
@@ -1240,6 +1252,7 @@ export default function ViajeDetalleScreen() {
               </View>
             )}
           </View>
+          </PasoAyuda>
           )}
         </>
       ) : (

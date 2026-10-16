@@ -15,6 +15,9 @@ import { useAuth } from '@/context/AuthContext'
 import { useTripRealtime } from '@/context/TripRealtimeContext'
 import { resolveBackendUserId } from '@/lib/apiClient'
 import { Avatar, Badge, Btn, useTheme } from '@/components/MeshUI'
+import { BotonAyuda } from '@/components/ayuda/BotonAyuda'
+import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
+import { AYUDA_INICIO } from '@/components/ayuda/contenidoAyuda'
 import { etiquetaActividad } from '@/lib/activityDefaults'
 import { formatearEnArg } from '@/lib/tiempoArg'
 import {
@@ -126,67 +129,72 @@ export default function InicioScreen() {
           </Text>
         </View>
         <Avatar person={meAvatar} size="lg" ring />
+        <BotonAyuda />
       </View>
 
       {/* Viaje en curso */}
       {enCurso && (
-        <Pressable
-          style={({ pressed }) => [
-            styles.enCursoCard,
-            {
-              backgroundColor: pressed ? theme.surface2 : theme.surface,
-              borderColor: theme.accentLine,
-            },
-          ]}
-          onPress={() =>
-            router.push({ pathname: '/viaje/[viajeId]/live', params: { viajeId: enCurso.id } })
-          }
-        >
-          <View style={styles.enCursoTop}>
-            <Badge tone="live" pulse>
-              EN VIVO
-            </Badge>
-            <Text style={[styles.enCursoActividad, { color: theme.textDim }]}>
-              {etiquetaActividad(enCurso.tipo_actividad)}
+        <PasoAyuda {...AYUDA_INICIO[2]!}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.enCursoCard,
+              {
+                backgroundColor: pressed ? theme.surface2 : theme.surface,
+                borderColor: theme.accentLine,
+              },
+            ]}
+            onPress={() =>
+              router.push({ pathname: '/viaje/[viajeId]/live', params: { viajeId: enCurso.id } })
+            }
+          >
+            <View style={styles.enCursoTop}>
+              <Badge tone="live" pulse>
+                EN VIVO
+              </Badge>
+              <Text style={[styles.enCursoActividad, { color: theme.textDim }]}>
+                {etiquetaActividad(enCurso.tipo_actividad)}
+              </Text>
+            </View>
+            <Text style={[styles.enCursoTitulo, { color: theme.text }]} numberOfLines={1}>
+              {enCurso.nombre || etiquetaActividad(enCurso.tipo_actividad)}
             </Text>
-          </View>
-          <Text style={[styles.enCursoTitulo, { color: theme.text }]} numberOfLines={1}>
-            {enCurso.nombre || etiquetaActividad(enCurso.tipo_actividad)}
-          </Text>
-          <Text style={[styles.enCursoMeta, { color: theme.textMute }]}>
-            {horaInicio(enCurso.fecha_inicio_real)}
-          </Text>
-          <View style={styles.enCursoCta}>
-            <Text style={[styles.enCursoCtaText, { color: theme.accent }]}>
-              Abrir mapa en vivo
+            <Text style={[styles.enCursoMeta, { color: theme.textMute }]}>
+              {horaInicio(enCurso.fecha_inicio_real)}
             </Text>
-            <Feather name="arrow-right" size={18} color={theme.accent} />
-          </View>
-        </Pressable>
+            <View style={styles.enCursoCta}>
+              <Text style={[styles.enCursoCtaText, { color: theme.accent }]}>
+                Abrir mapa en vivo
+              </Text>
+              <Feather name="arrow-right" size={18} color={theme.accent} />
+            </View>
+          </Pressable>
+        </PasoAyuda>
       )}
 
       {/* Estadísticas personales */}
       <Text style={[styles.eyebrow, { color: theme.textDim }]}>TU ACTIVIDAD</Text>
-      <View style={[styles.statsCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <View style={styles.statBox}>
-          <Text style={[styles.statValue, { color: theme.text }]}>
-            {cargando && !stats ? '·' : formatearKm(stats?.distancia_total_m ?? 0)}
-          </Text>
-          <Text style={[styles.statLabel, { color: theme.textMute }]}>Km</Text>
+      <PasoAyuda {...AYUDA_INICIO[0]!}>
+        <View style={[styles.statsCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <View style={styles.statBox}>
+            <Text style={[styles.statValue, { color: theme.text }]}>
+              {cargando && !stats ? '·' : formatearKm(stats?.distancia_total_m ?? 0)}
+            </Text>
+            <Text style={[styles.statLabel, { color: theme.textMute }]}>Km</Text>
+          </View>
+          <View style={[styles.statBox, styles.borderLeft, { borderLeftColor: theme.border }]}>
+            <Text style={[styles.statValue, { color: theme.text }]}>
+              {cargando && !stats ? '·' : (stats?.viajes_finalizados ?? 0)}
+            </Text>
+            <Text style={[styles.statLabel, { color: theme.textMute }]}>Viajes</Text>
+          </View>
+          <View style={[styles.statBox, styles.borderLeft, { borderLeftColor: theme.border }]}>
+            <Text style={[styles.statValue, { color: theme.text }]}>
+              {cargando && !stats ? '·' : formatearDuracion(stats?.tiempo_total_seg ?? 0)}
+            </Text>
+            <Text style={[styles.statLabel, { color: theme.textMute }]}>En ruta</Text>
+          </View>
         </View>
-        <View style={[styles.statBox, styles.borderLeft, { borderLeftColor: theme.border }]}>
-          <Text style={[styles.statValue, { color: theme.text }]}>
-            {cargando && !stats ? '·' : (stats?.viajes_finalizados ?? 0)}
-          </Text>
-          <Text style={[styles.statLabel, { color: theme.textMute }]}>Viajes</Text>
-        </View>
-        <View style={[styles.statBox, styles.borderLeft, { borderLeftColor: theme.border }]}>
-          <Text style={[styles.statValue, { color: theme.text }]}>
-            {cargando && !stats ? '·' : formatearDuracion(stats?.tiempo_total_seg ?? 0)}
-          </Text>
-          <Text style={[styles.statLabel, { color: theme.textMute }]}>En ruta</Text>
-        </View>
-      </View>
+      </PasoAyuda>
       {stats?.actividad_favorita && (
         <Text style={[styles.favorita, { color: theme.textMute }]}>
           Tu actividad favorita: {etiquetaActividad(stats.actividad_favorita)}
@@ -195,29 +203,31 @@ export default function InicioScreen() {
 
       {/* Accesos rápidos */}
       <Text style={[styles.eyebrow, { color: theme.textDim }]}>ACCESOS RÁPIDOS</Text>
-      <View style={styles.acciones}>
-        <Btn block size="lg" icon="plus" onPress={() => router.push('/viaje/crear')}>
-          Nuevo viaje
-        </Btn>
-        <Btn
-          block
-          size="lg"
-          variant="secondary"
-          icon="maximize"
-          onPress={() => router.push('/escanear-qr')}
-        >
-          Escanear QR
-        </Btn>
-        <Btn
-          block
-          size="lg"
-          variant="ghost"
-          icon="map"
-          onPress={() => router.push('/(tabs)/two')}
-        >
-          Ver mis viajes
-        </Btn>
-      </View>
+      <PasoAyuda {...AYUDA_INICIO[1]!}>
+        <View style={styles.acciones}>
+          <Btn block size="lg" icon="plus" onPress={() => router.push('/viaje/crear')}>
+            Nuevo viaje
+          </Btn>
+          <Btn
+            block
+            size="lg"
+            variant="secondary"
+            icon="maximize"
+            onPress={() => router.push('/escanear-qr')}
+          >
+            Escanear QR
+          </Btn>
+          <Btn
+            block
+            size="lg"
+            variant="ghost"
+            icon="map"
+            onPress={() => router.push('/(tabs)/two')}
+          >
+            Ver mis viajes
+          </Btn>
+        </View>
+      </PasoAyuda>
 
       {cargando && !stats && (
         <ActivityIndicator color={theme.accent} style={{ marginTop: 12 }} />

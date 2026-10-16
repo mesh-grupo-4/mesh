@@ -14,7 +14,10 @@ import {
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
+import { useCopilot } from 'react-native-copilot'
 import { Badge, Btn, TopBar, useTheme } from '@/components/MeshUI'
+import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
+import { AYUDA_VIAJE_CHECKLIST } from '@/components/ayuda/contenidoAyuda'
 import { DEV_USER_ID } from '@/constants/Config'
 import { useAuth } from '@/context/AuthContext'
 import { MeshApiError } from '@/lib/apiClient'
@@ -38,6 +41,7 @@ import {
 export default function ChecklistViajeScreen() {
   const router = useRouter()
   const theme = useTheme()
+  const { start } = useCopilot()
   const insets = useSafeAreaInsets()
   const { backendUserId } = useAuth()
   const params = useLocalSearchParams<{ viajeId: string | string[] }>()
@@ -181,6 +185,7 @@ export default function ChecklistViajeScreen() {
         title="Checklist de preparativos"
         sub={viaje?.nombre ?? undefined}
         onBack={() => router.back()}
+        onAyuda={() => start()}
       />
 
       {total > 0 ? (
@@ -202,6 +207,7 @@ export default function ChecklistViajeScreen() {
         </View>
       ) : null}
 
+      <PasoAyuda {...AYUDA_VIAJE_CHECKLIST[0]!} estilo={styles.flex1}>
       <ScrollView
         contentContainerStyle={[styles.lista, { paddingBottom: insets.bottom + 32 }]}
         refreshControl={<RefreshControl refreshing={cargando} onRefresh={() => void cargar()} />}
@@ -231,6 +237,7 @@ export default function ChecklistViajeScreen() {
           />
         ))}
       </ScrollView>
+      </PasoAyuda>
 
       {!soloLectura ? (
         <View
@@ -252,29 +259,33 @@ export default function ChecklistViajeScreen() {
             </Pressable>
           ) : null}
 
-          <View style={styles.altaRow}>
-            <TextInput
-              value={texto}
-              onChangeText={setTexto}
-              placeholder="Agregar ítem…"
-              placeholderTextColor={theme.textMute}
-              style={[
-                styles.input,
-                { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text },
-              ]}
-              maxLength={120}
-              onSubmitEditing={agregar}
-              returnKeyType="done"
-              editable={!agregando}
-            />
-            <Btn icon="plus" onPress={agregar} disabled={!texto.trim() || agregando} loading={agregando}>
-              Agregar
-            </Btn>
-          </View>
+          <PasoAyuda {...AYUDA_VIAJE_CHECKLIST[1]!}>
+            <View style={styles.altaRow}>
+              <TextInput
+                value={texto}
+                onChangeText={setTexto}
+                placeholder="Agregar ítem…"
+                placeholderTextColor={theme.textMute}
+                style={[
+                  styles.input,
+                  { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text },
+                ]}
+                maxLength={120}
+                onSubmitEditing={agregar}
+                returnKeyType="done"
+                editable={!agregando}
+              />
+              <Btn icon="plus" onPress={agregar} disabled={!texto.trim() || agregando} loading={agregando}>
+                Agregar
+              </Btn>
+            </View>
+          </PasoAyuda>
 
-          <Btn variant="ghost" block icon="download" onPress={() => setImportVisible(true)}>
-            Importar de otro viaje
-          </Btn>
+          <PasoAyuda {...AYUDA_VIAJE_CHECKLIST[2]!}>
+            <Btn variant="ghost" block icon="download" onPress={() => setImportVisible(true)}>
+              Importar de otro viaje
+            </Btn>
+          </PasoAyuda>
         </View>
       ) : null}
 
@@ -470,6 +481,7 @@ function ImportarSheet({
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  flex1: { flex: 1 },
   centro: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   spinner: { marginTop: 40 },
 

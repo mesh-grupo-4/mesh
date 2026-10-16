@@ -33,6 +33,9 @@ import { LiveTripHeader } from '@/components/live/LiveTripHeader'
 import { MapStylePicker } from '@/components/route-config/MapStylePicker'
 import type { MapStyleId } from '@/components/route-config/mapStyles'
 import { useTheme } from '@/components/MeshUI'
+import { BotonAyuda } from '@/components/ayuda/BotonAyuda'
+import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
+import { AYUDA_VIAJE_LIVE } from '@/components/ayuda/contenidoAyuda'
 import { DEV_USER_ID, API_BASE_URL } from '@/constants/Config'
 import { tamanoOutdoor } from '@/constants/Typography'
 import { useAuth } from '@/context/AuthContext'
@@ -823,35 +826,49 @@ export default function ViajeLiveScreen() {
     <View style={[styles.root, { backgroundColor: theme.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <StatusBar hidden={uiConfig.pantallaCompleta} />
-      <LiveMapView
-        ref={mapRef}
-        routeRemaining={routeRemaining}
-        breadcrumb={breadcrumb}
-        members={memberList}
-        alertasEnMapa={alertasEnMapa}
-        guiaParada={guiaParada}
-        guiaAlerta={guiaAlerta}
-        guiaLugar={guiaLugar}
-        fantasma={
-          fantasma
-            ? { ...fantasma.posicion, nombre: fantasma.nombre, pausado: fantasma.pausado, traza: fantasma.traza }
-            : null
-        }
-        currentUserId={userId}
-        initialCenter={initialCenter}
-        mapStyle={mapStyle}
-        onUserDrag={() => setSiguiendo(false)}
-      />
+      <PasoAyuda {...AYUDA_VIAJE_LIVE[0]!} estilo={styles.flex1}>
+        <LiveMapView
+          ref={mapRef}
+          routeRemaining={routeRemaining}
+          breadcrumb={breadcrumb}
+          members={memberList}
+          alertasEnMapa={alertasEnMapa}
+          guiaParada={guiaParada}
+          guiaAlerta={guiaAlerta}
+          guiaLugar={guiaLugar}
+          fantasma={
+            fantasma
+              ? { ...fantasma.posicion, nombre: fantasma.nombre, pausado: fantasma.pausado, traza: fantasma.traza }
+              : null
+          }
+          currentUserId={userId}
+          initialCenter={initialCenter}
+          mapStyle={mapStyle}
+          onUserDrag={() => setSiguiendo(false)}
+        />
+      </PasoAyuda>
 
-      <LiveTripHeader
-        tripName={tripDisplayName}
-        nextStop={nextStop}
-        hasRoute={routeStops.length > 0}
-        members={liveMembers}
-        currentUserId={userId}
-        onBack={() => router.back()}
-        onExpandedChange={setHeaderExpandido}
-        tipoActividad={tipoActividad}
+      <PasoAyuda
+        {...AYUDA_VIAJE_LIVE[1]!}
+        estilo={[StyleSheet.absoluteFill, styles.zIndexEncabezado]}
+        pointerEvents="box-none"
+      >
+        <LiveTripHeader
+          tripName={tripDisplayName}
+          nextStop={nextStop}
+          hasRoute={routeStops.length > 0}
+          members={liveMembers}
+          currentUserId={userId}
+          onBack={() => router.back()}
+          onExpandedChange={setHeaderExpandido}
+          tipoActividad={tipoActividad}
+        />
+      </PasoAyuda>
+
+      <BotonAyuda
+        altoContraste={uiConfig.altoContraste}
+        size={Math.round(44 * uiConfig.escalaBotones)}
+        style={[styles.botonAyudaLive, { bottom: bottomCentrarMapa }]}
       />
 
       {/* Pila de banners: se apilan solos y su alto real corre a los botones
@@ -939,15 +956,21 @@ export default function ViajeLiveScreen() {
 
       {!headerExpandido ? (
         <>
-          <AlertasButton
-            cantidad={alertas.length}
-            topOffset={topFlotantes + 14}
-            onPress={irAAlertas}
-            onCrear={puedeCrearAlertas ? () => setComponiendoAlerta(true) : undefined}
-            onFantasma={permiteComparar ? () => setEligiendoFantasma(true) : undefined}
-            fantasmaActivo={fantasmaActivo}
-            tipoActividad={tipoActividad}
-          />
+          <PasoAyuda
+            {...AYUDA_VIAJE_LIVE[2]!}
+            estilo={[StyleSheet.absoluteFill, styles.zIndexAlertas]}
+            pointerEvents="box-none"
+          >
+            <AlertasButton
+              cantidad={alertas.length}
+              topOffset={topFlotantes + 14}
+              onPress={irAAlertas}
+              onCrear={puedeCrearAlertas ? () => setComponiendoAlerta(true) : undefined}
+              onFantasma={permiteComparar ? () => setEligiendoFantasma(true) : undefined}
+              fantasmaActivo={fantasmaActivo}
+              tipoActividad={tipoActividad}
+            />
+          </PasoAyuda>
 
           <MapStylePicker value={mapStyle} onChange={setMapStyle} topAbsolute={topFlotantes + 14} light />
 
@@ -980,27 +1003,29 @@ export default function ViajeLiveScreen() {
         />
       ) : null}
 
-      <LiveBottomPanel
-        elapsedLabel={elapsedLabel}
-        distanceLabel={distanceLabel}
-        entrenamiento={entrenamientoEnVivo}
-        enCurso={viaje?.estado === 'en_curso'}
-        esLider={esLider}
-        accion={!!accion}
-        paradaDesde={paradaActiva?.inicio ?? null}
-        esIncidenteDetectado={paradaActiva?.tipo === 'incidente_detectado'}
-        puedeSolicitar={puedeSolicitarParada}
-        solicitudPendiente={miSolicitud?.estado === 'pendiente'}
-        paradaEnCurso={paradaEnCurso}
-        onDetenerse={handleDetenerse}
-        onRetomar={handleRetomar}
-        onEstoyBien={handleEstoyBien}
-        onSolicitar={handleSolicitar}
-        onFinalizar={confirmarFinalizar}
-        onSalir={confirmarSalir}
-        onHeightChange={setAltoBotonera}
-        tipoActividad={tipoActividad}
-      />
+      <PasoAyuda {...AYUDA_VIAJE_LIVE[3]!} estilo={StyleSheet.absoluteFill} pointerEvents="box-none">
+        <LiveBottomPanel
+          elapsedLabel={elapsedLabel}
+          distanceLabel={distanceLabel}
+          entrenamiento={entrenamientoEnVivo}
+          enCurso={viaje?.estado === 'en_curso'}
+          esLider={esLider}
+          accion={!!accion}
+          paradaDesde={paradaActiva?.inicio ?? null}
+          esIncidenteDetectado={paradaActiva?.tipo === 'incidente_detectado'}
+          puedeSolicitar={puedeSolicitarParada}
+          solicitudPendiente={miSolicitud?.estado === 'pendiente'}
+          paradaEnCurso={paradaEnCurso}
+          onDetenerse={handleDetenerse}
+          onRetomar={handleRetomar}
+          onEstoyBien={handleEstoyBien}
+          onSolicitar={handleSolicitar}
+          onFinalizar={confirmarFinalizar}
+          onSalir={confirmarSalir}
+          onHeightChange={setAltoBotonera}
+          tipoActividad={tipoActividad}
+        />
+      </PasoAyuda>
 
       <CategoriaParadaSheet
         visible={eligiendoCategoria}
@@ -1042,6 +1067,19 @@ export default function ViajeLiveScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
+  },
+  flex1: {
+    flex: 1,
+  },
+  zIndexEncabezado: {
+    zIndex: 50,
+  },
+  zIndexAlertas: {
+    zIndex: 20,
+  },
+  botonAyudaLive: {
+    position: 'absolute',
+    right: 16,
   },
   center: {
     flex: 1,

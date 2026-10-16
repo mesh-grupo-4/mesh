@@ -34,6 +34,9 @@ import {
   textoParametrosActividad,
 } from '@/lib/activityDefaults'
 import { Btn, ActivityTile, Field, useTheme } from '@/components/MeshUI'
+import { BotonAyuda } from '@/components/ayuda/BotonAyuda'
+import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
+import { AYUDA_VIAJE_CREAR } from '@/components/ayuda/contenidoAyuda'
 import { Collapsible } from '@/components/Collapsible'
 
 const MSG_FECHA_PASADA = 'La fecha y hora programadas deben ser futuras.'
@@ -320,7 +323,9 @@ export default function CrearViajeScreen() {
     >
       {/* Sin este título el header del Stack muestra el nombre de la ruta ("crear").
           No lo ocultamos como en `live.tsx` porque esta pantalla no tiene botón de volver propio. */}
-      <Stack.Screen options={{ title: 'Nuevo viaje' }} />
+      <Stack.Screen
+        options={{ title: 'Nuevo viaje', headerRight: () => <BotonAyuda /> }}
+      />
 
       {plantillaId ? (
         <View
@@ -367,21 +372,23 @@ export default function CrearViajeScreen() {
       />
 
       <Text style={[styles.seccion, { color: theme.text }]}>Fecha programada</Text>
-      <Pressable
-        style={[
-          styles.fechaBtn,
-          {
-            backgroundColor: theme.surface,
-            borderColor: fechaInvalida ? theme.danger : theme.border,
-          },
-        ]}
-        onPress={abrirPicker}
-        disabled={guardando}
-      >
-        <Feather name="calendar" size={18} color={fechaInvalida ? theme.danger : theme.accent} />
-        <Text style={[styles.fechaTexto, { color: theme.text }]}>{formatearFechaHora(fecha)}</Text>
-        <Feather name="edit-2" size={15} color={theme.textMute} />
-      </Pressable>
+      <PasoAyuda {...AYUDA_VIAJE_CREAR[2]!}>
+        <Pressable
+          style={[
+            styles.fechaBtn,
+            {
+              backgroundColor: theme.surface,
+              borderColor: fechaInvalida ? theme.danger : theme.border,
+            },
+          ]}
+          onPress={abrirPicker}
+          disabled={guardando}
+        >
+          <Feather name="calendar" size={18} color={fechaInvalida ? theme.danger : theme.accent} />
+          <Text style={[styles.fechaTexto, { color: theme.text }]}>{formatearFechaHora(fecha)}</Text>
+          <Feather name="edit-2" size={15} color={theme.textMute} />
+        </Pressable>
+      </PasoAyuda>
       {fechaInvalida && (
         <Text style={[styles.fechaError, { color: theme.danger }]}>{MSG_FECHA_PASADA}</Text>
       )}
@@ -402,6 +409,7 @@ export default function CrearViajeScreen() {
       )}
 
       <Text style={[styles.seccion, { color: theme.text }]}>Modo de Actividad</Text>
+      <PasoAyuda {...AYUDA_VIAJE_CREAR[0]!}>
       <View style={styles.activityList}>
         {ACTIVIDADES.map((a) => {
           const isActive = tipoActividad === a.id
@@ -439,6 +447,7 @@ export default function CrearViajeScreen() {
           )
         })}
       </View>
+      </PasoAyuda>
       <Text style={[styles.paramHint, { color: theme.textDim }]}>
         {textoParametrosActividad(tipoActividad)}
       </Text>
@@ -497,38 +506,40 @@ export default function CrearViajeScreen() {
       </Collapsible>
 
       <Text style={[styles.seccion, { color: theme.text }]}>Modalidad</Text>
-      <View style={styles.filaModalidad}>
-        <Pressable
-          style={[
-            styles.opcionModalidad,
-            { backgroundColor: theme.surface, borderColor: theme.border },
-            !esGrupal && { borderColor: theme.accentLine, backgroundColor: theme.accentWeak },
-          ]}
-          onPress={() => {
-            setEsGrupal(false)
-            setGruposSeleccionados(new Set())
-            setAmigosSeleccionados(new Set())
-          }}
-        >
-          <Text style={[styles.opcionTitulo, { color: !esGrupal ? theme.accent : theme.text }]}>
-            Individual
-          </Text>
-          <Text style={[styles.opcionHint, { color: theme.textDim }]}>Sin invitados iniciales</Text>
-        </Pressable>
-        <Pressable
-          style={[
-            styles.opcionModalidad,
-            { backgroundColor: theme.surface, borderColor: theme.border },
-            esGrupal && { borderColor: theme.accentLine, backgroundColor: theme.accentWeak },
-          ]}
-          onPress={() => setEsGrupal(true)}
-        >
-          <Text style={[styles.opcionTitulo, { color: esGrupal ? theme.accent : theme.text }]}>
-            Grupal
-          </Text>
-          <Text style={[styles.opcionHint, { color: theme.textDim }]}>Invitar grupos / amigos</Text>
-        </Pressable>
-      </View>
+      <PasoAyuda {...AYUDA_VIAJE_CREAR[1]!}>
+        <View style={styles.filaModalidad}>
+          <Pressable
+            style={[
+              styles.opcionModalidad,
+              { backgroundColor: theme.surface, borderColor: theme.border },
+              !esGrupal && { borderColor: theme.accentLine, backgroundColor: theme.accentWeak },
+            ]}
+            onPress={() => {
+              setEsGrupal(false)
+              setGruposSeleccionados(new Set())
+              setAmigosSeleccionados(new Set())
+            }}
+          >
+            <Text style={[styles.opcionTitulo, { color: !esGrupal ? theme.accent : theme.text }]}>
+              Individual
+            </Text>
+            <Text style={[styles.opcionHint, { color: theme.textDim }]}>Sin invitados iniciales</Text>
+          </Pressable>
+          <Pressable
+            style={[
+              styles.opcionModalidad,
+              { backgroundColor: theme.surface, borderColor: theme.border },
+              esGrupal && { borderColor: theme.accentLine, backgroundColor: theme.accentWeak },
+            ]}
+            onPress={() => setEsGrupal(true)}
+          >
+            <Text style={[styles.opcionTitulo, { color: esGrupal ? theme.accent : theme.text }]}>
+              Grupal
+            </Text>
+            <Text style={[styles.opcionHint, { color: theme.textDim }]}>Invitar grupos / amigos</Text>
+          </Pressable>
+        </View>
+      </PasoAyuda>
 
       {/* RN-065 (SCRUM-48): modo del viaje. Competitivo llega con E07. */}
       <Text style={[styles.seccion, { color: theme.text }]}>Modo</Text>
@@ -622,6 +633,7 @@ export default function CrearViajeScreen() {
       )}
 
       {esGrupal && (
+        <PasoAyuda {...AYUDA_VIAJE_CREAR[3]!}>
         <>
           <Text style={[styles.seccion, { color: theme.text }]}>A quién invitar</Text>
           <Text style={[styles.hint, { color: theme.textDim }]}>
@@ -709,6 +721,7 @@ export default function CrearViajeScreen() {
             </View>
           )}
         </>
+        </PasoAyuda>
       )}
 
       <Btn

@@ -3,7 +3,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, StyleSheet, View } from 'react-native'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 
+import { useCopilot } from 'react-native-copilot'
 import { TopBar, useTheme } from '@/components/MeshUI'
+import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
+import { AYUDA_CONFIGURAR_RUTA } from '@/components/ayuda/contenidoAyuda'
 import { CenterLocationButton } from '@/components/live/CenterLocationButton'
 import { LugaresSugeridosModal } from '@/components/lugares/LugaresSugeridosModal'
 import { MapPickOverlay } from '@/components/route-config/MapPickOverlay'
@@ -25,6 +28,7 @@ import { obtenerViaje, type TipoActividadApi } from '@/lib/viajesApi'
 export default function ConfigurarRutaScreen() {
   const theme = useTheme()
   const router = useRouter()
+  const { start } = useCopilot()
   const { backendUserId, backendSyncing } = useAuth()
   const params = useLocalSearchParams<{ viajeId: string | string[]; userId?: string | string[] }>()
 
@@ -161,19 +165,21 @@ export default function ConfigurarRutaScreen() {
   return (
     <GestureHandlerRootView style={[styles.root, { backgroundColor: theme.mapBg }]}>
       <View style={styles.root}>
-        <RouteMapView
-          waypoints={waypointsConCoords}
-          routeLineLatLng={routeLineLatLng}
-          previewLineLatLng={previewLineLatLng}
-          mapStyle={mapStyle}
-          initialRegion={regionInicial}
-          cameraTarget={cameraTarget}
-          onCameraTargetApplied={onCameraTargetApplied}
-          fitRouteCoords={fitRouteCoords}
-          mapPickMode={Boolean(modoSeleccionMapa)}
-          onRegionChangeComplete={onRegionChangeComplete}
-          userLocation={ubicacionActual}
-        />
+        <PasoAyuda {...AYUDA_CONFIGURAR_RUTA[0]!} estilo={StyleSheet.absoluteFill}>
+          <RouteMapView
+            waypoints={waypointsConCoords}
+            routeLineLatLng={routeLineLatLng}
+            previewLineLatLng={previewLineLatLng}
+            mapStyle={mapStyle}
+            initialRegion={regionInicial}
+            cameraTarget={cameraTarget}
+            onCameraTargetApplied={onCameraTargetApplied}
+            fitRouteCoords={fitRouteCoords}
+            mapPickMode={Boolean(modoSeleccionMapa)}
+            onRegionChangeComplete={onRegionChangeComplete}
+            userLocation={ubicacionActual}
+          />
+        </PasoAyuda>
 
         {!modoSeleccionMapa ? (
           <View style={styles.header} pointerEvents="box-none">
@@ -183,12 +189,21 @@ export default function ConfigurarRutaScreen() {
                 sub="Definí origen, paradas y destino"
                 onBack={() => router.back()}
                 bordered={false}
+                onAyuda={() => start()}
               />
             </View>
           </View>
         ) : null}
 
-        {!modoSeleccionMapa ? <MapStylePicker value={mapStyle} onChange={setMapStyle} /> : null}
+        {!modoSeleccionMapa ? (
+          <PasoAyuda
+            {...AYUDA_CONFIGURAR_RUTA[1]!}
+            estilo={[StyleSheet.absoluteFill, { zIndex: 30 }]}
+            pointerEvents="box-none"
+          >
+            <MapStylePicker value={mapStyle} onChange={setMapStyle} />
+          </PasoAyuda>
+        ) : null}
 
         <CenterLocationButton
           onPress={() => void centrarEnMiUbicacion()}
@@ -205,30 +220,32 @@ export default function ConfigurarRutaScreen() {
           />
         ) : null}
 
-        <RouteBottomSheet
-          ref={sheetRef}
-          origen={origen}
-          destino={destino}
-          paradas={paradas}
-          tipoActividad={tipoActividad}
-          velocidadEsperada={velocidadEsperada}
-          distanciaMaxSeparacion={distanciaMaxSeparacion}
-          calculando={calculando}
-          errorRuta={errorRuta}
-          onReintentarCalculo={reintentarCalculo}
-          resumenDistancia={resumenDistancia}
-          resumenTiempo={resumenTiempo}
-          confirmarHabilitado={confirmarHabilitado}
-          guardando={guardando}
-          mapPickMode={Boolean(modoSeleccionMapa)}
-          onUpdateWaypoint={actualizarWaypoint}
-          onAgregarParada={agregarParada}
-          onSugerirParadas={puedeSugerir ? () => setSugiriendoParadas(true) : undefined}
-          onEliminarParada={eliminarParada}
-          onReordenarParada={reordenarParada}
-          onPickOnMap={iniciarSeleccionMapa}
-          onGuardar={() => void guardar()}
-        />
+        <PasoAyuda {...AYUDA_CONFIGURAR_RUTA[2]!} estilo={StyleSheet.absoluteFill} pointerEvents="box-none">
+          <RouteBottomSheet
+            ref={sheetRef}
+            origen={origen}
+            destino={destino}
+            paradas={paradas}
+            tipoActividad={tipoActividad}
+            velocidadEsperada={velocidadEsperada}
+            distanciaMaxSeparacion={distanciaMaxSeparacion}
+            calculando={calculando}
+            errorRuta={errorRuta}
+            onReintentarCalculo={reintentarCalculo}
+            resumenDistancia={resumenDistancia}
+            resumenTiempo={resumenTiempo}
+            confirmarHabilitado={confirmarHabilitado}
+            guardando={guardando}
+            mapPickMode={Boolean(modoSeleccionMapa)}
+            onUpdateWaypoint={actualizarWaypoint}
+            onAgregarParada={agregarParada}
+            onSugerirParadas={puedeSugerir ? () => setSugiriendoParadas(true) : undefined}
+            onEliminarParada={eliminarParada}
+            onReordenarParada={reordenarParada}
+            onPickOnMap={iniciarSeleccionMapa}
+            onGuardar={() => void guardar()}
+          />
+        </PasoAyuda>
 
         <LugaresSugeridosModal
           visible={sugiriendoParadas}

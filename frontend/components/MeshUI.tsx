@@ -23,6 +23,7 @@ import Animated, {
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Colors from '@/constants/Colors';
+import { BotonAyuda } from '@/components/ayuda/BotonAyuda';
 
 // Hook auxiliar para acceder al tema activo.
 // `altoContraste` fuerza la paleta de alto contraste (RN-052, modo moto) sin importar light/dark.
@@ -581,9 +582,12 @@ interface TopBarProps {
   onBack?: () => void;
   bordered?: boolean;
   right?: React.ReactNode;
+  /** Arranca el tour de ayuda ("?") de esta pantalla. No acopla TopBar a react-native-copilot:
+   * la pantalla que sí conoce el tour pasa el callback (ej. `() => start('rutas')`). */
+  onAyuda?: () => void;
 }
 
-export function TopBar({ title, sub, onBack, bordered = true, right }: TopBarProps) {
+export function TopBar({ title, sub, onBack, bordered = true, right, onAyuda }: TopBarProps) {
   const theme = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -633,7 +637,12 @@ export function TopBar({ title, sub, onBack, bordered = true, right }: TopBarPro
           )}
         </View>
       </View>
-      {right && <View style={styles.topBarRight}>{right}</View>}
+      {(right || onAyuda) && (
+        <View style={styles.topBarRight}>
+          {right}
+          {onAyuda && <BotonAyuda onPress={onAyuda} />}
+        </View>
+      )}
     </View>
   );
 }

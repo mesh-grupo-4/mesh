@@ -3,7 +3,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
+import { useCopilot } from 'react-native-copilot'
 import { Btn, TopBar, useTheme } from '@/components/MeshUI'
+import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
+import { AYUDA_VIAJE_ALERTAS } from '@/components/ayuda/contenidoAyuda'
 import { CrearAlertaSheet } from '@/components/live/CrearAlertaSheet'
 import { DEV_USER_ID } from '@/constants/Config'
 import { useAuth } from '@/context/AuthContext'
@@ -26,6 +29,7 @@ import { obtenerViaje, type ViajeDetalleApi } from '@/lib/viajesApi'
 export default function AlertasViajeScreen() {
   const router = useRouter()
   const theme = useTheme()
+  const { start } = useCopilot()
   const insets = useSafeAreaInsets()
   const { backendUserId } = useAuth()
   const params = useLocalSearchParams<{ viajeId: string | string[] }>()
@@ -114,8 +118,10 @@ export default function AlertasViajeScreen() {
         title="Alertas del viaje"
         sub={viaje?.nombre ?? undefined}
         onBack={() => router.back()}
+        onAyuda={() => start()}
       />
 
+      <PasoAyuda {...AYUDA_VIAJE_ALERTAS[0]!} estilo={styles.flex1}>
       <ScrollView
         contentContainerStyle={[styles.lista, { paddingBottom: insets.bottom + 96 }]}
         refreshControl={
@@ -147,11 +153,14 @@ export default function AlertasViajeScreen() {
           />
         ))}
       </ScrollView>
+      </PasoAyuda>
 
       {puedeCrear ? (
-        <View style={[styles.pie, { paddingBottom: Math.max(insets.bottom, 12) + 10 }]}>
-          <Btn block onPress={() => setComponiendo(true)}>Nueva alerta</Btn>
-        </View>
+        <PasoAyuda {...AYUDA_VIAJE_ALERTAS[1]!}>
+          <View style={[styles.pie, { paddingBottom: Math.max(insets.bottom, 12) + 10 }]}>
+            <Btn block onPress={() => setComponiendo(true)}>Nueva alerta</Btn>
+          </View>
+        </PasoAyuda>
       ) : null}
 
       <CrearAlertaSheet
@@ -242,6 +251,9 @@ function TarjetaAlerta({
 
 const styles = StyleSheet.create({
   root: {
+    flex: 1,
+  },
+  flex1: {
     flex: 1,
   },
   centro: {
