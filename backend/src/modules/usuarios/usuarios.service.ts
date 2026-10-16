@@ -85,6 +85,7 @@ export class UsuariosService {
         apellido: true,
         telefono: true,
         actividad_preferida: true,
+        rol_sistema: true,
       },
     })
   }
@@ -115,6 +116,7 @@ export class UsuariosService {
         apellido: true,
         telefono: true,
         actividad_preferida: true,
+        rol_sistema: true,
       },
     })
   }

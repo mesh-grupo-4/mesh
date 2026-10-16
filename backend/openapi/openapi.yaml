@@ -31,6 +31,13 @@ info:
 
     RN-011: dentro de un grupo existen exactamente dos roles, `lider` y `participante`.
 
+    RN-120: aparte de los roles de grupo existe un rol de **plataforma**, `superadmin`,
+    que habilita el backoffice `/api/admin` (gestión de usuarios, grupos y viajes, con
+    auditoría de cada acción). No es un rol de grupo ni le da acceso a ubicaciones.
+
+    RN-123: una cuenta suspendida recibe `403 ACCOUNT_SUSPENDED` en cualquier endpoint
+    autenticado, aunque su token de Firebase todavía sea válido.
+
     ## Errores
 
     Toda respuesta de error tiene la misma forma: `{ error, code }`, donde `error` es
@@ -129,6 +136,16 @@ tags:
       Gastos compartidos del viaje, prorrateados entre quienes elige cada integrante
       al registrarlos. El balance final —quién le debe a quién— se calcula al
       finalizar el viaje.
+  - name: Admin
+    description: |
+      Backoffice de la plataforma (RN-120 a RN-126). Solo rol `superadmin`: gestión de
+      cuentas (editar, suspender, eliminar, otorgar rol), grupos y viajes, y la
+      auditoría de cada acción. Nunca expone posiciones GPS ni velocidades.
+  - name: Reportes
+    description: |
+      Reportería de negocio del backoffice (RN-127 a RN-131), solo para `superadmin`.
+      Todo es agregado: sin datos personales, sin posiciones GPS y sin velocidades
+      (RN-070). Los períodos y las series van en hora argentina (RN-105).
   - name: Documentación
     description: |
       Herramientas de esta página, no del contrato que consume la app: el spec crudo y
@@ -322,6 +339,56 @@ paths:
     $ref: './paths/gastos.yaml#/BalanceGastosRecurso'
   /api/viajes/{viajeId}/gastos/{gastoId}:
     $ref: './paths/gastos.yaml#/GastoPorId'
+
+  # ── Backoffice superadmin (RN-120 a RN-126) ──────────────────────────────────
+  /api/admin/estadisticas:
+    $ref: './paths/admin.yaml#/EstadisticasAdmin'
+  /api/admin/usuarios:
+    $ref: './paths/admin.yaml#/UsuariosAdmin'
+  /api/admin/usuarios/{usuarioId}:
+    $ref: './paths/admin.yaml#/UsuarioAdmin'
+  /api/admin/usuarios/{usuarioId}/rol:
+    $ref: './paths/admin.yaml#/RolSistemaUsuarioAdmin'
+  /api/admin/usuarios/{usuarioId}/suspender:
+    $ref: './paths/admin.yaml#/SuspenderUsuarioAdmin'
+  /api/admin/usuarios/{usuarioId}/reactivar:
+    $ref: './paths/admin.yaml#/ReactivarUsuarioAdmin'
+  /api/admin/grupos:
+    $ref: './paths/admin.yaml#/GruposAdmin'
+  /api/admin/grupos/{grupoId}:
+    $ref: './paths/admin.yaml#/GrupoAdmin'
+  /api/admin/grupos/{grupoId}/lider:
+    $ref: './paths/admin.yaml#/LiderGrupoAdmin'
+  /api/admin/grupos/{grupoId}/miembros/{usuarioId}:
+    $ref: './paths/admin.yaml#/MiembroGrupoAdmin'
+  /api/admin/viajes:
+    $ref: './paths/admin.yaml#/ViajesAdmin'
+  /api/admin/viajes/{viajeId}:
+    $ref: './paths/admin.yaml#/ViajeAdmin'
+  /api/admin/viajes/{viajeId}/finalizar:
+    $ref: './paths/admin.yaml#/FinalizarViajeAdmin'
+  /api/admin/auditoria:
+    $ref: './paths/admin.yaml#/AuditoriaAdmin'
+
+  # ── Reportería (RN-127 a RN-131) ─────────────────────────────────────────────
+  /api/admin/reportes/resumen:
+    $ref: './paths/reportes.yaml#/ResumenReporte'
+  /api/admin/reportes/crecimiento:
+    $ref: './paths/reportes.yaml#/CrecimientoReporte'
+  /api/admin/reportes/retencion:
+    $ref: './paths/reportes.yaml#/RetencionReporte'
+  /api/admin/reportes/viajes:
+    $ref: './paths/reportes.yaml#/ViajesReporte'
+  /api/admin/reportes/comunidad:
+    $ref: './paths/reportes.yaml#/ComunidadReporte'
+  /api/admin/reportes/seguridad:
+    $ref: './paths/reportes.yaml#/SeguridadReporte'
+  /api/admin/reportes/destinos:
+    $ref: './paths/reportes.yaml#/DestinosReporte'
+  /api/admin/reportes/adopcion:
+    $ref: './paths/reportes.yaml#/AdopcionReporte'
+  /api/admin/reportes/gastos:
+    $ref: './paths/reportes.yaml#/GastosReporte'
 
   # ── Herramientas de la documentación ─────────────────────────────────────────
   /api/docs.json:

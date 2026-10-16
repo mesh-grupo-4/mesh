@@ -30,6 +30,11 @@ export async function socketRequireUser(socket: Socket, next: (err?: Error) => v
   try {
     const decoded = await firebaseAuth.verifyIdToken(token)
     const usuario = await findOrCreateByFirebaseUid(decoded.uid)
+    // RN-123: misma regla que requireUser para cuentas suspendidas.
+    if (usuario.suspendido_at) {
+      next(new Error('ACCOUNT_SUSPENDED'))
+      return
+    }
     socket.data.userId = usuario.id
     next()
   } catch {

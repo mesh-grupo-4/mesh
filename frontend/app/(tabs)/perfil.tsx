@@ -33,7 +33,7 @@ type StatsPerfil = {
 };
 
 export default function PerfilScreen() {
-  const { user, profile, updateUserProfile, logout, backendUserId } = useAuth();
+  const { user, profile, updateUserProfile, logout, backendUserId, esSuperadmin } = useAuth();
   const theme = useTheme();
 
   const [nombre, setNombre] = useState('');
@@ -341,6 +341,27 @@ export default function PerfilScreen() {
           </View>
           <Feather name="chevron-right" size={20} color={theme.textMute} />
         </Pressable>
+
+        {/* RN-120: entrada al backoffice, solo para superadmins (el backend valida igual). */}
+        {esSuperadmin && (
+          <Pressable
+            style={({ pressed }) => [
+              styles.linkAmigos,
+              {
+                backgroundColor: pressed ? theme.surface2 : theme.surface,
+                borderColor: theme.accent,
+                marginTop: 10,
+              },
+            ]}
+            onPress={() => router.push('/admin')}
+          >
+            <View style={styles.linkAmigosContent}>
+              <Feather name="sliders" size={18} color={theme.accent} style={styles.amigosIcon} />
+              <Text style={[styles.linkAmigosText, { color: theme.text }]}>Administración</Text>
+            </View>
+            <Feather name="chevron-right" size={20} color={theme.textMute} />
+          </Pressable>
+        )}
 
         {/* Botones de acción */}
         <View style={styles.actions}>

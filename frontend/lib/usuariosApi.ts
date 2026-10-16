@@ -9,6 +9,8 @@ export type UsuarioPerfilResponse = {
   apellido: string | null
   telefono: string | null
   actividad_preferida: ActividadPreferidaApi | null
+  /** RN-120: rol de plataforma. Solo orienta la UI; el backend valida cada acción. */
+  rol_sistema: 'usuario' | 'superadmin'
 }
 
 export type SyncUsuarioInput = {

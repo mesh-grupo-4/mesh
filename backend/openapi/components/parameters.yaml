@@ -160,3 +160,80 @@ Lng:
     minimum: -180
     maximum: 180
   example: -64.1888
+
+Pagina:
+  name: pagina
+  in: query
+  required: false
+  description: Número de página, desde 1.
+  schema:
+    type: integer
+    minimum: 1
+    default: 1
+  example: 1
+
+Limite:
+  name: limite
+  in: query
+  required: false
+  description: Cantidad de elementos por página (máximo 100).
+  schema:
+    type: integer
+    minimum: 1
+    maximum: 100
+    default: 20
+  example: 20
+
+BusquedaAdmin:
+  name: q
+  in: query
+  required: false
+  description: Filtro de texto, sin distinguir mayúsculas. Hasta 80 caracteres.
+  schema:
+    type: string
+    minLength: 1
+    maxLength: 80
+  example: gomez
+
+ReporteDesde:
+  name: desde
+  in: query
+  required: false
+  description: |
+    Primer día del período (inclusive), fecha calendario en hora argentina (RN-105).
+    Por defecto, 89 días antes de `hasta`.
+  schema:
+    type: string
+    format: date
+  example: '2026-07-01'
+
+ReporteHasta:
+  name: hasta
+  in: query
+  required: false
+  description: Último día del período (inclusive), hora argentina. Por defecto, hoy. Máximo 2 años de rango.
+  schema:
+    type: string
+    format: date
+  example: '2026-10-16'
+
+ReporteGranularidad:
+  name: granularidad
+  in: query
+  required: false
+  description: |
+    Tamaño de cada balde de las series. Por defecto se elige según el rango:
+    `dia` hasta 45 días, `semana` hasta 180, `mes` de ahí en más. Las semanas
+    arrancan el lunes.
+  schema:
+    type: string
+    enum: [dia, semana, mes]
+  example: mes
+
+ReporteActividad:
+  name: actividad
+  in: query
+  required: false
+  description: Restringe el reporte a un tipo de actividad.
+  schema:
+    $ref: './schemas.yaml#/TipoActividad'

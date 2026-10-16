@@ -80,3 +80,24 @@ InternalServerError:
       example:
         error: Error interno del servidor
         code: INTERNAL_ERROR
+
+SuperadminRequerido:
+  description: |
+    La persona autenticada no tiene rol de plataforma `superadmin` (`NOT_SUPERADMIN`,
+    RN-120). Producido por `src/middleware/requireSuperadmin.ts`. También puede ser
+    `ACCOUNT_SUSPENDED` si la cuenta propia está suspendida (RN-123).
+  content:
+    application/json:
+      schema:
+        $ref: './schemas.yaml#/Error'
+      examples:
+        noSuperadmin:
+          summary: Sin rol superadmin
+          value:
+            error: Esta acción requiere rol de superadministrador
+            code: NOT_SUPERADMIN
+        suspendida:
+          summary: Cuenta propia suspendida
+          value:
+            error: Tu cuenta está suspendida. Contactá al soporte de Mesh.
+            code: ACCOUNT_SUSPENDED
