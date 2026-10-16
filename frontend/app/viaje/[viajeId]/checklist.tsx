@@ -155,16 +155,9 @@ export default function ChecklistViajeScreen() {
   )
 
   const alImportar = useCallback(
-    (importados: number, omitidos: number, nuevos: ChecklistItemApi[]) => {
+    (_importados: number, _omitidos: number, nuevos: ChecklistItemApi[]) => {
       setItems(nuevos)
       setImportVisible(false)
-      meshAlert(
-        'Checklist importado',
-        importados === 0
-          ? 'Ese viaje no tenía ítems nuevos para traer.'
-          : `Se agregaron ${importados} ${importados === 1 ? 'ítem' : 'ítems'}` +
-              (omitidos > 0 ? `, y ${omitidos} ya estaban.` : '.')
-      )
     },
     []
   )

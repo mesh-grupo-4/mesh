@@ -38,10 +38,14 @@ const VALHALLA_COSTING: Record<PerfilRuta, string> = {
   walking: 'pedestrian',
 }
 
+/** Quién calculó la ruta: solo la duración de Google respeta el perfil pedido. */
+export type ProveedorRuta = 'google' | 'osrm' | 'valhalla'
+
 export type RutaCalculada = {
   linestring: GeoJsonLineString
   distancia_m: number
   duracion_seg: number
+  proveedor: ProveedorRuta
 }
 
 type GoogleRoutesResponse = {
@@ -181,6 +185,7 @@ async function calcularConGoogle(
     linestring: { type: 'LineString', coordinates: decoded.map(([lat, lng]): [number, number] => [lng, lat]) },
     distancia_m: route.distanceMeters ?? 0,
     duracion_seg: Number.parseFloat(route.duration ?? '0') || 0,
+    proveedor: 'google',
   }
 }
 
@@ -210,6 +215,7 @@ async function calcularConOsrm(
     linestring: { type: 'LineString', coordinates: decoded.map(([lat, lng]): [number, number] => [lng, lat]) },
     distancia_m: route.distance,
     duracion_seg: route.duration,
+    proveedor: 'osrm',
   }
 }
 
@@ -258,6 +264,7 @@ async function calcularConValhalla(
     linestring: { type: 'LineString', coordinates },
     distancia_m: trip.summary.length * 1000,
     duracion_seg: trip.summary.time,
+    proveedor: 'valhalla',
   }
 }
 

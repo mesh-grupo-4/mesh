@@ -5,11 +5,11 @@ export type MobilityProfile = 'walking' | 'cycling' | 'driving'
 
 /**
  * El cálculo de ruta lo hace el backend (`POST /api/routing/calcular`), no el
- * dispositivo: React Native en Android (OkHttp) falla de forma intermitente
- * pegándole directo a los demos públicos de OSRM/Valhalla — mismo problema que
- * ya se había resuelto para la búsqueda de lugares en `lib/nominatim.ts`. El
- * backend prueba OSRM y, si no responde, reintenta con Valhalla antes de
- * devolver el error; acá solo hay un salto de red hacia nuestro propio server.
+ * dispositivo: la API key de Google Routes vive solo en el servidor, y React
+ * Native en Android (OkHttp) falla de forma intermitente pegándole directo a los
+ * demos públicos de OSRM/Valhalla. El backend prueba Google, después OSRM y
+ * después Valhalla antes de devolver el error; acá solo hay un salto de red
+ * hacia nuestro propio server.
  */
 const TIMEOUT_BASE_MS = 15000
 const TIMEOUT_MAX_MS = 50000
@@ -35,12 +35,17 @@ function timeoutParaRuta(pointsLngLat: [number, number][]): number {
   return Math.min(TIMEOUT_MAX_MS, TIMEOUT_BASE_MS + km * TIMEOUT_MS_POR_KM)
 }
 
+/** Quién calculó la ruta en el backend: solo la duración de Google respeta el perfil. */
+export type ProveedorRuta = 'google' | 'osrm' | 'valhalla'
+
 export type OsrmRouteResult = {
   linestring: GeoJsonLineString
   /** Coordenadas [lat, lng][] para dibujar la polyline en el mapa */
   polylineLatLng: [number, number][]
   distanceM: number
   durationSec: number
+  /** Ausente en una ruta ya guardada: su duración es la definitiva. */
+  proveedor?: ProveedorRuta
 }
 
 export type OsrmErrorKind =
@@ -67,6 +72,7 @@ type CalcularRutaResponse = {
   linestring: GeoJsonLineString
   distancia_m: number
   duracion_seg: number
+  proveedor: ProveedorRuta
 }
 
 function kindDesdeRespuesta(status: number, code: string | undefined): OsrmErrorKind {
@@ -144,6 +150,7 @@ export async function calcularRutaOsrm(
     polylineLatLng,
     distanceM: data.distancia_m,
     durationSec: data.duracion_seg,
+    proveedor: data.proveedor,
   }
 }
 

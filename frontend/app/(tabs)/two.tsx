@@ -32,7 +32,7 @@ import {
   formatItemList,
   runBulkDelete,
 } from '@/lib/bulkDelete'
-import { meshAlert, meshConfirmDestructive, meshError, meshSuccess, meshWarning } from '@/lib/meshAlert'
+import { meshAlert, meshConfirmDestructive, meshError, meshWarning } from '@/lib/meshAlert'
 import {
   eliminarViaje,
   salirViaje,
@@ -363,9 +363,7 @@ export default function ViajesScreen() {
       setViajes((prev) => prev.filter((v) => !idsOk.has(v.id)))
       selection.exit()
 
-      if (result.failed.length === 0) {
-        meshSuccess('Listo', bulkDeleteSummary(result, 'viaje'))
-      } else {
+      if (result.failed.length > 0) {
         meshAlert('Resultado parcial', bulkDeleteSummary(result, 'viaje'), [{ text: 'Entendido' }])
       }
     } catch (e: unknown) {
@@ -419,9 +417,7 @@ export default function ViajesScreen() {
       setViajes((prev) => prev.filter((v) => !idsOk.has(v.id)))
       selection.exit()
 
-      if (result.failed.length === 0) {
-        meshSuccess('Listo', bulkDeleteSummary(result, 'viaje'))
-      } else {
+      if (result.failed.length > 0) {
         meshAlert('Resultado parcial', bulkDeleteSummary(result, 'viaje'), [{ text: 'Entendido' }])
       }
     } catch (e: unknown) {

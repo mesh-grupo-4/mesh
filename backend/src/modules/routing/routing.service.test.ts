@@ -54,6 +54,7 @@ describe('RoutingService.calcularRuta — OSRM (proveedor principal)', () => {
 
     expect(ruta.distancia_m).toBe(2728)
     expect(ruta.duracion_seg).toBe(1750)
+    expect(ruta.proveedor).toBe('osrm')
     expect(ruta.linestring.type).toBe('LineString')
     expect(ruta.linestring.coordinates.length).toBeGreaterThanOrEqual(2)
 
@@ -94,6 +95,7 @@ describe('RoutingService.calcularRuta — respaldo con Valhalla', () => {
 
     expect(ruta.duracion_seg).toBe(1750)
     expect(ruta.distancia_m).toBeCloseTo(2728)
+    expect(ruta.proveedor).toBe('valhalla')
     expect(fetchMock).toHaveBeenCalledTimes(2)
     const segundaUrl = fetchMock.mock.calls[1]![0] as string
     expect(segundaUrl).toBe('https://valhalla1.openstreetmap.de/route')
@@ -202,6 +204,7 @@ describe('RoutingService.calcularRuta — Google Routes (con API key)', () => {
 
     expect(ruta.distancia_m).toBe(2728)
     expect(ruta.duracion_seg).toBe(1750)
+    expect(ruta.proveedor).toBe('google')
     expect(ruta.linestring.coordinates[0]).toEqual([-64.1888, -31.4201])
     expect(fetchMock).toHaveBeenCalledTimes(1)
 
@@ -243,6 +246,7 @@ describe('RoutingService.calcularRuta — Google Routes (con API key)', () => {
     const ruta = await new RoutingService('KEY_TEST').calcularRuta(input)
 
     expect(ruta.distancia_m).toBe(10)
+    expect(ruta.proveedor).toBe('osrm')
     expect(fetchMock.mock.calls[1]![0]).toContain('https://router.project-osrm.org/')
   })
 

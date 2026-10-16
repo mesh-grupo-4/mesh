@@ -49,10 +49,12 @@ import {
 } from '@/lib/rutasCompartidasApi'
 import { MeshApiError } from '@/lib/apiClient'
 import { waypointsFromRutaDetalle } from '@/lib/routePayload'
+import { nombreCompleto } from '@/lib/nombres'
 import { ajustarSiQuedoEnPasado, esFechaFutura } from '@/lib/fechaProgramada'
 import { aCamposArg, ahoraEnCamposArg, desdeCamposArg, formatearEnArg } from '@/lib/tiempoArg'
 import { RouteMapView } from '@/components/route-config/RouteMapView'
 import { RecorridoMapView } from '@/components/RecorridoMapView'
+import { MiniMapaEnCurso } from '@/components/live/MiniMapaEnCurso'
 import { ClimaViajeCard } from '@/components/ClimaViajeCard'
 import { ParametrosGrupoCard } from '@/components/ParametrosGrupoCard'
 import {
@@ -182,6 +184,19 @@ export default function ViajeDetalleScreen() {
     [rutaMapa]
   )
 
+  const nombresPorUsuario = useMemo(() => {
+    const map: Record<string, string> = {}
+    if (viaje?.creador) {
+      map[viaje.creador.id] = nombreCompleto(viaje.creador.nombre, viaje.creador.apellido)
+    }
+    for (const p of participantes) {
+      if (p.estado === 'confirmado') {
+        map[p.usuario.id] = nombreCompleto(p.usuario.nombre, p.usuario.apellido)
+      }
+    }
+    return map
+  }, [viaje, participantes])
+
   const formatFecha = (isoString: string) =>
     formatearEnArg(
       isoString,
@@ -291,7 +306,6 @@ export default function ViajeDetalleScreen() {
             setAccion(true)
             try {
               await revocarCompartirRutaViaje(viajeId, userId)
-              meshAlert('Listo', 'El link de la ruta fue revocado.')
             } catch (e) {
               meshAlert('Error', e instanceof Error ? e.message : 'No se pudo revocar')
             } finally {
@@ -580,6 +594,24 @@ export default function ViajeDetalleScreen() {
     router.push({ pathname: '/viaje/[viajeId]/live', params: { viajeId } })
   }
 
+  const puntosRuta = (
+    <View style={styles.routePoints}>
+      <View style={styles.routePointRow}>
+        <View style={[styles.routePointDot, { backgroundColor: theme.textDim }]} />
+        <Text style={[styles.routePointText, { color: theme.text }]} numberOfLines={1}>
+          {origenNombre}
+        </Text>
+      </View>
+      <Feather name="arrow-right" size={14} color={theme.textMute} />
+      <View style={styles.routePointRow}>
+        <View style={[styles.routePointDot, { backgroundColor: theme.accent }]} />
+        <Text style={[styles.routePointText, { color: theme.text }]} numberOfLines={1}>
+          {destinoNombre}
+        </Text>
+      </View>
+    </View>
+  )
+
   if (!viajeId) {
     return (
       <View style={[styles.center, { backgroundColor: theme.background }]}>
@@ -666,45 +698,42 @@ export default function ViajeDetalleScreen() {
               </View>
             </View>
 
-            {/* Mapa real de la ruta planificada */}
-            <PasoAyuda {...AYUDA_VIAJE_DETALLE[0]!}>
+            {/* Mapa real de la ruta planificada; en curso, miniatura del estado actual */}
             <Pressable
-              onPress={irConfigurarRecorrido}
-              disabled={!puedeEditarPlan}
+              onPress={viaje.estado === 'en_curso' ? irLive : irConfigurarRecorrido}
+              disabled={!puedeEditarPlan && viaje.estado !== 'en_curso'}
               style={({ pressed }) => [
                 styles.cardRoute,
                 {
                   backgroundColor: theme.surface,
                   borderColor: theme.border,
-                  opacity: pressed && puedeEditarPlan ? 0.92 : 1,
+                  opacity: pressed && (puedeEditarPlan || viaje.estado === 'en_curso') ? 0.92 : 1,
                 },
               ]}
               accessibilityRole="button"
-              accessibilityLabel="Configurar recorrido"
+              accessibilityLabel={viaje.estado === 'en_curso' ? 'Ver mapa en vivo' : 'Configurar recorrido'}
             >
               {viaje.estado === 'finalizado' ? (
                 <RecorridoMapView segmentos={recorrido} cargando={cargandoRecorrido} altura={180} />
+              ) : viaje.estado === 'en_curso' ? (
+                <>
+                  <MiniMapaEnCurso
+                    viajeId={viajeId}
+                    userId={userId}
+                    tipoActividad={viaje.tipo_actividad}
+                    routeLine={rutaMapa && rutaMapa.routeLine.length > 1 ? rutaMapa.routeLine : null}
+                    nameByUserId={nombresPorUsuario}
+                    altura={styles.mapBox.height}
+                  />
+                  {rutaMapa ? puntosRuta : null}
+                </>
               ) : rutaMapa ? (
                 <>
                   <View>
                     <RutaMapaPreview ruta={rutaMapa} />
                     {puedeEditarPlan ? <View style={StyleSheet.absoluteFill} /> : null}
                   </View>
-                  <View style={styles.routePoints}>
-                    <View style={styles.routePointRow}>
-                      <View style={[styles.routePointDot, { backgroundColor: theme.textDim }]} />
-                      <Text style={[styles.routePointText, { color: theme.text }]} numberOfLines={1}>
-                        {origenNombre}
-                      </Text>
-                    </View>
-                    <Feather name="arrow-right" size={14} color={theme.textMute} />
-                    <View style={styles.routePointRow}>
-                      <View style={[styles.routePointDot, { backgroundColor: theme.accent }]} />
-                      <Text style={[styles.routePointText, { color: theme.text }]} numberOfLines={1}>
-                        {destinoNombre}
-                      </Text>
-                    </View>
-                  </View>
+                  {puntosRuta}
                 </>
               ) : (
                 <View style={styles.mapBox}>
@@ -721,14 +750,12 @@ export default function ViajeDetalleScreen() {
                     <View style={[styles.noRoutePanel, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                       <Feather name="map" size={24} color={theme.textMute} style={{ marginBottom: 6 }} />
                       <Text style={[styles.noRouteTitle, { color: theme.text }]}>
-                        {viaje.estado === 'en_curso' ? 'Viaje sin recorrido iniciado' : 'Recorrido sin configurar'}
+                        Recorrido sin configurar
                       </Text>
                       <Text style={[styles.noRouteBody, { color: theme.textDim }]}>
-                        {viaje.estado === 'en_curso'
-                          ? 'El viaje se inició sin un trayecto planificado.'
-                          : puedeEditarPlan
-                            ? 'Tocá acá para definir el trayecto y habilitar la guía GPS en vivo.'
-                            : 'Definí el trayecto para habilitar la guía GPS en vivo.'}
+                        {puedeEditarPlan
+                          ? 'Tocá acá para definir el trayecto y habilitar la guía GPS en vivo.'
+                          : 'Definí el trayecto para habilitar la guía GPS en vivo.'}
                       </Text>
                     </View>
                   </View>
@@ -1055,7 +1082,6 @@ export default function ViajeDetalleScreen() {
             )}
 
             {(() => {
-              const puedeInvitar = viaje.estado === 'planificado' && esLider
               const puedeChecklist =
                 viaje.estado !== 'finalizado' &&
                 (esLider || viaje.mi_participacion?.estado === 'confirmado')
@@ -1063,23 +1089,10 @@ export default function ViajeDetalleScreen() {
                 viaje.es_grupal &&
                 viaje.estado !== 'finalizado' &&
                 (esLider || viaje.mi_participacion?.estado === 'confirmado')
-              if (!puedeInvitar && !puedeChecklist && !puedeGastos) return null
+              if (!puedeChecklist && !puedeGastos) return null
               return (
                 <PasoAyuda {...AYUDA_VIAJE_DETALLE[2]!}>
                 <View style={styles.preTripActions}>
-                  {puedeInvitar && (
-                    <Btn
-                      variant="secondary"
-                      block
-                      size="sm"
-                      icon="share-2"
-                      onPress={() =>
-                        router.push({ pathname: '/viaje/[viajeId]/qr', params: { viajeId } })
-                      }
-                    >
-                      Invitar / Compartir QR
-                    </Btn>
-                  )}
                   {puedeChecklist && (
                     <Btn
                       variant="secondary"
@@ -1368,7 +1381,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   noRouteOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 16,
