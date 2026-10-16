@@ -519,7 +519,8 @@ export default function ViajesScreen() {
           listarViajesFinalizados(userId),
           listarInvitacionesViajePendientes(userId),
         ])
-        setViajes(planificados)
+        // Una invitación sin responder no es un viaje propio: se muestra solo en la campanita.
+        setViajes(planificados.filter((v) => v.mi_estado !== 'pendiente'))
         setFinalizados(pasados)
         setInvitaciones(pendientes)
         syncKnownTripIds(
