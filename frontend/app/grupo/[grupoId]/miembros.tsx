@@ -19,7 +19,10 @@ import {
   type GrupoMiembroApi,
   type RolGrupoApi,
 } from '@/lib/gruposApi';
+import { useCopilot } from 'react-native-copilot';
 import { TopBar, Avatar, Badge, useTheme } from '@/components/MeshUI';
+import { PasoAyuda } from '@/components/ayuda/PasoAyuda';
+import { AYUDA_GRUPO_MIEMBROS } from '@/components/ayuda/contenidoAyuda';
 import { Feather } from '@expo/vector-icons';
 
 function etiquetaRol(rol: RolGrupoApi): string {
@@ -31,6 +34,7 @@ export default function MiembrosGrupoScreen() {
   const { backendUserId } = useAuth();
   const theme = useTheme();
   const router = useRouter();
+  const { start } = useCopilot();
 
   const [miembros, setMiembros] = useState<GrupoMiembroApi[]>([]);
   const [miRol, setMiRol] = useState<RolGrupoApi | null>(null);
@@ -179,7 +183,13 @@ export default function MiembrosGrupoScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <TopBar title="Miembros" sub={grupoNombre ?? 'Cargando...'} onBack={() => router.back()} bordered={false} />
+      <TopBar
+        title="Miembros"
+        sub={grupoNombre ?? 'Cargando...'}
+        onBack={() => router.back()}
+        bordered={false}
+        onAyuda={() => start()}
+      />
 
       {loading ? (
         <View style={styles.centrado}>
@@ -190,22 +200,24 @@ export default function MiembrosGrupoScreen() {
           <Text style={[styles.errorText, { color: theme.danger }]}>{error}</Text>
         </View>
       ) : (
-        <FlatList
-          data={miembros}
-          keyExtractor={(item) => item.id}
-          renderItem={renderItem}
-          contentContainerStyle={styles.lista}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => void cargar(true)}
-              tintColor={theme.accent}
-            />
-          }
-          ListEmptyComponent={
-            <Text style={[styles.vacio, { color: theme.textMute }]}>Este grupo aún no tiene integrantes.</Text>
-          }
-        />
+        <PasoAyuda {...AYUDA_GRUPO_MIEMBROS[0]!} estilo={styles.flex1}>
+          <FlatList
+            data={miembros}
+            keyExtractor={(item) => item.id}
+            renderItem={renderItem}
+            contentContainerStyle={styles.lista}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={() => void cargar(true)}
+                tintColor={theme.accent}
+              />
+            }
+            ListEmptyComponent={
+              <Text style={[styles.vacio, { color: theme.textMute }]}>Este grupo aún no tiene integrantes.</Text>
+            }
+          />
+        </PasoAyuda>
       )}
     </View>
   );
@@ -213,6 +225,9 @@ export default function MiembrosGrupoScreen() {
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+  },
+  flex1: {
     flex: 1,
   },
   centrado: {

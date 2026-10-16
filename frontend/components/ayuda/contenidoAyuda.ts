@@ -18,6 +18,16 @@ export const ORDEN_PANTALLA = {
   viajeAlertas: 1000,
   grupoDetalle: 1100,
   configurarRuta: 1200,
+  viajeMiembros: 1300,
+  viajeGastos: 1400,
+  viajeMetricas: 1500,
+  viajeRecap: 1600,
+  viajeResumen: 1700,
+  viajePrivacidad: 1800,
+  viajeQr: 1900,
+  grupoEditar: 2000,
+  grupoMiembros: 2100,
+  grupoInvitar: 2200,
 } as const
 
 export type PasoDefinicion = {
@@ -254,5 +264,130 @@ export const AYUDA_CONFIGURAR_RUTA: PasoDefinicion[] = [
     nombre: 'configurarRuta.hoja',
     orden: ORDEN_PANTALLA.configurarRuta + 2,
     texto: 'Acá vas agregando y ordenando origen, paradas y destino. Guardá cuando esté listo.',
+  },
+]
+
+export const AYUDA_VIAJE_MIEMBROS: PasoDefinicion[] = [
+  {
+    nombre: 'viajeMiembros.lista',
+    orden: ORDEN_PANTALLA.viajeMiembros,
+    texto: 'Quién confirmó, quién está pendiente y quién salió del viaje. El badge te dice el estado de cada uno.',
+  },
+]
+
+export const AYUDA_VIAJE_GASTOS: PasoDefinicion[] = [
+  {
+    nombre: 'gastos.lista',
+    orden: ORDEN_PANTALLA.viajeGastos,
+    texto: 'Los gastos que se van registrando, quién pagó cada uno y entre cuántos se reparte.',
+  },
+  {
+    nombre: 'gastos.agregar',
+    orden: ORDEN_PANTALLA.viajeGastos + 1,
+    texto: 'Registrá un gasto: monto, descripción, y elegí entre quiénes se reparte.',
+  },
+]
+
+export const AYUDA_VIAJE_METRICAS: PasoDefinicion[] = [
+  {
+    nombre: 'metricas.hero',
+    orden: ORDEN_PANTALLA.viajeMetricas,
+    texto: 'El detalle completo de tu recorrido: distancia, tiempo, velocidad y gráficos si fue un entrenamiento.',
+  },
+  {
+    nombre: 'metricas.recorrido',
+    orden: ORDEN_PANTALLA.viajeMetricas + 1,
+    texto: 'Distancia total, duración y tiempo que estuviste realmente en movimiento.',
+  },
+]
+
+export const AYUDA_VIAJE_RECAP: PasoDefinicion[] = [
+  {
+    nombre: 'recap.criterios',
+    orden: ORDEN_PANTALLA.viajeRecap,
+    texto: 'Cambiá el criterio para ver el ranking por distancia, ritmo o tiempo en movimiento.',
+  },
+  {
+    nombre: 'recap.podio',
+    orden: ORDEN_PANTALLA.viajeRecap + 1,
+    texto: 'Quién va primero en el criterio que elegiste.',
+  },
+]
+
+export const AYUDA_VIAJE_RESUMEN: PasoDefinicion[] = [
+  {
+    nombre: 'resumen.mapa',
+    orden: ORDEN_PANTALLA.viajeResumen,
+    texto: 'El trazado real que hizo el grupo, no el planificado.',
+  },
+  {
+    nombre: 'resumen.elViaje',
+    orden: ORDEN_PANTALLA.viajeResumen + 1,
+    texto: 'Totales del viaje completo: duración, distancia recorrida e integrantes.',
+  },
+  {
+    nombre: 'resumen.metricasCta',
+    orden: ORDEN_PANTALLA.viajeResumen + 2,
+    texto: 'Entrá acá para ver tus métricas individuales con más detalle y gráficos.',
+  },
+]
+
+export const AYUDA_VIAJE_PRIVACIDAD: PasoDefinicion[] = [
+  {
+    nombre: 'privacidad.switch',
+    orden: ORDEN_PANTALLA.viajePrivacidad,
+    texto: 'Prendé o apagá si el grupo ve tu posición en este viaje. Tu GPS se sigue guardando igual para tus métricas.',
+  },
+  {
+    nombre: 'privacidad.consentimiento',
+    orden: ORDEN_PANTALLA.viajePrivacidad + 1,
+    texto: 'Sin aceptar este consentimiento, tu posición no se comparte aunque el interruptor esté prendido.',
+  },
+  {
+    nombre: 'privacidad.accesos',
+    orden: ORDEN_PANTALLA.viajePrivacidad + 2,
+    texto: 'Quién accedió a tu ubicación y cuándo, agrupado en ventanas de 10 minutos.',
+  },
+]
+
+export const AYUDA_VIAJE_QR: PasoDefinicion[] = [
+  {
+    nombre: 'qr.codigo',
+    orden: ORDEN_PANTALLA.viajeQr,
+    texto: 'Que el resto escanee este código con la cámara o desde la app para sumarse al viaje.',
+  },
+  {
+    nombre: 'qr.compartir',
+    orden: ORDEN_PANTALLA.viajeQr + 1,
+    texto: 'O mandá el enlace o la imagen del QR por cualquier app.',
+  },
+]
+
+export const AYUDA_GRUPO_EDITAR: PasoDefinicion[] = [
+  {
+    nombre: 'grupoEditar.zonaPeligro',
+    orden: ORDEN_PANTALLA.grupoEditar,
+    texto: 'Abandonar o eliminar el grupo son acciones permanentes y no se pueden deshacer.',
+  },
+]
+
+export const AYUDA_GRUPO_MIEMBROS: PasoDefinicion[] = [
+  {
+    nombre: 'grupoMiembros.lista',
+    orden: ORDEN_PANTALLA.grupoMiembros,
+    texto: 'Como líder, tocá los tres puntos junto a cualquier integrante para cambiar su rol.',
+  },
+]
+
+export const AYUDA_GRUPO_INVITAR: PasoDefinicion[] = [
+  {
+    nombre: 'grupoInvitar.buscador',
+    orden: ORDEN_PANTALLA.grupoInvitar,
+    texto: 'Buscá por nombre para invitar a cualquier usuario de la plataforma, no solo a tus amigos.',
+  },
+  {
+    nombre: 'grupoInvitar.lista',
+    orden: ORDEN_PANTALLA.grupoInvitar + 1,
+    texto: 'Invitá directamente, o primero agregalo de amigo si todavía no lo es.',
   },
 ]

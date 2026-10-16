@@ -9,9 +9,12 @@ import {
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
+import { useCopilot } from 'react-native-copilot'
 import { AvatarFallback } from '@/components/AvatarFallback'
 import { RecorridoMapView } from '@/components/RecorridoMapView'
 import { ActivityTile, Badge, Btn, TopBar, useTheme } from '@/components/MeshUI'
+import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
+import { AYUDA_VIAJE_RESUMEN } from '@/components/ayuda/contenidoAyuda'
 import { StatCard, StatCardRow } from '@/components/StatCard'
 import { DEV_USER_ID } from '@/constants/Config'
 import { useAuth } from '@/context/AuthContext'
@@ -34,6 +37,7 @@ import {
 export default function ViajeResumenScreen() {
   const router = useRouter()
   const theme = useTheme()
+  const { start } = useCopilot()
   const insets = useSafeAreaInsets()
   const { backendUserId } = useAuth()
   const params = useLocalSearchParams<{ viajeId: string | string[]; userId?: string | string[] }>()
@@ -147,6 +151,7 @@ export default function ViajeResumenScreen() {
         sub={resumen ? (esGrupal ? 'Salida grupal' : 'Salida individual') : 'Cargando...'}
         onBack={volverAlInicio}
         bordered={false}
+        onAyuda={() => start()}
       />
 
       {loading ? (
@@ -193,37 +198,41 @@ export default function ViajeResumenScreen() {
           ) : null}
 
           {/* ── Mapa del recorrido realizado (US2) ── */}
-          <RecorridoMapView segmentos={recorrido} cargando={cargandoRecorrido} />
+          <PasoAyuda {...AYUDA_VIAJE_RESUMEN[0]!}>
+            <RecorridoMapView segmentos={recorrido} cargando={cargandoRecorrido} />
+          </PasoAyuda>
 
           {/* ── El viaje (totales grupales) ── */}
           {totales ? (
             <>
               <Text style={[styles.seccion, { color: theme.text }]}>El viaje</Text>
-              <StatCardRow>
-                <StatCard
-                  icon="clock"
-                  value={formatDurationHm(totales.duracion_segundos)}
-                  label="Duración"
-                />
-                <StatCard
-                  icon="activity"
-                  value={formatKm(totales.distancia_real_m)}
-                  label="Recorrido"
-                />
-                {esGrupal ? (
+              <PasoAyuda {...AYUDA_VIAJE_RESUMEN[1]!}>
+                <StatCardRow>
                   <StatCard
-                    icon="users"
-                    value={String(totales.cantidad_integrantes)}
-                    label="Integrantes"
+                    icon="clock"
+                    value={formatDurationHm(totales.duracion_segundos)}
+                    label="Duración"
                   />
-                ) : (
                   <StatCard
-                    icon="map"
-                    value={formatKm(totales.distancia_planeada_m)}
-                    label="Planeado"
+                    icon="activity"
+                    value={formatKm(totales.distancia_real_m)}
+                    label="Recorrido"
                   />
-                )}
-              </StatCardRow>
+                  {esGrupal ? (
+                    <StatCard
+                      icon="users"
+                      value={String(totales.cantidad_integrantes)}
+                      label="Integrantes"
+                    />
+                  ) : (
+                    <StatCard
+                      icon="map"
+                      value={formatKm(totales.distancia_planeada_m)}
+                      label="Planeado"
+                    />
+                  )}
+                </StatCardRow>
+              </PasoAyuda>
 
               {totales.cantidad_paradas > 0 ? (
                 <StatCardRow>
@@ -330,17 +339,19 @@ export default function ViajeResumenScreen() {
             </Btn>
           ) : null}
 
-          <Btn
-            variant="outline"
-            block
-            icon="trending-up"
-            onPress={() =>
-              router.push({ pathname: '/viaje/[viajeId]/metricas', params: { viajeId } })
-            }
-            style={styles.cta}
-          >
-            Ver métricas detalladas
-          </Btn>
+          <PasoAyuda {...AYUDA_VIAJE_RESUMEN[2]!}>
+            <Btn
+              variant="outline"
+              block
+              icon="trending-up"
+              onPress={() =>
+                router.push({ pathname: '/viaje/[viajeId]/metricas', params: { viajeId } })
+              }
+              style={styles.cta}
+            >
+              Ver métricas detalladas
+            </Btn>
+          </PasoAyuda>
 
           <Btn variant="primary" block icon="home" onPress={volverAlInicio}>
             Volver al inicio

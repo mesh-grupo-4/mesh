@@ -14,13 +14,17 @@ import ViewShot from 'react-native-view-shot'
 import * as Sharing from 'expo-sharing'
 import { Feather } from '@expo/vector-icons'
 
+import { useCopilot } from 'react-native-copilot'
 import { buildInviteUrl } from '@/lib/inviteLinks'
 import { TopBar, Btn, Badge, useTheme } from '@/components/MeshUI'
+import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
+import { AYUDA_VIAJE_QR } from '@/components/ayuda/contenidoAyuda'
 
 export default function ViajeQrScreen() {
   const { viajeId } = useLocalSearchParams<{ viajeId: string }>()
   const router = useRouter()
   const theme = useTheme()
+  const { start } = useCopilot()
   const shotRef = useRef<ViewShot>(null)
 
   if (!viajeId) {
@@ -71,7 +75,12 @@ export default function ViajeQrScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <TopBar title="Invitar al viaje" onBack={() => router.back()} bordered={false} />
+      <TopBar
+        title="Invitar al viaje"
+        onBack={() => router.back()}
+        bordered={false}
+        onAyuda={() => start()}
+      />
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Success Icon */}
@@ -85,13 +94,15 @@ export default function ViajeQrScreen() {
         </Text>
 
         {/* QR Box */}
-        <View style={styles.qrWrapperOuter}>
-          <ViewShot ref={shotRef} options={{ format: 'png', quality: 1 }} style={[styles.qrWrap, { shadowColor: theme.shadow }]}>
-            <View style={[styles.qrInner, { backgroundColor: '#ffffff' }]}>
-              <QRCode value={inviteUrl} size={190} backgroundColor="#ffffff" color="#0f0f0f" />
-            </View>
-          </ViewShot>
-        </View>
+        <PasoAyuda {...AYUDA_VIAJE_QR[0]!}>
+          <View style={styles.qrWrapperOuter}>
+            <ViewShot ref={shotRef} options={{ format: 'png', quality: 1 }} style={[styles.qrWrap, { shadowColor: theme.shadow }]}>
+              <View style={[styles.qrInner, { backgroundColor: '#ffffff' }]}>
+                <QRCode value={inviteUrl} size={190} backgroundColor="#ffffff" color="#0f0f0f" />
+              </View>
+            </ViewShot>
+          </View>
+        </PasoAyuda>
 
         {/* Short Code Badge */}
         <View style={styles.badgeWrapper}>
@@ -99,17 +110,19 @@ export default function ViajeQrScreen() {
         </View>
 
         {/* Actions */}
-        <View style={styles.actions}>
-          <Btn variant="primary" block icon="share-2" onPress={() => void compartirLink()}>
-            Compartir enlace
-          </Btn>
-          <Btn variant="secondary" block icon="image" onPress={() => void compartirImagen()}>
-            Compartir imagen QR
-          </Btn>
-          <Btn variant="ghost" block onPress={() => router.back()}>
-            Volver al viaje
-          </Btn>
-        </View>
+        <PasoAyuda {...AYUDA_VIAJE_QR[1]!}>
+          <View style={styles.actions}>
+            <Btn variant="primary" block icon="share-2" onPress={() => void compartirLink()}>
+              Compartir enlace
+            </Btn>
+            <Btn variant="secondary" block icon="image" onPress={() => void compartirImagen()}>
+              Compartir imagen QR
+            </Btn>
+            <Btn variant="ghost" block onPress={() => router.back()}>
+              Volver al viaje
+            </Btn>
+          </View>
+        </PasoAyuda>
       </ScrollView>
     </View>
   )

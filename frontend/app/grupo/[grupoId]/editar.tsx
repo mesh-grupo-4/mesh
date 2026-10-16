@@ -10,7 +10,10 @@ import { meshAlert } from '@/lib/meshAlert';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { resolveBackendUserId } from '@/lib/apiClient';
+import { useCopilot } from 'react-native-copilot';
 import { TransferirLiderazgoModal } from '@/components/TransferirLiderazgoModal';
+import { PasoAyuda } from '@/components/ayuda/PasoAyuda';
+import { AYUDA_GRUPO_EDITAR } from '@/components/ayuda/contenidoAyuda';
 import {
   abandonarGrupo,
   eliminarGrupo,
@@ -26,6 +29,7 @@ export default function EditarGrupoScreen() {
   const { grupoId } = useLocalSearchParams<{ grupoId: string }>();
   const { backendUserId } = useAuth();
   const theme = useTheme();
+  const { start } = useCopilot();
 
   const [grupo, setGrupo] = useState<GrupoDetalleApi | null>(null);
   const [loading, setLoading] = useState(true);
@@ -173,7 +177,12 @@ export default function EditarGrupoScreen() {
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      <TopBar title="Editar grupo" onBack={() => router.back()} bordered={false} />
+      <TopBar
+        title="Editar grupo"
+        onBack={() => router.back()}
+        bordered={false}
+        onAyuda={() => start()}
+      />
 
       <ScrollView contentContainerStyle={styles.content}>
         {loading ? (
@@ -187,50 +196,52 @@ export default function EditarGrupoScreen() {
             </Text>
 
             {/* Zona de peligro */}
-            <View
-              style={[
-                styles.zonaPeligro,
-                {
-                  backgroundColor: theme.dangerWeak,
-                  borderColor: theme.danger,
-                },
-              ]}
-            >
-              <View style={styles.dangerHeader}>
-                <Feather name="shield" size={16} color={theme.danger} style={{ marginRight: 6 }} />
-                <Text style={[styles.zonaTitulo, { color: theme.danger }]}>Zona de peligro</Text>
-              </View>
-              <Text style={[styles.zonaHint, { color: theme.textDim }]}>
-                Estas acciones son permanentes y no se pueden deshacer.
-              </Text>
-
-              <Btn
-                variant="danger-outline"
-                size="sm"
-                block
-                onPress={iniciarAbandono}
-                disabled={procesandoAccion}
+            <PasoAyuda {...AYUDA_GRUPO_EDITAR[0]!}>
+              <View
+                style={[
+                  styles.zonaPeligro,
+                  {
+                    backgroundColor: theme.dangerWeak,
+                    borderColor: theme.danger,
+                  },
+                ]}
               >
-                {procesandoAccion && !modalTransferir ? (
-                  <ActivityIndicator color={theme.danger} size="small" />
-                ) : (
-                  'Abandonar Grupo'
-                )}
-              </Btn>
+                <View style={styles.dangerHeader}>
+                  <Feather name="shield" size={16} color={theme.danger} style={{ marginRight: 6 }} />
+                  <Text style={[styles.zonaTitulo, { color: theme.danger }]}>Zona de peligro</Text>
+                </View>
+                <Text style={[styles.zonaHint, { color: theme.textDim }]}>
+                  Estas acciones son permanentes y no se pueden deshacer.
+                </Text>
 
-              {esLider && (
                 <Btn
-                  variant="danger"
+                  variant="danger-outline"
                   size="sm"
                   block
-                  onPress={ejecutarEliminacion}
+                  onPress={iniciarAbandono}
                   disabled={procesandoAccion}
-                  style={{ marginTop: 6 }}
                 >
-                  Eliminar Grupo
+                  {procesandoAccion && !modalTransferir ? (
+                    <ActivityIndicator color={theme.danger} size="small" />
+                  ) : (
+                    'Abandonar Grupo'
+                  )}
                 </Btn>
-              )}
-            </View>
+
+                {esLider && (
+                  <Btn
+                    variant="danger"
+                    size="sm"
+                    block
+                    onPress={ejecutarEliminacion}
+                    disabled={procesandoAccion}
+                    style={{ marginTop: 6 }}
+                  >
+                    Eliminar Grupo
+                  </Btn>
+                )}
+              </View>
+            </PasoAyuda>
           </>
         ) : null}
       </ScrollView>
