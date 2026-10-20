@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import { Text } from 'react-native'
+import { useCopilot } from 'react-native-copilot'
 
 import {
   AdminScreen,
@@ -12,6 +13,8 @@ import {
   useListadoAdmin,
 } from '@/components/admin/AdminUI'
 import { useTheme } from '@/components/MeshUI'
+import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
+import { AYUDA_ADMIN_AUDITORIA } from '@/components/ayuda/contenidoAyuda'
 import { listarAuditoriaAdmin, type EntradaAuditoria } from '@/lib/adminApi'
 
 const DESCRIPCION_ACCION: Record<string, string> = {
@@ -37,6 +40,7 @@ function objetivo(e: EntradaAuditoria): string {
 /** RN-121: bitácora de cada acción del backoffice. */
 export default function AdminAuditoriaScreen() {
   const theme = useTheme()
+  const { start } = useCopilot()
   const cargar = useCallback((pagina: number) => listarAuditoriaAdmin({ pagina }), [])
   const { datos, error, setPagina, recargar } = useListadoAdmin(cargar, '')
 
@@ -45,20 +49,23 @@ export default function AdminAuditoriaScreen() {
       title="Auditoría"
       sub={datos ? `${datos.total} acciones registradas` : undefined}
       onRefresh={() => void recargar()}
+      onAyuda={() => start()}
     >
       {error ? <Text style={{ color: theme.danger }}>{error}</Text> : null}
-      <Seccion>
-        {datos?.items.length === 0 ? <Vacio texto="Todavía no hay acciones registradas." /> : null}
-        {datos?.items.map((e) => (
-          <Fila
-            key={e.id}
-            titulo={`${DESCRIPCION_ACCION[e.accion] ?? e.accion}: ${objetivo(e)}`}
-            detalle={`${e.actor ? nombreCompleto(e.actor) : 'Consola (CLI)'} · ${fechaAdmin(e.created_at)}${
-              typeof e.detalle?.motivo === 'string' ? ` · ${e.detalle.motivo}` : ''
-            }`}
-          />
-        ))}
-      </Seccion>
+      <PasoAyuda {...AYUDA_ADMIN_AUDITORIA[0]!}>
+        <Seccion>
+          {datos?.items.length === 0 ? <Vacio texto="Todavía no hay acciones registradas." /> : null}
+          {datos?.items.map((e) => (
+            <Fila
+              key={e.id}
+              titulo={`${DESCRIPCION_ACCION[e.accion] ?? e.accion}: ${objetivo(e)}`}
+              detalle={`${e.actor ? nombreCompleto(e.actor) : 'Consola (CLI)'} · ${fechaAdmin(e.created_at)}${
+                typeof e.detalle?.motivo === 'string' ? ` · ${e.detalle.motivo}` : ''
+              }`}
+            />
+          ))}
+        </Seccion>
+      </PasoAyuda>
       <Paginador datos={datos} onCambiar={setPagina} />
     </AdminScreen>
   )

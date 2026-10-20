@@ -1,6 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useState } from 'react'
 import { Text } from 'react-native'
+import { useCopilot } from 'react-native-copilot'
 
 import {
   AdminScreen,
@@ -13,6 +14,8 @@ import {
   nombreCompleto,
 } from '@/components/admin/AdminUI'
 import { Btn, useTheme } from '@/components/MeshUI'
+import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
+import { AYUDA_ADMIN_VIAJE } from '@/components/ayuda/contenidoAyuda'
 import {
   eliminarViajeAdmin,
   finalizarViajeAdmin,
@@ -27,6 +30,7 @@ export default function AdminViajeScreen() {
   const { viajeId } = useLocalSearchParams<{ viajeId: string }>()
   const router = useRouter()
   const theme = useTheme()
+  const { start } = useCopilot()
   const [viaje, setViaje] = useState<ViajeAdminDetalle | null>(null)
   const [ocupado, setOcupado] = useState(false)
 
@@ -86,31 +90,34 @@ export default function AdminViajeScreen() {
       title={viaje.nombre || 'Viaje sin nombre'}
       sub={`${ETIQUETA_ACTIVIDAD[viaje.tipo_actividad] ?? viaje.tipo_actividad} · ${ETIQUETA_ESTADO_VIAJE[viaje.estado]}`}
       onRefresh={() => void cargar()}
+      onAyuda={() => start()}
     >
-      <Seccion titulo="Datos">
-        <Fila
-          titulo="Creador"
-          detalle={`${nombreCompleto(viaje.creador)} · ${viaje.creador.email}`}
-          onPress={() =>
-            router.push({ pathname: '/admin/usuario/[usuarioId]', params: { usuarioId: viaje.creador.id } })
-          }
-        />
-        <Fila titulo="Programado" detalle={fechaAdmin(viaje.fecha_programada)} />
-        {viaje.fecha_inicio_real ? <Fila titulo="Inicio" detalle={fechaAdmin(viaje.fecha_inicio_real)} /> : null}
-        {viaje.fecha_fin_real ? <Fila titulo="Fin" detalle={fechaAdmin(viaje.fecha_fin_real)} /> : null}
-        {viaje.ruta ? (
+      <PasoAyuda {...AYUDA_ADMIN_VIAJE[0]!}>
+        <Seccion titulo="Datos">
           <Fila
-            titulo="Ruta"
-            detalle={`${viaje.ruta.origen_nombre ?? 'Origen'} → ${viaje.ruta.destino_nombre ?? 'Destino'}${
-              viaje.ruta.distancia_planeada_m ? ` · ${formatKmCompact(viaje.ruta.distancia_planeada_m)} km` : ''
-            }`}
+            titulo="Creador"
+            detalle={`${nombreCompleto(viaje.creador)} · ${viaje.creador.email}`}
+            onPress={() =>
+              router.push({ pathname: '/admin/usuario/[usuarioId]', params: { usuarioId: viaje.creador.id } })
+            }
           />
-        ) : null}
-        <Fila
-          titulo="Actividad registrada"
-          detalle={`${viaje.totales.alertas} alertas · ${viaje.totales.paradas} paradas · ${viaje.totales.gastos} gastos`}
-        />
-      </Seccion>
+          <Fila titulo="Programado" detalle={fechaAdmin(viaje.fecha_programada)} />
+          {viaje.fecha_inicio_real ? <Fila titulo="Inicio" detalle={fechaAdmin(viaje.fecha_inicio_real)} /> : null}
+          {viaje.fecha_fin_real ? <Fila titulo="Fin" detalle={fechaAdmin(viaje.fecha_fin_real)} /> : null}
+          {viaje.ruta ? (
+            <Fila
+              titulo="Ruta"
+              detalle={`${viaje.ruta.origen_nombre ?? 'Origen'} → ${viaje.ruta.destino_nombre ?? 'Destino'}${
+                viaje.ruta.distancia_planeada_m ? ` · ${formatKmCompact(viaje.ruta.distancia_planeada_m)} km` : ''
+              }`}
+            />
+          ) : null}
+          <Fila
+            titulo="Actividad registrada"
+            detalle={`${viaje.totales.alertas} alertas · ${viaje.totales.paradas} paradas · ${viaje.totales.gastos} gastos`}
+          />
+        </Seccion>
+      </PasoAyuda>
 
       <Seccion titulo={`Integrantes (${viaje.integrantes.length})`}>
         {viaje.integrantes.length === 0 ? (
@@ -122,15 +129,17 @@ export default function AdminViajeScreen() {
         )}
       </Seccion>
 
-      {viaje.estado === 'en_curso' ? (
-        <Btn variant="danger-outline" block icon="flag" disabled={ocupado} onPress={finalizar}>
-          Forzar finalización
-        </Btn>
-      ) : (
-        <Btn variant="danger" block icon="trash-2" disabled={ocupado} onPress={eliminar}>
-          Eliminar viaje
-        </Btn>
-      )}
+      <PasoAyuda {...AYUDA_ADMIN_VIAJE[1]!}>
+        {viaje.estado === 'en_curso' ? (
+          <Btn variant="danger-outline" block icon="flag" disabled={ocupado} onPress={finalizar}>
+            Forzar finalización
+          </Btn>
+        ) : (
+          <Btn variant="danger" block icon="trash-2" disabled={ocupado} onPress={eliminar}>
+            Eliminar viaje
+          </Btn>
+        )}
+      </PasoAyuda>
     </AdminScreen>
   )
 }

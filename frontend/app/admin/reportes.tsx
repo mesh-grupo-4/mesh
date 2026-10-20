@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { useCopilot } from 'react-native-copilot'
 
 import { AdminScreen, mensajeError } from '@/components/admin/AdminUI'
+import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
+import { AYUDA_ADMIN_REPORTES } from '@/components/ayuda/contenidoAyuda'
 import {
   SeccionAdopcion,
   SeccionComunidad,
@@ -110,6 +113,7 @@ function rangoDe(preset: Preset): { desde: string; hasta: string } {
  */
 export default function AdminReportesScreen() {
   const theme = useTheme()
+  const { start } = useCopilot()
   const [seccion, setSeccion] = useState('resumen')
   const [preset, setPreset] = useState<Preset>('90d')
   const [actividad, setActividad] = useState<Actividad | undefined>(undefined)
@@ -166,46 +170,55 @@ export default function AdminReportesScreen() {
   const Vista = actual.Vista
 
   return (
-    <AdminScreen title="Reportes" sub="Indicadores para decisiones de negocio" onRefresh={() => void cargar()}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-        {SECCIONES.map((s) => (
-          <Chip key={s.clave} active={s.clave === seccion} onPress={() => setSeccion(s.clave)}>
-            {s.titulo}
-          </Chip>
-        ))}
-      </ScrollView>
-
-      <View style={[styles.filtros, { borderColor: theme.border }]}>
-        {seccion === 'retencion' ? (
-          <View style={styles.chipsFila}>
-            {[3, 6, 12].map((m) => (
-              <Chip key={m} active={mesesRetencion === m} onPress={() => setMesesRetencion(m)}>
-                {`${m} meses`}
-              </Chip>
-            ))}
-          </View>
-        ) : (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-            {PRESETS.map((p) => (
-              <Chip key={p.clave} active={p.clave === preset} onPress={() => setPreset(p.clave)}>
-                {p.label}
-              </Chip>
-            ))}
-          </ScrollView>
-        )}
-        {actual.conActividad ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-            <Chip active={!actividad} onPress={() => setActividad(undefined)}>
-              Todas
+    <AdminScreen
+      title="Reportes"
+      sub="Indicadores para decisiones de negocio"
+      onRefresh={() => void cargar()}
+      onAyuda={() => start()}
+    >
+      <PasoAyuda {...AYUDA_ADMIN_REPORTES[0]!}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+          {SECCIONES.map((s) => (
+            <Chip key={s.clave} active={s.clave === seccion} onPress={() => setSeccion(s.clave)}>
+              {s.titulo}
             </Chip>
-            {ACTIVIDADES.map((a) => (
-              <Chip key={a.clave} active={actividad === a.clave} onPress={() => setActividad(a.clave)}>
-                {a.label}
+          ))}
+        </ScrollView>
+      </PasoAyuda>
+
+      <PasoAyuda {...AYUDA_ADMIN_REPORTES[1]!}>
+        <View style={[styles.filtros, { borderColor: theme.border }]}>
+          {seccion === 'retencion' ? (
+            <View style={styles.chipsFila}>
+              {[3, 6, 12].map((m) => (
+                <Chip key={m} active={mesesRetencion === m} onPress={() => setMesesRetencion(m)}>
+                  {`${m} meses`}
+                </Chip>
+              ))}
+            </View>
+          ) : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+              {PRESETS.map((p) => (
+                <Chip key={p.clave} active={p.clave === preset} onPress={() => setPreset(p.clave)}>
+                  {p.label}
+                </Chip>
+              ))}
+            </ScrollView>
+          )}
+          {actual.conActividad ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+              <Chip active={!actividad} onPress={() => setActividad(undefined)}>
+                Todas
               </Chip>
-            ))}
-          </ScrollView>
-        ) : null}
-      </View>
+              {ACTIVIDADES.map((a) => (
+                <Chip key={a.clave} active={actividad === a.clave} onPress={() => setActividad(a.clave)}>
+                  {a.label}
+                </Chip>
+              ))}
+            </ScrollView>
+          ) : null}
+        </View>
+      </PasoAyuda>
 
       {cargando ? (
         <View style={styles.centro}>
@@ -221,9 +234,11 @@ export default function AdminReportesScreen() {
       ) : datos && datos.clave === seccion ? (
         <>
           <Vista r={datos.r} />
-          <Btn variant="outline" block icon="share" loading={exportando} onPress={() => void exportar()}>
-            Exportar a CSV
-          </Btn>
+          <PasoAyuda {...AYUDA_ADMIN_REPORTES[2]!}>
+            <Btn variant="outline" block icon="share" loading={exportando} onPress={() => void exportar()}>
+              Exportar a CSV
+            </Btn>
+          </PasoAyuda>
         </>
       ) : null}
     </AdminScreen>

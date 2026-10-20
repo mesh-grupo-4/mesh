@@ -28,6 +28,18 @@ export const ORDEN_PANTALLA = {
   grupoEditar: 2000,
   grupoMiembros: 2100,
   grupoInvitar: 2200,
+  adminPanel: 2300,
+  adminUsuarios: 2400,
+  adminUsuario: 2500,
+  adminGrupos: 2600,
+  adminGrupo: 2700,
+  adminViajes: 2800,
+  adminViaje: 2900,
+  adminReportes: 3000,
+  adminAuditoria: 3100,
+  privacidadGlobal: 3200,
+  ruta: 3300,
+  escanearQr: 3400,
 } as const
 
 export type PasoDefinicion = {
@@ -389,5 +401,166 @@ export const AYUDA_GRUPO_INVITAR: PasoDefinicion[] = [
     nombre: 'grupoInvitar.lista',
     orden: ORDEN_PANTALLA.grupoInvitar + 1,
     texto: 'Invitá directamente, o primero agregalo de amigo si todavía no lo es.',
+  },
+]
+
+export const AYUDA_ADMIN_PANEL: PasoDefinicion[] = [
+  {
+    nombre: 'adminPanel.plataforma',
+    orden: ORDEN_PANTALLA.adminPanel,
+    texto: 'Totales agregados de la plataforma: usuarios, grupos y viajes por estado. Sin posiciones ni velocidades (RN-126, RN-070).',
+  },
+  {
+    nombre: 'adminPanel.gestion',
+    orden: ORDEN_PANTALLA.adminPanel + 1,
+    texto: 'Desde acá gestionás usuarios, grupos, viajes, reportes y la auditoría del backoffice.',
+  },
+]
+
+export const AYUDA_ADMIN_USUARIOS: PasoDefinicion[] = [
+  {
+    nombre: 'adminUsuarios.buscador',
+    orden: ORDEN_PANTALLA.adminUsuarios,
+    texto: 'Buscá por nombre, apellido o email, o filtrá por estado con los chips de abajo.',
+  },
+  {
+    nombre: 'adminUsuarios.lista',
+    orden: ORDEN_PANTALLA.adminUsuarios + 1,
+    texto: 'Tocá un usuario para editar su cuenta, suspenderla o darle el rol superadmin.',
+  },
+]
+
+export const AYUDA_ADMIN_USUARIO: PasoDefinicion[] = [
+  {
+    nombre: 'adminUsuario.cuenta',
+    orden: ORDEN_PANTALLA.adminUsuario,
+    texto: 'Estado de la cuenta y su actividad: viajes creados, participaciones y grupos que lidera.',
+  },
+  {
+    nombre: 'adminUsuario.acciones',
+    orden: ORDEN_PANTALLA.adminUsuario + 1,
+    texto: 'Suspender, otorgar el rol superadmin o eliminar la cuenta. Todo queda registrado en la auditoría (RN-121).',
+  },
+]
+
+export const AYUDA_ADMIN_GRUPOS: PasoDefinicion[] = [
+  {
+    nombre: 'adminGrupos.buscador',
+    orden: ORDEN_PANTALLA.adminGrupos,
+    texto: 'Buscá un grupo por nombre.',
+  },
+  {
+    nombre: 'adminGrupos.lista',
+    orden: ORDEN_PANTALLA.adminGrupos + 1,
+    texto: 'Tocá un grupo para ver sus integrantes, reasignar el líder o eliminarlo.',
+  },
+]
+
+export const AYUDA_ADMIN_GRUPO: PasoDefinicion[] = [
+  {
+    nombre: 'adminGrupo.integrantes',
+    orden: ORDEN_PANTALLA.adminGrupo,
+    texto: 'Reasigná el líder o quitá a alguien del grupo. Si el líder se queda sin nadie, el grupo se elimina solo.',
+  },
+  {
+    nombre: 'adminGrupo.eliminar',
+    orden: ORDEN_PANTALLA.adminGrupo + 1,
+    texto: 'Eliminar el grupo es definitivo: se borran integrantes e invitaciones. Los viajes no se borran.',
+  },
+]
+
+export const AYUDA_ADMIN_VIAJES: PasoDefinicion[] = [
+  {
+    nombre: 'adminViajes.filtros',
+    orden: ORDEN_PANTALLA.adminViajes,
+    texto: 'Buscá por nombre o filtrá por estado del viaje.',
+  },
+  {
+    nombre: 'adminViajes.lista',
+    orden: ORDEN_PANTALLA.adminViajes + 1,
+    texto: 'Tocá un viaje para forzar su finalización o eliminarlo.',
+  },
+]
+
+export const AYUDA_ADMIN_VIAJE: PasoDefinicion[] = [
+  {
+    nombre: 'adminViaje.datos',
+    orden: ORDEN_PANTALLA.adminViaje,
+    texto: 'Quién lo creó, cuándo, su ruta y cuánta actividad (alertas, paradas, gastos) registró.',
+  },
+  {
+    nombre: 'adminViaje.accion',
+    orden: ORDEN_PANTALLA.adminViaje + 1,
+    texto: 'Si está en curso podés forzar su finalización; si no, podés eliminarlo definitivamente.',
+  },
+]
+
+export const AYUDA_ADMIN_REPORTES: PasoDefinicion[] = [
+  {
+    nombre: 'adminReportes.secciones',
+    orden: ORDEN_PANTALLA.adminReportes,
+    texto: 'Cambiá de sección para ver crecimiento, retención, uso, comunidad, seguridad, destinos o gastos.',
+  },
+  {
+    nombre: 'adminReportes.filtros',
+    orden: ORDEN_PANTALLA.adminReportes + 1,
+    texto: 'Ajustá el rango de fechas (o los meses de retención) y, en algunas secciones, filtrá por actividad.',
+  },
+  {
+    nombre: 'adminReportes.exportar',
+    orden: ORDEN_PANTALLA.adminReportes + 2,
+    texto: 'Exportá la tabla que estás viendo a CSV.',
+  },
+]
+
+export const AYUDA_ADMIN_AUDITORIA: PasoDefinicion[] = [
+  {
+    nombre: 'adminAuditoria.lista',
+    orden: ORDEN_PANTALLA.adminAuditoria,
+    texto: 'Cada fila es una acción hecha desde el backoffice: quién la hizo, cuándo y sobre qué (RN-121).',
+  },
+]
+
+export const AYUDA_PRIVACIDAD_GLOBAL: PasoDefinicion[] = [
+  {
+    nombre: 'privacidadGlobal.aviso',
+    orden: ORDEN_PANTALLA.privacidadGlobal,
+    texto: 'Cómo usa Mesh tu ubicación, explicado en texto simple.',
+  },
+  {
+    nombre: 'privacidadGlobal.consentimiento',
+    orden: ORDEN_PANTALLA.privacidadGlobal + 1,
+    texto: 'Sin este consentimiento, tu posición no se comparte en ningún viaje.',
+  },
+  {
+    nombre: 'privacidadGlobal.default',
+    orden: ORDEN_PANTALLA.privacidadGlobal + 2,
+    texto: 'El valor con el que arranca cada viaje nuevo. Lo podés cambiar viaje por viaje después.',
+  },
+  {
+    nombre: 'privacidadGlobal.accesos',
+    orden: ORDEN_PANTALLA.privacidadGlobal + 3,
+    texto: 'Quién accedió a tu ubicación en cualquiera de tus viajes, y cuándo.',
+  },
+]
+
+export const AYUDA_RUTA_COMPARTIDA: PasoDefinicion[] = [
+  {
+    nombre: 'ruta.mapa',
+    orden: ORDEN_PANTALLA.ruta,
+    texto: 'El trazado de esta ruta compartida: origen, destino y paradas.',
+  },
+  {
+    nombre: 'ruta.guardar',
+    orden: ORDEN_PANTALLA.ruta + 1,
+    texto: 'Guardala en Mis rutas para usarla como base de un viaje nuevo.',
+  },
+]
+
+export const AYUDA_ESCANEAR_QR: PasoDefinicion[] = [
+  {
+    nombre: 'escanearQr.scanner',
+    orden: ORDEN_PANTALLA.escanearQr,
+    texto: 'Apuntá la cámara al código QR de una invitación a viaje o grupo.',
   },
 ]
