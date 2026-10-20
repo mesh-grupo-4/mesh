@@ -18,6 +18,28 @@ export const ORDEN_PANTALLA = {
   viajeAlertas: 1000,
   grupoDetalle: 1100,
   configurarRuta: 1200,
+  viajeMiembros: 1300,
+  viajeGastos: 1400,
+  viajeMetricas: 1500,
+  viajeRecap: 1600,
+  viajeResumen: 1700,
+  viajePrivacidad: 1800,
+  viajeQr: 1900,
+  grupoEditar: 2000,
+  grupoMiembros: 2100,
+  grupoInvitar: 2200,
+  adminPanel: 2300,
+  adminUsuarios: 2400,
+  adminUsuario: 2500,
+  adminGrupos: 2600,
+  adminGrupo: 2700,
+  adminViajes: 2800,
+  adminViaje: 2900,
+  adminReportes: 3000,
+  adminAuditoria: 3100,
+  privacidadGlobal: 3200,
+  ruta: 3300,
+  escanearQr: 3400,
 } as const
 
 export type PasoDefinicion = {
@@ -254,5 +276,291 @@ export const AYUDA_CONFIGURAR_RUTA: PasoDefinicion[] = [
     nombre: 'configurarRuta.hoja',
     orden: ORDEN_PANTALLA.configurarRuta + 2,
     texto: 'Acá vas agregando y ordenando origen, paradas y destino. Guardá cuando esté listo.',
+  },
+]
+
+export const AYUDA_VIAJE_MIEMBROS: PasoDefinicion[] = [
+  {
+    nombre: 'viajeMiembros.lista',
+    orden: ORDEN_PANTALLA.viajeMiembros,
+    texto: 'Quién confirmó, quién está pendiente y quién salió del viaje. El badge te dice el estado de cada uno.',
+  },
+]
+
+export const AYUDA_VIAJE_GASTOS: PasoDefinicion[] = [
+  {
+    nombre: 'gastos.lista',
+    orden: ORDEN_PANTALLA.viajeGastos,
+    texto: 'Los gastos que se van registrando, quién pagó cada uno y entre cuántos se reparte.',
+  },
+  {
+    nombre: 'gastos.agregar',
+    orden: ORDEN_PANTALLA.viajeGastos + 1,
+    texto: 'Registrá un gasto: monto, descripción, y elegí entre quiénes se reparte.',
+  },
+]
+
+export const AYUDA_VIAJE_METRICAS: PasoDefinicion[] = [
+  {
+    nombre: 'metricas.hero',
+    orden: ORDEN_PANTALLA.viajeMetricas,
+    texto: 'El detalle completo de tu recorrido: distancia, tiempo, velocidad y gráficos si fue un entrenamiento.',
+  },
+  {
+    nombre: 'metricas.recorrido',
+    orden: ORDEN_PANTALLA.viajeMetricas + 1,
+    texto: 'Distancia total, duración y tiempo que estuviste realmente en movimiento.',
+  },
+]
+
+export const AYUDA_VIAJE_RECAP: PasoDefinicion[] = [
+  {
+    nombre: 'recap.criterios',
+    orden: ORDEN_PANTALLA.viajeRecap,
+    texto: 'Cambiá el criterio para ver el ranking por distancia, ritmo o tiempo en movimiento.',
+  },
+  {
+    nombre: 'recap.podio',
+    orden: ORDEN_PANTALLA.viajeRecap + 1,
+    texto: 'Quién va primero en el criterio que elegiste.',
+  },
+]
+
+export const AYUDA_VIAJE_RESUMEN: PasoDefinicion[] = [
+  {
+    nombre: 'resumen.mapa',
+    orden: ORDEN_PANTALLA.viajeResumen,
+    texto: 'El trazado real que hizo el grupo, no el planificado.',
+  },
+  {
+    nombre: 'resumen.elViaje',
+    orden: ORDEN_PANTALLA.viajeResumen + 1,
+    texto: 'Totales del viaje completo: duración, distancia recorrida e integrantes.',
+  },
+  {
+    nombre: 'resumen.metricasCta',
+    orden: ORDEN_PANTALLA.viajeResumen + 2,
+    texto: 'Entrá acá para ver tus métricas individuales con más detalle y gráficos.',
+  },
+]
+
+export const AYUDA_VIAJE_PRIVACIDAD: PasoDefinicion[] = [
+  {
+    nombre: 'privacidad.switch',
+    orden: ORDEN_PANTALLA.viajePrivacidad,
+    texto: 'Prendé o apagá si el grupo ve tu posición en este viaje. Tu GPS se sigue guardando igual para tus métricas.',
+  },
+  {
+    nombre: 'privacidad.consentimiento',
+    orden: ORDEN_PANTALLA.viajePrivacidad + 1,
+    texto: 'Sin aceptar este consentimiento, tu posición no se comparte aunque el interruptor esté prendido.',
+  },
+  {
+    nombre: 'privacidad.accesos',
+    orden: ORDEN_PANTALLA.viajePrivacidad + 2,
+    texto: 'Quién accedió a tu ubicación y cuándo, agrupado en ventanas de 10 minutos.',
+  },
+]
+
+export const AYUDA_VIAJE_QR: PasoDefinicion[] = [
+  {
+    nombre: 'qr.codigo',
+    orden: ORDEN_PANTALLA.viajeQr,
+    texto: 'Que el resto escanee este código con la cámara o desde la app para sumarse al viaje.',
+  },
+  {
+    nombre: 'qr.compartir',
+    orden: ORDEN_PANTALLA.viajeQr + 1,
+    texto: 'O mandá el enlace o la imagen del QR por cualquier app.',
+  },
+]
+
+export const AYUDA_GRUPO_EDITAR: PasoDefinicion[] = [
+  {
+    nombre: 'grupoEditar.zonaPeligro',
+    orden: ORDEN_PANTALLA.grupoEditar,
+    texto: 'Abandonar o eliminar el grupo son acciones permanentes y no se pueden deshacer.',
+  },
+]
+
+export const AYUDA_GRUPO_MIEMBROS: PasoDefinicion[] = [
+  {
+    nombre: 'grupoMiembros.lista',
+    orden: ORDEN_PANTALLA.grupoMiembros,
+    texto: 'Como líder, tocá los tres puntos junto a cualquier integrante para cambiar su rol.',
+  },
+]
+
+export const AYUDA_GRUPO_INVITAR: PasoDefinicion[] = [
+  {
+    nombre: 'grupoInvitar.buscador',
+    orden: ORDEN_PANTALLA.grupoInvitar,
+    texto: 'Buscá por nombre para invitar a cualquier usuario de la plataforma, no solo a tus amigos.',
+  },
+  {
+    nombre: 'grupoInvitar.lista',
+    orden: ORDEN_PANTALLA.grupoInvitar + 1,
+    texto: 'Invitá directamente, o primero agregalo de amigo si todavía no lo es.',
+  },
+]
+
+export const AYUDA_ADMIN_PANEL: PasoDefinicion[] = [
+  {
+    nombre: 'adminPanel.plataforma',
+    orden: ORDEN_PANTALLA.adminPanel,
+    texto: 'Totales agregados de la plataforma: usuarios, grupos y viajes por estado. Sin posiciones ni velocidades (RN-126, RN-070).',
+  },
+  {
+    nombre: 'adminPanel.gestion',
+    orden: ORDEN_PANTALLA.adminPanel + 1,
+    texto: 'Desde acá gestionás usuarios, grupos, viajes, reportes y la auditoría del backoffice.',
+  },
+]
+
+export const AYUDA_ADMIN_USUARIOS: PasoDefinicion[] = [
+  {
+    nombre: 'adminUsuarios.buscador',
+    orden: ORDEN_PANTALLA.adminUsuarios,
+    texto: 'Buscá por nombre, apellido o email, o filtrá por estado con los chips de abajo.',
+  },
+  {
+    nombre: 'adminUsuarios.lista',
+    orden: ORDEN_PANTALLA.adminUsuarios + 1,
+    texto: 'Tocá un usuario para editar su cuenta, suspenderla o darle el rol superadmin.',
+  },
+]
+
+export const AYUDA_ADMIN_USUARIO: PasoDefinicion[] = [
+  {
+    nombre: 'adminUsuario.cuenta',
+    orden: ORDEN_PANTALLA.adminUsuario,
+    texto: 'Estado de la cuenta y su actividad: viajes creados, participaciones y grupos que lidera.',
+  },
+  {
+    nombre: 'adminUsuario.acciones',
+    orden: ORDEN_PANTALLA.adminUsuario + 1,
+    texto: 'Suspender, otorgar el rol superadmin o eliminar la cuenta. Todo queda registrado en la auditoría (RN-121).',
+  },
+]
+
+export const AYUDA_ADMIN_GRUPOS: PasoDefinicion[] = [
+  {
+    nombre: 'adminGrupos.buscador',
+    orden: ORDEN_PANTALLA.adminGrupos,
+    texto: 'Buscá un grupo por nombre.',
+  },
+  {
+    nombre: 'adminGrupos.lista',
+    orden: ORDEN_PANTALLA.adminGrupos + 1,
+    texto: 'Tocá un grupo para ver sus integrantes, reasignar el líder o eliminarlo.',
+  },
+]
+
+export const AYUDA_ADMIN_GRUPO: PasoDefinicion[] = [
+  {
+    nombre: 'adminGrupo.integrantes',
+    orden: ORDEN_PANTALLA.adminGrupo,
+    texto: 'Reasigná el líder o quitá a alguien del grupo. Si el líder se queda sin nadie, el grupo se elimina solo.',
+  },
+  {
+    nombre: 'adminGrupo.eliminar',
+    orden: ORDEN_PANTALLA.adminGrupo + 1,
+    texto: 'Eliminar el grupo es definitivo: se borran integrantes e invitaciones. Los viajes no se borran.',
+  },
+]
+
+export const AYUDA_ADMIN_VIAJES: PasoDefinicion[] = [
+  {
+    nombre: 'adminViajes.filtros',
+    orden: ORDEN_PANTALLA.adminViajes,
+    texto: 'Buscá por nombre o filtrá por estado del viaje.',
+  },
+  {
+    nombre: 'adminViajes.lista',
+    orden: ORDEN_PANTALLA.adminViajes + 1,
+    texto: 'Tocá un viaje para forzar su finalización o eliminarlo.',
+  },
+]
+
+export const AYUDA_ADMIN_VIAJE: PasoDefinicion[] = [
+  {
+    nombre: 'adminViaje.datos',
+    orden: ORDEN_PANTALLA.adminViaje,
+    texto: 'Quién lo creó, cuándo, su ruta y cuánta actividad (alertas, paradas, gastos) registró.',
+  },
+  {
+    nombre: 'adminViaje.accion',
+    orden: ORDEN_PANTALLA.adminViaje + 1,
+    texto: 'Si está en curso podés forzar su finalización; si no, podés eliminarlo definitivamente.',
+  },
+]
+
+export const AYUDA_ADMIN_REPORTES: PasoDefinicion[] = [
+  {
+    nombre: 'adminReportes.secciones',
+    orden: ORDEN_PANTALLA.adminReportes,
+    texto: 'Cambiá de sección para ver crecimiento, retención, uso, comunidad, seguridad, destinos o gastos.',
+  },
+  {
+    nombre: 'adminReportes.filtros',
+    orden: ORDEN_PANTALLA.adminReportes + 1,
+    texto: 'Ajustá el rango de fechas (o los meses de retención) y, en algunas secciones, filtrá por actividad.',
+  },
+  {
+    nombre: 'adminReportes.exportar',
+    orden: ORDEN_PANTALLA.adminReportes + 2,
+    texto: 'Exportá la tabla que estás viendo a CSV.',
+  },
+]
+
+export const AYUDA_ADMIN_AUDITORIA: PasoDefinicion[] = [
+  {
+    nombre: 'adminAuditoria.lista',
+    orden: ORDEN_PANTALLA.adminAuditoria,
+    texto: 'Cada fila es una acción hecha desde el backoffice: quién la hizo, cuándo y sobre qué (RN-121).',
+  },
+]
+
+export const AYUDA_PRIVACIDAD_GLOBAL: PasoDefinicion[] = [
+  {
+    nombre: 'privacidadGlobal.aviso',
+    orden: ORDEN_PANTALLA.privacidadGlobal,
+    texto: 'Cómo usa Mesh tu ubicación, explicado en texto simple.',
+  },
+  {
+    nombre: 'privacidadGlobal.consentimiento',
+    orden: ORDEN_PANTALLA.privacidadGlobal + 1,
+    texto: 'Sin este consentimiento, tu posición no se comparte en ningún viaje.',
+  },
+  {
+    nombre: 'privacidadGlobal.default',
+    orden: ORDEN_PANTALLA.privacidadGlobal + 2,
+    texto: 'El valor con el que arranca cada viaje nuevo. Lo podés cambiar viaje por viaje después.',
+  },
+  {
+    nombre: 'privacidadGlobal.accesos',
+    orden: ORDEN_PANTALLA.privacidadGlobal + 3,
+    texto: 'Quién accedió a tu ubicación en cualquiera de tus viajes, y cuándo.',
+  },
+]
+
+export const AYUDA_RUTA_COMPARTIDA: PasoDefinicion[] = [
+  {
+    nombre: 'ruta.mapa',
+    orden: ORDEN_PANTALLA.ruta,
+    texto: 'El trazado de esta ruta compartida: origen, destino y paradas.',
+  },
+  {
+    nombre: 'ruta.guardar',
+    orden: ORDEN_PANTALLA.ruta + 1,
+    texto: 'Guardala en Mis rutas para usarla como base de un viaje nuevo.',
+  },
+]
+
+export const AYUDA_ESCANEAR_QR: PasoDefinicion[] = [
+  {
+    nombre: 'escanearQr.scanner',
+    orden: ORDEN_PANTALLA.escanearQr,
+    texto: 'Apuntá la cámara al código QR de una invitación a viaje o grupo.',
   },
 ]

@@ -1,6 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useState } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
+import { useCopilot } from 'react-native-copilot'
 
 import {
   AdminScreen,
@@ -11,6 +12,8 @@ import {
   nombreCompleto,
 } from '@/components/admin/AdminUI'
 import { Btn, Field, useTheme } from '@/components/MeshUI'
+import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
+import { AYUDA_ADMIN_USUARIO } from '@/components/ayuda/contenidoAyuda'
 import { useAuth } from '@/context/AuthContext'
 import {
   cambiarRolSistemaAdmin,
@@ -26,6 +29,7 @@ export default function AdminUsuarioScreen() {
   const { usuarioId } = useLocalSearchParams<{ usuarioId: string }>()
   const router = useRouter()
   const theme = useTheme()
+  const { start } = useCopilot()
   const { backendUserId } = useAuth()
   const [usuario, setUsuario] = useState<UsuarioAdminDetalle | null>(null)
   const [motivo, setMotivo] = useState('')
@@ -113,22 +117,29 @@ export default function AdminUsuarioScreen() {
     })
 
   return (
-    <AdminScreen title={nombreCompleto(usuario)} sub={usuario.email} onRefresh={() => void cargar()}>
-      <Seccion titulo="Cuenta">
-        <Fila titulo="Rol de plataforma" etiqueta={esSuperadmin ? 'Superadmin' : 'Usuario'} tonoEtiqueta="accent" />
-        <Fila
-          titulo="Estado"
-          detalle={suspendida ? `Desde ${fechaAdmin(usuario.suspendido_at)} · ${usuario.motivo_suspension ?? ''}` : undefined}
-          etiqueta={suspendida ? 'Suspendida' : 'Activa'}
-          tonoEtiqueta={suspendida ? 'danger' : 'good'}
-        />
-        <Fila titulo="Alta" detalle={fechaAdmin(usuario.created_at)} />
-        <Fila titulo="Teléfono" detalle={usuario.telefono ?? 'Sin cargar'} />
-        <Fila
-          titulo="Actividad"
-          detalle={`${usuario.totales.viajes_creados} viajes creados · ${usuario.totales.participaciones_viaje} participaciones · lidera ${usuario.totales.grupos_liderados} grupos`}
-        />
-      </Seccion>
+    <AdminScreen
+      title={nombreCompleto(usuario)}
+      sub={usuario.email}
+      onRefresh={() => void cargar()}
+      onAyuda={() => start()}
+    >
+      <PasoAyuda {...AYUDA_ADMIN_USUARIO[0]!}>
+        <Seccion titulo="Cuenta">
+          <Fila titulo="Rol de plataforma" etiqueta={esSuperadmin ? 'Superadmin' : 'Usuario'} tonoEtiqueta="accent" />
+          <Fila
+            titulo="Estado"
+            detalle={suspendida ? `Desde ${fechaAdmin(usuario.suspendido_at)} · ${usuario.motivo_suspension ?? ''}` : undefined}
+            etiqueta={suspendida ? 'Suspendida' : 'Activa'}
+            tonoEtiqueta={suspendida ? 'danger' : 'good'}
+          />
+          <Fila titulo="Alta" detalle={fechaAdmin(usuario.created_at)} />
+          <Fila titulo="Teléfono" detalle={usuario.telefono ?? 'Sin cargar'} />
+          <Fila
+            titulo="Actividad"
+            detalle={`${usuario.totales.viajes_creados} viajes creados · ${usuario.totales.participaciones_viaje} participaciones · lidera ${usuario.totales.grupos_liderados} grupos`}
+          />
+        </Seccion>
+      </PasoAyuda>
 
       <Seccion titulo="Grupos">
         {usuario.grupos.length === 0 ? (
@@ -150,46 +161,48 @@ export default function AdminUsuarioScreen() {
           Es tu propia cuenta: no podés suspenderla, eliminarla ni cambiar su rol.
         </Text>
       ) : (
-        <Seccion titulo="Acciones">
-          <View style={styles.acciones}>
-            {suspendida ? (
-              <Btn
-                variant="outline"
-                block
-                icon="unlock"
-                disabled={ocupado}
-                onPress={() => void ejecutar(() => reactivarUsuarioAdmin(usuario.id), 'Cuenta reactivada')}
-              >
-                Reactivar cuenta
-              </Btn>
-            ) : (
-              <>
-                <Field
-                  label="Motivo de la suspensión"
-                  placeholder="Queda registrado en la auditoría"
-                  value={motivo}
-                  onChangeText={setMotivo}
-                  maxLength={500}
-                />
+        <PasoAyuda {...AYUDA_ADMIN_USUARIO[1]!}>
+          <Seccion titulo="Acciones">
+            <View style={styles.acciones}>
+              {suspendida ? (
                 <Btn
-                  variant="danger-outline"
+                  variant="outline"
                   block
-                  icon="slash"
-                  disabled={ocupado || motivo.trim().length < 3}
-                  onPress={suspender}
+                  icon="unlock"
+                  disabled={ocupado}
+                  onPress={() => void ejecutar(() => reactivarUsuarioAdmin(usuario.id), 'Cuenta reactivada')}
                 >
-                  Suspender cuenta
+                  Reactivar cuenta
                 </Btn>
-              </>
-            )}
-            <Btn variant="outline" block icon="shield" disabled={ocupado} onPress={cambiarRol}>
-              {esSuperadmin ? 'Quitar rol superadmin' : 'Otorgar rol superadmin'}
-            </Btn>
-            <Btn variant="danger" block icon="trash-2" disabled={ocupado} onPress={eliminar}>
-              Eliminar cuenta
-            </Btn>
-          </View>
-        </Seccion>
+              ) : (
+                <>
+                  <Field
+                    label="Motivo de la suspensión"
+                    placeholder="Queda registrado en la auditoría"
+                    value={motivo}
+                    onChangeText={setMotivo}
+                    maxLength={500}
+                  />
+                  <Btn
+                    variant="danger-outline"
+                    block
+                    icon="slash"
+                    disabled={ocupado || motivo.trim().length < 3}
+                    onPress={suspender}
+                  >
+                    Suspender cuenta
+                  </Btn>
+                </>
+              )}
+              <Btn variant="outline" block icon="shield" disabled={ocupado} onPress={cambiarRol}>
+                {esSuperadmin ? 'Quitar rol superadmin' : 'Otorgar rol superadmin'}
+              </Btn>
+              <Btn variant="danger" block icon="trash-2" disabled={ocupado} onPress={eliminar}>
+                Eliminar cuenta
+              </Btn>
+            </View>
+          </Seccion>
+        </PasoAyuda>
       )}
     </AdminScreen>
   )

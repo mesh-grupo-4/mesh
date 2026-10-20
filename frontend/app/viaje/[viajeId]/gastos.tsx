@@ -13,8 +13,11 @@ import {
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
+import { useCopilot } from 'react-native-copilot'
 import { AvatarFallback } from '@/components/AvatarFallback'
 import { Badge, Btn, TopBar, useTheme } from '@/components/MeshUI'
+import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
+import { AYUDA_VIAJE_GASTOS } from '@/components/ayuda/contenidoAyuda'
 import { DEV_USER_ID } from '@/constants/Config'
 import { useAuth } from '@/context/AuthContext'
 import {
@@ -43,6 +46,7 @@ function formatMonto(n: number): string {
 export default function GastosViajeScreen() {
   const router = useRouter()
   const theme = useTheme()
+  const { start } = useCopilot()
   const insets = useSafeAreaInsets()
   const { backendUserId } = useAuth()
   const params = useLocalSearchParams<{ viajeId: string | string[] }>()
@@ -229,8 +233,14 @@ export default function GastosViajeScreen() {
   return (
     <View style={[styles.root, { backgroundColor: theme.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <TopBar title="Gastos compartidos" sub={viaje?.nombre ?? undefined} onBack={() => router.back()} />
+      <TopBar
+        title="Gastos compartidos"
+        sub={viaje?.nombre ?? undefined}
+        onBack={() => router.back()}
+        onAyuda={() => start()}
+      />
 
+      <PasoAyuda {...AYUDA_VIAJE_GASTOS[0]!} estilo={styles.flex1}>
       <ScrollView
         contentContainerStyle={[styles.lista, { paddingBottom: insets.bottom + 32 }]}
         refreshControl={<RefreshControl refreshing={cargando} onRefresh={() => void cargar()} />}
@@ -263,8 +273,10 @@ export default function GastosViajeScreen() {
           />
         ))}
       </ScrollView>
+      </PasoAyuda>
 
       {!soloLectura ? (
+        <PasoAyuda {...AYUDA_VIAJE_GASTOS[1]!}>
         <View
           style={[
             styles.pie,
@@ -348,6 +360,7 @@ export default function GastosViajeScreen() {
             {editandoId ? 'Guardar cambios' : 'Agregar gasto'}
           </Btn>
         </View>
+        </PasoAyuda>
       ) : null}
     </View>
   )
@@ -446,6 +459,7 @@ function BalanceCard({ balance, theme }: { balance: BalanceGastosApi | null; the
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  flex1: { flex: 1 },
   centro: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   spinner: { marginTop: 40 },
 

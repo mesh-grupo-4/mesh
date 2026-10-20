@@ -1,5 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useState } from 'react'
+import { useCopilot } from 'react-native-copilot'
 
 import {
   AdminScreen,
@@ -10,6 +11,8 @@ import {
   nombreCompleto,
 } from '@/components/admin/AdminUI'
 import { Btn } from '@/components/MeshUI'
+import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
+import { AYUDA_ADMIN_GRUPO } from '@/components/ayuda/contenidoAyuda'
 import {
   eliminarGrupoAdmin,
   obtenerGrupoAdmin,
@@ -22,6 +25,7 @@ import { meshAlert, meshConfirmDestructive, meshSuccess } from '@/lib/meshAlert'
 export default function AdminGrupoScreen() {
   const { grupoId } = useLocalSearchParams<{ grupoId: string }>()
   const router = useRouter()
+  const { start } = useCopilot()
   const [grupo, setGrupo] = useState<GrupoAdminDetalle | null>(null)
   const [ocupado, setOcupado] = useState(false)
 
@@ -100,51 +104,56 @@ export default function AdminGrupoScreen() {
       title={grupo.nombre}
       sub={`Creado el ${fechaAdmin(grupo.fecha_creacion)} · ${grupo.cantidad_viajes} viajes`}
       onRefresh={() => void cargar()}
+      onAyuda={() => start()}
     >
-      <Seccion titulo={`Integrantes (${grupo.miembros.length})`}>
-        {grupo.miembros.map((m) => {
-          const nombre = nombreCompleto(m)
-          const esLider = m.rol === 'lider'
-          return (
-            <Fila
-              key={m.id}
-              titulo={nombre}
-              detalle={m.email}
-              etiqueta={esLider ? 'Líder' : undefined}
-              tonoEtiqueta="accent"
-              acciones={
-                <>
-                  {!esLider ? (
-                    <Btn size="sm" variant="outline" disabled={ocupado} onPress={() => hacerLider(m.id, nombre)}>
-                      Hacer líder
+      <PasoAyuda {...AYUDA_ADMIN_GRUPO[0]!}>
+        <Seccion titulo={`Integrantes (${grupo.miembros.length})`}>
+          {grupo.miembros.map((m) => {
+            const nombre = nombreCompleto(m)
+            const esLider = m.rol === 'lider'
+            return (
+              <Fila
+                key={m.id}
+                titulo={nombre}
+                detalle={m.email}
+                etiqueta={esLider ? 'Líder' : undefined}
+                tonoEtiqueta="accent"
+                acciones={
+                  <>
+                    {!esLider ? (
+                      <Btn size="sm" variant="outline" disabled={ocupado} onPress={() => hacerLider(m.id, nombre)}>
+                        Hacer líder
+                      </Btn>
+                    ) : null}
+                    <Btn
+                      size="sm"
+                      variant="danger-outline"
+                      disabled={ocupado}
+                      onPress={() => quitar(m.id, nombre, esLider)}
+                    >
+                      Quitar
                     </Btn>
-                  ) : null}
-                  <Btn
-                    size="sm"
-                    variant="danger-outline"
-                    disabled={ocupado}
-                    onPress={() => quitar(m.id, nombre, esLider)}
-                  >
-                    Quitar
-                  </Btn>
-                  <Btn
-                    size="sm"
-                    variant="ghost"
-                    onPress={() =>
-                      router.push({ pathname: '/admin/usuario/[usuarioId]', params: { usuarioId: m.id } })
-                    }
-                  >
-                    Ver cuenta
-                  </Btn>
-                </>
-              }
-            />
-          )
-        })}
-      </Seccion>
-      <Btn variant="danger" block icon="trash-2" disabled={ocupado} onPress={eliminar}>
-        Eliminar grupo
-      </Btn>
+                    <Btn
+                      size="sm"
+                      variant="ghost"
+                      onPress={() =>
+                        router.push({ pathname: '/admin/usuario/[usuarioId]', params: { usuarioId: m.id } })
+                      }
+                    >
+                      Ver cuenta
+                    </Btn>
+                  </>
+                }
+              />
+            )
+          })}
+        </Seccion>
+      </PasoAyuda>
+      <PasoAyuda {...AYUDA_ADMIN_GRUPO[1]!}>
+        <Btn variant="danger" block icon="trash-2" disabled={ocupado} onPress={eliminar}>
+          Eliminar grupo
+        </Btn>
+      </PasoAyuda>
     </AdminScreen>
   )
 }

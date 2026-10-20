@@ -60,12 +60,14 @@ export function AdminScreen({
   sub,
   cargando = false,
   onRefresh,
+  onAyuda,
   children,
 }: {
   title: string
   sub?: string
   cargando?: boolean
   onRefresh?: () => void
+  onAyuda?: () => void
   children: ReactNode
 }) {
   const router = useRouter()
@@ -76,7 +78,7 @@ export function AdminScreen({
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <TopBar title={title} sub={sub} onBack={() => router.back()} />
+      <TopBar title={title} sub={sub} onBack={() => router.back()} onAyuda={onAyuda} />
       {!esSuperadmin ? (
         <View style={styles.center}>
           <Feather name="lock" size={28} color={theme.textMute} />

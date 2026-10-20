@@ -1,9 +1,12 @@
 import { useRouter } from 'expo-router'
 import { useCallback, useEffect, useState } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
+import { useCopilot } from 'react-native-copilot'
 
 import { AdminScreen, Fila, Seccion, mensajeError } from '@/components/admin/AdminUI'
 import { useTheme } from '@/components/MeshUI'
+import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
+import { AYUDA_ADMIN_PANEL } from '@/components/ayuda/contenidoAyuda'
 import { obtenerEstadisticasAdmin, type EstadisticasAdmin } from '@/lib/adminApi'
 
 function Dato({ valor, etiqueta }: { valor: number; etiqueta: string }) {
@@ -20,6 +23,7 @@ function Dato({ valor, etiqueta }: { valor: number; etiqueta: string }) {
 export default function AdminPanelScreen() {
   const router = useRouter()
   const theme = useTheme()
+  const { start } = useCopilot()
   const [stats, setStats] = useState<EstadisticasAdmin | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -37,55 +41,64 @@ export default function AdminPanelScreen() {
   }, [cargar])
 
   return (
-    <AdminScreen title="Administración" sub="Backoffice de Mesh" onRefresh={() => void cargar()}>
+    <AdminScreen
+      title="Administración"
+      sub="Backoffice de Mesh"
+      onRefresh={() => void cargar()}
+      onAyuda={() => start()}
+    >
       {error ? <Text style={{ color: theme.danger }}>{error}</Text> : null}
       {stats ? (
-        <Seccion titulo="Plataforma">
-          <View style={styles.datos}>
-            <Dato valor={stats.usuarios.total} etiqueta="Usuarios" />
-            <Dato valor={stats.usuarios.suspendidos} etiqueta="Suspendidos" />
-            <Dato valor={stats.grupos.total} etiqueta="Grupos" />
-          </View>
-          <View style={styles.datos}>
-            <Dato valor={stats.viajes.planificado} etiqueta="Planificados" />
-            <Dato valor={stats.viajes.en_curso} etiqueta="En curso" />
-            <Dato valor={stats.viajes.finalizado} etiqueta="Finalizados" />
-          </View>
-        </Seccion>
+        <PasoAyuda {...AYUDA_ADMIN_PANEL[0]!}>
+          <Seccion titulo="Plataforma">
+            <View style={styles.datos}>
+              <Dato valor={stats.usuarios.total} etiqueta="Usuarios" />
+              <Dato valor={stats.usuarios.suspendidos} etiqueta="Suspendidos" />
+              <Dato valor={stats.grupos.total} etiqueta="Grupos" />
+            </View>
+            <View style={styles.datos}>
+              <Dato valor={stats.viajes.planificado} etiqueta="Planificados" />
+              <Dato valor={stats.viajes.en_curso} etiqueta="En curso" />
+              <Dato valor={stats.viajes.finalizado} etiqueta="Finalizados" />
+            </View>
+          </Seccion>
+        </PasoAyuda>
       ) : null}
 
-      <Seccion titulo="Gestión">
-        <Fila
-          icono="bar-chart-2"
-          titulo="Reportes"
-          detalle="Crecimiento, retención, uso, comunidad, seguridad, destinos y gastos"
-          onPress={() => router.push('/admin/reportes')}
-        />
-        <Fila
-          icono="users"
-          titulo="Usuarios"
-          detalle="Editar, suspender, eliminar cuentas y otorgar el rol superadmin"
-          onPress={() => router.push('/admin/usuarios')}
-        />
-        <Fila
-          icono="grid"
-          titulo="Grupos"
-          detalle="Reasignar líder, quitar integrantes, eliminar grupos"
-          onPress={() => router.push('/admin/grupos')}
-        />
-        <Fila
-          icono="navigation"
-          titulo="Viajes"
-          detalle="Forzar la finalización de viajes colgados y eliminar viajes"
-          onPress={() => router.push('/admin/viajes')}
-        />
-        <Fila
-          icono="file-text"
-          titulo="Auditoría"
-          detalle="Registro de cada acción hecha desde el backoffice"
-          onPress={() => router.push('/admin/auditoria')}
-        />
-      </Seccion>
+      <PasoAyuda {...AYUDA_ADMIN_PANEL[1]!}>
+        <Seccion titulo="Gestión">
+          <Fila
+            icono="bar-chart-2"
+            titulo="Reportes"
+            detalle="Crecimiento, retención, uso, comunidad, seguridad, destinos y gastos"
+            onPress={() => router.push('/admin/reportes')}
+          />
+          <Fila
+            icono="users"
+            titulo="Usuarios"
+            detalle="Editar, suspender, eliminar cuentas y otorgar el rol superadmin"
+            onPress={() => router.push('/admin/usuarios')}
+          />
+          <Fila
+            icono="grid"
+            titulo="Grupos"
+            detalle="Reasignar líder, quitar integrantes, eliminar grupos"
+            onPress={() => router.push('/admin/grupos')}
+          />
+          <Fila
+            icono="navigation"
+            titulo="Viajes"
+            detalle="Forzar la finalización de viajes colgados y eliminar viajes"
+            onPress={() => router.push('/admin/viajes')}
+          />
+          <Fila
+            icono="file-text"
+            titulo="Auditoría"
+            detalle="Registro de cada acción hecha desde el backoffice"
+            onPress={() => router.push('/admin/auditoria')}
+          />
+        </Seccion>
+      </PasoAyuda>
     </AdminScreen>
   )
 }

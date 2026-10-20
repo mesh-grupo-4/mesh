@@ -17,7 +17,10 @@ import Svg, {
   Text as SvgText,
 } from 'react-native-svg'
 
+import { useCopilot } from 'react-native-copilot'
 import { ActivityTile, Badge, Btn, TopBar, useTheme } from '@/components/MeshUI'
+import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
+import { AYUDA_VIAJE_METRICAS } from '@/components/ayuda/contenidoAyuda'
 import { StatCard, StatCardRow } from '@/components/StatCard'
 import { DEV_USER_ID } from '@/constants/Config'
 import { useAuth } from '@/context/AuthContext'
@@ -42,6 +45,7 @@ import {
 export default function MetricasScreen() {
   const router = useRouter()
   const theme = useTheme()
+  const { start } = useCopilot()
   const insets = useSafeAreaInsets()
   const { backendUserId } = useAuth()
   const params = useLocalSearchParams<{ viajeId: string | string[] }>()
@@ -110,6 +114,7 @@ export default function MetricasScreen() {
         sub={loading ? 'Cargando...' : nombreViaje}
         onBack={volver}
         bordered={false}
+        onAyuda={() => start()}
       />
 
       {loading ? (
@@ -131,18 +136,20 @@ export default function MetricasScreen() {
           ]}
         >
           {viaje ? (
-            <View style={styles.hero}>
-              <ActivityTile activity={viaje.tipo_actividad} size={46} />
-              <View style={styles.heroText}>
-                <Text style={[styles.tripName, { color: theme.text }]} numberOfLines={2}>
-                  {nombreViaje}
-                </Text>
-                <View style={styles.badgeRow}>
-                  <Badge tone="mute">Finalizado</Badge>
-                  {esEntrenamiento ? <Badge tone="good">Entrenamiento</Badge> : null}
+            <PasoAyuda {...AYUDA_VIAJE_METRICAS[0]!}>
+              <View style={styles.hero}>
+                <ActivityTile activity={viaje.tipo_actividad} size={46} />
+                <View style={styles.heroText}>
+                  <Text style={[styles.tripName, { color: theme.text }]} numberOfLines={2}>
+                    {nombreViaje}
+                  </Text>
+                  <View style={styles.badgeRow}>
+                    <Badge tone="mute">Finalizado</Badge>
+                    {esEntrenamiento ? <Badge tone="good">Entrenamiento</Badge> : null}
+                  </View>
                 </View>
               </View>
-            </View>
+            </PasoAyuda>
           ) : null}
 
           {/* ── Métricas principales ── */}
@@ -150,23 +157,25 @@ export default function MetricasScreen() {
             <>
               <Text style={[styles.seccion, { color: theme.text }]}>Recorrido</Text>
 
-              <StatCardRow>
-                <StatCard
-                  icon="activity"
-                  value={formatKm(m.distancia_m)}
-                  label="Distancia"
-                />
-                <StatCard
-                  icon="clock"
-                  value={formatDurationHm(m.duracion_segundos)}
-                  label="Duración"
-                />
-                <StatCard
-                  icon="play-circle"
-                  value={formatDurationHm(m.tiempo_movimiento_seg)}
-                  label="En movimiento"
-                />
-              </StatCardRow>
+              <PasoAyuda {...AYUDA_VIAJE_METRICAS[1]!}>
+                <StatCardRow>
+                  <StatCard
+                    icon="activity"
+                    value={formatKm(m.distancia_m)}
+                    label="Distancia"
+                  />
+                  <StatCard
+                    icon="clock"
+                    value={formatDurationHm(m.duracion_segundos)}
+                    label="Duración"
+                  />
+                  <StatCard
+                    icon="play-circle"
+                    value={formatDurationHm(m.tiempo_movimiento_seg)}
+                    label="En movimiento"
+                  />
+                </StatCardRow>
+              </PasoAyuda>
 
               <StatCardRow>
                 <StatCard
