@@ -699,6 +699,7 @@ export default function ViajeDetalleScreen() {
             </View>
 
             {/* Mapa real de la ruta planificada; en curso, miniatura del estado actual */}
+            <PasoAyuda {...AYUDA_VIAJE_DETALLE[0]!}>
             <Pressable
               onPress={viaje.estado === 'en_curso' ? irLive : irConfigurarRecorrido}
               disabled={!puedeEditarPlan && viaje.estado !== 'en_curso'}
