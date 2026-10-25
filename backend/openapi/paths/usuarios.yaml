@@ -108,3 +108,63 @@ PushToken:
         $ref: '../components/responses.yaml#/Unauthorized'
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'
+
+PerfilPublicoUsuario:
+  get:
+    operationId: obtenerPerfilPublico
+    summary: Ver el perfil de un usuario de la comunidad
+    description: |
+      Perfil público de cualquier usuario: no hace falta ser amigos ni
+      compartir un viaje, solo estar autenticado. Compone nombre y actividad
+      preferida, estadísticas agregadas (equivalente genérico de
+      `GET /viajes/estadisticas`, sin velocidad por RN-070), insignias
+      (RN-074), racha de semanas consecutivas (RN-075) y, si no es el propio
+      usuario, la relación de amistad con quien consulta.
+    tags:
+      - Usuarios
+    parameters:
+      - $ref: '../components/parameters.yaml#/UsuarioId'
+    responses:
+      '200':
+        description: Perfil público del usuario.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/PerfilPublico'
+            example:
+              id: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d
+              nombre: Martina
+              apellido: Gómez
+              actividad_preferida: bici
+              es_yo: false
+              relacion_amistad: amigo
+              racha:
+                semanas_consecutivas: 4
+                en_riesgo: false
+              estadisticas:
+                viajes_finalizados: 12
+                distancia_total_m: 745300.2
+                tiempo_total_seg: 86400
+                actividad_favorita: bici
+              insignias:
+                - id: 6d7e8f90-ab1c-4d2e-9f3a-4b5c6d7e8f90
+                  insignia_id: a1000000-0000-4000-8000-000000000003
+                  codigo: diez_k_running
+                  nombre: 10K
+                  descripcion: Corriste 10 km o más en un mismo viaje.
+                  icono: zap
+                  viaje_id: 3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d
+                  obtenida_at: '2026-10-20T12:00:00.000Z'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '404':
+        description: Usuario no encontrado (`USER_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Usuario no encontrado
+              code: USER_NOT_FOUND
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'

@@ -237,3 +237,35 @@ ReporteActividad:
   description: Restringe el reporte a un tipo de actividad.
   schema:
     $ref: './schemas.yaml#/TipoActividad'
+
+RankingTipoActividad:
+  name: tipoActividad
+  in: query
+  required: true
+  description: 'RN-070: la tabla de posiciones global nunca incluye moto (único tipo excluido).'
+  schema:
+    type: string
+    enum: [bici, running, trekking, otro]
+  example: bici
+
+RankingPeriodo:
+  name: periodo
+  in: query
+  required: false
+  description: Ventana vigente (semana/mes/año calendario en curso, hora argentina). Por defecto `semanal`.
+  schema:
+    type: string
+    enum: [semanal, mensual, anual]
+    default: semanal
+  example: semanal
+
+RankingOrden:
+  name: orden
+  in: query
+  required: false
+  description: Métrica para ordenar. Por defecto `distancia`.
+  schema:
+    type: string
+    enum: [distancia, tiempo]
+    default: distancia
+  example: distancia

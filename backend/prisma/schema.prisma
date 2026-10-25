@@ -166,29 +166,32 @@ model Usuario {
   motivo_suspension String?    @map("motivo_suspension")
   created_at        DateTime   @default(now()) @map("created_at")
 
-  grupos_liderados       Grupo[]             @relation("GrupoLider")
+  grupos_liderados       Grupo[]              @relation("GrupoLider")
   membresias             GrupoMiembro[]
-  viajes_creados         Viaje[]             @relation("ViajeCreador")
+  viajes_creados         Viaje[]              @relation("ViajeCreador")
   participaciones_viaje  ViajeIntegrante[]
   registros_gps          RegistroGPS[]
   metricas_viaje         MetricaViaje[]
   ubicacion_viva         UbicacionViva?
-  invitaciones_recibidas GrupoInvitacion[]   @relation("InvitacionesRecibidas")
-  invitaciones_enviadas  GrupoInvitacion[]   @relation("InvitacionesEnviadas")
-  amistades_solicitadas  Amistad[]           @relation("AmistadSolicitante")
-  amistades_recibidas    Amistad[]           @relation("AmistadDestinatario")
+  invitaciones_recibidas GrupoInvitacion[]    @relation("InvitacionesRecibidas")
+  invitaciones_enviadas  GrupoInvitacion[]    @relation("InvitacionesEnviadas")
+  amistades_solicitadas  Amistad[]            @relation("AmistadSolicitante")
+  amistades_recibidas    Amistad[]            @relation("AmistadDestinatario")
   rutas_plantilla        RutaPlantilla[]
   paradas                Parada[]
-  solicitudes_parada     SolicitudParada[]   @relation("SolicitudParadaSolicitante")
-  solicitudes_resueltas  SolicitudParada[]   @relation("SolicitudParadaResolutor")
-  alertas_creadas        Alerta[]            @relation("AlertaAutor")
+  solicitudes_parada     SolicitudParada[]    @relation("SolicitudParadaSolicitante")
+  solicitudes_resueltas  SolicitudParada[]    @relation("SolicitudParadaResolutor")
+  alertas_creadas        Alerta[]             @relation("AlertaAutor")
   checklist_items        ChecklistItem[]
-  gastos_registrados     Gasto[]             @relation("GastoAutor")
-  gastos_participados    GastoParticipante[] @relation("GastoParticipante")
+  gastos_registrados     Gasto[]              @relation("GastoAutor")
+  gastos_participados    GastoParticipante[]  @relation("GastoParticipante")
   privacidad_viajes      PrivacidadViaje[]
-  accesos_recibidos      AccesoUbicacion[]   @relation("AccesoObservado")
-  accesos_realizados     AccesoUbicacion[]   @relation("AccesoObservador")
+  accesos_recibidos      AccesoUbicacion[]    @relation("AccesoObservado")
+  accesos_realizados     AccesoUbicacion[]    @relation("AccesoObservador")
   acciones_admin         AuditoriaAdmin[]
+  insignias              UsuarioInsignia[]
+  recorridos_publicados  RecorridoPublicado[]
+  racha                  RachaActividad?
 
   @@index([rol_sistema])
   @@map("usuario")
@@ -285,18 +288,20 @@ model Viaje {
   integrantes ViajeIntegrante[]
   grupos      ViajeGrupo[]
 
-  ruta               Ruta?
-  resumen            ResumenViaje?
-  registros_gps      RegistroGPS[]
-  ubicaciones_vivas  UbicacionViva[]
-  metricas           MetricaViaje[]
-  paradas            Parada[]
-  solicitudes_parada SolicitudParada[]
-  alertas            Alerta[]
-  checklist_items    ChecklistItem[]
-  gastos             Gasto[]
-  privacidad         PrivacidadViaje[]
-  accesos_ubicacion  AccesoUbicacion[]
+  ruta                  Ruta?
+  resumen               ResumenViaje?
+  registros_gps         RegistroGPS[]
+  ubicaciones_vivas     UbicacionViva[]
+  metricas              MetricaViaje[]
+  paradas               Parada[]
+  solicitudes_parada    SolicitudParada[]
+  alertas               Alerta[]
+  checklist_items       ChecklistItem[]
+  gastos                Gasto[]
+  privacidad            PrivacidadViaje[]
+  accesos_ubicacion     AccesoUbicacion[]
+  insignias_otorgadas   UsuarioInsignia[]
+  recorridos_publicados RecorridoPublicado[]
 
   @@index([creador_id])
   @@map("viaje")
@@ -603,6 +608,69 @@ model MetricaViaje {
   @@map("metrica_viaje")
 }
 
+/// RN-074: catálogo de insignias (E09). Los tres criterios son opcionales e
+/// independientes entre sí (AND): null = no aplica. Nunca hay criterio de
+/// velocidad acá (RN-070: moto queda afuera de cualquier gamificación de
+/// velocidad), solo distancia/duración/actividad.
+model Insignia {
+  id                    String         @id @default(uuid()) @db.Uuid
+  /// Slug estable para referenciarla desde seeds/código sin depender del nombre visible.
+  codigo                String         @unique
+  nombre                String
+  descripcion           String?
+  /// Nombre de ícono de @expo/vector-icons/Feather.
+  icono                 String
+  criterio_distancia_m  Float?         @map("criterio_distancia_m")
+  criterio_duracion_seg Int?           @map("criterio_duracion_seg")
+  criterio_actividad    TipoActividad? @map("criterio_actividad")
+  activa                Boolean        @default(true)
+  created_at            DateTime       @default(now()) @map("created_at")
+
+  otorgadas UsuarioInsignia[]
+
+  @@map("insignia")
+}
+
+/// RN-074: una fila por (usuario, insignia) obtenida. Se otorga automáticamente
+/// al finalizar un viaje cuyas métricas cumplen el criterio; `viaje_id` guarda
+/// cuál fue para poder mostrar "conseguida en tal recorrido".
+model UsuarioInsignia {
+  id          String   @id @default(uuid()) @db.Uuid
+  usuario_id  String   @map("usuario_id") @db.Uuid
+  insignia_id String   @map("insignia_id") @db.Uuid
+  viaje_id    String?  @map("viaje_id") @db.Uuid
+  obtenida_at DateTime @default(now()) @map("obtenida_at")
+
+  usuario  Usuario  @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  insignia Insignia @relation(fields: [insignia_id], references: [id], onDelete: Cascade)
+  viaje    Viaje?   @relation(fields: [viaje_id], references: [id], onDelete: SetNull)
+
+  @@unique([usuario_id, insignia_id])
+  @@index([usuario_id])
+  @@map("usuario_insignia")
+}
+
+/// RN-075: racha de semanas consecutivas con al menos un viaje finalizado (E09).
+/// Una fila por usuario (1:1). `semanas_consecutivas` es la racha persistida al
+/// momento de la última escritura; para mostrarla hay que recalcular si ya pasó
+/// una semana completa sin actividad desde `ultima_actividad` (ver
+/// `RachasService.obtenerRachaVigente`), porque nada escribe acá entre un viaje
+/// y el siguiente. El job diario (`src/jobs/rachasJob.ts`) es solo para notificar
+/// la rotura el mismo día que ocurre; no hace falta para que la lectura sea correcta.
+model RachaActividad {
+  usuario_id           String   @id @map("usuario_id") @db.Uuid
+  semanas_consecutivas Int      @default(0) @map("semanas_consecutivas")
+  /// Lunes (ART) de la semana en que arrancó la racha actual.
+  inicio_racha         DateTime @map("inicio_racha")
+  /// Instante del viaje finalizado más reciente que contó para la racha.
+  ultima_actividad     DateTime @map("ultima_actividad")
+  updated_at           DateTime @updatedAt @map("updated_at")
+
+  usuario Usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+
+  @@map("racha_actividad")
+}
+
 /// RN-026: checklist de preparativos pre-ruta.
 ///
 /// Cada fila pertenece a UN integrante (`usuario_id`): el checklist es personal,
@@ -687,4 +755,31 @@ model AuditoriaAdmin {
   @@index([created_at])
   @@index([entidad, entidad_id])
   @@map("auditoria_admin")
+}
+
+/// RN-081 (E10): recorrido del historial publicado para la comunidad. Es un snapshot
+/// congelado al publicar (tipo, distancia, tiempo y traza propios de quien publica):
+/// borrar o editar el viaje después no altera lo ya publicado. Despublicar es
+/// `activo = false`, y volver a publicar reactiva la misma fila. Sin velocidades
+/// (RN-070): solo distancia y tiempo.
+model RecorridoPublicado {
+  id             String        @id @default(uuid()) @db.Uuid
+  viaje_id       String        @map("viaje_id") @db.Uuid
+  usuario_id     String        @map("usuario_id") @db.Uuid
+  nombre         String?
+  tipo_actividad TipoActividad @map("tipo_actividad")
+  distancia_m    Float         @map("distancia_m")
+  tiempo_seg     Int           @map("tiempo_seg")
+  /// Tramos contiguos [lat, lng][][] ya simplificados (misma forma que GET /viajes/:id/recorrido).
+  segmentos      Json
+  activo         Boolean       @default(true)
+  publicado_at   DateTime      @default(now()) @map("publicado_at")
+
+  viaje   Viaje   @relation(fields: [viaje_id], references: [id], onDelete: Cascade)
+  usuario Usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+
+  @@unique([viaje_id, usuario_id])
+  @@index([activo, publicado_at])
+  @@index([usuario_id])
+  @@map("recorrido_publicado")
 }

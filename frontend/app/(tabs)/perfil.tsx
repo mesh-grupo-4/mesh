@@ -14,6 +14,8 @@ import { resolveBackendUserId } from '@/lib/apiClient';
 import { listarAmigos, listarSolicitudesAmistadPendientes } from '@/lib/amistadesApi';
 import { listarGrupos } from '@/lib/gruposApi';
 import { obtenerEstadisticasUsuario } from '@/lib/viajesApi';
+import { listarMisInsignias, type InsigniaObtenidaApi } from '@/lib/insigniasApi';
+import { obtenerMiRacha, type RachaApi } from '@/lib/rachasApi';
 import { formatKmCompact } from '@/lib/format';
 import { Btn, Field, Chip, ChipRow, Avatar, TopBar, useTheme } from '@/components/MeshUI';
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda';
@@ -51,6 +53,46 @@ export default function PerfilScreen() {
   const [modoEdicion, setModoEdicion] = useState(false);
   const [stats, setStats] = useState<StatsPerfil | null>(null);
   const [cargandoStats, setCargandoStats] = useState(true);
+  const [insignias, setInsignias] = useState<InsigniaObtenidaApi[]>([]);
+  const [cargandoInsignias, setCargandoInsignias] = useState(true);
+  const [racha, setRacha] = useState<RachaApi | null>(null);
+  const [cargandoRacha, setCargandoRacha] = useState(true);
+
+  const cargarInsignias = useCallback(async () => {
+    try {
+      resolveBackendUserId(backendUserId);
+    } catch {
+      setInsignias([]);
+      setCargandoInsignias(false);
+      return;
+    }
+    setCargandoInsignias(true);
+    try {
+      setInsignias(await listarMisInsignias());
+    } catch {
+      setInsignias([]);
+    } finally {
+      setCargandoInsignias(false);
+    }
+  }, [backendUserId]);
+
+  const cargarRacha = useCallback(async () => {
+    try {
+      resolveBackendUserId(backendUserId);
+    } catch {
+      setRacha(null);
+      setCargandoRacha(false);
+      return;
+    }
+    setCargandoRacha(true);
+    try {
+      setRacha(await obtenerMiRacha());
+    } catch {
+      setRacha(null);
+    } finally {
+      setCargandoRacha(false);
+    }
+  }, [backendUserId]);
 
   const cargarStats = useCallback(async () => {
     let userId: string;
@@ -84,7 +126,9 @@ export default function PerfilScreen() {
   useFocusEffect(
     useCallback(() => {
       void cargarStats();
-    }, [cargarStats])
+      void cargarInsignias();
+      void cargarRacha();
+    }, [cargarStats, cargarInsignias, cargarRacha])
   );
 
   useEffect(() => {
@@ -232,6 +276,69 @@ export default function PerfilScreen() {
         </View>
         </PasoAyuda>
 
+        {/* Racha (RN-075, E09) */}
+        <View style={styles.section}>
+          <Text style={[styles.eyebrow, { color: theme.textDim }]}>RACHA</Text>
+          {cargandoRacha ? (
+            <Text style={[styles.insigniasVacio, { color: theme.textMute }]}>Cargando...</Text>
+          ) : (
+            <View style={[styles.rachaCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <Text style={styles.rachaEmoji}>🔥</Text>
+              <View style={styles.rachaTexto}>
+                <Text style={[styles.rachaValor, { color: theme.text }]}>
+                  {racha && racha.semanas_consecutivas > 0
+                    ? `${racha.semanas_consecutivas} semana${racha.semanas_consecutivas === 1 ? '' : 's'} seguidas`
+                    : 'Sin racha activa'}
+                </Text>
+                <Text
+                  style={[
+                    styles.rachaHint,
+                    { color: racha?.en_riesgo ? theme.danger : theme.textDim },
+                  ]}
+                >
+                  {racha?.en_riesgo
+                    ? 'Salí esta semana para no perderla'
+                    : racha && racha.semanas_consecutivas > 0
+                      ? 'Completá un viaje cada semana para mantenerla'
+                      : 'Completá un viaje para arrancar una racha'}
+                </Text>
+              </View>
+            </View>
+          )}
+        </View>
+
+        {/* Insignias (RN-074, E09) */}
+        <View style={styles.section}>
+          <Text style={[styles.eyebrow, { color: theme.textDim }]}>INSIGNIAS</Text>
+          {cargandoInsignias ? (
+            <Text style={[styles.insigniasVacio, { color: theme.textMute }]}>Cargando...</Text>
+          ) : insignias.length === 0 ? (
+            <Text style={[styles.insigniasVacio, { color: theme.textMute }]}>
+              Todavía no conseguiste ninguna. Completá un viaje para empezar a ganarlas.
+            </Text>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.insigniasRow}
+            >
+              {insignias.map((ins) => (
+                <View
+                  key={ins.id}
+                  style={[styles.insigniaChip, { backgroundColor: theme.surface, borderColor: theme.border }]}
+                >
+                  <View style={[styles.insigniaIconWrap, { backgroundColor: theme.accentWeak }]}>
+                    <Feather name={ins.icono as keyof typeof Feather.glyphMap} size={20} color={theme.accent} />
+                  </View>
+                  <Text style={[styles.insigniaNombre, { color: theme.text }]} numberOfLines={2}>
+                    {ins.nombre}
+                  </Text>
+                </View>
+              ))}
+            </ScrollView>
+          )}
+        </View>
+
         {/* Datos Personales */}
         <View style={styles.section}>
           <Text style={[styles.eyebrow, { color: theme.textDim }]}>DATOS PERSONALES</Text>
@@ -324,6 +431,24 @@ export default function PerfilScreen() {
           <View style={styles.linkAmigosContent}>
             <Feather name="map" size={18} color={theme.accent} style={styles.amigosIcon} />
             <Text style={[styles.linkAmigosText, { color: theme.text }]}>Mis rutas</Text>
+          </View>
+          <Feather name="chevron-right" size={20} color={theme.textMute} />
+        </Pressable>
+
+        <Pressable
+          style={({ pressed }) => [
+            styles.linkAmigos,
+            {
+              backgroundColor: pressed ? theme.surface2 : theme.surface,
+              borderColor: theme.border,
+              marginTop: 10,
+            },
+          ]}
+          onPress={() => router.push('/ranking')}
+        >
+          <View style={styles.linkAmigosContent}>
+            <Feather name="bar-chart-2" size={18} color={theme.accent} style={styles.amigosIcon} />
+            <Text style={[styles.linkAmigosText, { color: theme.text }]}>Tabla de posiciones</Text>
           </View>
           <Feather name="chevron-right" size={20} color={theme.textMute} />
         </Pressable>
@@ -491,6 +616,58 @@ const styles = StyleSheet.create({
     fontFamily: 'SpaceMono',
     fontWeight: '700',
     letterSpacing: 1.2,
+  },
+  insigniasVacio: {
+    fontSize: 13.5,
+    lineHeight: 19,
+  },
+  rachaCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  rachaEmoji: {
+    fontSize: 28,
+  },
+  rachaTexto: {
+    flex: 1,
+    gap: 2,
+  },
+  rachaValor: {
+    fontSize: 15.5,
+    fontWeight: '800',
+  },
+  rachaHint: {
+    fontSize: 12.5,
+  },
+  insigniasRow: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingVertical: 2,
+    paddingRight: 4,
+  },
+  insigniaChip: {
+    width: 92,
+    alignItems: 'center',
+    gap: 6,
+    padding: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  insigniaIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  insigniaNombre: {
+    fontSize: 12,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   row: {
     flexDirection: 'row',

@@ -1,7 +1,12 @@
 import type { PrismaClient } from '@prisma/client'
 import { prisma as defaultPrisma } from '../../config/prisma'
 import { firebaseAuth } from '../../config/firebase'
+import { HttpError } from '../../lib/httpError'
 import type { SyncUsuarioInput } from './usuarios.schemas'
+import { AmistadesService } from '../amistades/amistades.service'
+import { InsigniasService } from '../insignias/insignias.service'
+import { RachasService } from '../rachas/rachas.service'
+import { ViajesService } from '../viajes/viajes.service'
 
 function esConflictoUnico(err: unknown): boolean {
   return (
@@ -73,7 +78,17 @@ export async function findOrCreateByFirebaseUid(firebaseUid: string) {
 }
 
 export class UsuariosService {
-  constructor(private readonly prisma: PrismaClient) {}
+  private readonly amistades: AmistadesService
+  private readonly insignias: InsigniasService
+  private readonly rachas: RachasService
+  private readonly viajes: ViajesService
+
+  constructor(private readonly prisma: PrismaClient) {
+    this.amistades = new AmistadesService(prisma)
+    this.insignias = new InsigniasService(prisma)
+    this.rachas = new RachasService(prisma)
+    this.viajes = new ViajesService(prisma)
+  }
 
   async getMe(userId: string) {
     return this.prisma.usuario.findUnique({
@@ -119,5 +134,40 @@ export class UsuariosService {
         rol_sistema: true,
       },
     })
+  }
+
+  /**
+   * Perfil de un usuario visible para cualquiera de la comunidad (no hace falta
+   * ser amigos ni compartir un viaje): nombre, actividad preferida, estadísticas
+   * agregadas (RN-070: nunca velocidad), insignias (RN-074) y racha (RN-075).
+   */
+  async perfilPublico(usuarioObjetivoId: string, solicitanteId: string) {
+    const usuario = await this.prisma.usuario.findUnique({
+      where: { id: usuarioObjetivoId },
+      select: { id: true, nombre: true, apellido: true, actividad_preferida: true },
+    })
+    if (!usuario) {
+      throw new HttpError(404, 'Usuario no encontrado', 'USER_NOT_FOUND')
+    }
+
+    const esYo = usuario.id === solicitanteId
+    const [estadisticas, insignias, racha, relacionAmistad] = await Promise.all([
+      this.viajes.estadisticasUsuario(usuario.id),
+      this.insignias.listarDeUsuario(usuario.id),
+      this.rachas.obtenerRachaVigente(usuario.id),
+      esYo ? Promise.resolve(null) : this.amistades.obtenerRelacion(solicitanteId, usuario.id),
+    ])
+
+    return {
+      id: usuario.id,
+      nombre: usuario.nombre,
+      apellido: usuario.apellido,
+      actividad_preferida: usuario.actividad_preferida,
+      es_yo: esYo,
+      relacion_amistad: relacionAmistad,
+      racha,
+      estadisticas,
+      insignias,
+    }
   }
 }

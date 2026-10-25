@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator, RefreshControl, Pressable } from 'react-native';
 import { meshAlert } from '@/lib/meshAlert';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
@@ -91,7 +91,17 @@ export default function MiembrosViajeScreen() {
     };
 
     return (
-      <View style={[styles.fila, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+      <Pressable
+        disabled={esYo}
+        onPress={() =>
+          router.push({ pathname: '/usuario/[usuarioId]', params: { usuarioId: item.usuario.id } })
+        }
+        style={({ pressed }) => [
+          styles.fila,
+          { backgroundColor: theme.surface, borderColor: theme.border },
+          pressed && !esYo && { opacity: 0.85 },
+        ]}
+      >
         <Avatar person={dummyPerson} size="sm" ring={esLider} />
 
         <View style={styles.filaContenido}>
@@ -125,7 +135,7 @@ export default function MiembrosViajeScreen() {
             )}
           </View>
         </View>
-      </View>
+      </Pressable>
     );
   };
 

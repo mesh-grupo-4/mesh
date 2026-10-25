@@ -44,6 +44,7 @@ ErrorCode:
     - GRUPO_NOT_FOUND
     - GRUPO_ORIGEN_NOT_FOUND
     - VIAJE_NOT_FOUND
+    - RECORRIDO_NOT_FOUND
     - MEMBER_NOT_FOUND
     - INVITATION_NOT_FOUND
     - FRIEND_REQUEST_NOT_FOUND
@@ -56,6 +57,8 @@ ErrorCode:
     - ITEM_NOT_FOUND
     - VIAJE_ORIGEN_NOT_FOUND
     # Conflictos de estado
+    - VIAJE_NO_FINALIZADO
+    - RECORRIDO_SIN_TRAZA
     - INVALID_STATE
     - INVALID_TRANSITION
     - TRIP_NOT_FINISHED
@@ -390,6 +393,56 @@ Usuario:
       description: Modalidad que la app propone por defecto al crear un viaje.
     rol_sistema:
       $ref: '#/RolSistema'
+  additionalProperties: false
+
+PerfilPublico:
+  type: object
+  description: |
+    Perfil de un usuario visible para cualquiera de la comunidad: no hace falta
+    ser amigos ni compartir un viaje. Nunca expone email, teléfono ni nada
+    relacionado a ubicación — solo lo que ya es público por diseño (nombre,
+    estadísticas agregadas sin velocidad por RN-070, insignias por RN-074 y
+    racha de semanas consecutivas por RN-075).
+  required:
+    - id
+    - nombre
+    - apellido
+    - actividad_preferida
+    - es_yo
+    - relacion_amistad
+    - racha
+    - estadisticas
+    - insignias
+  properties:
+    id:
+      type: string
+      format: uuid
+    nombre:
+      type: string
+      example: Martina
+    apellido:
+      type: string
+      nullable: true
+      example: Gómez
+    actividad_preferida:
+      allOf:
+        - $ref: '#/TipoActividadNullable'
+      description: Modalidad que esta persona eligió como preferida.
+    es_yo:
+      type: boolean
+      description: true si quien consulta es el mismo usuario del perfil.
+    relacion_amistad:
+      allOf:
+        - $ref: '#/RelacionAmistad'
+      description: '`null` cuando `es_yo` es true: no se calcula relación propia.'
+    racha:
+      $ref: '#/Racha'
+    estadisticas:
+      $ref: '#/EstadisticasUsuario'
+    insignias:
+      type: array
+      items:
+        $ref: '#/InsigniaObtenida'
   additionalProperties: false
 
 SyncUsuarioRequest:
@@ -2025,6 +2078,106 @@ EstadisticasUsuario:
       allOf:
         - $ref: '#/TipoActividadNullable'
       description: Actividad con más viajes finalizados. `null` si todavía no hay ninguno.
+  additionalProperties: false
+
+# ── Rachas ───────────────────────────────────────────────────────────────────
+# Racha de semanas consecutivas con actividad (RN-075, E09). Ver src/modules/rachas/.
+
+Racha:
+  type: object
+  description: |
+    Racha "vigente" al momento de leer: si ya pasó una semana calendario (ART)
+    completa sin que el usuario finalizara un viaje, se muestra en 0 aunque el
+    job diario todavía no haya reiniciado el contador en base — la lectura
+    nunca miente, corra o no ese job ese día.
+  required:
+    - semanas_consecutivas
+    - en_riesgo
+  properties:
+    semanas_consecutivas:
+      type: integer
+      minimum: 0
+      example: 4
+    en_riesgo:
+      type: boolean
+      description: |
+        true si la semana pasada tuvo actividad pero esta todavía no: si
+        termina sin un viaje finalizado, la racha se corta.
+  additionalProperties: false
+
+# ── Tabla de posiciones ────────────────────────────────────────────────────
+# Ranking global por tipo de actividad y período (RN-076, E09). Nunca por
+# velocidad (RN-070) y nunca moto. Ver src/modules/tabla-posiciones/.
+
+FilaTablaPosiciones:
+  type: object
+  required: [puesto, usuario_id, nombre, distancia_m, tiempo_movimiento_seg]
+  properties:
+    puesto:
+      type: integer
+      minimum: 1
+      example: 1
+    usuario_id:
+      type: string
+      format: uuid
+    nombre:
+      type: string
+      example: Ana Pérez
+    distancia_m:
+      type: number
+      format: double
+      description: Suma de distancia recorrida en el período, en metros.
+      example: 52300
+    tiempo_movimiento_seg:
+      type: integer
+      description: Suma de tiempo en movimiento en el período, en segundos.
+      example: 7200
+  additionalProperties: false
+
+TablaPosiciones:
+  type: object
+  description: |
+    Ranking de un tipo de actividad en el período vigente. `top` trae como
+    máximo los 3 primeros puestos; `mi_posicion` es la fila de quien consulta
+    con su puesto real, esté o no entre esos 3 (`null` si no tuvo actividad en
+    el período).
+  required:
+    - tipo_actividad
+    - periodo
+    - orden
+    - desde
+    - top
+    - mi_posicion
+    - total_participantes
+  properties:
+    tipo_actividad:
+      type: string
+      enum: [bici, running, trekking, otro]
+    periodo:
+      type: string
+      enum: [semanal, mensual, anual]
+    orden:
+      type: string
+      enum: [distancia, tiempo]
+    desde:
+      type: string
+      format: date-time
+      description: Inicio (00:00 ART) del período vigente.
+    top:
+      type: array
+      maxItems: 3
+      items:
+        $ref: '#/FilaTablaPosiciones'
+    mi_posicion:
+      allOf:
+        - $ref: '#/FilaTablaPosiciones'
+      type: object
+      nullable: true
+      description: 'Fila de quien consulta, en su puesto real. `null` si no tuvo actividad en el período.'
+    total_participantes:
+      type: integer
+      description: Cuántos usuarios tuvieron al menos un viaje finalizado de esa actividad en el período.
+      example: 18
   additionalProperties: false
 
 RutaViaje:
@@ -3692,6 +3845,97 @@ BalanceGastos:
         (algoritmo "settle up": empareja el mayor deudor con el mayor acreedor).
       items:
         $ref: '#/TransaccionLiquidacion'
+  additionalProperties: false
+
+# ── Insignias ──────────────────────────────────────────────────────────────
+# Catálogo de logros (RN-074, E09) y las que cada usuario fue consiguiendo.
+# Ver src/modules/insignias/.
+
+Insignia:
+  type: object
+  description: |
+    Entrada del catálogo. Los tres criterios son independientes entre sí
+    (deben cumplirse todos los que no sean `null`) y evalúan la métrica de UN
+    viaje finalizado, nunca acumulada entre viajes. Nunca hay criterio de
+    velocidad (RN-070: prohibido gamificar velocidad, especialmente en moto).
+  required:
+    - id
+    - codigo
+    - nombre
+    - descripcion
+    - icono
+    - criterio_distancia_m
+    - criterio_duracion_seg
+    - criterio_actividad
+  properties:
+    id:
+      type: string
+      format: uuid
+    codigo:
+      type: string
+      description: Slug estable, no cambia aunque se traduzca o retoque el nombre visible.
+    nombre:
+      type: string
+    descripcion:
+      type: string
+      nullable: true
+    icono:
+      type: string
+      description: Nombre de ícono de `@expo/vector-icons/Feather`.
+    criterio_distancia_m:
+      type: number
+      format: double
+      nullable: true
+      description: Distancia mínima recorrida en el viaje, en metros. `null` = no aplica.
+    criterio_duracion_seg:
+      type: integer
+      nullable: true
+      description: Tiempo mínimo en movimiento durante el viaje, en segundos. `null` = no aplica.
+    criterio_actividad:
+      allOf:
+        - $ref: '#/TipoActividad'
+      type: string
+      nullable: true
+      description: '`null` = cualquier tipo de actividad.'
+  additionalProperties: false
+
+InsigniaObtenida:
+  type: object
+  description: Una insignia ya otorgada a un usuario, con los datos de la insignia embebidos.
+  required:
+    - id
+    - insignia_id
+    - codigo
+    - nombre
+    - descripcion
+    - icono
+    - viaje_id
+    - obtenida_at
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: Id de la fila `usuario_insignia` (el otorgamiento en sí).
+    insignia_id:
+      type: string
+      format: uuid
+    codigo:
+      type: string
+    nombre:
+      type: string
+    descripcion:
+      type: string
+      nullable: true
+    icono:
+      type: string
+    viaje_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: Viaje finalizado que disparó el logro.
+    obtenida_at:
+      type: string
+      format: date-time
   additionalProperties: false
 
 # ── Geocoding ────────────────────────────────────────────────────────────────
@@ -5402,3 +5646,60 @@ ReporteGastos:
             format: date
           monto:
             type: number
+
+RecorridoPublicadoResumen:
+  type: object
+  description: |
+    Recorrido del historial publicado para la comunidad (RN-081). Snapshot congelado al
+    publicar. Solo distancia y tiempo: nunca velocidad (RN-070).
+  required: [id, viaje_id, nombre, tipo_actividad, distancia_m, tiempo_seg, publicado_at, autor]
+  properties:
+    id:
+      type: string
+      format: uuid
+    viaje_id:
+      type: string
+      format: uuid
+    nombre:
+      type: string
+      nullable: true
+    tipo_actividad:
+      $ref: '#/TipoActividad'
+    distancia_m:
+      type: number
+    tiempo_seg:
+      type: integer
+      description: Tiempo en movimiento de quien publicó.
+    publicado_at:
+      type: string
+      format: date-time
+    autor:
+      type: object
+      required: [id, nombre, apellido]
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+        apellido:
+          type: string
+          nullable: true
+
+RecorridoPublicadoDetalle:
+  allOf:
+    - $ref: '#/RecorridoPublicadoResumen'
+    - type: object
+      required: [segmentos]
+      properties:
+        segmentos:
+          type: array
+          description: Tramos contiguos de la traza, cada punto `[lat, lng]`.
+          items:
+            type: array
+            items:
+              type: array
+              minItems: 2
+              maxItems: 2
+              items:
+                type: number

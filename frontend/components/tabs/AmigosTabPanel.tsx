@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { AvatarFallback } from '@/components/AvatarFallback';
 import { SelectableCard } from '@/components/SelectableCard';
 import { SelectionActionBar } from '@/components/SelectionActionBar';
@@ -42,6 +42,7 @@ type TabAmigos = 'amigos' | 'solicitudes';
 
 export function AmigosTabPanel() {
   const theme = useTheme();
+  const router = useRouter();
   const { backendUserId } = useAuth();
   const selection = useSelectionMode();
   const [tab, setTab] = useState<TabAmigos>('amigos');
@@ -255,6 +256,10 @@ export function AmigosTabPanel() {
     );
   };
 
+  const verPerfil = (usuarioId: string) => {
+    router.push({ pathname: '/usuario/[usuarioId]', params: { usuarioId } });
+  };
+
   const renderFilaAmigo = ({ item }: { item: AmigoApi }) => (
     <SelectableCard
       itemId={item.id}
@@ -262,6 +267,7 @@ export function AmigosTabPanel() {
       selected={selection.isSelected(item.id)}
       onEnterSelection={selection.enter}
       onToggle={selection.toggle}
+      onPress={() => verPerfil(item.id)}
       style={[styles.fila, { backgroundColor: theme.surface, borderColor: theme.border }]}
     >
       <AvatarFallback nombre={item.nombre} />
@@ -273,14 +279,18 @@ export function AmigosTabPanel() {
   );
 
   const renderFilaBusqueda = ({ item }: { item: UsuarioBusquedaAmistadApi }) => (
-    <View style={[styles.fila, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+    <TouchableOpacity
+      style={[styles.fila, { backgroundColor: theme.surface, borderColor: theme.border }]}
+      onPress={() => verPerfil(item.id)}
+      activeOpacity={0.75}
+    >
       <AvatarFallback nombre={item.nombre} />
       <View style={styles.filaContenido}>
         <Text style={[styles.nombre, { color: theme.text }]}>{item.nombre}</Text>
         <Text style={[styles.email, { color: theme.textDim }]}>{item.email}</Text>
       </View>
       {renderBotonAgregar(item)}
-    </View>
+    </TouchableOpacity>
   );
 
   const renderSolicitud = ({ item }: { item: SolicitudAmistadPendienteApi }) => {
@@ -288,14 +298,18 @@ export function AmigosTabPanel() {
 
     return (
       <View style={[styles.tarjetaSolicitud, { backgroundColor: theme.surface, borderColor: theme.accentLine }]}>
-        <View style={styles.filaSolicitud}>
+        <TouchableOpacity
+          style={styles.filaSolicitud}
+          onPress={() => verPerfil(item.solicitante.id)}
+          activeOpacity={0.75}
+        >
           <AvatarFallback nombre={item.solicitante.nombre} />
           <View style={styles.filaContenido}>
             <Text style={[styles.nombre, { color: theme.text }]}>{item.solicitante.nombre}</Text>
             <Text style={[styles.email, { color: theme.textDim }]}>{item.solicitante.email}</Text>
             <Text style={[styles.hintRelacion, { color: theme.textDim }]}>Quiere agregarte como amigo</Text>
           </View>
-        </View>
+        </TouchableOpacity>
         <View style={styles.accionesSolicitud}>
           <TouchableOpacity
             style={[styles.botonAceptar, { backgroundColor: theme.accent }, procesando && styles.botonDeshabilitado]}

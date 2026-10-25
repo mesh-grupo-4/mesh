@@ -1,4 +1,8 @@
 import { apiUrl, meshFetchAuthed, parseJson } from './apiClient'
+import type { RelacionAmistad } from './amistadesApi'
+import type { InsigniaObtenidaApi } from './insigniasApi'
+import type { RachaApi } from './rachasApi'
+import type { EstadisticasUsuarioApi } from './viajesApi'
 
 export type ActividadPreferidaApi = 'moto' | 'bici' | 'running' | 'trekking' | 'otro'
 
@@ -61,4 +65,25 @@ export async function obtenerMiPerfil(baseUrl?: string): Promise<UsuarioPerfilRe
     method: 'GET',
   })
   return parseJson<UsuarioPerfilResponse>(res)
+}
+
+/** Perfil visible para cualquier usuario de la comunidad (RN-074): sin email ni teléfono. */
+export type PerfilPublicoApi = {
+  id: string
+  nombre: string
+  apellido: string | null
+  actividad_preferida: ActividadPreferidaApi | null
+  es_yo: boolean
+  relacion_amistad: RelacionAmistad
+  racha: RachaApi
+  estadisticas: EstadisticasUsuarioApi
+  insignias: InsigniaObtenidaApi[]
+}
+
+export async function obtenerPerfilPublico(
+  usuarioId: string,
+  baseUrl?: string
+): Promise<PerfilPublicoApi> {
+  const res = await meshFetchAuthed(apiUrl(`/api/usuarios/${usuarioId}/perfil`, baseUrl))
+  return parseJson<PerfilPublicoApi>(res)
 }

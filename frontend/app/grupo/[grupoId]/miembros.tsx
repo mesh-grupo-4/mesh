@@ -132,11 +132,16 @@ export default function MiembrosGrupoScreen() {
     };
 
     return (
-      <View
-        style={[
+      <Pressable
+        disabled={esYo}
+        onPress={() =>
+          router.push({ pathname: '/usuario/[usuarioId]', params: { usuarioId: item.id } })
+        }
+        style={({ pressed }) => [
           styles.fila,
           { backgroundColor: theme.surface, borderColor: theme.border },
           actualizando && styles.filaDeshabilitada,
+          pressed && !esYo && { opacity: 0.85 },
         ]}
       >
         <Avatar person={dummyPerson} size="sm" ring={item.rol === 'lider'} />
@@ -176,7 +181,7 @@ export default function MiembrosGrupoScreen() {
             )}
           </Pressable>
         )}
-      </View>
+      </Pressable>
     );
   };
 

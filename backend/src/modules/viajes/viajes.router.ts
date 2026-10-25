@@ -11,6 +11,7 @@ import { fantasmaHandlers } from '../fantasma/fantasma.router'
 import { checklistHandlers } from '../checklist/checklist.router'
 import { gastosHandlers } from '../gastos/gastos.router'
 import { privacidadViajeHandlers } from '../privacidad/privacidad.router'
+import { recorridoPublicadoViajeHandlers } from '../recorridos-publicados/recorridos-publicados.router'
 
 const service = new ViajesService(prisma)
 const c = crearViajesController(service)
@@ -52,6 +53,9 @@ viajesRouter.get('/:viajeId/fantasma', ...fantasmaHandlers.obtener)
 viajesRouter.put('/:viajeId/ruta', requireUser, c.guardarRuta)
 viajesRouter.post('/:viajeId/ruta/compartir', requireUser, rutasCompartirHandlers.compartir)
 viajesRouter.delete('/:viajeId/ruta/compartir', requireUser, rutasCompartirHandlers.revocar)
+// RN-081 (E10): publicar / despublicar el recorrido propio para la comunidad.
+viajesRouter.post('/:viajeId/recorrido/publicar', requireUser, recorridoPublicadoViajeHandlers.publicar)
+viajesRouter.delete('/:viajeId/recorrido/publicar', requireUser, recorridoPublicadoViajeHandlers.despublicar)
 viajesRouter.post('/:viajeId/iniciar', requireUser, c.iniciar)
 viajesRouter.post('/:viajeId/finalizar', requireUser, c.finalizar)
 viajesRouter.post('/:viajeId/salir', requireUser, c.salir)

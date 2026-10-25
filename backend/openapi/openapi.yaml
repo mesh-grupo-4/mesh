@@ -84,7 +84,9 @@ tags:
   - name: Sistema
     description: Estado del servicio.
   - name: Usuarios
-    description: Perfil propio, sincronización con Firebase y token de notificaciones push.
+    description: |
+      Perfil propio, sincronización con Firebase, token de notificaciones push,
+      y el perfil público de cualquier usuario de la comunidad (RN-074).
   - name: Privacidad
     description: |
       Permisos de geolocalización y privacidad (RN-110 a RN-114): consentimiento
@@ -92,6 +94,29 @@ tags:
       accedió a la posición de cada persona.
   - name: Amistades
     description: Búsqueda de personas, solicitudes de amistad y listado de amigos.
+  - name: Insignias
+    description: |
+      Logros otorgados automáticamente al finalizar un viaje cuyas métricas
+      cumplen un criterio de distancia, duración y/o tipo de actividad (RN-074,
+      E09). Son públicas dentro de la comunidad: cualquier usuario autenticado
+      puede ver las insignias de cualquier otro. Nunca hay criterio de
+      velocidad (RN-070).
+  - name: Rachas
+    description: |
+      Semanas consecutivas con al menos un viaje finalizado (RN-075, E09). Se
+      extiende o reinicia sola al finalizar cada viaje; un job diario notifica
+      las que se cortaron por inactividad el mismo día, sin esperar al
+      próximo viaje. Públicas dentro de la comunidad, igual que las insignias.
+  - name: TablaPosiciones
+    description: |
+      Ranking global por tipo de actividad y período (RN-076, E09), ordenado
+      por distancia o tiempo en movimiento — nunca por velocidad (RN-070).
+      La modalidad moto no tiene tabla de posiciones.
+  - name: RecorridosPublicados
+    description: |
+      Red social de recorridos (RN-081, E10): publicar un viaje del historial para
+      la comunidad, explorarlos y despublicarlos en cualquier momento. Muestra mapa,
+      tipo de actividad, distancia y tiempo — nunca velocidad (RN-070).
   - name: Geocoding
     description: Búsqueda de lugares y geocodificación inversa vía Google Places/Geocoding, con Nominatim/OpenStreetMap de respaldo, proxiado por el backend.
   - name: Routing
@@ -167,6 +192,8 @@ paths:
     $ref: './paths/privacidad.yaml#/PrivacidadUsuario'
   /api/usuarios/me/accesos-ubicacion:
     $ref: './paths/privacidad.yaml#/AccesosUbicacionUsuario'
+  /api/usuarios/{usuarioId}/perfil:
+    $ref: './paths/usuarios.yaml#/PerfilPublicoUsuario'
 
   # ── Amistades ──────────────────────────────────────────────────────────────
   /api/amistades:
@@ -181,6 +208,34 @@ paths:
     $ref: './paths/amistades.yaml#/ResponderSolicitud'
   /api/amistades/{usuarioId}:
     $ref: './paths/amistades.yaml#/Amigo'
+
+  # ── Insignias ──────────────────────────────────────────────────────────────
+  /api/insignias:
+    $ref: './paths/insignias.yaml#/InsigniasCatalogo'
+  /api/insignias/mias:
+    $ref: './paths/insignias.yaml#/InsigniasMias'
+  /api/insignias/usuario/{usuarioId}:
+    $ref: './paths/insignias.yaml#/InsigniasDeUsuario'
+
+  # ── Rachas ─────────────────────────────────────────────────────────────────
+  /api/rachas/mia:
+    $ref: './paths/rachas.yaml#/RachaPropia'
+  /api/rachas/usuario/{usuarioId}:
+    $ref: './paths/rachas.yaml#/RachaDeUsuario'
+
+  # ── TablaPosiciones ────────────────────────────────────────────────────────
+  /api/tabla-posiciones:
+    $ref: './paths/tabla-posiciones.yaml#/TablaPosicionesColeccion'
+
+  # ── RecorridosPublicados ───────────────────────────────────────────────────
+  /api/recorridos-publicados:
+    $ref: './paths/recorridos-publicados.yaml#/RecorridosPublicadosColeccion'
+  /api/recorridos-publicados/mios:
+    $ref: './paths/recorridos-publicados.yaml#/RecorridosPublicadosMios'
+  /api/recorridos-publicados/{recorridoId}:
+    $ref: './paths/recorridos-publicados.yaml#/RecorridoPublicadoPorId'
+  /api/viajes/{viajeId}/recorrido/publicar:
+    $ref: './paths/recorridos-publicados.yaml#/PublicarRecorrido'
 
   # ── Geocoding ──────────────────────────────────────────────────────────────
   /api/geocoding/buscar:

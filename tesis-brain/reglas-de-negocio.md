@@ -176,9 +176,9 @@ Si el PO prefiere un criterio más conservador, la alternativa es devolver
 | RN-071 | El modo competitivo activa un leaderboard en tiempo real basado en posición y tiempos relativos. **Implementación (SCRUM-51):** `modo = competitivo` solo en viajes grupales y nunca en moto (RN-070; `400 MODO_INVALIDO`). El motor de eventos emite `viaje:leaderboard` con cada ping (máx. cada 3 s) ordenando por progreso sobre la ruta planificada, con `deltaM` y `gapSeg` (atraso a la velocidad esperada) respecto del líder; `GET /leaderboard` da la foto inicial. El recap post-cierre (RN-063) solo tiene puestos en competitivo. |
 | RN-072 | El modo recreativo desactiva rankings y comparaciones pero mantiene navegación y alertas de seguridad. **Implementación (SCRUM-52):** en `recreativo` el resumen y las métricas grupales devuelven `ranking_habilitado: false`, no hay leaderboard, no hay fantasma (`409 FANTASMA_NO_DISPONIBLE`) ni panel de ritmo en vivo; el mapa, las paradas y todas las alertas siguen igual. |
 | RN-073 | El ghost tracking superpone un marcador fantasma de un recorrido histórico que se mueve en tiempo real. El usuario ve si va adelante o atrás. **Implementación (SCRUM-49/50):** fuentes = traza GPS de un viaje finalizado en el que participó (propia o de otro integrante) o una ruta compartida importada como plantilla, recorrida a ritmo constante según su tiempo estimado. `GET /fantasma/candidatos` y `GET /fantasma` (≤ 1500 puntos con `t_seg` y `d_m`). El cliente anima el fantasma contra el tiempo desde el inicio del viaje, muestra metros y segundos adelante/atrás comparando distancia recorrida, y permite pausarlo o quitarlo. Nunca en moto (RN-070) ni en recreativo (RN-072). |
-| RN-074 | Las insignias se otorgan automáticamente al cumplir criterios de logro (distancia, duración, tipo de actividad). |
-| RN-075 | Las rachas se miden en semanas consecutivas con al menos una actividad. Al romperse, el contador se reinicia. |
-| RN-076 | La tabla global de posiciones está segmentada por tipo de actividad y filtrable por período (semanal, mensual, anual). |
+| RN-074 | Las insignias se otorgan automáticamente al cumplir criterios de logro (distancia, duración, tipo de actividad). **Implementación:** `InsigniasService.evaluarYOtorgar()`, llamado por `ViajesService.generarResumen()` al finalizar el viaje, contra la `MetricaViaje` recién calculada de cada integrante. Ver [`us-insignias.md`](us-insignias.md). |
+| RN-075 | Las rachas se miden en semanas consecutivas con al menos una actividad (un viaje finalizado). Al romperse, el contador se reinicia. **Implementación:** `RachasService.registrarActividad()`, llamado por `ViajesService.generarResumen()` al finalizar un viaje; detecta hitos (3, 5, 10 semanas) y rotura. Un job diario (`src/jobs/rachasJob.ts`) notifica las rachas rotas por pura inactividad el mismo día, sin esperar al próximo viaje. Ver [`us-rachas.md`](us-rachas.md). |
+| RN-076 | La tabla global de posiciones está segmentada por tipo de actividad (bici, running, trekking — moto no tiene tabla, RN-070) y filtrable por período (semanal, mensual, anual). **Implementación:** `TablaPosicionesService.obtener()`, calculada on-demand sumando `MetricaViaje` de los viajes finalizados desde el inicio del período vigente; nada persistido aparte. Ver [`us-tabla-posiciones.md`](us-tabla-posiciones.md). |
 
 ### 2.9 Reglas de Red Social de Recorridos
 
@@ -728,22 +728,31 @@ Valoracion
 
 Insignia
 ├── id (PK)
+├── codigo (unique)
 ├── nombre
-├── criterio_distancia
-├── criterio_duracion
-├── criterio_actividad
-└── icono
+├── descripcion (nullable)
+├── icono
+├── criterio_distancia_m (nullable)
+├── criterio_duracion_seg (nullable)
+├── criterio_actividad (nullable)
+├── activa
+└── created_at
 
 UsuarioInsignia
+├── id (PK)
 ├── usuario_id (FK)
 ├── insignia_id (FK)
+├── viaje_id (FK, nullable)
 └── obtenida_at
 
+    UNIQUE (usuario_id, insignia_id)
+
 RachaActividad
-├── usuario_id (FK)
+├── usuario_id (PK, FK)
 ├── semanas_consecutivas (int)
 ├── inicio_racha
-└── ultima_actividad
+├── ultima_actividad
+└── updated_at
 ```
 
 ---
@@ -860,7 +869,7 @@ Funcionalidades de alto valor que **diferencian al producto** de la competencia:
 Funcionalidades para **fases futuras**:
 
 8. **E08** — Gamificación con hitos, POIs, gastos colaborativos, wearables, itinerario IA
-9. **E09** — Gamificación extendida (insignias, rachas, tabla global)
+9. **E09** — Gamificación extendida (insignias, rachas, tabla global). **Recortes implementados:** premios por recorridos completados (insignias otorgadas automáticamente, RN-074) — [`us-insignias.md`](us-insignias.md); recompensas por rachas de actividad (RN-075) — [`us-rachas.md`](us-rachas.md); tabla de posiciones global por actividad (RN-076) — [`us-tabla-posiciones.md`](us-tabla-posiciones.md).
 10. **E10** — Red social de recorridos (publicar, explorar, valorar). **Primer recorte (puente E03→E10):** compartir ruta planificada por link + plantilla en perfil + reutilizar al crear viaje — US lista para Jira en [`us-compartir-ruta.md`](us-compartir-ruta.md). No mezclar con QR RN-015.
 11. **E11** — Asistencia inteligente IA (recomendación climática, itinerarios)
 12. **E12** — Información de ruta en tiempo real (cortes, radares, reportes comunitarios)

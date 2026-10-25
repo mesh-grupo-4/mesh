@@ -30,5 +30,10 @@ export function crearUsuariosController(service: UsuariosService) {
       await service.upsertPushToken(req.userId!, token)
       res.json({ ok: true })
     }),
+
+    perfilPublico: asyncHandler(async (req, res) => {
+      const perfil = await service.perfilPublico(req.params.usuarioId as string, req.userId!)
+      res.json(perfil)
+    }),
   }
 }

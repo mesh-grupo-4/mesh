@@ -699,6 +699,7 @@ export default function ViajeDetalleScreen() {
             </View>
 
             {/* Mapa real de la ruta planificada; en curso, miniatura del estado actual */}
+            <PasoAyuda {...AYUDA_VIAJE_DETALLE[0]!}>
             <Pressable
               onPress={viaje.estado === 'en_curso' ? irLive : irConfigurarRecorrido}
               disabled={!puedeEditarPlan && viaje.estado !== 'en_curso'}
@@ -1015,17 +1016,32 @@ export default function ViajeDetalleScreen() {
                         nombre: part.usuario.nombre,
                         apellido: '',
                       }
+                      const esYo = part.usuario.id === userId
                       return (
-                        <View key={part.usuario.id} style={[styles.participantRow, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                        <Pressable
+                          key={part.usuario.id}
+                          disabled={esYo}
+                          onPress={() =>
+                            router.push({
+                              pathname: '/usuario/[usuarioId]',
+                              params: { usuarioId: part.usuario.id },
+                            })
+                          }
+                          style={({ pressed }) => [
+                            styles.participantRow,
+                            { backgroundColor: theme.surface, borderColor: theme.border },
+                            pressed && !esYo && { opacity: 0.85 },
+                          ]}
+                        >
                           <Avatar person={dummyPerson} size="sm" />
                           <Text style={[styles.participantName, { color: theme.text }]} numberOfLines={1}>
                             {part.usuario.nombre}
-                            {part.usuario.id === userId ? ' (vos)' : ''}
+                            {esYo ? ' (vos)' : ''}
                           </Text>
                           <Badge tone={badgeParticipante(part.estado).tone}>
                             {badgeParticipante(part.estado).texto}
                           </Badge>
-                        </View>
+                        </Pressable>
                       )
                     })}
                     <Btn

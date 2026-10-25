@@ -1,0 +1,307 @@
+# Módulo RecorridosPublicados — src/modules/recorridos-publicados/
+# Router: top-level (recorridos-publicados.router.ts) · publicar/despublicar cuelgan de /viajes.
+#
+# Red social de recorridos (RN-081, E10). Un usuario publica un viaje finalizado de su
+# historial: se congela un snapshot de SU traza GPS, su distancia y su tiempo en
+# movimiento. Los recorridos publicados son visibles para todos los usuarios
+# autenticados; despublicar lo oculta para todos en cualquier momento.
+#
+# RN-070: nunca se expone ni se ordena por velocidad; solo distancia y tiempo.
+
+PublicarRecorrido:
+  post:
+    operationId: publicarRecorrido
+    summary: Publicar un recorrido del historial para la comunidad
+    description: |
+      Publica el viaje finalizado indicado (creador o integrante `confirmado`/`salido`).
+      Congela un snapshot de la traza y las métricas **propias** de quien publica.
+      Idempotente: republicar un recorrido ya publicado (o despublicado) refresca el
+      snapshot y lo deja activo.
+    tags:
+      - RecorridosPublicados
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '201':
+        description: Recorrido publicado.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/RecorridoPublicadoResumen'
+            example:
+              id: c4d5e6f7-1a2b-4c3d-8e9f-0a1b2c3d4e5f
+              viaje_id: 3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d
+              nombre: Vuelta al dique
+              tipo_actividad: bici
+              distancia_m: 42500
+              tiempo_seg: 6300
+              publicado_at: '2026-10-23T15:00:00.000Z'
+              autor:
+                id: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d
+                nombre: Ana
+                apellido: Pérez
+      '400':
+        description: '`viajeId` no es un UUID (`VALIDATION_ERROR`).'
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ValidationError'
+            example:
+              error: Validación fallida
+              code: VALIDATION_ERROR
+              details:
+                formErrors: []
+                fieldErrors:
+                  viajeId:
+                    - viajeId debe ser un UUID válido
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: El usuario no participó en el viaje (`FORBIDDEN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Sin acceso a este viaje
+              code: FORBIDDEN
+      '404':
+        description: Viaje no encontrado (`VIAJE_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Viaje no encontrado
+              code: VIAJE_NOT_FOUND
+      '409':
+        description: El viaje todavía no finalizó (`VIAJE_NO_FINALIZADO`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Solo se pueden publicar viajes finalizados
+              code: VIAJE_NO_FINALIZADO
+      '422':
+        description: El usuario no tiene traza GPS ni métricas en ese viaje (`RECORRIDO_SIN_TRAZA`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: El viaje no tiene un recorrido GPS para publicar
+              code: RECORRIDO_SIN_TRAZA
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+  delete:
+    operationId: despublicarRecorrido
+    summary: Despublicar un recorrido propio
+    description: |
+      Oculta el recorrido para toda la comunidad. Se puede hacer en cualquier momento
+      y se puede volver a publicar. Solo afecta a recorridos publicados por quien
+      consulta.
+    tags:
+      - RecorridosPublicados
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '204':
+        description: Recorrido despublicado. Sin cuerpo.
+      '400':
+        description: '`viajeId` no es un UUID (`VALIDATION_ERROR`).'
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ValidationError'
+            example:
+              error: Validación fallida
+              code: VALIDATION_ERROR
+              details:
+                formErrors: []
+                fieldErrors:
+                  viajeId:
+                    - viajeId debe ser un UUID válido
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '404':
+        description: El usuario no tiene ese recorrido publicado (`RECORRIDO_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Recorrido no publicado
+              code: RECORRIDO_NOT_FOUND
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+RecorridosPublicadosColeccion:
+  get:
+    operationId: listarRecorridosPublicados
+    summary: Explorar los recorridos publicados por la comunidad
+    description: |
+      Visibles para cualquier usuario autenticado. Más reciente primero. No incluye
+      la traza (usar `GET /recorridos-publicados/{recorridoId}` para el mapa).
+    tags:
+      - RecorridosPublicados
+    parameters:
+      - name: tipoActividad
+        in: query
+        required: false
+        description: Filtra por tipo de actividad.
+        schema:
+          $ref: '../components/schemas.yaml#/TipoActividad'
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 20
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+    responses:
+      '200':
+        description: Recorridos publicados.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/RecorridoPublicadoResumen'
+            example:
+              - id: c4d5e6f7-1a2b-4c3d-8e9f-0a1b2c3d4e5f
+                viaje_id: 3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d
+                nombre: Vuelta al dique
+                tipo_actividad: bici
+                distancia_m: 42500
+                tiempo_seg: 6300
+                publicado_at: '2026-10-23T15:00:00.000Z'
+                autor:
+                  id: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d
+                  nombre: Ana
+                  apellido: Pérez
+      '400':
+        description: Parámetros de consulta inválidos (`VALIDATION_ERROR`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ValidationError'
+            example:
+              error: Validación fallida
+              code: VALIDATION_ERROR
+              details:
+                formErrors: []
+                fieldErrors:
+                  limit:
+                    - Number must be less than or equal to 50
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+RecorridosPublicadosMios:
+  get:
+    operationId: listarMisViajesPublicados
+    summary: Ids de mis viajes que están publicados
+    description: |
+      Permite a la app marcar en el historial qué viajes ya están publicados
+      ("Despublicar") y cuáles no ("Publicar") sin pedir cada detalle.
+    tags:
+      - RecorridosPublicados
+    responses:
+      '200':
+        description: Ids de viaje con recorrido activo del usuario.
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [viaje_ids]
+              properties:
+                viaje_ids:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+            example:
+              viaje_ids:
+                - 3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+RecorridoPublicadoPorId:
+  get:
+    operationId: obtenerRecorridoPublicado
+    summary: Ver un recorrido publicado con su mapa
+    description: |
+      Resumen más la traza (`segmentos`) para dibujar el mapa. Un recorrido
+      despublicado responde 404 para todos, incluido su autor.
+    tags:
+      - RecorridosPublicados
+    parameters:
+      - name: recorridoId
+        in: path
+        required: true
+        description: UUID del recorrido publicado.
+        schema:
+          type: string
+          format: uuid
+        example: c4d5e6f7-1a2b-4c3d-8e9f-0a1b2c3d4e5f
+    responses:
+      '200':
+        description: Recorrido publicado con su traza.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/RecorridoPublicadoDetalle'
+            example:
+              id: c4d5e6f7-1a2b-4c3d-8e9f-0a1b2c3d4e5f
+              viaje_id: 3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d
+              nombre: Vuelta al dique
+              tipo_actividad: bici
+              distancia_m: 42500
+              tiempo_seg: 6300
+              publicado_at: '2026-10-23T15:00:00.000Z'
+              autor:
+                id: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d
+                nombre: Ana
+                apellido: Pérez
+              segmentos:
+                - - [-31.4201, -64.1888]
+                  - [-31.4215, -64.1902]
+      '400':
+        description: '`recorridoId` no es un UUID (`VALIDATION_ERROR`).'
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ValidationError'
+            example:
+              error: Validación fallida
+              code: VALIDATION_ERROR
+              details:
+                formErrors: []
+                fieldErrors:
+                  recorridoId:
+                    - recorridoId debe ser un UUID válido
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '404':
+        description: No existe o fue despublicado (`RECORRIDO_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Recorrido no encontrado
+              code: RECORRIDO_NOT_FOUND
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
