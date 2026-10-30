@@ -269,3 +269,187 @@
 3. Presionar el botón de papelera en la barra inferior de selección.
 4. Confirmar la eliminación.","Se ejecuta runBulkDelete eliminando los viajes seleccionados y mostrando el resumen de elementos eliminados con éxito.","","",""
 "CP-HIST-006","Alta","Acceso directo a viaje en curso desde el Dashboard (Inicio)","Usuario tiene un viaje actualmente en estado 'en_curso'.","1. Abrir la app e ir a la pestaña 'Inicio'.","Aparece de manera prominente una tarjeta de 'Viaje en curso' con el nombre, tiempo transcurrido y un botón directo 'Continuar seguimiento' que ingresa a la pantalla live.","","",""
+"CP-GHST-001","Alta","Elegir un viaje propio finalizado como fantasma y ver si voy adelante o atrás (RN-073)","Viaje en curso de bici, running o trekking en modo 'entrenamiento' o 'competitivo'. El usuario tiene al menos un viaje finalizado de la misma actividad con traza GPS.","1. Entrar al mapa en vivo del viaje.
+2. Tocar el botón de fantasma en el panel inferior.
+3. En 'Elegir fantasma', seleccionar un viaje anterior propio ('Recorrido real').
+4. Avanzar unos minutos y observar el panel del fantasma.","Aparece el marcador fantasma sobre el mapa moviéndose según el tiempo transcurrido desde el inicio del viaje. El panel indica 'Vas adelante' o 'Vas atrás' con la diferencia en metros y segundos.","","",""
+"CP-GHST-002","Media","Fantasma desde una ruta guardada (plantilla) a ritmo constante (RN-073)","Viaje en curso en modo 'entrenamiento' o 'competitivo' (no moto). El usuario tiene una ruta en 'Rutas > Guardadas' con tiempo estimado.","1. En el mapa en vivo, abrir 'Elegir fantasma'.
+2. Seleccionar la ruta guardada ('Ritmo estimado').
+3. Observar el movimiento del fantasma.","El fantasma recorre el trazado de la plantilla a ritmo constante según su tiempo estimado, y el panel compara la distancia recorrida contra la del fantasma.","","",""
+"CP-GHST-003","Media","Pausar, reanudar y quitar el fantasma durante el viaje (RN-073)","Viaje en curso con un fantasma activo.","1. En el panel del fantasma tocar 'Pausar fantasma'.
+2. Esperar unos segundos y tocar 'Reanudar fantasma'.
+3. Quitar el fantasma desde el panel.","Al pausar, el marcador se detiene y se muestra 'Fantasma en pausa'. Al reanudar vuelve a moverse. Al quitarlo desaparecen el marcador y el panel; el viaje sigue sin cambios.","","",""
+"CP-GHST-004","Crítica","Fantasma no disponible en moto ni en modo recreativo (RN-070, RN-072)","Dos viajes en curso: uno de moto y otro de bici en modo 'recreativo'.","1. Entrar al mapa en vivo del viaje de moto y buscar el botón de fantasma.
+2. Repetir en el viaje recreativo de bici.
+3. (API) Llamar GET /api/viajes/{id}/fantasma en ambos viajes.","En ninguno de los dos aparece la opción de fantasma. La API responde 409 FANTASMA_NO_DISPONIBLE. No hay ninguna comparación de ritmo en moto.","","",""
+"CP-COMP-001","Alta","Leaderboard en vivo en modo competitivo (RN-071)","Viaje grupal de bici (o running/trekking) en modo 'competitivo', en curso, con al menos 3 integrantes compartiendo ubicación.","1. Entrar al mapa en vivo con cada integrante.
+2. Avanzar por la ruta a distinto ritmo.
+3. Abrir el panel 'Clasificación'.","Se listan los integrantes ordenados por progreso sobre la ruta planificada, con la distancia (deltaM) y el atraso estimado (gapSeg) respecto del primero. Se actualiza como máximo cada 3 segundos.","","",""
+"CP-COMP-002","Crítica","Modo competitivo rechazado en moto y en viajes individuales (RN-070, RN-071)","Usuario autenticado en la pantalla de crear viaje.","1. Elegir actividad 'Moto' y verificar si se puede seleccionar el modo competitivo.
+2. Elegir 'Bici', viaje individual, e intentar el modo competitivo.
+3. (API) Enviar POST /api/viajes con tipoActividad='moto' y modo='competitivo'.","La app no ofrece el modo competitivo en moto ni en viajes individuales. La API responde 400 MODO_INVALIDO.","","",""
+"CP-COMP-003","Alta","Modo recreativo sin comparaciones pero con todas las alertas (RN-072)","Viaje grupal de bici en modo 'recreativo', en curso y luego finalizado.","1. Durante el viaje, revisar el mapa en vivo.
+2. Provocar un desvío de ruta.
+3. Finalizar el viaje y abrir el resumen.","En vivo no hay clasificación, fantasma ni panel de ritmo, pero el desvío genera su alerta normalmente. En el resumen no hay botón 'Recap del grupo' (ranking_habilitado=false).","","",""
+"CP-COMP-004","Alta","Modo entrenamiento: panel de ritmo en vivo y splits al cerrar (RN-065)","Viaje de running en modo 'entrenamiento'. El usuario ya tiene otra sesión de running finalizada.","1. Iniciar el viaje y observar el mapa en vivo.
+2. Recorrer al menos 2 km y finalizar.
+3. Abrir 'Ver métricas detalladas'.","En vivo se muestra la velocidad actual, la promedio y el ritmo. En métricas aparecen los splits por kilómetro, el número de sesión y la comparación contra la sesión anterior de running.","","",""
+"CP-COMP-005","Crítica","Modo entrenamiento en moto: sin velocidades, ritmos ni splits (RN-070, RN-065)","Viaje de moto en modo 'entrenamiento', finalizado con GPS.","1. En 'Crear viaje', elegir 'Moto' y leer la descripción del modo 'Entrenamiento'.
+2. Durante el viaje, observar el mapa en vivo.
+3. Al finalizar, abrir 'Ver métricas detalladas'.","La descripción del modo no promete splits ni velocidades en moto. En vivo no se muestra velocidad ni ritmo. Las métricas muestran solo distancia y tiempo: no hay splits, velocidad máxima ni comparación de ritmo entre sesiones.","","",""
+"CP-INSG-001","Alta","Otorgamiento automático de la insignia 'Primer recorrido' al finalizar (RN-074)","Usuario sin viajes finalizados previos y sin insignias.","1. Crear e iniciar un viaje individual de cualquier actividad.
+2. Recorrer un tramo con GPS y finalizar el viaje.
+3. Ir a la pestaña 'Perfil' y revisar la sección 'INSIGNIAS'.","Aparece la insignia 'Primer recorrido' sin ninguna acción manual. Antes de finalizar la sección mostraba el estado vacío.","","",""
+"CP-INSG-002","Alta","Insignia por distancia y actividad: '10K' en running (RN-074)","Usuario que no tiene la insignia '10K'.","1. Realizar y finalizar un viaje de running de 10 km o más.
+2. Revisar 'INSIGNIAS' en el perfil.","Se otorga '10K'. Si el viaje tuvo 21,1 km o más se otorga también 'Media maratón'. Cada criterio se evalúa contra un solo viaje, nunca sumando varios.","","",""
+"CP-INSG-003","Media","No se otorga una insignia si no se cumple el criterio o la actividad no coincide","Usuario sin la insignia '10K' ni '50K en bici'.","1. Finalizar un viaje de bici de 12 km.
+2. Revisar 'INSIGNIAS' en el perfil.","No se otorga '10K' (es de running) ni '50K en bici' (no alcanza la distancia). Solo aparecen las insignias cuyo criterio se cumplió.","","",""
+"CP-INSG-004","Media","Una insignia ya obtenida no se duplica ni cambia su fecha","Usuario que ya tiene 'Primer recorrido' y 'Hora en marcha'.","1. Finalizar otro viaje de más de 1 hora en movimiento.
+2. Revisar 'INSIGNIAS' en el perfil.","Cada insignia aparece una sola vez y conserva la fecha en que se obtuvo por primera vez.","","",""
+"CP-INSG-005","Alta","Insignias visibles en el perfil de otro usuario","Usuario A con insignias. Usuario B (no necesariamente amigo de A) autenticado.","1. Con B, buscar a A en 'Amigos' (o tocarlo en la lista de miembros de un viaje o grupo).
+2. Abrir el perfil de A.","Se abre el perfil público de A con sus insignias, sus estadísticas agregadas y el estado de amistad ('Son amigos', 'Solicitud enviada' o botón 'Agregar amigo').","","",""
+"CP-INSG-006","Crítica","Las insignias nunca premian velocidad, tampoco en moto (RN-070)","Acceso al catálogo de insignias (GET /api/insignias) y a un viaje de moto finalizado de 100 km o más.","1. Revisar los criterios de todas las insignias del catálogo.
+2. Finalizar el viaje de moto y revisar 'INSIGNIAS'.","Ningún criterio usa velocidad: solo distancia, duración o actividad. En moto puede otorgarse 'Rodador de 100' (distancia), nunca algo basado en velocidad.","","",""
+"CP-RACH-001","Alta","Racha inicial al finalizar el primer viaje de la semana (RN-075)","Usuario sin racha activa.","1. Finalizar un viaje.
+2. Ir a 'Perfil' y revisar la tarjeta 'RACHA'.","La racha muestra 1 semana. Las semanas se cuentan de lunes a domingo en hora argentina (RN-105).","","",""
+"CP-RACH-002","Alta","La racha aumenta con actividad en semanas consecutivas (RN-075)","Usuario con racha de 1 semana (actividad la semana pasada).","1. Finalizar un viaje en la semana actual.
+2. Revisar la tarjeta 'RACHA'.
+3. Finalizar un segundo viaje en la misma semana.","La racha pasa a 2 semanas con el primer viaje. El segundo viaje de la misma semana no la incrementa.","","",""
+"CP-RACH-003","Media","Aviso de racha en riesgo","Usuario con actividad la semana pasada y ninguna todavía en la semana actual.","1. Abrir 'Perfil' y revisar la tarjeta 'RACHA'.","Se muestra la racha vigente con el aviso en rojo 'Salí esta semana para no perderla'.","","",""
+"CP-RACH-004","Alta","Rotura de racha: se notifica y el contador se reinicia (RN-075)","Usuario con racha de 3 semanas o más que deja pasar una semana calendario completa sin actividad.","1. Esperar a que corra el job diario de rachas (o simularlo en el entorno de test).
+2. Revisar las notificaciones del dispositivo.
+3. Abrir 'Perfil' y revisar la tarjeta 'RACHA'.
+4. Finalizar un viaje nuevo.","Llega una notificación de racha perdida. El perfil muestra 0 aunque el job no haya corrido todavía. El viaje nuevo la arranca en 1 sin volver a notificar la rotura.","","",""
+"CP-RACH-005","Media","Notificación al alcanzar un hito de racha (3, 5 y 10 semanas)","Usuario con racha de 2 semanas.","1. Finalizar un viaje en la semana siguiente.
+2. Revisar las notificaciones del dispositivo.","Llega una notificación de hito por 3 semanas consecutivas. No se notifica en semanas que no son hito (por ejemplo, la 4).","","",""
+"CP-RACH-006","Media","Racha visible en el perfil de otro usuario, sin mensaje motivacional","Usuario A con racha en riesgo. Usuario B autenticado.","1. Con B, abrir el perfil de A.","Se ve la racha de A y, como mucho, la marca 'En riesgo esta semana', sin el texto 'Salí esta semana para no perderla'.","","",""
+"CP-TABL-001","Alta","Acceso a la tabla de posiciones global segmentada por actividad (RN-076)","Varios usuarios con viajes de bici finalizados en la semana actual.","1. Ir a 'Perfil' y tocar 'Tabla de posiciones'.
+2. Seleccionar la actividad 'Bici'.","Se muestra el podio con los 3 primeros puestos de bici de la semana en curso, ordenados por kilómetros.","","",""
+"CP-TABL-002","Crítica","REGLA INVIOLABLE RN-070: moto no tiene tabla de posiciones","Usuario autenticado con viajes de moto finalizados.","1. Abrir 'Tabla de posiciones' y revisar los chips de actividad.
+2. (API) Llamar GET /api/tabla-posiciones?tipoActividad=moto.","No existe chip de 'Moto' (solo Bici, Running, Trekking y Otro). La API responde 400 VALIDATION_ERROR. Los viajes de moto no suman en ninguna otra tabla.","","",""
+"CP-TABL-003","Alta","Filtro por período: esta semana, este mes y este año (RN-076)","Usuario con viajes de running en distintas semanas del mes actual.","1. En 'Tabla de posiciones', elegir 'Running'.
+2. Alternar entre 'Esta semana', 'Este mes' y 'Este año'.","Los totales cambian según la ventana calendario en curso (hora argentina). Un viaje de la semana pasada cuenta en el mes y el año, pero no en la semana.","","",""
+"CP-TABL-004","Crítica","Orden por kilómetros o tiempo en movimiento, nunca por velocidad (RN-070)","Tabla de bici con al menos 3 usuarios.","1. Alternar el orden entre 'Kilómetros' y 'Tiempo en movimiento'.
+2. Revisar los datos de cada fila.","El podio se reordena según el criterio elegido. Ninguna fila muestra velocidad y no existe la opción de ordenar por velocidad.","","",""
+"CP-TABL-005","Media","Mi posición se muestra aunque no esté en el top 3","Usuario con actividad en el período, ubicado del 4.º puesto en adelante.","1. Abrir la tabla de su actividad y período.","Debajo del podio aparece una fila aparte '#N · Vos' con su puesto real.","","",""
+"CP-TABL-006","Media","Estado vacío sin actividad en el período","Ningún usuario completó viajes de trekking en la semana actual.","1. Abrir 'Tabla de posiciones', elegir 'Trekking' y 'Esta semana'.","Se muestra un mensaje de estado vacío, sin errores ni podio en blanco.","","",""
+"CP-COMU-001","Crítica","Publicar un recorrido desde el resumen del viaje (RN-081, SCRUM-61)","Viaje finalizado en el que el usuario participó con GPS (tiene traza y métricas propias).","1. Abrir el resumen del viaje.
+2. En la tarjeta 'Compartir con la comunidad', tocar 'Publicar recorrido'.
+3. Ir a 'Rutas > Explorar > Explorar recorridos'.","La tarjeta pasa a decir que el recorrido está publicado y el botón cambia a 'Despublicar'. El recorrido aparece primero en la lista de la comunidad con su nombre, actividad, distancia, tiempo, autor y fecha.","","",""
+"CP-COMU-002","Alta","La tarjeta de publicación no aparece sin traza GPS propia","Viaje finalizado en el que el usuario no registró puntos GPS.","1. Abrir el resumen del viaje.
+2. (API) Enviar POST /api/viajes/{id}/recorrido/publicar.","La tarjeta 'Compartir con la comunidad' no se muestra. La API responde 422 RECORRIDO_SIN_TRAZA.","","",""
+"CP-COMU-003","Alta","Solo se publican viajes finalizados en los que se participó","Un viaje en curso del usuario y un viaje finalizado ajeno en el que no participó.","1. (API) Publicar el viaje en curso.
+2. (API) Publicar el viaje ajeno.","El viaje en curso responde 409 VIAJE_NO_FINALIZADO y el ajeno 403 FORBIDDEN. Un integrante 'salido' sí puede publicar su recorrido parcial.","","",""
+"CP-COMU-004","Alta","Despublicar desde el resumen del viaje (RN-081)","Recorrido propio publicado.","1. Abrir el resumen del viaje y tocar 'Despublicar'.
+2. Volver a la lista de la comunidad.","El recorrido deja de aparecer en la lista para todos los usuarios y la tarjeta vuelve a ofrecer 'Publicar recorrido'.","","",""
+"CP-COMU-005","Alta","Despublicar desde el detalle del recorrido propio, con confirmación","Recorrido propio publicado.","1. Abrir el recorrido desde la lista de la comunidad.
+2. Tocar 'Despublicar' y cancelar el diálogo.
+3. Tocar 'Despublicar' otra vez y confirmar.","Al cancelar no cambia nada. Al confirmar vuelve a la lista y el recorrido ya no aparece. En el detalle de un recorrido ajeno no existe el botón 'Despublicar'.","","",""
+"CP-COMU-006","Media","Un recorrido despublicado no se puede abrir, valorar ni importar","Usuario B con el detalle de un recorrido de A abierto. A lo despublica.","1. Con B, refrescar o volver a entrar al detalle.
+2. (API) Con B, valorar e importar ese recorrido.","El detalle muestra que el recorrido ya no está disponible. La API responde 404 RECORRIDO_NOT_FOUND en el detalle, la valoración y la importación.","","",""
+"CP-COMU-007","Media","Republicar un recorrido conserva sus valoraciones","Recorrido publicado con valoraciones de otros usuarios y luego despublicado.","1. Volver a tocar 'Publicar recorrido' en el resumen.
+2. Abrir el recorrido en la comunidad.","El recorrido vuelve a aparecer con fecha de publicación nueva y conserva el porcentaje y la cantidad de valoraciones que tenía.","","",""
+"CP-COMU-008","Crítica","REGLA INVIOLABLE RN-070: un recorrido publicado nunca expone velocidad (también en moto)","Recorrido de moto publicado.","1. Abrir el recorrido en la lista y en el detalle.
+2. (API) Revisar la respuesta de GET /api/recorridos-publicados y de su detalle.","Solo se muestran actividad, distancia y tiempo. Ninguna respuesta tiene campos de velocidad y la lista se ordena por fecha de publicación, no por rendimiento.","","",""
+"CP-COMU-009","Alta","Acceso a la comunidad desde Rutas y filtro por actividad (SCRUM-62)","Hay recorridos publicados de distintas actividades.","1. Ir a la pestaña 'Rutas', segmento 'Explorar', y tocar 'Explorar recorridos'.
+2. Filtrar por 'Trekking' y después por 'Todos'.","Con 'Trekking' se listan solo recorridos de trekking. Con 'Todos' se listan todos, el más reciente primero, y cada uno muestra autor, distancia, tiempo, actividad y valoración.","","",""
+"CP-COMU-010","Alta","Filtro por zona 'Cerca mío' con radio configurable (SCRUM-62)","Permiso de ubicación otorgado. Hay recorridos que arrancan cerca y otros que arrancan a más de 100 km del usuario.","1. En 'Recorridos de la comunidad', tocar 'Cerca mío'.
+2. Alternar el radio entre 10, 25, 50 y 100 km.","Se muestra 'Recorridos que arrancan a menos de N km de tu ubicación' y solo los recorridos cuyo punto de inicio cae dentro del radio. Los que arrancan lejos no aparecen.","","",""
+"CP-COMU-011","Alta","Filtro por zona 'Elegir lugar' con búsqueda por nombre (SCRUM-62)","Hay recorridos que arrancan cerca de una ciudad distinta a la del usuario.","1. Tocar 'Elegir lugar'.
+2. Escribir el nombre de la ciudad y buscar.
+3. Elegir un resultado y combinarlo con un filtro de actividad.","Se listan solo los recorridos que arrancan dentro del radio alrededor del lugar elegido y que coinciden con la actividad. Con 'Cualquier lugar' se quita el filtro de zona.","","",""
+"CP-COMU-012","Media","Permiso de ubicación denegado al usar 'Cerca mío'","Permiso de ubicación denegado para la app.","1. Tocar 'Cerca mío'.","Aparece un aviso de que se necesita la ubicación, el filtro vuelve a 'Cualquier lugar' y la lista sigue funcionando.","","",""
+"CP-COMU-013","Media","Zona sin recorridos y validación de parámetros","Lugar elegido sin recorridos publicados cerca.","1. Elegir el lugar con radio de 10 km.
+2. (API) Llamar GET /api/recorridos-publicados con lat sin lng, y con radioKm=500.","La app muestra 'No hay recorridos publicados que arranquen en esta zona. Probá con un radio mayor.'. La API responde 400 VALIDATION_ERROR en ambos casos.","","",""
+"CP-COMU-014","Crítica","Usar un recorrido de la comunidad como base de un viaje nuevo (RN-084)","Recorrido ajeno publicado.","1. Abrir el detalle del recorrido y tocar 'Usar como base de un viaje'.
+2. Completar nombre y fecha futura y crear el viaje.
+3. Abrir la ruta del viaje creado y revisar 'Rutas > Guardadas'.","Se abre 'Crear viaje' con la actividad del recorrido y la ruta precargada: el trazado del recorrido, con origen en su primer punto y destino en el último. El recorrido también queda en 'Rutas > Guardadas'.","","",""
+"CP-COMU-015","Alta","Importar dos veces el mismo recorrido no duplica la ruta guardada","Recorrido ya importado por el usuario.","1. Volver a tocar 'Usar como base de un viaje' en el mismo recorrido.
+2. Revisar 'Rutas > Guardadas'.","Se abre 'Crear viaje' con la misma ruta y en 'Guardadas' sigue habiendo una sola copia. La API responde 200 con ya_existia=true (la primera vez fue 201).","","",""
+"CP-COMU-016","Media","La ruta importada es independiente del recorrido original (RN-086)","Usuario B importó el recorrido de A.","1. A despublica el recorrido.
+2. Con B, abrir 'Rutas > Guardadas' y crear un viaje con esa ruta.","La ruta sigue en las guardadas de B y se puede usar normalmente aunque el recorrido ya no esté publicado.","","",""
+"CP-COMU-017","Crítica","Valorar 'Recomiendo' un recorrido de otro usuario, con confirmación (RN-082, SCRUM-63)","Recorrido ajeno publicado que el usuario todavía no valoró.","1. Abrir el detalle del recorrido.
+2. En 'Valoración de la comunidad', tocar 'Recomiendo' y cancelar el diálogo.
+3. Tocar 'Recomiendo' otra vez y confirmar.","Al cancelar no se registra nada. Al confirmar se actualizan el porcentaje y los conteos, y los botones se reemplazan por 'Ya lo valoraste: lo recomendás.'.","","",""
+"CP-COMU-018","Alta","Porcentaje de recomendaciones en el detalle y en la lista (SCRUM-63)","Recorrido con 3 'Recomiendo' y 1 'No recomiendo' de otros usuarios.","1. Abrir el detalle del recorrido.
+2. Volver a la lista de la comunidad.","El detalle muestra 75 % y 'lo recomienda (3 de 4)'. En la lista la tarjeta dice '75 % lo recomienda · 4 valoraciones'. Un recorrido sin votos dice 'Sin valoraciones todavía', no '0 %'.","","",""
+"CP-COMU-019","Crítica","Cada usuario valora un recorrido una sola vez (RN-082)","Usuario que ya valoró el recorrido.","1. Reabrir el detalle del recorrido.
+2. (API) Enviar de nuevo POST /api/recorridos-publicados/{id}/valoracion con el valor contrario.","No aparecen los botones de valorar, solo 'Ya lo valoraste: …'. La API responde 409 VALORACION_EXISTENTE y el porcentaje no cambia.","","",""
+"CP-COMU-020","Alta","El autor no puede valorar su propio recorrido","Recorrido propio publicado.","1. Abrir el detalle del recorrido propio.
+2. (API) Valorar el propio recorrido.","Se muestra 'No podés valorar tu propio recorrido.' sin botones. La API responde 403 VALORACION_PROPIA.","","",""
+"CP-COMU-021","Crítica","No se admiten comentarios de texto en la valoración (RN-083)","Recorrido ajeno publicado.","1. Revisar la pantalla de detalle buscando un campo de texto.
+2. (API) Enviar la valoración con body { recomiendo: true, comentario: 'Muy lindo' }.","No existe ningún campo de comentario en la app. La API responde 400 VALIDATION_ERROR y no registra la valoración.","","",""
+"CP-CLIM-001","Alta","Pronóstico sobre la ruta planificada en el detalle del viaje (SCRUM-27)","Viaje planificado con ruta configurada y salida dentro de los próximos 15 días.","1. Abrir el detalle del viaje y ubicar la tarjeta 'Clima en la ruta'.","Se muestra el pronóstico de origen, paradas, tramos intermedios y destino (hasta 8 puntos), para la hora estimada de paso por cada uno y en hora argentina.","","",""
+"CP-CLIM-002","Alta","Alertas de lluvia y viento fuerte sobre la ruta (RN-108)","Viaje planificado cuyo pronóstico indica lluvia (probabilidad ≥ 50 %) o viento ≥ 35 km/h en algún punto.","1. Abrir el detalle del viaje y revisar la tarjeta de clima.","Se muestra la alerta de lluvia o de viento fuerte indicando en qué puntos de la ruta, y el resumen lo menciona.","","",""
+"CP-CLIM-003","Media","Sin pronóstico fuera de horizonte, sin ruta o con el viaje finalizado","Tres viajes: uno con salida en más de 15 días, uno sin ruta configurada y uno finalizado.","1. Abrir el detalle de cada viaje y revisar la tarjeta de clima.","Mensajes: 'El pronóstico aparece desde 15 días antes de la salida.', 'Configurá la ruta para ver el pronóstico sobre el recorrido.' y 'El viaje ya terminó.'.","","",""
+"CP-CLIM-004","Media","Una falla del servicio meteorológico no rompe el detalle del viaje","Sin conexión al proveedor Open-Meteo (simulado) o con el proveedor caído.","1. Abrir el detalle de un viaje con ruta.","La tarjeta muestra 'No se pudo consultar el pronóstico.' y el resto del detalle funciona normalmente.","","",""
+"CP-LUGR-001","Alta","Sugerir paradas por categoría a lo largo de la ruta (RN-022)","Viaje planificado con origen y destino trazados. Búsqueda de lugares habilitada en el servidor.","1. En 'Configurar ruta', abrir la sugerencia de lugares ('Paradas sobre la ruta').
+2. Elegir la categoría 'Combustible' y luego 'Gastronomía'.
+3. Agregar uno de los lugares como parada.","Se listan lugares reales a lo largo del recorrido para cada categoría. El elegido se agrega como parada intermedia con esa categoría.","","",""
+"CP-LUGR-002","Media","Lugares 'Cerca mío' durante el viaje en curso","Viaje en curso con ubicación activa.","1. En el mapa en vivo, abrir 'Cerca mío'.
+2. Elegir una categoría.","Se listan lugares de esa categoría a menos de 5 km de la posición actual.","","",""
+"CP-LUGR-003","Media","Búsqueda de lugares no habilitada o con límite de uso","Servidor sin GOOGLE_MAPS_API_KEY (o con límite de búsquedas alcanzado).","1. Abrir la sugerencia de lugares en 'Configurar ruta'.","Se muestra 'La búsqueda de lugares no está habilitada en el servidor.' (o 'Demasiadas búsquedas. Esperá unos segundos y reintentá.'), y el resto de la configuración de la ruta funciona.","","",""
+"CP-PRIV-001","Crítica","Consentimiento informado al iniciar o unirse a un viaje (RN-110)","Usuario que nunca aceptó el consentimiento de ubicación.","1. Iniciar un viaje propio (o unirse a uno en curso).
+2. Leer el aviso de ubicación y aceptarlo.
+3. Ir a 'Perfil > Privacidad y ubicación'.","Antes del permiso de GPS se muestra el aviso: qué se recolecta, cada cuánto, quién lo ve y cómo apagarlo. Al aceptar queda registrado con fecha y versión del texto, visibles en 'Consentimiento'.","","",""
+"CP-PRIV-002","Crítica","Sin consentimiento vigente el backend no publica la posición (RN-110)","Integrante con permisos de GPS del sistema otorgados pero sin consentimiento aceptado, en un viaje en curso.","1. Enviar pings GPS desde su dispositivo.
+2. Con otro integrante, mirar el mapa en vivo.","Su marcador no aparece para el grupo, aunque el compartir del viaje esté encendido. Los pings igual se guardan para sus métricas propias (RN-038).","","",""
+"CP-PRIV-003","Crítica","Apagar el compartir ubicación en un viaje (RN-111)","Viaje grupal en curso. Integrante A visible en el mapa del grupo.","1. Con A, abrir 'Privacidad' del viaje y apagar el interruptor.
+2. Con B, observar el mapa en vivo y la clasificación.
+3. Con A, desviarse de la ruta varios minutos.
+4. Finalizar el viaje y revisar las métricas de A.","A ve 'Nadie del grupo ve tu posición en este viaje.'. El marcador de A desaparece al instante para B, sin quedar congelado. No se generan alertas de desvío ni atraso sobre A. Las métricas de A se calculan igual.","","",""
+"CP-PRIV-004","Crítica","Nadie puede cambiar la decisión de compartir de otra persona (RN-111, RN-030)","Viaje en curso. El líder y el integrante A conectados.","1. Con el líder, buscar en el viaje alguna opción para cambiar el compartir de A.
+2. (API) Con el token del líder, enviar PUT /api/viajes/{id}/privacidad apagando el compartir.
+3. Con A, revisar la pantalla 'Privacidad' del viaje.","La app no ofrece ninguna opción sobre otra persona. El PUT solo cambia la configuración del propio líder (el endpoint no recibe a otra persona) y la de A sigue igual.","","",""
+"CP-PRIV-005","Media","El valor por defecto del perfil se aplica a los viajes nuevos (RN-111)","Usuario con consentimiento vigente.","1. En 'Perfil > Privacidad y ubicación', desactivar compartir por defecto.
+2. Unirse a un viaje nuevo y abrir su pantalla de 'Privacidad'.","El viaje nuevo arranca con el compartir apagado. Los viajes donde ya se eligió un valor explícito no cambian.","","",""
+"CP-PRIV-006","Alta","Registro de accesos a mi ubicación, por viaje y global (RN-112)","Viaje en curso donde A comparte su ubicación y B mira el mapa durante más de 10 minutos.","1. Con A, abrir 'Privacidad' del viaje y revisar quién accedió.
+2. Revisar también 'Perfil > Privacidad y ubicación'.","Aparece B con su primera y última vez y la cantidad de veces, agrupado en ventanas de 10 minutos (no una entrada por cada lectura). A no figura como acceso a sí mismo.","","",""
+"CP-PRIV-007","Crítica","Revocar el consentimiento apaga el compartir en todos los viajes (RN-113)","Usuario con consentimiento vigente, visible en un viaje en curso.","1. En 'Perfil > Privacidad y ubicación', tocar 'Revocar consentimiento' y confirmar.
+2. Con otro integrante, mirar el mapa en vivo.
+3. Revisar el historial y las métricas propias.","El marcador desaparece de inmediato de todos los viajes y el compartir queda apagado en todos. El historial y las métricas propias se conservan.","","",""
+"CP-PRIV-008","Media","Nueva versión del texto de consentimiento exige volver a aceptarlo (RN-110)","Usuario que aceptó la versión anterior. Se subió VERSION_CONSENTIMIENTO_UBICACION en el backend.","1. Iniciar o unirse a un viaje.","Se vuelve a pedir el consentimiento con el texto nuevo. Hasta aceptarlo, la posición no se publica.","","",""
+"CP-PRIV-009","Alta","Quien sale del viaje deja de recibir posiciones del grupo (RN-114)","Viaje en curso con varios integrantes compartiendo.","1. Con el integrante A, tocar 'Salir del viaje'.
+2. Con A, intentar volver a ver el mapa del viaje.
+3. (Socket) Verificar que A ya no recibe eventos de posición de la sala.","A deja de ver y de recibir las posiciones de los demás integrantes.","","",""
+"CP-ADMN-001","Crítica","Solo un superadmin ve y usa el backoffice (RN-120)","Un usuario común y un superadmin.","1. Con el usuario común, abrir 'Perfil' y buscar 'Administración'.
+2. (API) Con el usuario común, llamar GET /api/admin/usuarios.
+3. Con el superadmin, abrir 'Perfil > Administración'.","El usuario común no ve la entrada y la API le responde 403 NOT_SUPERADMIN. El superadmin entra al panel con los totales de la plataforma.","","",""
+"CP-ADMN-002","Crítica","Suspender una cuenta corta el acceso aunque el token siga vigente (RN-123)","Superadmin. Usuario X con la sesión abierta en otro dispositivo.","1. En 'Administración > Usuarios', abrir a X y tocar 'Suspender cuenta' indicando un motivo.
+2. Con X, intentar usar la app e iniciar sesión de nuevo.","X queda 'Suspendida'. Su sesión se cierra, la API le responde 403 ACCOUNT_SUSPENDED, se cortan sus sockets y no puede volver a iniciar sesión. Sus datos se conservan.","","",""
+"CP-ADMN-003","Alta","Reactivar una cuenta suspendida (RN-123)","Usuario X suspendido.","1. Con el superadmin, reactivar la cuenta de X.
+2. Con X, iniciar sesión.","La cuenta vuelve a 'Activa' y X puede iniciar sesión y usar la app con todos sus datos.","","",""
+"CP-ADMN-004","Alta","Otorgar y quitar el rol superadmin; nadie cambia su propio rol (RN-122)","Superadmin S y usuario común Y.","1. Con S, abrir a Y y tocar 'Otorgar rol superadmin'.
+2. Con Y, verificar que aparece 'Administración'.
+3. Con S, tocar 'Quitar rol superadmin' sobre Y.
+4. Con S, abrir su propio usuario e intentar cambiarse el rol o suspenderse.","Y obtiene el rol y después lo pierde. S no puede cambiar su propio rol, suspenderse ni eliminarse.","","",""
+"CP-ADMN-005","Alta","No se elimina una cuenta que está en un viaje en curso (RN-124)","Usuario Z integrante confirmado de un viaje 'en_curso'.","1. Con el superadmin, intentar 'Eliminar cuenta' sobre Z.","La eliminación se rechaza indicando que primero hay que finalizar el viaje. La cuenta de Z no cambia.","","",""
+"CP-ADMN-006","Alta","Eliminar una cuenta transfiere sus grupos y viajes (RN-124, RN-013)","Usuario Z líder de un grupo con más integrantes y creador de un viaje finalizado en el que participaron otros.","1. Con el superadmin, eliminar definitivamente la cuenta de Z.
+2. Revisar el grupo y el viaje.","El liderazgo pasa al integrante más antiguo y el viaje al integrante más antiguo que participó. El historial de los demás se conserva y Z ya no puede iniciar sesión.","","",""
+"CP-ADMN-007","Alta","Gestión de grupos ajenos: reasignar líder, quitar integrante y eliminar (RN-125)","Superadmin. Grupo con líder y al menos 2 participantes.","1. En 'Administración > Grupos', abrir el grupo y tocar 'Reasignar líder' sobre un participante.
+2. Tocar 'Quitar del grupo' sobre otro integrante.
+3. Tocar 'Eliminar grupo' y confirmar.","Queda un único líder nuevo, el integrante quitado sale del grupo y al eliminarlo desaparece con sus invitaciones, sin borrar los viajes.","","",""
+"CP-ADMN-008","Alta","Forzar la finalización de un viaje en curso colgado (RN-125)","Viaje 'en_curso' cuyo creador ya no está activo.","1. En 'Administración > Viajes', abrir el viaje y tocar 'Forzar finalización'.
+2. Revisar el viaje con un integrante.","El viaje pasa a 'finalizado' con el mismo cierre que hace el creador (resumen y métricas) y los integrantes confirmados reciben el aviso.","","",""
+"CP-ADMN-009","Alta","Toda acción del backoffice queda en la auditoría (RN-121)","Superadmin que realizó varias acciones de los casos anteriores.","1. Abrir 'Administración > Auditoría'.","Cada acción figura con quién la hizo, qué acción, sobre qué entidad y cuándo, incluso las de entidades ya eliminadas.","","",""
+"CP-ADMN-010","Crítica","El backoffice gestiona, no vigila: sin posiciones ni velocidades (RN-126, RN-070)","Superadmin. Viaje en curso con integrantes compartiendo ubicación.","1. Abrir el detalle del viaje en el backoffice.
+2. (API) Revisar las respuestas de /api/admin/viajes/{id} y /api/admin/usuarios/{id}.","No se muestran ni se devuelven posiciones, ubicaciones vivas, recorridos ni velocidades. Tampoco hay forma de cambiar el consentimiento ni el compartir de otra persona.","","",""
+"CP-REPO-001","Alta","Reportes agregados por sección sin datos personales (RN-127)","Superadmin con datos de uso en la plataforma.","1. Abrir 'Administración > Reportes'.
+2. Recorrer las secciones: resumen, crecimiento, retención, uso, comunidad, seguridad, destinos y gastos.","Cada sección muestra indicadores y gráficos agregados. Ninguna muestra nombres, emails, ids ni datos que identifiquen a una persona.","","",""
+"CP-REPO-002","Media","Rango de fechas en hora argentina, con default y máximo (RN-128)","Superadmin en 'Reportes'.","1. Abrir un reporte sin elegir fechas.
+2. Elegir un rango de 3 meses.
+3. Intentar un rango de más de 2 años.","Sin fechas se usan los últimos 90 días. Los baldes se agrupan en hora argentina y los KPIs se comparan con el período anterior. El rango de más de 2 años se rechaza con 'El período no puede superar los 2 años'.","","",""
+"CP-REPO-003","Media","Exportar un reporte a CSV (RN-127)","Superadmin viendo una sección de reportes.","1. Tocar exportar CSV.
+2. Abrir el archivo en Excel o Google Sheets.","El CSV usa separador ';', coma decimal y UTF-8 con BOM: los acentos y los números se leen bien en castellano.","","",""
+"CP-REPO-004","Crítica","La reportería no expone velocidades de ninguna actividad (RN-129, RN-070)","Superadmin en 'Reportes'.","1. Revisar todas las secciones, incluida uso por actividad.","Hay distancia y duración, pero en ninguna sección aparecen velocidades, promedios de velocidad ni comparaciones por actividad.","","",""
+"CP-REPO-005","Alta","k-anonimato en el ranking de destinos y orígenes (RN-130)","Un destino usado por 3 creadores distintos y otro usado por un solo creador.","1. Abrir la sección 'Destinos'.","Aparece el destino de los 3 creadores; el usado por una sola persona no aparece.","","",""
+"CP-AYUD-001","Alta","El botón de ayuda inicia el tour de la pantalla actual","Usuario autenticado en cualquier pantalla con botón '?' (por ejemplo, el detalle de un viaje).","1. Tocar el botón '?' del encabezado.
+2. Avanzar con 'Siguiente' hasta el final.","Se resalta cada elemento de la pantalla en orden, con su texto explicativo, y el tour termina en el último paso.","","",""
+"CP-AYUD-002","Media","Navegación del tour: anterior, siguiente, omitir y finalizar","Tour de ayuda iniciado en una pantalla con 3 o más pasos.","1. Avanzar al segundo paso con 'Siguiente' y volver con 'Anterior'.
+2. Tocar 'Saltar' en un paso intermedio.
+3. Reiniciar el tour y llegar al último paso.","'Anterior' vuelve al paso previo. 'Saltar' cierra el tour sin efectos. En el primer paso no aparece 'Anterior'; en el último no aparece 'Saltar' y el botón 'Listo' cierra el tour.","","",""
+"CP-AYUD-003","Alta","El tour no mezcla pasos de pantallas que quedaron abiertas detrás","Usuario que pasó por varias pestañas (Inicio, Viajes, Rutas) y navegó a una pantalla de detalle.","1. En la pestaña 'Rutas', tocar el botón de ayuda.
+2. Ir al detalle de un viaje y tocar su botón de ayuda.","Cada tour muestra solo los pasos de la pantalla en foco, nunca los de otra pestaña o pantalla anterior.","","",""
+"CP-AYUD-004","Media","Pasos que dependen del estado de la pantalla","Un recorrido publicado propio y uno ajeno.","1. Abrir el detalle del recorrido ajeno e iniciar la ayuda.
+2. Abrir el del recorrido propio e iniciar la ayuda.","En el ajeno no aparece el paso de 'Despublicar'. En el propio sí aparece, después del paso 'Usar como base de un viaje'.","","",""
+"CP-AYUD-005","Media","Cobertura de ayuda en las pantallas de las épicas nuevas","Usuario superadmin con viajes finalizados y recorridos publicados.","1. Verificar que tienen botón '?' y tour: Resumen del viaje, Recorridos de la comunidad, Detalle de recorrido publicado, Rutas, Privacidad del viaje, Privacidad y ubicación, Administración y Reportes.","Todas las pantallas listadas tienen su botón de ayuda y su tour completo. Se informa cualquier pantalla sin ayuda, como hallazgo.","","",""
