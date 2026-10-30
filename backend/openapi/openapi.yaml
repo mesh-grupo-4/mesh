@@ -114,9 +114,11 @@ tags:
       La modalidad moto no tiene tabla de posiciones.
   - name: RecorridosPublicados
     description: |
-      Red social de recorridos (RN-081, E10): publicar un viaje del historial para
-      la comunidad, explorarlos y despublicarlos en cualquier momento. Muestra mapa,
-      tipo de actividad, distancia y tiempo — nunca velocidad (RN-070).
+      Red social de recorridos (RN-080 a RN-084, E10): publicar un viaje del historial
+      para la comunidad, explorarlos por actividad y zona, importarlos como plantilla,
+      valorarlos ("Recomiendo" / "No recomiendo", sin texto) y despublicarlos en
+      cualquier momento. Muestra mapa, tipo de actividad, distancia
+      y tiempo — nunca velocidad (RN-070).
   - name: Geocoding
     description: Búsqueda de lugares y geocodificación inversa vía Google Places/Geocoding, con Nominatim/OpenStreetMap de respaldo, proxiado por el backend.
   - name: Routing
@@ -234,6 +236,10 @@ paths:
     $ref: './paths/recorridos-publicados.yaml#/RecorridosPublicadosMios'
   /api/recorridos-publicados/{recorridoId}:
     $ref: './paths/recorridos-publicados.yaml#/RecorridoPublicadoPorId'
+  /api/recorridos-publicados/{recorridoId}/importaciones:
+    $ref: './paths/recorridos-publicados.yaml#/ImportarRecorridoPublicado'
+  /api/recorridos-publicados/{recorridoId}/valoracion:
+    $ref: './paths/recorridos-publicados.yaml#/ValorarRecorridoPublicado'
   /api/viajes/{viajeId}/recorrido/publicar:
     $ref: './paths/recorridos-publicados.yaml#/PublicarRecorrido'
 

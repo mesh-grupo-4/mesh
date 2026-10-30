@@ -185,16 +185,16 @@ Si el PO prefiere un criterio más conservador, la alternativa es devolver
 | ID | Regla |
 |---|---|
 | RN-080 | La red social es **deliberadamente acotada**: no es una red social generalista. |
-| RN-081 | Los usuarios publican recorridos de su historial; pueden despublicarlos en cualquier momento. |
-| RN-082 | La valoración es binaria: "Recomiendo" / "No recomiendo". Un usuario solo puede valorar una vez por recorrido. |
-| RN-083 | **No se permiten comentarios de texto** para mantener la simplicidad y evitar moderación. |
-| RN-084 | Los recorridos publicados son importables como base para nuevos viajes. |
+| RN-081 | Los usuarios publican recorridos de su historial; pueden despublicarlos en cualquier momento. **Implementación (SCRUM-61):** se publica un viaje `finalizado` en el que participó (creador o `confirmado`/`salido`) congelando un snapshot de **su** traza GPS, distancia y tiempo en movimiento — nunca velocidad (RN-070). Despublicar es `activo = false`. Botón en el resumen del viaje. Ver [`us-publicar-recorrido.md`](us-publicar-recorrido.md). |
+| RN-082 | La valoración es binaria: "Recomiendo" / "No recomiendo". Un usuario solo puede valorar una vez por recorrido. **Implementación (SCRUM-63):** PK `(recorrido, usuario)`; la valoración es definitiva (`409 VALORACION_EXISTENTE`) y el autor no valora lo propio (`403 VALORACION_PROPIA`). Se muestra el porcentaje entero de recomendaciones (`null` sin votos); no altera el orden del listado. Ver [`us-valorar-recorridos.md`](us-valorar-recorridos.md). |
+| RN-083 | **No se permiten comentarios de texto** para mantener la simplicidad y evitar moderación. **Implementación:** el body de valoración es `{ recomiendo }` con Zod `.strict()`; cualquier otro campo es `400`. |
+| RN-084 | Los recorridos publicados son importables como base para nuevos viajes. **Implementación (SCRUM-62):** importar crea una `RutaPlantilla` en "Mis rutas" (traza → trazado planificado, extremos → origen y destino, sin paradas), idempotente por `(usuario, recorrido)`, y la app abre "Crear viaje" con esa plantilla. El listado se filtra por actividad y por zona (recorridos que **arrancan** dentro de un radio, `ST_DWithin`). Ver [`us-explorar-recorridos.md`](us-explorar-recorridos.md). |
 | RN-085 | El **link de ruta** comparte solo el **snapshot planificado** congelado al generar el token (geometría + postas + tipo de actividad). No comparte integrantes, ubicación en vivo, alertas ni métricas. Distinto del QR de unirse al viaje (RN-015/016). |
 | RN-086 | Importar crea una **plantilla copia** en el perfil del receptor. Editar o eliminar el viaje/ruta fuente **no** altera plantillas ya importadas. El link sigue resolviendo su snapshot aunque se borre la fuente. |
 | RN-087 | Pueden obtener el link los integrantes con estado `confirmado` (incluye al creador). Solo el **creador** del viaje puede **revocar** el token. El link **no expira** al pasar a `en_curso`/`finalizado`. |
 | RN-088 | El token es **opaco** y único por ruta compartida; no se usa el `viajeId` como secreto. Reimportar el mismo link es **idempotente** por `(usuario, ruta_compartida)`. |
 
-**Contrato API:** OpenAPI en `backend/openapi/paths/rutas-compartidas.yaml` (spec modular, ver [[adr-documentacion-api]]). Deep link: `mesh://ruta?token=...`. US: [`us-compartir-ruta.md`](us-compartir-ruta.md).
+**Contrato API:** link de ruta en `backend/openapi/paths/rutas-compartidas.yaml` (deep link `mesh://ruta?token=...`, US [`us-compartir-ruta.md`](us-compartir-ruta.md)); recorridos publicados, exploración, importación y valoraciones en `backend/openapi/paths/recorridos-publicados.yaml` (spec modular, ver [[adr-documentacion-api]]).
 
 ### 2.10 Reglas de Asistencia IA
 
@@ -520,12 +520,12 @@ Si el PO prefiere un criterio más conservador, la alternativa es devolver
     │           └── Puede despublicar en cualquier momento
     │
     ├── Explorar recorridos publicados
-    │     ├── Filtrar por tipo de actividad y zona geográfica
+    │     ├── Filtrar por tipo de actividad y zona geográfica (cerca mío / lugar + radio)
     │     ├── Ver autor, distancia, actividad, valoración
-    │     └── Importar como base para viaje nuevo
+    │     └── Importar como base para viaje nuevo (plantilla en "Mis rutas" → Crear viaje)
     │
     └── Valorar recorrido
-          ├── "Recomiendo" / "No recomiendo" (una vez por recorrido)
+          ├── "Recomiendo" / "No recomiendo" (una vez por recorrido, definitiva; no el propio)
           └── Se muestra porcentaje de recomendaciones
 ```
 
@@ -711,20 +711,38 @@ ChecklistItem
     UNIQUE (viaje_id, usuario_id, texto)   ← siembra e importación idempotentes
     FK origen_item_id ON DELETE CASCADE    ← el creador borra el ítem base y caen las copias
 
-RecorridoPublicado
+RecorridoPublicado                                          ← RN-081
 ├── id (PK)
 ├── viaje_id (FK)
 ├── usuario_id (FK)
+├── nombre (nullable)
 ├── tipo_actividad
-├── distancia
-├── tiempo
+├── distancia_m
+├── tiempo_seg (en movimiento; nunca velocidad, RN-070)
+├── segmentos (json [lat, lng][][], snapshot de la traza)
+├── inicio_lat / inicio_lng (nullable; filtro por zona, SCRUM-62)
 ├── publicado_at
 └── activo (boolean)
 
-Valoracion
-├── recorrido_publicado_id (FK)
+    UNIQUE (viaje_id, usuario_id)
+
+ValoracionRecorrido                                         ← RN-082 / RN-083
+├── recorrido_publicado_id (FK, PK compuesta)
+├── usuario_id (FK, PK compuesta)
+├── recomiendo (boolean)
+└── created_at
+
+RutaPlantilla                                               ← RN-084 / RN-086
+├── id (PK)
 ├── usuario_id (FK)
-└── recomiendo (boolean)
+├── ruta_compartida_id (FK, nullable)      # origen: link de ruta
+├── recorrido_publicado_id (FK, nullable, SET NULL)  # origen: recorrido de la comunidad
+├── nombre, tipo_actividad, origen, destino, linestring_geojson
+├── distancia_planeada_m, tiempo_estimado_seg
+└── created_at
+
+    UNIQUE (usuario_id, ruta_compartida_id)
+    UNIQUE (usuario_id, recorrido_publicado_id)
 
 Insignia
 ├── id (PK)
@@ -870,7 +888,7 @@ Funcionalidades para **fases futuras**:
 
 8. **E08** — Gamificación con hitos, POIs, gastos colaborativos, wearables, itinerario IA
 9. **E09** — Gamificación extendida (insignias, rachas, tabla global). **Recortes implementados:** premios por recorridos completados (insignias otorgadas automáticamente, RN-074) — [`us-insignias.md`](us-insignias.md); recompensas por rachas de actividad (RN-075) — [`us-rachas.md`](us-rachas.md); tabla de posiciones global por actividad (RN-076) — [`us-tabla-posiciones.md`](us-tabla-posiciones.md).
-10. **E10** — Red social de recorridos (publicar, explorar, valorar). **Primer recorte (puente E03→E10):** compartir ruta planificada por link + plantilla en perfil + reutilizar al crear viaje — US lista para Jira en [`us-compartir-ruta.md`](us-compartir-ruta.md). No mezclar con QR RN-015.
+10. **E10** — Red social de recorridos (publicar, explorar, valorar). **Puente E03→E10:** compartir ruta planificada por link + plantilla en perfil + reutilizar al crear viaje — [`us-compartir-ruta.md`](us-compartir-ruta.md). No mezclar con QR RN-015. **Implementadas:** publicar recorrido (SCRUM-61) — [`us-publicar-recorrido.md`](us-publicar-recorrido.md); explorar por actividad y zona e importar como base de un viaje (SCRUM-62) — [`us-explorar-recorridos.md`](us-explorar-recorridos.md); valorar Recomiendo/No recomiendo (SCRUM-63) — [`us-valorar-recorridos.md`](us-valorar-recorridos.md).
 11. **E11** — Asistencia inteligente IA (recomendación climática, itinerarios)
 12. **E12** — Información de ruta en tiempo real (cortes, radares, reportes comunitarios)
 

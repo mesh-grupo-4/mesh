@@ -36,6 +36,19 @@ export function RutasExplorarPanel() {
     >
       <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <View style={styles.cardHeader}>
+          <Feather name="globe" size={20} color={theme.accent} />
+          <Text style={[styles.cardTitle, { color: theme.text }]}>Recorridos de la comunidad</Text>
+        </View>
+        <Text style={[styles.cardHint, { color: theme.textDim }]}>
+          Descubrí recorridos que publicaron otros usuarios y usalos como base de tu próximo viaje.
+        </Text>
+        <Btn block size="lg" icon="compass" onPress={() => router.push('/recorridos-publicados')}>
+          Explorar recorridos
+        </Btn>
+      </View>
+
+      <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <View style={styles.cardHeader}>
           <Feather name="link-2" size={20} color={theme.accent} />
           <Text style={[styles.cardTitle, { color: theme.text }]}>Importar ruta compartida</Text>
         </View>

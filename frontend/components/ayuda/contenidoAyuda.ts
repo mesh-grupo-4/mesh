@@ -40,6 +40,8 @@ export const ORDEN_PANTALLA = {
   privacidadGlobal: 3200,
   ruta: 3300,
   escanearQr: 3400,
+  recorridosPublicados: 3500,
+  recorridoPublicado: 3600,
 } as const
 
 export type PasoDefinicion = {
@@ -116,7 +118,8 @@ export const AYUDA_RUTAS: PasoDefinicion[] = [
   {
     nombre: 'rutas.panel',
     orden: ORDEN_PANTALLA.rutas + 1,
-    texto: 'Tocá una ruta para usarla como base de un viaje nuevo.',
+    texto:
+      'En Guardadas, tocá una ruta para usarla como base de un viaje nuevo. En Explorar, descubrí los recorridos que publicó la comunidad o abrí un link de ruta.',
   },
 ]
 
@@ -342,6 +345,12 @@ export const AYUDA_VIAJE_RESUMEN: PasoDefinicion[] = [
     orden: ORDEN_PANTALLA.viajeResumen + 2,
     texto: 'Entrá acá para ver tus métricas individuales con más detalle y gráficos.',
   },
+  {
+    nombre: 'resumen.publicar',
+    orden: ORDEN_PANTALLA.viajeResumen + 3,
+    texto:
+      'Publicá tu recorrido para que la comunidad lo vea y lo use de base. Se comparte tu traza, la distancia y el tiempo, nunca tu velocidad. Podés despublicarlo cuando quieras.',
+  },
 ]
 
 export const AYUDA_VIAJE_PRIVACIDAD: PasoDefinicion[] = [
@@ -562,5 +571,55 @@ export const AYUDA_ESCANEAR_QR: PasoDefinicion[] = [
     nombre: 'escanearQr.scanner',
     orden: ORDEN_PANTALLA.escanearQr,
     texto: 'Apuntá la cámara al código QR de una invitación a viaje o grupo.',
+  },
+]
+
+export const AYUDA_RECORRIDOS_PUBLICADOS: PasoDefinicion[] = [
+  {
+    nombre: 'recorridosPublicados.actividad',
+    orden: ORDEN_PANTALLA.recorridosPublicados,
+    texto: 'Filtrá los recorridos por tipo de actividad.',
+  },
+  {
+    nombre: 'recorridosPublicados.zona',
+    orden: ORDEN_PANTALLA.recorridosPublicados + 1,
+    texto:
+      'Elegí una zona: cerca tuyo o buscando una ciudad. Se muestran los recorridos que arrancan dentro del radio que elijas.',
+  },
+  {
+    nombre: 'recorridosPublicados.lista',
+    orden: ORDEN_PANTALLA.recorridosPublicados + 2,
+    texto:
+      'Recorridos que publicó la comunidad, el más reciente primero, con el porcentaje que lo recomienda. Tocá uno para ver el mapa, valorarlo o usarlo de base para tu viaje.',
+  },
+]
+
+export const AYUDA_RECORRIDO_PUBLICADO: PasoDefinicion[] = [
+  {
+    nombre: 'recorridoPublicado.mapa',
+    orden: ORDEN_PANTALLA.recorridoPublicado,
+    texto: 'El trazado real que hizo quien lo publicó.',
+  },
+  {
+    nombre: 'recorridoPublicado.datos',
+    orden: ORDEN_PANTALLA.recorridoPublicado + 1,
+    texto: 'Actividad, distancia y tiempo en movimiento. Nunca se publica la velocidad.',
+  },
+  {
+    nombre: 'recorridoPublicado.valorar',
+    orden: ORDEN_PANTALLA.recorridoPublicado + 2,
+    texto:
+      'Qué porcentaje de la comunidad lo recomienda. Si lo hiciste, decí si lo recomendás o no: se vota una sola vez y no se puede cambiar.',
+  },
+  {
+    nombre: 'recorridoPublicado.usar',
+    orden: ORDEN_PANTALLA.recorridoPublicado + 3,
+    texto:
+      'Usalo como base de un viaje nuevo: se guarda en tus rutas y arrancás a crear el viaje con este trazado ya cargado.',
+  },
+  {
+    nombre: 'recorridoPublicado.despublicar',
+    orden: ORDEN_PANTALLA.recorridoPublicado + 4,
+    texto: 'Es tu recorrido: despublicalo cuando quieras y deja de verse en la comunidad.',
   },
 ]

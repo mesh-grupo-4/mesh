@@ -2,6 +2,7 @@ import type { Request, RequestHandler, Response } from 'express'
 import {
   listarRecorridosQuery,
   recorridoIdParamSchema,
+  valorarRecorridoBody,
   viajeIdParamSchema,
 } from './recorridos-publicados.schemas'
 import type { RecorridosPublicadosService } from './recorridos-publicados.service'
@@ -30,12 +31,24 @@ export function crearRecorridosPublicadosController(service: RecorridosPublicado
     }),
 
     listar: asyncHandler(async (req, res) => {
-      res.json(await service.listar(listarRecorridosQuery.parse(req.query)))
+      res.json(await service.listar(req.userId!, listarRecorridosQuery.parse(req.query)))
     }),
 
     obtener: asyncHandler(async (req, res) => {
       const { recorridoId } = recorridoIdParamSchema.parse(req.params)
-      res.json(await service.obtener(recorridoId))
+      res.json(await service.obtener(req.userId!, recorridoId))
+    }),
+
+    valorar: asyncHandler(async (req, res) => {
+      const { recorridoId } = recorridoIdParamSchema.parse(req.params)
+      const { recomiendo } = valorarRecorridoBody.parse(req.body)
+      res.status(201).json(await service.valorar(req.userId!, recorridoId, recomiendo))
+    }),
+
+    importar: asyncHandler(async (req, res) => {
+      const { recorridoId } = recorridoIdParamSchema.parse(req.params)
+      const out = await service.importar(req.userId!, recorridoId)
+      res.status(out.ya_existia ? 200 : 201).json(out)
     }),
   }
 }
