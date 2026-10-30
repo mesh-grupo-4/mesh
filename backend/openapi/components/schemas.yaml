@@ -39,6 +39,7 @@ ErrorCode:
     - FORBIDDEN
     - LEADER_CANNOT_LEAVE
     - NOT_SUPERADMIN
+    - VALORACION_PROPIA
     # Recursos inexistentes
     - USER_NOT_FOUND
     - GRUPO_NOT_FOUND
@@ -59,6 +60,7 @@ ErrorCode:
     # Conflictos de estado
     - VIAJE_NO_FINALIZADO
     - RECORRIDO_SIN_TRAZA
+    - VALORACION_EXISTENTE
     - INVALID_STATE
     - INVALID_TRANSITION
     - TRIP_NOT_FINISHED
@@ -790,8 +792,9 @@ LinkRutaRevocado:
 RutaPlantilla:
   type: object
   description: |
-    Copia propia de una ruta importada desde un link compartido. Sirve de base para
-    crear viajes nuevos (RN-084) sin depender de que el link siga vigente.
+    Copia propia de una ruta importada desde un link compartido o desde un recorrido
+    publicado por la comunidad. Sirve de base para crear viajes nuevos (RN-084) sin
+    depender de que el link siga vigente ni de que el recorrido siga publicado (RN-086).
   required:
     - id
     - nombre
@@ -883,9 +886,9 @@ RutaPlantillaResumen:
 ImportacionRuta:
   type: object
   description: |
-    Resultado de importar un link. La operación es idempotente por
-    `(usuario, ruta compartida)`: importar dos veces el mismo link devuelve
-    siempre la misma plantilla.
+    Resultado de importar un link de ruta o un recorrido publicado. La operación es
+    idempotente por `(usuario, ruta compartida)` o `(usuario, recorrido publicado)`:
+    importar dos veces lo mismo devuelve siempre la misma plantilla.
   required:
     - plantilla
     - ya_existia
@@ -895,7 +898,7 @@ ImportacionRuta:
     ya_existia:
       type: boolean
       description: |
-        `true` si el usuario ya había importado este link. En ese caso la respuesta
+        `true` si el usuario ya lo había importado. En ese caso la respuesta
         es 200 en vez de 201 y no se creó nada nuevo.
       example: false
   additionalProperties: false
@@ -5686,12 +5689,59 @@ RecorridoPublicadoResumen:
           type: string
           nullable: true
 
+ValoracionRecorrido:
+  type: object
+  description: |
+    Valoración de la comunidad sobre un recorrido publicado (RN-082, SCRUM-63):
+    solo "Recomiendo" / "No recomiendo", sin texto (RN-083).
+  required: [recomiendan, no_recomiendan, total, porcentaje_recomienda, mi_valoracion]
+  properties:
+    recomiendan:
+      type: integer
+      minimum: 0
+    no_recomiendan:
+      type: integer
+      minimum: 0
+    total:
+      type: integer
+      minimum: 0
+    porcentaje_recomienda:
+      type: integer
+      minimum: 0
+      maximum: 100
+      nullable: true
+      description: Porcentaje entero de "Recomiendo" sobre el total. `null` si nadie valoró todavía.
+    mi_valoracion:
+      type: boolean
+      nullable: true
+      description: |
+        Valoración de quien consulta: `true` = Recomiendo, `false` = No recomiendo,
+        `null` = todavía no lo valoró. Es definitiva: no se puede cambiar.
+  example:
+    recomiendan: 9
+    no_recomiendan: 3
+    total: 12
+    porcentaje_recomienda: 75
+    mi_valoracion: null
+
+RecorridoPublicadoListado:
+  description: Recorrido de la comunidad tal como aparece al explorar (SCRUM-62), con su valoración.
+  allOf:
+    - $ref: '#/RecorridoPublicadoResumen'
+    - type: object
+      required: [valoracion]
+      properties:
+        valoracion:
+          $ref: '#/ValoracionRecorrido'
+
 RecorridoPublicadoDetalle:
   allOf:
     - $ref: '#/RecorridoPublicadoResumen'
     - type: object
-      required: [segmentos]
+      required: [valoracion, segmentos]
       properties:
+        valoracion:
+          $ref: '#/ValoracionRecorrido'
         segmentos:
           type: array
           description: Tramos contiguos de la traza, cada punto `[lat, lng]`.

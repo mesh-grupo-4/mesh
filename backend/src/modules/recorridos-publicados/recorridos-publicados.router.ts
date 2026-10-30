@@ -13,6 +13,8 @@ recorridosPublicadosRouter.get('/', requireUser, c.listar)
 // Antes que '/:recorridoId': si no, "mios" se interpretaría como un id.
 recorridosPublicadosRouter.get('/mios', requireUser, c.mios)
 recorridosPublicadosRouter.get('/:recorridoId', requireUser, c.obtener)
+recorridosPublicadosRouter.post('/:recorridoId/importaciones', requireUser, c.importar)
+recorridosPublicadosRouter.post('/:recorridoId/valoracion', requireUser, c.valorar)
 
 /** Publicar/despublicar cuelgan del viaje: se montan desde viajes.router. */
 export const recorridoPublicadoViajeHandlers = {

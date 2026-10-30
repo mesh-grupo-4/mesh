@@ -166,31 +166,32 @@ model Usuario {
   motivo_suspension String?    @map("motivo_suspension")
   created_at        DateTime   @default(now()) @map("created_at")
 
-  grupos_liderados       Grupo[]              @relation("GrupoLider")
+  grupos_liderados       Grupo[]               @relation("GrupoLider")
   membresias             GrupoMiembro[]
-  viajes_creados         Viaje[]              @relation("ViajeCreador")
+  viajes_creados         Viaje[]               @relation("ViajeCreador")
   participaciones_viaje  ViajeIntegrante[]
   registros_gps          RegistroGPS[]
   metricas_viaje         MetricaViaje[]
   ubicacion_viva         UbicacionViva?
-  invitaciones_recibidas GrupoInvitacion[]    @relation("InvitacionesRecibidas")
-  invitaciones_enviadas  GrupoInvitacion[]    @relation("InvitacionesEnviadas")
-  amistades_solicitadas  Amistad[]            @relation("AmistadSolicitante")
-  amistades_recibidas    Amistad[]            @relation("AmistadDestinatario")
+  invitaciones_recibidas GrupoInvitacion[]     @relation("InvitacionesRecibidas")
+  invitaciones_enviadas  GrupoInvitacion[]     @relation("InvitacionesEnviadas")
+  amistades_solicitadas  Amistad[]             @relation("AmistadSolicitante")
+  amistades_recibidas    Amistad[]             @relation("AmistadDestinatario")
   rutas_plantilla        RutaPlantilla[]
   paradas                Parada[]
-  solicitudes_parada     SolicitudParada[]    @relation("SolicitudParadaSolicitante")
-  solicitudes_resueltas  SolicitudParada[]    @relation("SolicitudParadaResolutor")
-  alertas_creadas        Alerta[]             @relation("AlertaAutor")
+  solicitudes_parada     SolicitudParada[]     @relation("SolicitudParadaSolicitante")
+  solicitudes_resueltas  SolicitudParada[]     @relation("SolicitudParadaResolutor")
+  alertas_creadas        Alerta[]              @relation("AlertaAutor")
   checklist_items        ChecklistItem[]
-  gastos_registrados     Gasto[]              @relation("GastoAutor")
-  gastos_participados    GastoParticipante[]  @relation("GastoParticipante")
+  gastos_registrados     Gasto[]               @relation("GastoAutor")
+  gastos_participados    GastoParticipante[]   @relation("GastoParticipante")
   privacidad_viajes      PrivacidadViaje[]
-  accesos_recibidos      AccesoUbicacion[]    @relation("AccesoObservado")
-  accesos_realizados     AccesoUbicacion[]    @relation("AccesoObservador")
+  accesos_recibidos      AccesoUbicacion[]     @relation("AccesoObservado")
+  accesos_realizados     AccesoUbicacion[]     @relation("AccesoObservador")
   acciones_admin         AuditoriaAdmin[]
   insignias              UsuarioInsignia[]
   recorridos_publicados  RecorridoPublicado[]
+  valoraciones_recorrido ValoracionRecorrido[]
   racha                  RachaActividad?
 
   @@index([rol_sistema])
@@ -449,29 +450,34 @@ model RutaCompartida {
   @@map("ruta_compartida")
 }
 
-/// Copia independiente de una ruta compartida en el perfil del usuario.
+/// Copia independiente de una ruta en el perfil del usuario (RN-086). Viene de un link
+/// de ruta compartida o de un recorrido publicado por la comunidad (RN-084): una de las
+/// dos referencias, que se pierde (SET NULL) si el recorrido de origen desaparece.
 model RutaPlantilla {
-  id                   String        @id @default(uuid()) @db.Uuid
-  usuario_id           String        @map("usuario_id") @db.Uuid
-  ruta_compartida_id   String        @map("ruta_compartida_id") @db.Uuid
-  nombre               String
-  tipo_actividad       TipoActividad @map("tipo_actividad")
-  origen_lat           Float         @map("origen_lat")
-  origen_lng           Float         @map("origen_lng")
-  origen_nombre        String?       @map("origen_nombre")
-  destino_lat          Float         @map("destino_lat")
-  destino_lng          Float         @map("destino_lng")
-  destino_nombre       String?       @map("destino_nombre")
-  linestring_geojson   Json          @map("linestring_geojson")
-  distancia_planeada_m Float?        @map("distancia_planeada_m")
-  tiempo_estimado_seg  Int?          @map("tiempo_estimado_seg")
-  created_at           DateTime      @default(now()) @map("created_at")
+  id                     String        @id @default(uuid()) @db.Uuid
+  usuario_id             String        @map("usuario_id") @db.Uuid
+  ruta_compartida_id     String?       @map("ruta_compartida_id") @db.Uuid
+  recorrido_publicado_id String?       @map("recorrido_publicado_id") @db.Uuid
+  nombre                 String
+  tipo_actividad         TipoActividad @map("tipo_actividad")
+  origen_lat             Float         @map("origen_lat")
+  origen_lng             Float         @map("origen_lng")
+  origen_nombre          String?       @map("origen_nombre")
+  destino_lat            Float         @map("destino_lat")
+  destino_lng            Float         @map("destino_lng")
+  destino_nombre         String?       @map("destino_nombre")
+  linestring_geojson     Json          @map("linestring_geojson")
+  distancia_planeada_m   Float?        @map("distancia_planeada_m")
+  tiempo_estimado_seg    Int?          @map("tiempo_estimado_seg")
+  created_at             DateTime      @default(now()) @map("created_at")
 
-  usuario         Usuario               @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
-  ruta_compartida RutaCompartida        @relation(fields: [ruta_compartida_id], references: [id], onDelete: Restrict)
-  paradas         RutaPlantillaParada[]
+  usuario             Usuario               @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  ruta_compartida     RutaCompartida?       @relation(fields: [ruta_compartida_id], references: [id], onDelete: Restrict)
+  recorrido_publicado RecorridoPublicado?   @relation(fields: [recorrido_publicado_id], references: [id], onDelete: SetNull)
+  paradas             RutaPlantillaParada[]
 
   @@unique([usuario_id, ruta_compartida_id])
+  @@unique([usuario_id, recorrido_publicado_id])
   @@index([usuario_id, created_at])
   @@map("ruta_plantilla")
 }
@@ -772,14 +778,37 @@ model RecorridoPublicado {
   tiempo_seg     Int           @map("tiempo_seg")
   /// Tramos contiguos [lat, lng][][] ya simplificados (misma forma que GET /viajes/:id/recorrido).
   segmentos      Json
+  /// Primer punto de la traza: el filtro por zona (SCRUM-62) usa ST_DWithin sobre él.
+  inicio_lat     Float?        @map("inicio_lat")
+  inicio_lng     Float?        @map("inicio_lng")
   activo         Boolean       @default(true)
   publicado_at   DateTime      @default(now()) @map("publicado_at")
 
-  viaje   Viaje   @relation(fields: [viaje_id], references: [id], onDelete: Cascade)
-  usuario Usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  viaje        Viaje                 @relation(fields: [viaje_id], references: [id], onDelete: Cascade)
+  usuario      Usuario               @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  plantillas   RutaPlantilla[]
+  valoraciones ValoracionRecorrido[]
 
   @@unique([viaje_id, usuario_id])
   @@index([activo, publicado_at])
   @@index([usuario_id])
   @@map("recorrido_publicado")
+}
+
+/// RN-082 (E10, SCRUM-63): "Recomiendo" / "No recomiendo" sobre un recorrido publicado.
+/// Una sola vez por usuario y recorrido (PK compuesta): no se edita ni se borra. Sin
+/// texto (RN-083). El autor no valora su propio recorrido. Si el autor despublica y
+/// vuelve a publicar, las valoraciones se conservan (misma fila de RecorridoPublicado).
+model ValoracionRecorrido {
+  recorrido_publicado_id String   @map("recorrido_publicado_id") @db.Uuid
+  usuario_id             String   @map("usuario_id") @db.Uuid
+  recomiendo             Boolean
+  created_at             DateTime @default(now()) @map("created_at")
+
+  recorrido_publicado RecorridoPublicado @relation(fields: [recorrido_publicado_id], references: [id], onDelete: Cascade)
+  usuario             Usuario            @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+
+  @@id([recorrido_publicado_id, usuario_id])
+  @@index([usuario_id])
+  @@map("valoracion_recorrido")
 }

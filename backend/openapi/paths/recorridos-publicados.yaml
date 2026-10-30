@@ -142,7 +142,14 @@ RecorridosPublicadosColeccion:
     summary: Explorar los recorridos publicados por la comunidad
     description: |
       Visibles para cualquier usuario autenticado. Más reciente primero. No incluye
-      la traza (usar `GET /recorridos-publicados/{recorridoId}` para el mapa).
+      la traza (usar `GET /recorridos-publicados/{recorridoId}` para el mapa). Cada
+      recorrido trae su valoración de la comunidad (SCRUM-63); el orden nunca depende
+      de la valoración ni del rendimiento (RN-070).
+
+      **Zona geográfica (SCRUM-62):** con `lat` + `lng` (y opcionalmente `radioKm`)
+      devuelve solo los recorridos que **arrancan** dentro de ese radio. El cálculo
+      lo hace PostGIS (`ST_DWithin` sobre `geography`). `lat` y `lng` van juntos;
+      `radioKm` sin centro es `400`.
     tags:
       - RecorridosPublicados
     parameters:
@@ -152,6 +159,34 @@ RecorridosPublicadosColeccion:
         description: Filtra por tipo de actividad.
         schema:
           $ref: '../components/schemas.yaml#/TipoActividad'
+      - name: lat
+        in: query
+        required: false
+        description: Latitud del centro de la zona. Requiere `lng`.
+        schema:
+          type: number
+          minimum: -90
+          maximum: 90
+        example: -31.4201
+      - name: lng
+        in: query
+        required: false
+        description: Longitud del centro de la zona. Requiere `lat`.
+        schema:
+          type: number
+          minimum: -180
+          maximum: 180
+        example: -64.1888
+      - name: radioKm
+        in: query
+        required: false
+        description: Radio de la zona en kilómetros. Solo con `lat` y `lng`. Por defecto 25.
+        schema:
+          type: number
+          minimum: 1
+          maximum: 200
+          default: 25
+        example: 25
       - name: limit
         in: query
         required: false
@@ -175,7 +210,7 @@ RecorridosPublicadosColeccion:
             schema:
               type: array
               items:
-                $ref: '../components/schemas.yaml#/RecorridoPublicadoResumen'
+                $ref: '../components/schemas.yaml#/RecorridoPublicadoListado'
             example:
               - id: c4d5e6f7-1a2b-4c3d-8e9f-0a1b2c3d4e5f
                 viaje_id: 3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d
@@ -188,8 +223,16 @@ RecorridosPublicadosColeccion:
                   id: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d
                   nombre: Ana
                   apellido: Pérez
+                valoracion:
+                  recomiendan: 9
+                  no_recomiendan: 3
+                  total: 12
+                  porcentaje_recomienda: 75
+                  mi_valoracion: null
       '400':
-        description: Parámetros de consulta inválidos (`VALIDATION_ERROR`).
+        description: |
+          Parámetros de consulta inválidos (`VALIDATION_ERROR`): fuera de rango, `lat`
+          sin `lng` (o al revés) o `radioKm` sin centro.
         content:
           application/json:
             schema:
@@ -200,8 +243,8 @@ RecorridosPublicadosColeccion:
               details:
                 formErrors: []
                 fieldErrors:
-                  limit:
-                    - Number must be less than or equal to 50
+                  lat:
+                    - lat y lng se envían juntos
       '401':
         $ref: '../components/responses.yaml#/Unauthorized'
       '500':
@@ -243,19 +286,12 @@ RecorridoPublicadoPorId:
     operationId: obtenerRecorridoPublicado
     summary: Ver un recorrido publicado con su mapa
     description: |
-      Resumen más la traza (`segmentos`) para dibujar el mapa. Un recorrido
-      despublicado responde 404 para todos, incluido su autor.
+      Resumen, valoración de la comunidad y la traza (`segmentos`) para dibujar el
+      mapa. Un recorrido despublicado responde 404 para todos, incluido su autor.
     tags:
       - RecorridosPublicados
     parameters:
-      - name: recorridoId
-        in: path
-        required: true
-        description: UUID del recorrido publicado.
-        schema:
-          type: string
-          format: uuid
-        example: c4d5e6f7-1a2b-4c3d-8e9f-0a1b2c3d4e5f
+      - $ref: '../components/parameters.yaml#/RecorridoPublicadoId'
     responses:
       '200':
         description: Recorrido publicado con su traza.
@@ -275,6 +311,12 @@ RecorridoPublicadoPorId:
                 id: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d
                 nombre: Ana
                 apellido: Pérez
+              valoracion:
+                recomiendan: 9
+                no_recomiendan: 3
+                total: 12
+                porcentaje_recomienda: 75
+                mi_valoracion: true
               segmentos:
                 - - [-31.4201, -64.1888]
                   - [-31.4215, -64.1902]
@@ -303,5 +345,199 @@ RecorridoPublicadoPorId:
             example:
               error: Recorrido no encontrado
               code: RECORRIDO_NOT_FOUND
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+ImportarRecorridoPublicado:
+  post:
+    operationId: importarRecorridoPublicado
+    summary: Importar un recorrido publicado como plantilla de ruta
+    description: |
+      RN-084 / SCRUM-62. Copia el recorrido a "Mis rutas" como plantilla, para usarla
+      como base de un viaje nuevo (`POST /api/viajes` con `rutaPlantillaId`).
+
+      La plantilla es una copia independiente (RN-086): la traza publicada pasa a ser
+      el trazado planificado (los tramos se unen en un solo `LineString`), el primer y
+      el último punto son origen y destino, `distancia_planeada_m` es la longitud de
+      ese trazado (PostGIS) y `tiempo_estimado_seg` el tiempo en movimiento del autor.
+      Sin paradas. Despublicar o borrar el recorrido después no afecta la plantilla.
+
+      Idempotente por `(usuario, recorrido)`: la segunda vez responde `200` con la
+      misma plantilla.
+    tags:
+      - RecorridosPublicados
+    parameters:
+      - $ref: '../components/parameters.yaml#/RecorridoPublicadoId'
+    responses:
+      '200':
+        description: El usuario ya lo había importado; se devuelve la plantilla existente.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ImportacionRuta'
+            example:
+              plantilla:
+                id: 7b1e2d3c-4f5a-4b6c-8d9e-0f1a2b3c4d5e
+                nombre: Vuelta al dique
+                tipo_actividad: bici
+                origen: { lat: -31.4201, lng: -64.1888, nombre: null }
+                destino: { lat: -31.4215, lng: -64.1902, nombre: null }
+                linestring_geojson:
+                  type: LineString
+                  coordinates:
+                    - [-64.1888, -31.4201]
+                    - [-64.1902, -31.4215]
+                distancia_planeada_m: 198.4
+                tiempo_estimado_seg: 6300
+                created_at: '2026-10-30T15:00:00.000Z'
+                paradas: []
+              ya_existia: true
+      '201':
+        description: Plantilla creada.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ImportacionRuta'
+            example:
+              plantilla:
+                id: 7b1e2d3c-4f5a-4b6c-8d9e-0f1a2b3c4d5e
+                nombre: Vuelta al dique
+                tipo_actividad: bici
+                origen: { lat: -31.4201, lng: -64.1888, nombre: null }
+                destino: { lat: -31.4215, lng: -64.1902, nombre: null }
+                linestring_geojson:
+                  type: LineString
+                  coordinates:
+                    - [-64.1888, -31.4201]
+                    - [-64.1902, -31.4215]
+                distancia_planeada_m: 198.4
+                tiempo_estimado_seg: 6300
+                created_at: '2026-10-30T15:00:00.000Z'
+                paradas: []
+              ya_existia: false
+      '400':
+        description: '`recorridoId` no es un UUID (`VALIDATION_ERROR`).'
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ValidationError'
+            example:
+              error: Validación fallida
+              code: VALIDATION_ERROR
+              details:
+                formErrors: []
+                fieldErrors:
+                  recorridoId:
+                    - recorridoId debe ser un UUID válido
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '404':
+        description: No existe o fue despublicado (`RECORRIDO_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Recorrido no encontrado
+              code: RECORRIDO_NOT_FOUND
+      '422':
+        description: La traza guardada no alcanza para armar un trazado (`RECORRIDO_SIN_TRAZA`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: El recorrido no tiene una traza válida
+              code: RECORRIDO_SIN_TRAZA
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+ValorarRecorridoPublicado:
+  post:
+    operationId: valorarRecorridoPublicado
+    summary: Valorar un recorrido publicado (Recomiendo / No recomiendo)
+    description: |
+      RN-082 / SCRUM-63. Solo dos opciones: `recomiendo: true` ("Recomiendo") o
+      `recomiendo: false` ("No recomiendo"). Cada usuario valora un recorrido **una
+      sola vez**: la valoración no se cambia ni se borra. El autor no puede valorar su
+      propio recorrido. Sin comentarios de texto (RN-083): cualquier campo extra es `400`.
+
+      Devuelve el resumen de valoración actualizado (incluye el porcentaje de
+      recomendaciones).
+    tags:
+      - RecorridosPublicados
+    parameters:
+      - $ref: '../components/parameters.yaml#/RecorridoPublicadoId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [recomiendo]
+            additionalProperties: false
+            properties:
+              recomiendo:
+                type: boolean
+                description: '`true` = Recomiendo · `false` = No recomiendo.'
+          example:
+            recomiendo: true
+    responses:
+      '201':
+        description: Valoración registrada.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ValoracionRecorrido'
+            example:
+              recomiendan: 10
+              no_recomiendan: 3
+              total: 13
+              porcentaje_recomienda: 77
+              mi_valoracion: true
+      '400':
+        description: |
+          `recorridoId` no es un UUID, falta `recomiendo`, no es booleano o se envió
+          otro campo, como un comentario (`VALIDATION_ERROR`, RN-083).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ValidationError'
+            example:
+              error: Validación fallida
+              code: VALIDATION_ERROR
+              details:
+                formErrors:
+                  - "Unrecognized key(s) in object: 'comentario'"
+                fieldErrors: {}
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: Es el autor del recorrido (`VALORACION_PROPIA`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: No podés valorar tu propio recorrido
+              code: VALORACION_PROPIA
+      '404':
+        description: No existe o fue despublicado (`RECORRIDO_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Recorrido no encontrado
+              code: RECORRIDO_NOT_FOUND
+      '409':
+        description: El usuario ya valoró este recorrido (`VALORACION_EXISTENTE`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Ya valoraste este recorrido
+              code: VALORACION_EXISTENTE
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'
