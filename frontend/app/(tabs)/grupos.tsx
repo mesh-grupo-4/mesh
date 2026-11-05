@@ -33,7 +33,7 @@ import {
   formatItemList,
   runBulkDelete,
 } from '@/lib/bulkDelete';
-import { meshAlert, meshConfirmDestructive, meshError, meshSuccess, meshWarning } from '@/lib/meshAlert';
+import { meshAlert, meshConfirmDestructive, meshError, meshWarning } from '@/lib/meshAlert';
 import { Feather } from '@expo/vector-icons';
 import { SegmentTabs } from '@/components/SegmentTabs';
 import { AmigosTabPanel } from '@/components/tabs/AmigosTabPanel';
@@ -129,9 +129,7 @@ export default function GruposScreen() {
       setGrupos((prev) => prev.filter((g) => !idsOk.has(g.id)));
       selection.exit();
 
-      if (result.failed.length === 0) {
-        meshSuccess('Listo', bulkDeleteSummary(result, 'grupo'));
-      } else {
+      if (result.failed.length > 0) {
         meshAlert('Resultado parcial', bulkDeleteSummary(result, 'grupo'), [{ text: 'Entendido' }]);
       }
     } catch (e: unknown) {
@@ -191,10 +189,7 @@ export default function GruposScreen() {
       await cargarGrupos(true);
 
       if (accion === 'aceptar') {
-        meshSuccess('Listo', `Te uniste al grupo "${resultado.grupo_nombre}".`);
         router.push({ pathname: '/grupo/[grupoId]', params: { grupoId: resultado.grupo_id } });
-      } else {
-        meshSuccess('Listo', `Rechazaste la invitación a "${resultado.grupo_nombre}".`);
       }
     } catch (e: unknown) {
       meshError('Error', e instanceof Error ? e.message : 'No se pudo responder la invitación.');
@@ -230,7 +225,6 @@ export default function GruposScreen() {
       setMostrarFormulario(false);
       await cargarGrupos();
       router.push({ pathname: '/grupo/[grupoId]', params: { grupoId: grupo.id } });
-      meshSuccess('Listo', 'Grupo creado correctamente.');
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : '';
       const esRed = msg.includes('Network') || msg.includes('Failed to fetch');

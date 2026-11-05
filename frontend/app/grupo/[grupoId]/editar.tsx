@@ -53,9 +53,8 @@ export default function EditarGrupoScreen() {
     })();
   }, [grupoId, backendUserId]);
 
-  const redirigirTrasSalida = (mensaje: string) => {
+  const redirigirTrasSalida = () => {
     router.replace('/(tabs)/grupos');
-    meshAlert('Listo', mensaje);
   };
 
   const ejecutarAbandono = async (nuevoLider?: string) => {
@@ -65,11 +64,7 @@ export default function EditarGrupoScreen() {
       const userId = resolveBackendUserId(backendUserId);
       const result = await abandonarGrupo(grupoId, userId, nuevoLider);
       setModalTransferir(false);
-      if (result.accion === 'grupo_eliminado') {
-        redirigirTrasSalida('El grupo fue eliminado.');
-      } else {
-        redirigirTrasSalida('Abandonaste el grupo.');
-      }
+      redirigirTrasSalida();
     } catch (e: unknown) {
       meshAlert('Error', e instanceof Error ? e.message : 'No se pudo abandonar el grupo.');
     } finally {
@@ -95,7 +90,7 @@ export default function EditarGrupoScreen() {
                 const userId = resolveBackendUserId(backendUserId);
                 await eliminarGrupo(grupoId, userId);
                 setModalTransferir(false);
-                redirigirTrasSalida('El grupo fue eliminado.');
+                redirigirTrasSalida();
               } catch (e: unknown) {
                 meshAlert(
                   'Error',

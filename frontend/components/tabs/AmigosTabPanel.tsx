@@ -23,7 +23,7 @@ import {
   formatItemList,
   runBulkDelete,
 } from '@/lib/bulkDelete';
-import { meshAlert, meshConfirmDestructive, meshError, meshSuccess } from '@/lib/meshAlert';
+import { meshAlert, meshConfirmDestructive, meshError } from '@/lib/meshAlert';
 import {
   buscarUsuariosAmistad,
   eliminarAmigo,
@@ -193,9 +193,7 @@ export function AmigosTabPanel() {
       setAmigos((prev) => prev.filter((a) => !idsOk.has(a.id)));
       selection.exit();
 
-      if (result.failed.length === 0) {
-        meshSuccess('Listo', bulkDeleteSummary(result, 'amigo'));
-      } else {
+      if (result.failed.length > 0) {
         meshAlert('Resultado parcial', bulkDeleteSummary(result, 'amigo'), [{ text: 'Entendido' }]);
       }
     } catch (e: unknown) {
@@ -209,12 +207,11 @@ export function AmigosTabPanel() {
     setRespondiendoId(solicitudId);
     try {
       const userId = resolveBackendUserId(backendUserId);
-      const resultado = await responderSolicitudAmistad(solicitudId, accion, userId);
+      await responderSolicitudAmistad(solicitudId, accion, userId);
       setSolicitudes((prev) => prev.filter((s) => s.id !== solicitudId));
 
       if (accion === 'aceptar') {
         await cargarDatos(true);
-        meshSuccess('Listo', `${resultado.amigo_nombre} ahora es tu amigo.`);
       }
     } catch (e: unknown) {
       meshError('Error', e instanceof Error ? e.message : 'No se pudo responder la solicitud.');

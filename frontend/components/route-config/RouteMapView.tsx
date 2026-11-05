@@ -133,7 +133,7 @@ export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function Route
   }, [waypoints, mapPickMode, theme])
 
   return (
-    <View style={StyleSheet.absoluteFillObject}>
+    <View style={StyleSheet.absoluteFill}>
       <MeshMapView
         ref={mapRef}
         initialCenter={{ latitude: initialRegion.latitude, longitude: initialRegion.longitude }}

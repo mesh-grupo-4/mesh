@@ -138,13 +138,7 @@ export default function RutaCompartidaPreviewScreen() {
     setGuardando(true)
     try {
       const userId = resolveBackendUserId(backendUserId)
-      const out = await importarRutaCompartida(token, userId)
-      meshAlert(
-        'Listo',
-        out.ya_existia
-          ? 'Esta ruta ya estaba en tus plantillas.'
-          : 'Ruta guardada en Mis rutas.'
-      )
+      await importarRutaCompartida(token, userId)
       router.replace('/(tabs)/rutas')
     } catch (e) {
       meshAlert('Error', e instanceof Error ? e.message : 'No se pudo guardar la ruta.')

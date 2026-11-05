@@ -98,10 +98,6 @@ export default function ViajeQrScreen() {
           <Badge tone="mute">{shortCode}</Badge>
         </View>
 
-        <Text style={[styles.link, { color: theme.accent }]} selectable>
-          {inviteUrl}
-        </Text>
-
         {/* Actions */}
         <View style={styles.actions}>
           <Btn variant="primary" block icon="share-2" onPress={() => void compartirLink()}>
@@ -175,13 +171,6 @@ const styles = StyleSheet.create({
   },
   badgeWrapper: {
     marginTop: 18,
-  },
-  link: {
-    fontSize: 12.5,
-    textAlign: 'center',
-    marginTop: 14,
-    fontFamily: 'SpaceMono',
-    paddingHorizontal: 12,
   },
   actions: {
     width: '100%',

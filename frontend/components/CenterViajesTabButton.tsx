@@ -327,7 +327,7 @@ const styles = StyleSheet.create({
     height: 15,
   },
   optionIconLayer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
   },

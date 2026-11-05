@@ -37,7 +37,7 @@ export default function AgregarIntegranteScreen() {
   const [solicitandoAmistadId, setSolicitandoAmistadId] = useState<string | null>(null);
   const [idsInvitadosEnSesion, setIdsInvitadosEnSesion] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
-  const [toastVisible, setToastVisible] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
   const [idsAmigos, setIdsAmigos] = useState<Set<string>>(new Set());
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -112,7 +112,7 @@ export default function AgregarIntegranteScreen() {
       const userId = resolveBackendUserId(backendUserId);
       await invitarUsuarios(grupoId, [usuario.id], userId);
       setIdsInvitadosEnSesion((prev) => new Set([...prev, usuario.id]));
-      setToastVisible(true);
+      setToast('Invitación enviada correctamente');
     } catch (e: unknown) {
       meshAlert('Error', e instanceof Error ? e.message : 'No se pudo enviar la invitación.');
     } finally {
@@ -125,7 +125,7 @@ export default function AgregarIntegranteScreen() {
     try {
       const userId = resolveBackendUserId(backendUserId);
       await solicitarAmistad(usuario.id, userId);
-      meshAlert('Listo', `Solicitud de amistad enviada a ${usuario.nombre}.`);
+      setToast(`Solicitud de amistad enviada a ${usuario.nombre}`);
     } catch (e: unknown) {
       meshAlert('Error', e instanceof Error ? e.message : 'No se pudo enviar la solicitud.');
     } finally {
@@ -244,9 +244,9 @@ export default function AgregarIntegranteScreen() {
       )}
 
       <Toast
-        message="Invitación enviada correctamente"
-        visible={toastVisible}
-        onHide={() => setToastVisible(false)}
+        message={toast ?? ''}
+        visible={toast != null}
+        onHide={() => setToast(null)}
       />
     </View>
   );
