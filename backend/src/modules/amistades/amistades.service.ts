@@ -278,6 +278,27 @@ export class AmistadesService {
     return ids
   }
 
+  /** Relación entre dos usuarios puntuales (no en lote, para el perfil público de uno solo). */
+  async obtenerRelacion(usuarioId: string, otroId: string): Promise<RelacionAmistad> {
+    if (usuarioId === otroId) return null
+
+    const amistad = await this.prisma.amistad.findFirst({
+      where: {
+        OR: [
+          { solicitante_id: usuarioId, destinatario_id: otroId },
+          { solicitante_id: otroId, destinatario_id: usuarioId },
+        ],
+      },
+      select: { solicitante_id: true, estado: true },
+    })
+    if (!amistad) return null
+    if (amistad.estado === 'aceptada') return 'amigo'
+    if (amistad.estado === 'pendiente') {
+      return amistad.solicitante_id === usuarioId ? 'solicitud_enviada' : 'solicitud_recibida'
+    }
+    return null
+  }
+
   async esAmigo(usuarioId: string, otroId: string): Promise<boolean> {
     const amistad = await this.prisma.amistad.findFirst({
       where: {

@@ -20,10 +20,9 @@ import { ParadaMarker, paradaMarkerPopup } from './ParadaMarker'
 import type { CategoriaParadaApi } from '@/lib/paradasApi'
 import { motivoParadaLegible } from '@/lib/paradasApi'
 
-const COLOR_GUIA_LUGAR = '#0e7490'
-
 /** Zoom con el que se centra el mapa en tu posición al entrar. */
 const ZOOM_INICIAL = 17
+const COLOR_GUIA_LUGAR = '#0e7490'
 
 export type LiveMapViewHandle = {
   focusOnCoordinate: (lat: number, lng: number) => void
@@ -100,8 +99,8 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
     },
   }))
 
-  // Espera a que el mapa esté listo: antes de eso el WebView descarta el
-  // animateTo y el mapa quedaba con el zoom alejado del arranque.
+  // Espera a que el mapa esté listo: antes de eso se descarta el animateTo
+  // y el mapa quedaba con el zoom alejado del arranque.
   useEffect(() => {
     if (!initialCenter || !mapaListo || centeredOnce.current) return
     centeredOnce.current = true

@@ -26,6 +26,7 @@ A diferencia de soluciones existentes (Strava, Garmin, Google Maps, Life360) que
 | **Integrante / Participante** | Miembro del grupo que participa en el viaje. Puede registrar paradas, solicitar detenciones y visualizar el mapa grupal. |
 | **Usuario no autenticado** | Solo puede registrarse o recuperar contraseña. |
 | **Sistema (motor de eventos)** | Lógica autónoma del backend que detecta desvíos, atrasos y detenciones sospechosas sin intervención humana. |
+| **Superadmin (backoffice)** | Rol de **plataforma**, no de grupo (RN-120). Gestiona cuentas, grupos y viajes de toda la plataforma desde el backoffice; cada acción queda auditada. No ve ubicaciones (RN-126). |
 
 ---
 
@@ -175,25 +176,25 @@ Si el PO prefiere un criterio más conservador, la alternativa es devolver
 | RN-071 | El modo competitivo activa un leaderboard en tiempo real basado en posición y tiempos relativos. **Implementación (SCRUM-51):** `modo = competitivo` solo en viajes grupales y nunca en moto (RN-070; `400 MODO_INVALIDO`). El motor de eventos emite `viaje:leaderboard` con cada ping (máx. cada 3 s) ordenando por progreso sobre la ruta planificada, con `deltaM` y `gapSeg` (atraso a la velocidad esperada) respecto del líder; `GET /leaderboard` da la foto inicial. El recap post-cierre (RN-063) solo tiene puestos en competitivo. |
 | RN-072 | El modo recreativo desactiva rankings y comparaciones pero mantiene navegación y alertas de seguridad. **Implementación (SCRUM-52):** en `recreativo` el resumen y las métricas grupales devuelven `ranking_habilitado: false`, no hay leaderboard, no hay fantasma (`409 FANTASMA_NO_DISPONIBLE`) ni panel de ritmo en vivo; el mapa, las paradas y todas las alertas siguen igual. |
 | RN-073 | El ghost tracking superpone un marcador fantasma de un recorrido histórico que se mueve en tiempo real. El usuario ve si va adelante o atrás. **Implementación (SCRUM-49/50):** fuentes = traza GPS de un viaje finalizado en el que participó (propia o de otro integrante) o una ruta compartida importada como plantilla, recorrida a ritmo constante según su tiempo estimado. `GET /fantasma/candidatos` y `GET /fantasma` (≤ 1500 puntos con `t_seg` y `d_m`). El cliente anima el fantasma contra el tiempo desde el inicio del viaje, muestra metros y segundos adelante/atrás comparando distancia recorrida, y permite pausarlo o quitarlo. Nunca en moto (RN-070) ni en recreativo (RN-072). |
-| RN-074 | Las insignias se otorgan automáticamente al cumplir criterios de logro (distancia, duración, tipo de actividad). |
-| RN-075 | Las rachas se miden en semanas consecutivas con al menos una actividad. Al romperse, el contador se reinicia. |
-| RN-076 | La tabla global de posiciones está segmentada por tipo de actividad y filtrable por período (semanal, mensual, anual). |
+| RN-074 | Las insignias se otorgan automáticamente al cumplir criterios de logro (distancia, duración, tipo de actividad). **Implementación:** `InsigniasService.evaluarYOtorgar()`, llamado por `ViajesService.generarResumen()` al finalizar el viaje, contra la `MetricaViaje` recién calculada de cada integrante. Ver [`us-insignias.md`](us-insignias.md). |
+| RN-075 | Las rachas se miden en semanas consecutivas con al menos una actividad (un viaje finalizado). Al romperse, el contador se reinicia. **Implementación:** `RachasService.registrarActividad()`, llamado por `ViajesService.generarResumen()` al finalizar un viaje; detecta hitos (3, 5, 10 semanas) y rotura. Un job diario (`src/jobs/rachasJob.ts`) notifica las rachas rotas por pura inactividad el mismo día, sin esperar al próximo viaje. Ver [`us-rachas.md`](us-rachas.md). |
+| RN-076 | La tabla global de posiciones está segmentada por tipo de actividad (bici, running, trekking — moto no tiene tabla, RN-070) y filtrable por período (semanal, mensual, anual). **Implementación:** `TablaPosicionesService.obtener()`, calculada on-demand sumando `MetricaViaje` de los viajes finalizados desde el inicio del período vigente; nada persistido aparte. Ver [`us-tabla-posiciones.md`](us-tabla-posiciones.md). |
 
 ### 2.9 Reglas de Red Social de Recorridos
 
 | ID | Regla |
 |---|---|
 | RN-080 | La red social es **deliberadamente acotada**: no es una red social generalista. |
-| RN-081 | Los usuarios publican recorridos de su historial; pueden despublicarlos en cualquier momento. |
-| RN-082 | La valoración es binaria: "Recomiendo" / "No recomiendo". Un usuario solo puede valorar una vez por recorrido. |
-| RN-083 | **No se permiten comentarios de texto** para mantener la simplicidad y evitar moderación. |
-| RN-084 | Los recorridos publicados son importables como base para nuevos viajes. |
+| RN-081 | Los usuarios publican recorridos de su historial; pueden despublicarlos en cualquier momento. **Implementación (SCRUM-61):** se publica un viaje `finalizado` en el que participó (creador o `confirmado`/`salido`) congelando un snapshot de **su** traza GPS, distancia y tiempo en movimiento — nunca velocidad (RN-070). Despublicar es `activo = false`. Botón en el resumen del viaje. Ver [`us-publicar-recorrido.md`](us-publicar-recorrido.md). |
+| RN-082 | La valoración es binaria: "Recomiendo" / "No recomiendo". Un usuario solo puede valorar una vez por recorrido. **Implementación (SCRUM-63):** PK `(recorrido, usuario)`; la valoración es definitiva (`409 VALORACION_EXISTENTE`) y el autor no valora lo propio (`403 VALORACION_PROPIA`). Se muestra el porcentaje entero de recomendaciones (`null` sin votos); no altera el orden del listado. Ver [`us-valorar-recorridos.md`](us-valorar-recorridos.md). |
+| RN-083 | **No se permiten comentarios de texto** para mantener la simplicidad y evitar moderación. **Implementación:** el body de valoración es `{ recomiendo }` con Zod `.strict()`; cualquier otro campo es `400`. |
+| RN-084 | Los recorridos publicados son importables como base para nuevos viajes. **Implementación (SCRUM-62):** importar crea una `RutaPlantilla` en "Mis rutas" (traza → trazado planificado, extremos → origen y destino, sin paradas), idempotente por `(usuario, recorrido)`, y la app abre "Crear viaje" con esa plantilla. El listado se filtra por actividad y por zona (recorridos que **arrancan** dentro de un radio, `ST_DWithin`). Ver [`us-explorar-recorridos.md`](us-explorar-recorridos.md). |
 | RN-085 | El **link de ruta** comparte solo el **snapshot planificado** congelado al generar el token (geometría + postas + tipo de actividad). No comparte integrantes, ubicación en vivo, alertas ni métricas. Distinto del QR de unirse al viaje (RN-015/016). |
 | RN-086 | Importar crea una **plantilla copia** en el perfil del receptor. Editar o eliminar el viaje/ruta fuente **no** altera plantillas ya importadas. El link sigue resolviendo su snapshot aunque se borre la fuente. |
 | RN-087 | Pueden obtener el link los integrantes con estado `confirmado` (incluye al creador). Solo el **creador** del viaje puede **revocar** el token. El link **no expira** al pasar a `en_curso`/`finalizado`. |
 | RN-088 | El token es **opaco** y único por ruta compartida; no se usa el `viajeId` como secreto. Reimportar el mismo link es **idempotente** por `(usuario, ruta_compartida)`. |
 
-**Contrato API:** OpenAPI en `backend/openapi/paths/rutas-compartidas.yaml` (spec modular, ver [[adr-documentacion-api]]). Deep link: `mesh://ruta?token=...`. US: [`us-compartir-ruta.md`](us-compartir-ruta.md).
+**Contrato API:** link de ruta en `backend/openapi/paths/rutas-compartidas.yaml` (deep link `mesh://ruta?token=...`, US [`us-compartir-ruta.md`](us-compartir-ruta.md)); recorridos publicados, exploración, importación y valoraciones en `backend/openapi/paths/recorridos-publicados.yaml` (spec modular, ver [[adr-documentacion-api]]).
 
 ### 2.10 Reglas de Asistencia IA
 
@@ -257,6 +258,67 @@ Si el PO prefiere un criterio más conservador, la alternativa es devolver
   `components/AvisoUbicacion.tsx` para que el modal de permisos, el aviso al unirse y la pantalla de
   privacidad digan exactamente lo mismo — **si cambia ese texto, hay que subir
   `VERSION_CONSENTIMIENTO_UBICACION`** en `backend/src/modules/privacidad/privacidad.schemas.ts`.
+
+### 2.14 Reglas de Administración de la Plataforma (Superadmin)
+
+| ID | Regla |
+|---|---|
+| RN-120 | Existe un rol de **plataforma**, `superadmin` (`usuario.rol_sistema`, default `usuario`), **ortogonal a los roles de grupo**: no es un tercer rol dentro de un grupo y RN-011 sigue vigente (dentro de un grupo un superadmin es `lider` o `participante` como cualquiera). Habilita únicamente el backoffice `/api/admin`. El rol se resuelve desde la base en cada request (`requireUser` → `requireSuperadmin`), nunca desde un claim del token ni de algo que mande el cliente (RN-030). La app usa el rol solo para mostrar la entrada *Perfil → Administración*. |
+| RN-121 | **Toda acción del backoffice queda auditada** en `auditoria_admin` (quién, qué acción, sobre qué entidad, cuándo y una foto mínima de lo afectado: email, nombre, motivo, resultado). Es append-only y no tiene FK hacia la entidad afectada, para sobrevivir a su eliminación. Si se elimina la cuenta del superadmin que actuó, el registro queda con actor nulo. |
+| RN-122 | Solo un superadmin otorga o quita el rol superadmin, y **nadie cambia su propio rol**; como consecuencia siempre queda al menos un superadmin. El primero se nombra desde la consola del servidor (`npm run admin:promover -- <email>`), y eso también se audita (actor nulo, `origen: cli`). |
+| RN-123 | **Suspensión de cuenta.** Un superadmin puede suspender una cuenta indicando un motivo, y reactivarla. Mientras está suspendida, el backend responde `403 ACCOUNT_SUSPENDED` en toda la API y rechaza el handshake de Socket.io, aunque su token de Firebase siga vigente; además se cortan sus sockets abiertos y la cuenta se deshabilita en Firebase para que no pueda iniciar sesión. Los datos se conservan. Nadie puede suspenderse a sí mismo. |
+| RN-124 | **Eliminación de cuenta** (definitiva, solo superadmin). No se permite si la persona está en un viaje `en_curso` (como creadora o integrante confirmada): primero hay que finalizarlo. Los grupos que lideraba pasan al integrante más antiguo, o se eliminan si no queda nadie (RN-013); los viajes que creó pasan al integrante más antiguo que participó (`confirmado` o `salido`), o se eliminan si no hubo nadie más, para no borrar el historial ajeno. Todo lo demás de la persona (GPS, métricas, paradas, amistades, checklist, gastos) se borra en cascada. La cuenta de Firebase se elimina **antes** que la fila local: al revés, un login en el medio la recrearía vacía. Nadie puede eliminarse a sí mismo. |
+| RN-125 | **Gestión de grupos y viajes ajenos.** Un superadmin puede, sin ser líder ni creador: reasignar el líder de un grupo (sigue habiendo un único líder), quitar a un integrante (si es el líder aplica RN-013), eliminar un grupo, **forzar la finalización** de un viaje `en_curso` que quedó colgado (mismo cierre que hace el creador, con push a todos los confirmados) y eliminar un viaje `planificado` o `finalizado` (uno `en_curso` primero se finaliza). |
+| RN-126 | **El backoffice gestiona, no vigila.** Ningún endpoint de `/api/admin` expone posiciones GPS, ubicaciones vivas, recorridos ni velocidades: el superadmin no se salta las reglas de privacidad (RN-110 a RN-114) ni la exclusión de moto de toda comparación de velocidades (RN-070). Tampoco puede cambiar el consentimiento ni el compartir ubicación de otra persona (RN-111). |
+
+#### Implementación
+
+- **Backend:** módulo `backend/src/modules/admin/` montado en `/api/admin` con `requireUser` +
+  `requireSuperadmin` (`src/middleware/requireSuperadmin.ts`). El superadmin actúa a través de
+  estos endpoints y no con bypasses dentro de los servicios de dominio: así cada acción se audita
+  en un solo lugar y los chequeos de RN-030 de cada módulo quedan intactos. La finalización forzada
+  reutiliza el cierre de `ViajesService` (`finalizarComoAdmin`). El bloqueo de cuentas suspendidas
+  vive en `requireUser` y `sockets/auth.ts`. Bootstrap: `src/scripts/promover-superadmin.ts`.
+- **Tablas:** columnas `rol_sistema`, `suspendido_at`, `motivo_suspension` y `created_at` en
+  `usuario`, y la tabla `auditoria_admin` (migración `20261016120000_superadmin`).
+- **Contrato:** `backend/openapi/paths/admin.yaml` (tag `Admin`). `GET /api/usuarios/me` devuelve
+  `rol_sistema`.
+- **Frontend:** `frontend/lib/adminApi.ts`, pantallas en `frontend/app/admin/` (panel, usuarios,
+  grupos, viajes, auditoría) y componentes en `frontend/components/admin/AdminUI.tsx`.
+  `AuthContext` expone `esSuperadmin` y cierra la sesión si el backend responde
+  `ACCOUNT_SUSPENDED`.
+
+#### Reportería de negocio (RN-127 a RN-131)
+
+| ID | Regla |
+|---|---|
+| RN-127 | El superadmin tiene una sección de **reportería** para el PO y el directorio (`/api/admin/reportes/*`, *Perfil → Administración → Reportes*). Todos los reportes son **agregados**: ninguno devuelve nombres, emails, ids ni ningún dato que identifique a una persona. Cada reporte se puede exportar a CSV (separador `;`, coma decimal, UTF-8 con BOM, para Excel/Sheets en castellano). |
+| RN-128 | Los períodos se piden como **fechas calendario de Argentina** (`desde`/`hasta`, ambas inclusive) y las series se agrupan en baldes de día, semana (arranca el lunes) o mes **en hora argentina** (RN-105): un viaje que sale un lunes a las 22:00 cuenta para el lunes. Sin fechas: últimos 90 días. Rango máximo: 2 años. Los KPIs se comparan contra el período anterior de igual duración. |
+| RN-129 | La reportería **no expone velocidades de ninguna actividad** (RN-070): ni promedios por actividad ni comparaciones. Distancia y duración sí. Tampoco lee posiciones GPS, ubicaciones vivas ni recorridos (RN-126). Un test (`reportes.service.test.ts`) falla si el servicio llega a leer columnas de velocidad, posiciones o datos personales. |
+| RN-130 | **k-anonimato en lugares.** Los rankings de destinos y orígenes salen de los nombres de las rutas planificadas y un lugar solo aparece si lo usaron al menos **3 creadores distintos**: un destino que eligió una sola persona la identificaría. |
+| RN-131 | **Definiciones operativas** (ver tabla de abajo). Cualquier indicador nuevo tiene que sumar su definición acá antes de publicarse en un tablero. |
+
+| Indicador | Definición |
+|---|---|
+| Usuario activo | Persona que **participó** en al menos un viaje que **arrancó** en el período: el creador, o un integrante `confirmado` o `salido`. |
+| Alta | Cuenta creada en el período (`usuario.created_at`). Las cuentas existentes antes de la migración `20261016120000_superadmin` tienen esa fecha como alta, así que la retención de cohortes anteriores no es representativa. |
+| Activación | De las altas del período, cuántas ya participaron en algún viaje, y la mediana de días entre el alta y el primer viaje. |
+| Retención (cohortes) | Por mes de alta, proporción de la cohorte que participó en un viaje en el mes N desde el alta. Los meses que todavía no ocurrieron se informan vacíos, no en 0. |
+| Km recorridos | Suma de `resumen_viaje.distancia_real_m` de los viajes iniciados: **un valor por viaje** (traza del creador), no por persona. |
+| Tasa de realización | De los viajes con `fecha_programada` en el período y ya vencida, cuántos se iniciaron. Los que siguen `planificado` cuentan como "no realizados". |
+| Falsas alarmas | Posibles incidentes del motor de eventos (`parada.tipo = incidente_detectado`) en los que la persona confirmó "estoy bien". Una tasa alta en una actividad indica que conviene subir su umbral de detección. |
+| Aceptación de invitaciones | Aceptadas / (aceptadas + rechazadas); las pendientes no cuentan. En viajes, `confirmado` y `salido` cuentan como aceptadas. |
+| Canal de incorporación | `viaje_integrante.origen` de quienes se sumaron en el período, sin contar al creador (QR, link, grupo, amigo). |
+| Ubicación apagada | Participaciones en las que la persona tenía el compartir apagado: preferencia del viaje o, si no eligió, su default del perfil (RN-111). |
+| Gastos | Montos tal como se cargaron: la app no registra moneda. Promedio por persona = monto / personas que participaron en esos viajes. |
+
+- **Backend:** módulo `backend/src/modules/reportes/` montado en `/api/admin/reportes` (antes que
+  `/admin`) con `requireUser` + `requireSuperadmin`. El cálculo se hace en PostgreSQL con SQL
+  agregado; `reportes.periodo.ts` resuelve períodos, baldes y la matriz de cohortes (funciones puras,
+  con tests). Contrato: `backend/openapi/paths/reportes.yaml` (tag `Reportes`).
+- **Frontend:** `app/admin/reportes.tsx`, secciones en `components/admin/reportes/Secciones.tsx`,
+  gráficos en `components/admin/charts.tsx` (paleta validada para daltonismo, máximo 3 series por
+  gráfico, vista de tabla en cada uno), tablas y CSV en `lib/reportesTablas.ts`.
 
 ---
 
@@ -458,12 +520,12 @@ Si el PO prefiere un criterio más conservador, la alternativa es devolver
     │           └── Puede despublicar en cualquier momento
     │
     ├── Explorar recorridos publicados
-    │     ├── Filtrar por tipo de actividad y zona geográfica
+    │     ├── Filtrar por tipo de actividad y zona geográfica (cerca mío / lugar + radio)
     │     ├── Ver autor, distancia, actividad, valoración
-    │     └── Importar como base para viaje nuevo
+    │     └── Importar como base para viaje nuevo (plantilla en "Mis rutas" → Crear viaje)
     │
     └── Valorar recorrido
-          ├── "Recomiendo" / "No recomiendo" (una vez por recorrido)
+          ├── "Recomiendo" / "No recomiendo" (una vez por recorrido, definitiva; no el propio)
           └── Se muestra porcentaje de recomendaciones
 ```
 
@@ -484,6 +546,18 @@ Usuario
 ├── consentimiento_ubicacion_at (timestamp, nullable)       ← RN-110
 ├── consentimiento_ubicacion_version (text, nullable)       ← RN-110
 ├── comparte_ubicacion_default (bool, default true)         ← RN-111
+├── rol_sistema (enum: usuario, superadmin)                 ← RN-120
+├── suspendido_at (timestamp, nullable)                     ← RN-123
+├── motivo_suspension (text, nullable)                      ← RN-123
+└── created_at
+
+AuditoriaAdmin                                              ← RN-121
+├── id (PK)
+├── actor_id (FK → Usuario, nullable, SET NULL)
+├── accion (p. ej. usuario.suspender, viaje.finalizar)
+├── entidad (usuario | grupo | viaje)
+├── entidad_id (uuid, sin FK: sobrevive a la eliminación)
+├── detalle (json)
 └── created_at
 
 PrivacidadViaje                                             ← RN-111
@@ -637,39 +711,66 @@ ChecklistItem
     UNIQUE (viaje_id, usuario_id, texto)   ← siembra e importación idempotentes
     FK origen_item_id ON DELETE CASCADE    ← el creador borra el ítem base y caen las copias
 
-RecorridoPublicado
+RecorridoPublicado                                          ← RN-081
 ├── id (PK)
 ├── viaje_id (FK)
 ├── usuario_id (FK)
+├── nombre (nullable)
 ├── tipo_actividad
-├── distancia
-├── tiempo
+├── distancia_m
+├── tiempo_seg (en movimiento; nunca velocidad, RN-070)
+├── segmentos (json [lat, lng][][], snapshot de la traza)
+├── inicio_lat / inicio_lng (nullable; filtro por zona, SCRUM-62)
 ├── publicado_at
 └── activo (boolean)
 
-Valoracion
-├── recorrido_publicado_id (FK)
+    UNIQUE (viaje_id, usuario_id)
+
+ValoracionRecorrido                                         ← RN-082 / RN-083
+├── recorrido_publicado_id (FK, PK compuesta)
+├── usuario_id (FK, PK compuesta)
+├── recomiendo (boolean)
+└── created_at
+
+RutaPlantilla                                               ← RN-084 / RN-086
+├── id (PK)
 ├── usuario_id (FK)
-└── recomiendo (boolean)
+├── ruta_compartida_id (FK, nullable)      # origen: link de ruta
+├── recorrido_publicado_id (FK, nullable, SET NULL)  # origen: recorrido de la comunidad
+├── nombre, tipo_actividad, origen, destino, linestring_geojson
+├── distancia_planeada_m, tiempo_estimado_seg
+└── created_at
+
+    UNIQUE (usuario_id, ruta_compartida_id)
+    UNIQUE (usuario_id, recorrido_publicado_id)
 
 Insignia
 ├── id (PK)
+├── codigo (unique)
 ├── nombre
-├── criterio_distancia
-├── criterio_duracion
-├── criterio_actividad
-└── icono
+├── descripcion (nullable)
+├── icono
+├── criterio_distancia_m (nullable)
+├── criterio_duracion_seg (nullable)
+├── criterio_actividad (nullable)
+├── activa
+└── created_at
 
 UsuarioInsignia
+├── id (PK)
 ├── usuario_id (FK)
 ├── insignia_id (FK)
+├── viaje_id (FK, nullable)
 └── obtenida_at
 
+    UNIQUE (usuario_id, insignia_id)
+
 RachaActividad
-├── usuario_id (FK)
+├── usuario_id (PK, FK)
 ├── semanas_consecutivas (int)
 ├── inicio_racha
-└── ultima_actividad
+├── ultima_actividad
+└── updated_at
 ```
 
 ---
@@ -786,8 +887,8 @@ Funcionalidades de alto valor que **diferencian al producto** de la competencia:
 Funcionalidades para **fases futuras**:
 
 8. **E08** — Gamificación con hitos, POIs, gastos colaborativos, wearables, itinerario IA
-9. **E09** — Gamificación extendida (insignias, rachas, tabla global)
-10. **E10** — Red social de recorridos (publicar, explorar, valorar). **Primer recorte (puente E03→E10):** compartir ruta planificada por link + plantilla en perfil + reutilizar al crear viaje — US lista para Jira en [`us-compartir-ruta.md`](us-compartir-ruta.md). No mezclar con QR RN-015.
+9. **E09** — Gamificación extendida (insignias, rachas, tabla global). **Recortes implementados:** premios por recorridos completados (insignias otorgadas automáticamente, RN-074) — [`us-insignias.md`](us-insignias.md); recompensas por rachas de actividad (RN-075) — [`us-rachas.md`](us-rachas.md); tabla de posiciones global por actividad (RN-076) — [`us-tabla-posiciones.md`](us-tabla-posiciones.md).
+10. **E10** — Red social de recorridos (publicar, explorar, valorar). **Puente E03→E10:** compartir ruta planificada por link + plantilla en perfil + reutilizar al crear viaje — [`us-compartir-ruta.md`](us-compartir-ruta.md). No mezclar con QR RN-015. **Implementadas:** publicar recorrido (SCRUM-61) — [`us-publicar-recorrido.md`](us-publicar-recorrido.md); explorar por actividad y zona e importar como base de un viaje (SCRUM-62) — [`us-explorar-recorridos.md`](us-explorar-recorridos.md); valorar Recomiendo/No recomiendo (SCRUM-63) — [`us-valorar-recorridos.md`](us-valorar-recorridos.md).
 11. **E11** — Asistencia inteligente IA (recomendación climática, itinerarios)
 12. **E12** — Información de ruta en tiempo real (cortes, radares, reportes comunitarios)
 

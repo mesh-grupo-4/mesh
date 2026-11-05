@@ -1,0 +1,108 @@
+# Módulo Insignias — src/modules/insignias/
+# Router: top-level (insignias.router.ts) · Controller: insignias.controller.ts
+#
+# Logros (RN-074, E09) otorgados automáticamente por ViajesService al finalizar
+# un viaje: cada métrica de integrante recién calculada se evalúa contra el
+# catálogo de insignias activas y se otorgan las que cumplen su criterio
+# (distancia mínima, duración mínima y/o tipo de actividad, todos opcionales
+# e independientes entre sí). No hay endpoint para otorgar insignias a mano.
+#
+# Son públicas dentro de la comunidad: cualquier usuario autenticado puede ver
+# las insignias de cualquier otro usuario, no solo las propias.
+
+InsigniasCatalogo:
+  get:
+    operationId: listarCatalogoInsignias
+    summary: Listar el catálogo de insignias disponibles
+    description: |
+      Todas las insignias activas con su criterio, para que la app pueda
+      mostrar también las que un usuario todavía no consiguió.
+    tags:
+      - Insignias
+    responses:
+      '200':
+        description: Catálogo de insignias.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/Insignia'
+            example:
+              - id: a1000000-0000-4000-8000-000000000003
+                codigo: diez_k_running
+                nombre: 10K
+                descripcion: Corriste 10 km o más en un mismo viaje.
+                icono: zap
+                criterio_distancia_m: 10000
+                criterio_duracion_seg: null
+                criterio_actividad: running
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+InsigniasMias:
+  get:
+    operationId: listarMisInsignias
+    summary: Listar las insignias que conseguí
+    description: Atajo de `GET /insignias/usuario/{usuarioId}` con el usuario autenticado.
+    tags:
+      - Insignias
+    responses:
+      '200':
+        description: Insignias obtenidas, más reciente primero.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/InsigniaObtenida'
+            example:
+              - id: 6d7e8f90-ab1c-4d2e-9f3a-4b5c6d7e8f90
+                insignia_id: a1000000-0000-4000-8000-000000000003
+                codigo: diez_k_running
+                nombre: 10K
+                descripcion: Corriste 10 km o más en un mismo viaje.
+                icono: zap
+                viaje_id: 3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d
+                obtenida_at: '2026-10-20T12:00:00.000Z'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+InsigniasDeUsuario:
+  get:
+    operationId: listarInsigniasDeUsuario
+    summary: Listar las insignias de un usuario de la comunidad
+    description: |
+      Las insignias obtenidas son públicas: cualquier usuario autenticado
+      puede consultar las de cualquier otro, no hace falta ser amigos ni
+      compartir un viaje.
+    tags:
+      - Insignias
+    parameters:
+      - $ref: '../components/parameters.yaml#/UsuarioId'
+    responses:
+      '200':
+        description: Insignias obtenidas por ese usuario, más reciente primero.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/InsigniaObtenida'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '404':
+        description: Usuario no encontrado (`USER_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Usuario no encontrado
+              code: USER_NOT_FOUND
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'

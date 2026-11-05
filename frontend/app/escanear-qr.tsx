@@ -17,16 +17,20 @@ import Animated, {
   withSequence,
 } from 'react-native-reanimated'
 import { Feather } from '@expo/vector-icons'
+import { useCopilot } from 'react-native-copilot'
 
 import { useAuth } from '@/context/AuthContext'
 import { resolveBackendUserId } from '@/lib/apiClient'
 import { parseViajeIdFromInviteData } from '@/lib/inviteLinks'
 import { ejecutarUnionPorQr } from '@/lib/joinViajeQr'
 import { TopBar, Btn, useTheme } from '@/components/MeshUI'
+import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
+import { AYUDA_ESCANEAR_QR } from '@/components/ayuda/contenidoAyuda'
 
 export default function EscanearQrScreen() {
   const { backendUserId } = useAuth()
   const theme = useTheme()
+  const { start } = useCopilot()
   const [permission, requestPermission] = useCameraPermissions()
   const [procesando, setProcesando] = useState(false)
 
@@ -79,7 +83,12 @@ export default function EscanearQrScreen() {
     return (
       <View style={[styles.container, { backgroundColor: theme.background }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <TopBar title="Escanear QR" onBack={() => router.back()} bordered={false} />
+        <TopBar
+          title="Escanear QR"
+          onBack={() => router.back()}
+          bordered={false}
+          onAyuda={() => start()}
+        />
         
         <View style={styles.permissionContent}>
           <View style={[styles.iconContainer, { backgroundColor: theme.accentWeak }]}>
@@ -116,19 +125,21 @@ export default function EscanearQrScreen() {
       <View style={styles.overlayContainer}>
         {/* Customized transparent Header */}
         <View style={styles.overlayHeader}>
-          <TopBar 
-            title="" 
-            onBack={() => router.back()} 
-            bordered={false} 
+          <TopBar
+            title=""
+            onBack={() => router.back()}
+            bordered={false}
+            onAyuda={() => start()}
             right={
               <Text style={{ color: theme.textDim, fontSize: 13, marginRight: 8, fontFamily: 'SpaceMono' }}>
                 Escaneá un QR
               </Text>
-            } 
+            }
           />
         </View>
 
         {/* Central Scan Window & Masking */}
+        <PasoAyuda {...AYUDA_ESCANEAR_QR[0]!} estilo={styles.scannerZone}>
         <View style={styles.scannerZone}>
           <View style={styles.maskBlock} />
           
@@ -163,6 +174,7 @@ export default function EscanearQrScreen() {
             </Text>
           </View>
         </View>
+        </PasoAyuda>
       </View>
     </View>
   )

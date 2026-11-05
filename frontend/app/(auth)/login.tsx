@@ -128,6 +128,9 @@ function mensajeFirebase(code: string): string {
       return 'Demasiados intentos fallidos. Intentá más tarde.';
     case 'auth/invalid-email':
       return 'El email no es válido.';
+    case 'auth/user-disabled':
+      // RN-123: un superadmin suspendió la cuenta (también la deshabilita en Firebase).
+      return 'Tu cuenta está suspendida. Contactá al soporte de Mesh.';
     default:
       return 'Ocurrió un error. Intentá de nuevo.';
   }

@@ -16,7 +16,7 @@ type GrupoMutationResult = {
   grupo_id?: string
 }
 
-type TransactionClient = Omit<
+export type TransactionClient = Omit<
   PrismaClient,
   '$connect' | '$disconnect' | '$on' | '$transaction' | '$extends' | '$use'
 >
@@ -28,7 +28,8 @@ const grupoSelect = {
   lider_id: true,
 } as const
 
-async function transferirLiderazgo(
+/** También lo usa el backoffice (RN-125) para reasignar el líder de un grupo. */
+export async function transferirLiderazgo(
   tx: TransactionClient,
   grupoId: string,
   nuevoLiderId: string,

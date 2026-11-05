@@ -9,8 +9,11 @@ import {
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
+import { useCopilot } from 'react-native-copilot'
 import { AvatarFallback } from '@/components/AvatarFallback'
 import { Badge, Btn, Chip, ChipRow, TopBar, useTheme } from '@/components/MeshUI'
+import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
+import { AYUDA_VIAJE_RECAP } from '@/components/ayuda/contenidoAyuda'
 import { DEV_USER_ID } from '@/constants/Config'
 import { useAuth } from '@/context/AuthContext'
 import { formatDurationHm, formatKm, formatPace, formatSpeedKmh } from '@/lib/format'
@@ -84,6 +87,7 @@ function pieMejora(
 export default function ViajeRecapScreen() {
   const router = useRouter()
   const theme = useTheme()
+  const { start } = useCopilot()
   const insets = useSafeAreaInsets()
   const { backendUserId } = useAuth()
   const params = useLocalSearchParams<{ viajeId: string | string[] }>()
@@ -145,7 +149,13 @@ export default function ViajeRecapScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <TopBar title="Recap del grupo" sub="Después del cierre" onBack={volver} bordered={false} />
+      <TopBar
+        title="Recap del grupo"
+        sub="Después del cierre"
+        onBack={volver}
+        bordered={false}
+        onAyuda={() => start()}
+      />
 
       {loading ? (
         <View style={styles.center}>
@@ -171,35 +181,39 @@ export default function ViajeRecapScreen() {
             { paddingBottom: Math.max(insets.bottom, 16) + 16 },
           ]}
         >
-          <ChipRow>
-            <Chip active={criterio === 'distancia'} onPress={() => setCriterio('distancia')}>
-              Distancia
-            </Chip>
-            <Chip active={criterio === 'velocidad'} onPress={() => setCriterio('velocidad')}>
-              Ritmo
-            </Chip>
-            <Chip active={criterio === 'tiempo'} onPress={() => setCriterio('tiempo')}>
-              En movimiento
-            </Chip>
-          </ChipRow>
+          <PasoAyuda {...AYUDA_VIAJE_RECAP[0]!}>
+            <ChipRow>
+              <Chip active={criterio === 'distancia'} onPress={() => setCriterio('distancia')}>
+                Distancia
+              </Chip>
+              <Chip active={criterio === 'velocidad'} onPress={() => setCriterio('velocidad')}>
+                Ritmo
+              </Chip>
+              <Chip active={criterio === 'tiempo'} onPress={() => setCriterio('tiempo')}>
+                En movimiento
+              </Chip>
+            </ChipRow>
+          </PasoAyuda>
 
           {primero ? (
-            <View
-              style={[
-                styles.heroCard,
-                { backgroundColor: theme.surface, borderColor: theme.accentLine },
-              ]}
-            >
-              <Badge tone="accent">{tituloCriterio(criterio)}</Badge>
-              <AvatarFallback nombre={primero.nombre} size={56} />
-              <Text style={[styles.heroNombre, { color: theme.text }]}>{primero.nombre}</Text>
-              <Text style={[styles.heroValor, { color: theme.accent }]}>
-                {valorDe(primero, criterio, tipo)}
-              </Text>
-              {primero.usuario_id === userId ? (
-                <Badge tone="mute">Vos</Badge>
-              ) : null}
-            </View>
+            <PasoAyuda {...AYUDA_VIAJE_RECAP[1]!}>
+              <View
+                style={[
+                  styles.heroCard,
+                  { backgroundColor: theme.surface, borderColor: theme.accentLine },
+                ]}
+              >
+                <Badge tone="accent">{tituloCriterio(criterio)}</Badge>
+                <AvatarFallback nombre={primero.nombre} size={56} />
+                <Text style={[styles.heroNombre, { color: theme.text }]}>{primero.nombre}</Text>
+                <Text style={[styles.heroValor, { color: theme.accent }]}>
+                  {valorDe(primero, criterio, tipo)}
+                </Text>
+                {primero.usuario_id === userId ? (
+                  <Badge tone="mute">Vos</Badge>
+                ) : null}
+              </View>
+            </PasoAyuda>
           ) : (
             <Text style={[styles.nota, { color: theme.textDim }]}>
               Nadie tiene traza GPS en este criterio.

@@ -115,6 +115,8 @@ El **backend valida cada acción**; el frontend solo orienta visualmente. Compro
 
 ### 4. Dos roles, sin excepciones — RN-011
 Solo existen `líder` y `participante` dentro de un grupo. No inventar roles intermedios como "moderador", "co-líder" o similares.
+El rol de **plataforma** `superadmin` (RN-120, `usuario.rol_sistema`) no es un rol de grupo: solo habilita el backoffice `/api/admin`, se audita cada acción (RN-121) y nunca expone ubicaciones (RN-126).
+Su reportería (`/api/admin/reportes`, RN-127 a RN-131) es solo agregada: sin datos personales, sin posiciones y **sin velocidades** (RN-070); lugares con k-anonimato (k = 3).
 
 ### 5. Secretos y `.env`
 **No** crear ni sobrescribir `.env`, `.env.local` ni archivos de credenciales sin confirmación explícita del usuario. `DATABASE_URL` y credenciales Firebase son intocables sin permiso.
@@ -284,6 +286,7 @@ Todos los textos superan el tamaño mínimo para uso outdoor (RN-052). La interf
 | **Participante** | Miembro del grupo. Puede registrar paradas, solicitar detenciones, ver mapa grupal. |
 | **Usuario no autenticado** | Solo puede registrarse o recuperar contraseña. |
 | **Motor de eventos** | Backend autónomo que detecta desvíos, atrasos y detenciones sospechosas sin intervención humana. |
+| **Superadmin** | Rol de plataforma (no de grupo). Gestiona cuentas, grupos y viajes desde el backoffice `/api/admin`, con auditoría. Ver RN-120 a RN-126. |
 
 ---
 

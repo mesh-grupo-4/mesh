@@ -31,6 +31,13 @@ info:
 
     RN-011: dentro de un grupo existen exactamente dos roles, `lider` y `participante`.
 
+    RN-120: aparte de los roles de grupo existe un rol de **plataforma**, `superadmin`,
+    que habilita el backoffice `/api/admin` (gestión de usuarios, grupos y viajes, con
+    auditoría de cada acción). No es un rol de grupo ni le da acceso a ubicaciones.
+
+    RN-123: una cuenta suspendida recibe `403 ACCOUNT_SUSPENDED` en cualquier endpoint
+    autenticado, aunque su token de Firebase todavía sea válido.
+
     ## Errores
 
     Toda respuesta de error tiene la misma forma: `{ error, code }`, donde `error` es
@@ -77,7 +84,9 @@ tags:
   - name: Sistema
     description: Estado del servicio.
   - name: Usuarios
-    description: Perfil propio, sincronización con Firebase y token de notificaciones push.
+    description: |
+      Perfil propio, sincronización con Firebase, token de notificaciones push,
+      y el perfil público de cualquier usuario de la comunidad (RN-074).
   - name: Privacidad
     description: |
       Permisos de geolocalización y privacidad (RN-110 a RN-114): consentimiento
@@ -85,6 +94,31 @@ tags:
       accedió a la posición de cada persona.
   - name: Amistades
     description: Búsqueda de personas, solicitudes de amistad y listado de amigos.
+  - name: Insignias
+    description: |
+      Logros otorgados automáticamente al finalizar un viaje cuyas métricas
+      cumplen un criterio de distancia, duración y/o tipo de actividad (RN-074,
+      E09). Son públicas dentro de la comunidad: cualquier usuario autenticado
+      puede ver las insignias de cualquier otro. Nunca hay criterio de
+      velocidad (RN-070).
+  - name: Rachas
+    description: |
+      Semanas consecutivas con al menos un viaje finalizado (RN-075, E09). Se
+      extiende o reinicia sola al finalizar cada viaje; un job diario notifica
+      las que se cortaron por inactividad el mismo día, sin esperar al
+      próximo viaje. Públicas dentro de la comunidad, igual que las insignias.
+  - name: TablaPosiciones
+    description: |
+      Ranking global por tipo de actividad y período (RN-076, E09), ordenado
+      por distancia o tiempo en movimiento — nunca por velocidad (RN-070).
+      La modalidad moto no tiene tabla de posiciones.
+  - name: RecorridosPublicados
+    description: |
+      Red social de recorridos (RN-080 a RN-084, E10): publicar un viaje del historial
+      para la comunidad, explorarlos por actividad y zona, importarlos como plantilla,
+      valorarlos ("Recomiendo" / "No recomiendo", sin texto) y despublicarlos en
+      cualquier momento. Muestra mapa, tipo de actividad, distancia
+      y tiempo — nunca velocidad (RN-070).
   - name: Geocoding
     description: Búsqueda de lugares y geocodificación inversa vía Google Places/Geocoding, con Nominatim/OpenStreetMap de respaldo, proxiado por el backend.
   - name: Routing
@@ -129,6 +163,16 @@ tags:
       Gastos compartidos del viaje, prorrateados entre quienes elige cada integrante
       al registrarlos. El balance final —quién le debe a quién— se calcula al
       finalizar el viaje.
+  - name: Admin
+    description: |
+      Backoffice de la plataforma (RN-120 a RN-126). Solo rol `superadmin`: gestión de
+      cuentas (editar, suspender, eliminar, otorgar rol), grupos y viajes, y la
+      auditoría de cada acción. Nunca expone posiciones GPS ni velocidades.
+  - name: Reportes
+    description: |
+      Reportería de negocio del backoffice (RN-127 a RN-131), solo para `superadmin`.
+      Todo es agregado: sin datos personales, sin posiciones GPS y sin velocidades
+      (RN-070). Los períodos y las series van en hora argentina (RN-105).
   - name: Documentación
     description: |
       Herramientas de esta página, no del contrato que consume la app: el spec crudo y
@@ -150,6 +194,8 @@ paths:
     $ref: './paths/privacidad.yaml#/PrivacidadUsuario'
   /api/usuarios/me/accesos-ubicacion:
     $ref: './paths/privacidad.yaml#/AccesosUbicacionUsuario'
+  /api/usuarios/{usuarioId}/perfil:
+    $ref: './paths/usuarios.yaml#/PerfilPublicoUsuario'
 
   # ── Amistades ──────────────────────────────────────────────────────────────
   /api/amistades:
@@ -164,6 +210,38 @@ paths:
     $ref: './paths/amistades.yaml#/ResponderSolicitud'
   /api/amistades/{usuarioId}:
     $ref: './paths/amistades.yaml#/Amigo'
+
+  # ── Insignias ──────────────────────────────────────────────────────────────
+  /api/insignias:
+    $ref: './paths/insignias.yaml#/InsigniasCatalogo'
+  /api/insignias/mias:
+    $ref: './paths/insignias.yaml#/InsigniasMias'
+  /api/insignias/usuario/{usuarioId}:
+    $ref: './paths/insignias.yaml#/InsigniasDeUsuario'
+
+  # ── Rachas ─────────────────────────────────────────────────────────────────
+  /api/rachas/mia:
+    $ref: './paths/rachas.yaml#/RachaPropia'
+  /api/rachas/usuario/{usuarioId}:
+    $ref: './paths/rachas.yaml#/RachaDeUsuario'
+
+  # ── TablaPosiciones ────────────────────────────────────────────────────────
+  /api/tabla-posiciones:
+    $ref: './paths/tabla-posiciones.yaml#/TablaPosicionesColeccion'
+
+  # ── RecorridosPublicados ───────────────────────────────────────────────────
+  /api/recorridos-publicados:
+    $ref: './paths/recorridos-publicados.yaml#/RecorridosPublicadosColeccion'
+  /api/recorridos-publicados/mios:
+    $ref: './paths/recorridos-publicados.yaml#/RecorridosPublicadosMios'
+  /api/recorridos-publicados/{recorridoId}:
+    $ref: './paths/recorridos-publicados.yaml#/RecorridoPublicadoPorId'
+  /api/recorridos-publicados/{recorridoId}/importaciones:
+    $ref: './paths/recorridos-publicados.yaml#/ImportarRecorridoPublicado'
+  /api/recorridos-publicados/{recorridoId}/valoracion:
+    $ref: './paths/recorridos-publicados.yaml#/ValorarRecorridoPublicado'
+  /api/viajes/{viajeId}/recorrido/publicar:
+    $ref: './paths/recorridos-publicados.yaml#/PublicarRecorrido'
 
   # ── Geocoding ──────────────────────────────────────────────────────────────
   /api/geocoding/buscar:
@@ -322,6 +400,56 @@ paths:
     $ref: './paths/gastos.yaml#/BalanceGastosRecurso'
   /api/viajes/{viajeId}/gastos/{gastoId}:
     $ref: './paths/gastos.yaml#/GastoPorId'
+
+  # ── Backoffice superadmin (RN-120 a RN-126) ──────────────────────────────────
+  /api/admin/estadisticas:
+    $ref: './paths/admin.yaml#/EstadisticasAdmin'
+  /api/admin/usuarios:
+    $ref: './paths/admin.yaml#/UsuariosAdmin'
+  /api/admin/usuarios/{usuarioId}:
+    $ref: './paths/admin.yaml#/UsuarioAdmin'
+  /api/admin/usuarios/{usuarioId}/rol:
+    $ref: './paths/admin.yaml#/RolSistemaUsuarioAdmin'
+  /api/admin/usuarios/{usuarioId}/suspender:
+    $ref: './paths/admin.yaml#/SuspenderUsuarioAdmin'
+  /api/admin/usuarios/{usuarioId}/reactivar:
+    $ref: './paths/admin.yaml#/ReactivarUsuarioAdmin'
+  /api/admin/grupos:
+    $ref: './paths/admin.yaml#/GruposAdmin'
+  /api/admin/grupos/{grupoId}:
+    $ref: './paths/admin.yaml#/GrupoAdmin'
+  /api/admin/grupos/{grupoId}/lider:
+    $ref: './paths/admin.yaml#/LiderGrupoAdmin'
+  /api/admin/grupos/{grupoId}/miembros/{usuarioId}:
+    $ref: './paths/admin.yaml#/MiembroGrupoAdmin'
+  /api/admin/viajes:
+    $ref: './paths/admin.yaml#/ViajesAdmin'
+  /api/admin/viajes/{viajeId}:
+    $ref: './paths/admin.yaml#/ViajeAdmin'
+  /api/admin/viajes/{viajeId}/finalizar:
+    $ref: './paths/admin.yaml#/FinalizarViajeAdmin'
+  /api/admin/auditoria:
+    $ref: './paths/admin.yaml#/AuditoriaAdmin'
+
+  # ── Reportería (RN-127 a RN-131) ─────────────────────────────────────────────
+  /api/admin/reportes/resumen:
+    $ref: './paths/reportes.yaml#/ResumenReporte'
+  /api/admin/reportes/crecimiento:
+    $ref: './paths/reportes.yaml#/CrecimientoReporte'
+  /api/admin/reportes/retencion:
+    $ref: './paths/reportes.yaml#/RetencionReporte'
+  /api/admin/reportes/viajes:
+    $ref: './paths/reportes.yaml#/ViajesReporte'
+  /api/admin/reportes/comunidad:
+    $ref: './paths/reportes.yaml#/ComunidadReporte'
+  /api/admin/reportes/seguridad:
+    $ref: './paths/reportes.yaml#/SeguridadReporte'
+  /api/admin/reportes/destinos:
+    $ref: './paths/reportes.yaml#/DestinosReporte'
+  /api/admin/reportes/adopcion:
+    $ref: './paths/reportes.yaml#/AdopcionReporte'
+  /api/admin/reportes/gastos:
+    $ref: './paths/reportes.yaml#/GastosReporte'
 
   # ── Herramientas de la documentación ─────────────────────────────────────────
   /api/docs.json:

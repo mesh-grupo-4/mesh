@@ -12,8 +12,11 @@ import {
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
+import { useCopilot } from 'react-native-copilot'
 import { AvisoUbicacion } from '@/components/AvisoUbicacion'
 import { Btn, TopBar, useTheme } from '@/components/MeshUI'
+import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
+import { AYUDA_PRIVACIDAD_GLOBAL } from '@/components/ayuda/contenidoAyuda'
 import { meshAlert, meshConfirmDestructive } from '@/lib/meshAlert'
 import {
   actualizarMiPrivacidad,
@@ -42,6 +45,7 @@ function fechaCorta(iso: string): string {
 export default function PrivacidadScreen() {
   const router = useRouter()
   const theme = useTheme()
+  const { start } = useCopilot()
   const insets = useSafeAreaInsets()
 
   const [privacidad, setPrivacidad] = useState<PrivacidadUsuarioApi | null>(null)
@@ -114,6 +118,7 @@ export default function PrivacidadScreen() {
         title="Privacidad y ubicación"
         sub="Quién puede ver dónde estás"
         onBack={() => router.back()}
+        onAyuda={() => start()}
       />
 
       {cargando ? (
@@ -127,106 +132,114 @@ export default function PrivacidadScreen() {
             <RefreshControl refreshing={false} onRefresh={() => void cargar()} tintColor={theme.accent} />
           }
         >
-          <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[styles.tituloSeccion, { color: theme.text }]}>
-              Cómo usa Mesh tu ubicación
-            </Text>
-            <AvisoUbicacion />
-          </View>
-
-          <View
-            style={[
-              styles.card,
-              { backgroundColor: theme.surface, borderColor: vigente ? theme.border : theme.accent },
-            ]}
-          >
-            <Text style={[styles.tituloSeccion, { color: theme.text }]}>Consentimiento</Text>
-            {otorgado && vigente ? (
-              <>
-                <View style={styles.estadoRow}>
-                  <Feather name="check-circle" size={16} color={theme.accent} />
-                  <Text style={[styles.estadoTexto, { color: theme.textDim }]}>
-                    Otorgado el {fechaCorta(privacidad!.consentimiento_at!)}
-                  </Text>
-                </View>
-                <Btn
-                  variant="danger-outline"
-                  block
-                  onPress={revocar}
-                  disabled={guardando}
-                  icon="slash"
-                  style={{ marginTop: 12 }}
-                >
-                  Revocar consentimiento
-                </Btn>
-              </>
-            ) : (
-              <>
-                <Text style={[styles.estadoTexto, { color: theme.textDim, marginBottom: 12 }]}>
-                  {otorgado
-                    ? 'Actualizamos cómo explicamos el uso de tu ubicación. Volvé a aceptarlo para seguir compartiéndola.'
-                    : 'Sin tu consentimiento, tu posición no se comparte con ningún grupo.'}
-                </Text>
-                <Btn
-                  variant="primary"
-                  block
-                  onPress={() => guardar({ consentimiento_ubicacion: true })}
-                  disabled={guardando}
-                >
-                  Acepto compartir mi ubicación
-                </Btn>
-              </>
-            )}
-          </View>
-
-          <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <View style={styles.switchRow}>
-              <View style={styles.switchTexto}>
-                <Text style={[styles.switchTitulo, { color: theme.text }]}>
-                  Compartir en viajes nuevos
-                </Text>
-                <Text style={[styles.estadoTexto, { color: theme.textDim }]}>
-                  Valor con el que arranca cada viaje. Podés cambiarlo viaje por viaje desde su
-                  pantalla de privacidad.
-                </Text>
-              </View>
-              <Switch
-                value={privacidad?.comparte_ubicacion_default ?? true}
-                onValueChange={(v) => guardar({ comparte_ubicacion_default: v })}
-                disabled={guardando}
-                trackColor={{ true: theme.accent, false: theme.border }}
-              />
-            </View>
-          </View>
-
-          <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[styles.tituloSeccion, { color: theme.text }]}>
-              Quiénes vieron tu posición
-            </Text>
-            {accesos.length === 0 ? (
-              <Text style={[styles.estadoTexto, { color: theme.textMute }]}>
-                Todavía nadie accedió a tu posición.
+          <PasoAyuda {...AYUDA_PRIVACIDAD_GLOBAL[0]!}>
+            <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <Text style={[styles.tituloSeccion, { color: theme.text }]}>
+                Cómo usa Mesh tu ubicación
               </Text>
-            ) : (
-              accesos.map((a) => (
-                <View
-                  key={`${a.viaje_id}:${a.observador_id}`}
-                  style={[styles.acceso, { borderTopColor: theme.border }]}
-                >
-                  <Feather name="eye" size={16} color={theme.accent} style={styles.accesoIcono} />
-                  <View style={styles.accesoTexto}>
-                    <Text style={[styles.accesoNombre, { color: theme.text }]}>
-                      {a.observador_nombre}
-                    </Text>
-                    <Text style={[styles.accesoDetalle, { color: theme.textDim }]}>
-                      {a.viaje_nombre || 'Viaje sin nombre'} · último acceso{' '}
-                      {fechaCorta(a.ultima_vez)}
+              <AvisoUbicacion />
+            </View>
+          </PasoAyuda>
+
+          <PasoAyuda {...AYUDA_PRIVACIDAD_GLOBAL[1]!}>
+            <View
+              style={[
+                styles.card,
+                { backgroundColor: theme.surface, borderColor: vigente ? theme.border : theme.accent },
+              ]}
+            >
+              <Text style={[styles.tituloSeccion, { color: theme.text }]}>Consentimiento</Text>
+              {otorgado && vigente ? (
+                <>
+                  <View style={styles.estadoRow}>
+                    <Feather name="check-circle" size={16} color={theme.accent} />
+                    <Text style={[styles.estadoTexto, { color: theme.textDim }]}>
+                      Otorgado el {fechaCorta(privacidad!.consentimiento_at!)}
                     </Text>
                   </View>
+                  <Btn
+                    variant="danger-outline"
+                    block
+                    onPress={revocar}
+                    disabled={guardando}
+                    icon="slash"
+                    style={{ marginTop: 12 }}
+                  >
+                    Revocar consentimiento
+                  </Btn>
+                </>
+              ) : (
+                <>
+                  <Text style={[styles.estadoTexto, { color: theme.textDim, marginBottom: 12 }]}>
+                    {otorgado
+                      ? 'Actualizamos cómo explicamos el uso de tu ubicación. Volvé a aceptarlo para seguir compartiéndola.'
+                      : 'Sin tu consentimiento, tu posición no se comparte con ningún grupo.'}
+                  </Text>
+                  <Btn
+                    variant="primary"
+                    block
+                    onPress={() => guardar({ consentimiento_ubicacion: true })}
+                    disabled={guardando}
+                  >
+                    Acepto compartir mi ubicación
+                  </Btn>
+                </>
+              )}
+            </View>
+          </PasoAyuda>
+
+          <PasoAyuda {...AYUDA_PRIVACIDAD_GLOBAL[2]!}>
+            <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <View style={styles.switchRow}>
+                <View style={styles.switchTexto}>
+                  <Text style={[styles.switchTitulo, { color: theme.text }]}>
+                    Compartir en viajes nuevos
+                  </Text>
+                  <Text style={[styles.estadoTexto, { color: theme.textDim }]}>
+                    Valor con el que arranca cada viaje. Podés cambiarlo viaje por viaje desde su
+                    pantalla de privacidad.
+                  </Text>
                 </View>
-              ))
-            )}
-          </View>
+                <Switch
+                  value={privacidad?.comparte_ubicacion_default ?? true}
+                  onValueChange={(v) => guardar({ comparte_ubicacion_default: v })}
+                  disabled={guardando}
+                  trackColor={{ true: theme.accent, false: theme.border }}
+                />
+              </View>
+            </View>
+          </PasoAyuda>
+
+          <PasoAyuda {...AYUDA_PRIVACIDAD_GLOBAL[3]!}>
+            <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <Text style={[styles.tituloSeccion, { color: theme.text }]}>
+                Quiénes vieron tu posición
+              </Text>
+              {accesos.length === 0 ? (
+                <Text style={[styles.estadoTexto, { color: theme.textMute }]}>
+                  Todavía nadie accedió a tu posición.
+                </Text>
+              ) : (
+                accesos.map((a) => (
+                  <View
+                    key={`${a.viaje_id}:${a.observador_id}`}
+                    style={[styles.acceso, { borderTopColor: theme.border }]}
+                  >
+                    <Feather name="eye" size={16} color={theme.accent} style={styles.accesoIcono} />
+                    <View style={styles.accesoTexto}>
+                      <Text style={[styles.accesoNombre, { color: theme.text }]}>
+                        {a.observador_nombre}
+                      </Text>
+                      <Text style={[styles.accesoDetalle, { color: theme.textDim }]}>
+                        {a.viaje_nombre || 'Viaje sin nombre'} · último acceso{' '}
+                        {fechaCorta(a.ultima_vez)}
+                      </Text>
+                    </View>
+                  </View>
+                ))
+              )}
+            </View>
+          </PasoAyuda>
         </ScrollView>
       )}
     </View>

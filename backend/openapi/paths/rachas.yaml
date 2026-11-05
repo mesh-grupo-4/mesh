@@ -1,0 +1,65 @@
+# Módulo Rachas — src/modules/rachas/
+# Router: top-level (rachas.router.ts) · Controller: rachas.controller.ts
+#
+# Racha de semanas consecutivas con al menos un viaje finalizado (RN-075, E09).
+# No hay endpoint para escribirla a mano: `ViajesService.generarResumen()` la
+# extiende o reinicia al finalizar cada viaje, y el job diario
+# (`src/jobs/rachasJob.ts`) notifica las que se cortaron por pura inactividad.
+#
+# Lo que devuelven estos GET siempre está recalculado al momento de leer (ver
+# descripción del schema `Racha`): no dependen de que el job diario haya
+# corrido para mostrar el número correcto.
+
+RachaPropia:
+  get:
+    operationId: obtenerMiRacha
+    summary: Ver mi racha de semanas consecutivas
+    description: Atajo de `GET /rachas/usuario/{usuarioId}` con el usuario autenticado.
+    tags:
+      - Rachas
+    responses:
+      '200':
+        description: Racha vigente del usuario autenticado.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Racha'
+            example:
+              semanas_consecutivas: 4
+              en_riesgo: false
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+RachaDeUsuario:
+  get:
+    operationId: obtenerRachaDeUsuario
+    summary: Ver la racha de un usuario de la comunidad
+    description: |
+      Igual que las insignias (RN-074), la racha es pública dentro de la
+      comunidad: no hace falta ser amigos ni compartir un viaje.
+    tags:
+      - Rachas
+    parameters:
+      - $ref: '../components/parameters.yaml#/UsuarioId'
+    responses:
+      '200':
+        description: Racha vigente de ese usuario.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Racha'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '404':
+        description: Usuario no encontrado (`USER_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Usuario no encontrado
+              code: USER_NOT_FOUND
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'

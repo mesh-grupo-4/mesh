@@ -13,6 +13,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth } from '@/lib/firebase';
 import { syncUsuario, obtenerMiPerfil, type UsuarioPerfilResponse } from '@/lib/usuariosApi';
 import { API_BASE_URL } from '@/constants/Config';
+import { MeshApiError } from '@/lib/apiClient';
 export type ActividadPreferida = 'moto' | 'bici' | 'running' | 'trekking' | 'otro' | '';
 
 export interface ProfileData {
@@ -37,6 +38,8 @@ interface AuthContextValue {
   profile: ProfileData | null;
   backendUserId: string | null;
   backendSyncing: boolean;
+  /** RN-120: muestra la entrada al backoffice. El backend igual valida cada acción. */
+  esSuperadmin: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
   logout: () => Promise<void>;
@@ -95,6 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [backendUserId, setBackendUserId] = useState<string | null>(null);
   const [backendSyncing, setBackendSyncing] = useState(false);
+  const [esSuperadmin, setEsSuperadmin] = useState(false);
   const syncAlertShown = useRef(false);
   const cargaEnCurso = useRef<{ uid: string; promesa: Promise<boolean> } | null>(null);
 
@@ -126,6 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const fila = await obtener();
         await AsyncStorage.setItem(backendUserIdKey, fila.id);
         setBackendUserId(fila.id);
+        setEsSuperadmin(fila.rol_sistema === 'superadmin');
         syncAlertShown.current = false;
         // La BD es la fuente de verdad de teléfono y actividad preferida.
         const hidratado = mergeBackendProfile(baseProfile, fila);
@@ -133,6 +138,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile(hidratado);
         return true;
       } catch (e) {
+        // RN-123: cuenta suspendida por un superadmin. No es un problema de red:
+        // se avisa y se cierra la sesión en vez de seguir con el id cacheado.
+        if (e instanceof MeshApiError && e.code === 'ACCOUNT_SUSPENDED') {
+          meshAlert('Cuenta suspendida', e.message, [{ text: 'Entendido' }]);
+          await signOut(auth);
+          return false;
+        }
         const cached = await AsyncStorage.getItem(backendUserIdKey);
         if (cached) setBackendUserId(cached);
         notifySyncFailure(e);
@@ -198,6 +210,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           setProfile(null);
           setBackendUserId(null);
+          setEsSuperadmin(false);
           syncAlertShown.current = false;
           cargaEnCurso.current = null;
           await AsyncStorage.removeItem(backendUserIdKey);
@@ -238,6 +251,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setProfile(null);
     setBackendUserId(null);
+    setEsSuperadmin(false);
   };
 
   const resetPassword = async (email: string) => {
@@ -267,6 +281,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         profile,
         backendUserId,
         backendSyncing,
+        esSuperadmin,
         login,
         register,
         logout,

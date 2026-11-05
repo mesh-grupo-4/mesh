@@ -6,6 +6,7 @@ import { Server } from 'socket.io'
 import { createApp } from './app'
 import { registerSocketHandlers } from './sockets'
 import { setIo } from './realtime/ioRegistry'
+import { iniciarJobRachas } from './jobs/rachasJob'
 
 const app = createApp()
 const httpServer = createServer(app)
@@ -31,6 +32,9 @@ const io = new Server(httpServer, {
 setIo(io)
 
 registerSocketHandlers(io)
+
+// RN-075: notifica rachas rotas por inactividad una vez por día.
+iniciarJobRachas()
 
 const PORT = Number(process.env.PORT ?? 3000)
 const HOST = process.env.HOST ?? '0.0.0.0'

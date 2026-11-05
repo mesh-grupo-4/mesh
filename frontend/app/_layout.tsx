@@ -18,6 +18,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider, useAuth } from '@/context/AuthContext';
+import { CopilotRoot } from '@/components/ayuda/CopilotRoot';
 import { MeshDialogProvider } from '@/context/MeshDialogContext';
 import { TripRealtimeProvider } from '@/context/TripRealtimeContext';
 import Colors from '@/constants/Colors';
@@ -74,6 +75,7 @@ function AppStack() {
       <Stack.Screen name="ruta" options={{ headerShown: false }} />
       <Stack.Screen name="mis-rutas" options={{ title: 'Mis rutas' }} />
       <Stack.Screen name="privacidad" options={{ headerShown: false }} />
+      <Stack.Screen name="admin" options={{ headerShown: false }} />
       <Stack.Screen name="unirse" options={{ headerShown: false }} />
       <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
     </Stack>
@@ -124,10 +126,12 @@ function RootLayoutNav() {
 
   return (
     <ThemeProvider value={DarkTheme}>
-      <TripRealtimeProvider>
-        {user && <ViajeRealtimeBridge />}
-        <AppStack />
-      </TripRealtimeProvider>
+      <CopilotRoot>
+        <TripRealtimeProvider>
+          {user && <ViajeRealtimeBridge />}
+          <AppStack />
+        </TripRealtimeProvider>
+      </CopilotRoot>
     </ThemeProvider>
   );
 }

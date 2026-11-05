@@ -207,7 +207,7 @@ export class RutasCompartidasService {
 
     if (existente) {
       return {
-        plantilla: this.mapPlantilla(existente),
+        plantilla: mapPlantilla(existente),
         ya_existia: true as const,
       }
     }
@@ -252,7 +252,7 @@ export class RutasCompartidasService {
       })
 
       return {
-        plantilla: this.mapPlantilla(plantilla),
+        plantilla: mapPlantilla(plantilla),
         ya_existia: false as const,
       }
     } catch (err) {
@@ -271,7 +271,7 @@ export class RutasCompartidasService {
         })
         if (reintento) {
           return {
-            plantilla: this.mapPlantilla(reintento),
+            plantilla: mapPlantilla(reintento),
             ya_existia: true as const,
           }
         }
@@ -316,7 +316,7 @@ export class RutasCompartidasService {
     if (!plantilla || plantilla.usuario_id !== usuarioId) {
       throw new HttpError(404, 'Plantilla no encontrada', 'PLANTILLA_NOT_FOUND')
     }
-    return this.mapPlantilla(plantilla)
+    return mapPlantilla(plantilla)
   }
 
   async eliminarPlantilla(usuarioId: string, plantillaId: string) {
@@ -376,54 +376,55 @@ export class RutasCompartidasService {
 
     return { tipo_actividad: plantilla.tipo_actividad }
   }
+}
 
-  private mapPlantilla(plantilla: {
-    id: string
-    nombre: string
-    tipo_actividad: TipoActividad
-    origen_lat: number
-    origen_lng: number
-    origen_nombre: string | null
-    destino_lat: number
-    destino_lng: number
-    destino_nombre: string | null
-    linestring_geojson: unknown
-    distancia_planeada_m: number | null
-    tiempo_estimado_seg: number | null
-    created_at: Date
-    paradas: Array<{
-      orden: number
-      lat: number
-      lng: number
-      nombre: string | null
-      categoria: CategoriaParada
-    }>
-  }) {
-    return {
-      id: plantilla.id,
-      nombre: plantilla.nombre,
-      tipo_actividad: plantilla.tipo_actividad,
-      origen: {
-        lat: plantilla.origen_lat,
-        lng: plantilla.origen_lng,
-        nombre: plantilla.origen_nombre,
-      },
-      destino: {
-        lat: plantilla.destino_lat,
-        lng: plantilla.destino_lng,
-        nombre: plantilla.destino_nombre,
-      },
-      linestring_geojson: plantilla.linestring_geojson,
-      distancia_planeada_m: plantilla.distancia_planeada_m,
-      tiempo_estimado_seg: plantilla.tiempo_estimado_seg,
-      created_at: plantilla.created_at,
-      paradas: plantilla.paradas.map((p) => ({
-        orden: p.orden,
-        lat: p.lat,
-        lng: p.lng,
-        nombre: p.nombre,
-        categoria: p.categoria,
-      })),
-    }
+/** Forma pública de una plantilla (`RutaPlantilla` en el spec), sea cual sea su origen. */
+export function mapPlantilla(plantilla: {
+  id: string
+  nombre: string
+  tipo_actividad: TipoActividad
+  origen_lat: number
+  origen_lng: number
+  origen_nombre: string | null
+  destino_lat: number
+  destino_lng: number
+  destino_nombre: string | null
+  linestring_geojson: unknown
+  distancia_planeada_m: number | null
+  tiempo_estimado_seg: number | null
+  created_at: Date
+  paradas: Array<{
+    orden: number
+    lat: number
+    lng: number
+    nombre: string | null
+    categoria: CategoriaParada
+  }>
+}) {
+  return {
+    id: plantilla.id,
+    nombre: plantilla.nombre,
+    tipo_actividad: plantilla.tipo_actividad,
+    origen: {
+      lat: plantilla.origen_lat,
+      lng: plantilla.origen_lng,
+      nombre: plantilla.origen_nombre,
+    },
+    destino: {
+      lat: plantilla.destino_lat,
+      lng: plantilla.destino_lng,
+      nombre: plantilla.destino_nombre,
+    },
+    linestring_geojson: plantilla.linestring_geojson,
+    distancia_planeada_m: plantilla.distancia_planeada_m,
+    tiempo_estimado_seg: plantilla.tiempo_estimado_seg,
+    created_at: plantilla.created_at,
+    paradas: plantilla.paradas.map((p) => ({
+      orden: p.orden,
+      lat: p.lat,
+      lng: p.lng,
+      nombre: p.nombre,
+      categoria: p.categoria,
+    })),
   }
 }

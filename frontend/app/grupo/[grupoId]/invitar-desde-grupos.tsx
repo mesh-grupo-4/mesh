@@ -19,7 +19,10 @@ import {
   listarAmigosParaInvitar,
   type UsuarioParaInvitarApi,
 } from '@/lib/gruposApi';
+import { useCopilot } from 'react-native-copilot';
 import { TopBar, Avatar, Btn, Field, useTheme } from '@/components/MeshUI';
+import { PasoAyuda } from '@/components/ayuda/PasoAyuda';
+import { AYUDA_GRUPO_INVITAR } from '@/components/ayuda/contenidoAyuda';
 import { Feather } from '@expo/vector-icons';
 
 export default function AgregarIntegranteScreen() {
@@ -27,6 +30,7 @@ export default function AgregarIntegranteScreen() {
   const { backendUserId } = useAuth();
   const theme = useTheme();
   const router = useRouter();
+  const { start } = useCopilot();
 
   const [amigos, setAmigos] = useState<UsuarioParaInvitarApi[]>([]);
   const [resultadosBusqueda, setResultadosBusqueda] = useState<UsuarioParaInvitarApi[]>([]);
@@ -199,19 +203,26 @@ export default function AgregarIntegranteScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <TopBar title="Invitar personas" onBack={() => router.back()} bordered={false} />
+      <TopBar
+        title="Invitar personas"
+        onBack={() => router.back()}
+        bordered={false}
+        onAyuda={() => start()}
+      />
 
-      <View style={styles.searchSection}>
-        <Field
-          label=""
-          leading="search"
-          placeholder="Buscar por nombre..."
-          value={busqueda}
-          onChangeText={setBusqueda}
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-      </View>
+      <PasoAyuda {...AYUDA_GRUPO_INVITAR[0]!}>
+        <View style={styles.searchSection}>
+          <Field
+            label=""
+            leading="search"
+            placeholder="Buscar por nombre..."
+            value={busqueda}
+            onChangeText={setBusqueda}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+        </View>
+      </PasoAyuda>
 
       {!enModoBusqueda && (
         <Text style={[styles.descripcion, { color: theme.textDim }]}>
@@ -224,23 +235,25 @@ export default function AgregarIntegranteScreen() {
       ) : error ? (
         <Text style={[styles.error, { color: theme.danger }]}>{error}</Text>
       ) : (
-        <FlatList
-          data={listaActual}
-          keyExtractor={(item) => item.id}
-          style={styles.lista}
-          contentContainerStyle={[
-            styles.listaContent,
-            listaActual.length === 0 ? styles.listaVacia : undefined,
-          ]}
-          renderItem={renderFila}
-          ListEmptyComponent={
-            <Text style={[styles.vacio, { color: theme.textMute }]}>
-              {enModoBusqueda
-                ? 'No se encontraron usuarios con ese nombre.'
-                : 'No tenés amigos todavía. Buscá usuarios y enviá solicitudes de amistad.'}
-            </Text>
-          }
-        />
+        <PasoAyuda {...AYUDA_GRUPO_INVITAR[1]!} estilo={styles.flex1}>
+          <FlatList
+            data={listaActual}
+            keyExtractor={(item) => item.id}
+            style={styles.lista}
+            contentContainerStyle={[
+              styles.listaContent,
+              listaActual.length === 0 ? styles.listaVacia : undefined,
+            ]}
+            renderItem={renderFila}
+            ListEmptyComponent={
+              <Text style={[styles.vacio, { color: theme.textMute }]}>
+                {enModoBusqueda
+                  ? 'No se encontraron usuarios con ese nombre.'
+                  : 'No tenés amigos todavía. Buscá usuarios y enviá solicitudes de amistad.'}
+              </Text>
+            }
+          />
+        </PasoAyuda>
       )}
 
       <Toast
@@ -254,6 +267,9 @@ export default function AgregarIntegranteScreen() {
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+  },
+  flex1: {
     flex: 1,
   },
   searchSection: {

@@ -37,6 +37,11 @@ Verifica el token con `firebaseAuth.verifyIdToken()`, resuelve el usuario local 
 Si no hay token o es inválido, la conexión **se rechaza** con `Error('UNAUTHORIZED')`;
 el cliente lo recibe en el evento `connect_error`.
 
+Si la cuenta está **suspendida** por un superadmin (RN-123), la conexión se rechaza con
+`Error('ACCOUNT_SUSPENDED')`. Al suspender una cuenta, el backend además **corta las
+conexiones que ya tenía abiertas** (`socket.disconnect(true)`), así deja de recibir el GPS
+del grupo en el acto y no solo en la próxima reconexión.
+
 ### CORS
 
 - Desarrollo: `origin: true` (cualquier origen).
@@ -144,7 +149,9 @@ A partir de este evento el viaje acepta GPS, y el QR de invitación queda caduco
 
 ### `viaje:finalizado`
 
-Emitido por `ViajesService.finalizar()`.
+Emitido por `ViajesService.finalizar()`, y también cuando un superadmin fuerza el cierre de
+un viaje colgado (`POST /api/admin/viajes/{viajeId}/finalizar`, RN-125). El payload es el
+mismo en ambos casos.
 
 ```jsonc
 {

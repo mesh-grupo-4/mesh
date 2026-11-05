@@ -1,4 +1,4 @@
-import type { Prisma, TipoActividad as TipoActividadEnum } from '@prisma/client'
+import type { EstadoViaje, Prisma, TipoActividad as TipoActividadEnum } from '@prisma/client'
 import type { PrismaClient } from '@prisma/client'
 import { getIo } from '../../realtime/ioRegistry'
 import { HttpError } from '../../lib/httpError'
@@ -39,15 +39,21 @@ import {
   filtrarQuienesComparten,
   registrarAccesosUbicacion,
 } from '../privacidad/privacidad.acceso'
+import { InsigniasService } from '../insignias/insignias.service'
+import { RachasService } from '../rachas/rachas.service'
 
 export class ViajesService {
   private readonly rutasCompartidas: RutasCompartidasService
   private readonly motor: MotorEventosService
+  private readonly insignias: InsigniasService
+  private readonly rachas: RachasService
 
   constructor(private readonly prisma: PrismaClient) {
     this.rutasCompartidas = new RutasCompartidasService(prisma)
     // Compartido entre el router REST y los sockets: el motor guarda estado en memoria.
     this.motor = obtenerMotorEventos(prisma)
+    this.insignias = new InsigniasService(prisma)
+    this.rachas = new RachasService(prisma)
   }
 
   async crearViaje(creadorId: string, input: CreateViajeInput) {
@@ -941,7 +947,33 @@ export class ViajesService {
     if (viaje.creador_id !== creadorId) {
       throw new HttpError(403, 'Solo el creador puede finalizar el viaje', 'NOT_CREATOR')
     }
-    if (viaje.estado !== 'en_curso') {
+    return this.cerrarViaje(viajeId, viaje.nombre ?? null, viaje.estado, creadorId)
+  }
+
+  /**
+   * RN-125: un superadmin cierra un viaje que quedó colgado en curso (p. ej. el
+   * creador perdió el teléfono). Mismo cierre que `finalizar()`, sin exigir ser el
+   * creador; el push le llega a todos, creador incluido, porque no fue él quien cerró.
+   */
+  async finalizarComoAdmin(viajeId: string) {
+    const viaje = await this.prisma.viaje.findUnique({
+      where: { id: viajeId },
+      select: { nombre: true, estado: true },
+    })
+    if (!viaje) {
+      throw new HttpError(404, 'Viaje no encontrado', 'VIAJE_NOT_FOUND')
+    }
+    return this.cerrarViaje(viajeId, viaje.nombre ?? null, viaje.estado, null)
+  }
+
+  private async cerrarViaje(
+    viajeId: string,
+    nombre: string | null,
+    estado: EstadoViaje,
+    /** A quién no notificar por push (quien cerró); null = a todos. */
+    cerradoPorId: string | null
+  ) {
+    if (estado !== 'en_curso') {
       throw new HttpError(409, 'El viaje no está en curso', 'INVALID_STATE')
     }
 
@@ -982,8 +1014,8 @@ export class ViajesService {
       console.error('[finalizar] No se pudo generar el resumen:', err)
     }
 
-    // Push notifications a participantes confirmados (no al creador que ya finalizó)
-    void this.notificarFinViaje(viajeId, viaje.nombre ?? null, creadorId)
+    // Push notifications a participantes confirmados (no a quien acaba de finalizar)
+    void this.notificarFinViaje(viajeId, nombre, cerradoPorId)
 
     return actualizado
   }
@@ -1052,6 +1084,34 @@ export class ViajesService {
         update: { ...datos, generado_en: new Date() },
       })
     })
+
+    // RN-074: evalúa insignias por cada métrica recién confirmada. Fuera de la
+    // transacción y best-effort — el resumen ya quedó guardado, no debe
+    // depender de esto ni volver a intentarse si una insignia falla.
+    for (const m of metricas) {
+      try {
+        await this.insignias.evaluarYOtorgar(
+          m.usuario_id,
+          viajeId,
+          viaje.tipo_actividad,
+          m.distancia_m,
+          Math.round(m.segundos_movimiento)
+        )
+      } catch (err) {
+        console.warn('[insignias] evaluarYOtorgar falló:', err)
+      }
+    }
+
+    // RN-075: extiende/reinicia la racha semanal de cada integrante. Misma
+    // política best-effort que las insignias — no debe voltear el cierre.
+    const fechaActividad = viaje.fecha_fin_real ?? new Date()
+    for (const m of metricas) {
+      try {
+        await this.rachas.registrarActividad(m.usuario_id, fechaActividad)
+      } catch (err) {
+        console.warn('[rachas] registrarActividad falló:', err)
+      }
+    }
   }
 
   /**
@@ -1445,7 +1505,7 @@ export class ViajesService {
   private async notificarFinViaje(
     viajeId: string,
     nombre: string | null,
-    creadorId: string
+    excluirId: string | null
   ): Promise<void> {
     try {
       const integrantes = await this.prisma.viajeIntegrante.findMany({
@@ -1455,7 +1515,7 @@ export class ViajesService {
 
       const { sendExpoPush } = await import('../../lib/expoPush')
       const mensajes = integrantes
-        .filter((i) => i.usuario.id !== creadorId && i.usuario.push_token)
+        .filter((i) => i.usuario.id !== excluirId && i.usuario.push_token)
         .map((i) => ({
           to: i.usuario.push_token!,
           title: 'Viaje finalizado',

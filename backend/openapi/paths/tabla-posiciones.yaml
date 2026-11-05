@@ -1,0 +1,79 @@
+# Módulo TablaPosiciones — src/modules/tabla-posiciones/
+# Router: top-level (tabla-posiciones.router.ts) · Controller: tabla-posiciones.controller.ts
+#
+# Ranking global por tipo de actividad y período (RN-076, E09). Se calcula
+# on-demand sumando `MetricaViaje` de los viajes finalizados de esa actividad
+# desde el inicio del período vigente (semana/mes/año calendario en curso,
+# hora argentina) — no hay nada persistido aparte, así que siempre refleja el
+# estado real sin job de recálculo.
+#
+# RN-070: la modalidad moto no tiene tabla de posiciones (`tipoActividad` solo
+# acepta bici/running/trekking/otro) y nunca se ordena por velocidad, solo por
+# distancia o tiempo en movimiento.
+
+TablaPosicionesColeccion:
+  get:
+    operationId: obtenerTablaPosiciones
+    summary: Ver la tabla de posiciones global de una actividad
+    description: |
+      Devuelve los 3 primeros puestos del período vigente y, aparte, la fila
+      de quien consulta con su puesto real (esté o no entre esos 3).
+    tags:
+      - TablaPosiciones
+    parameters:
+      - $ref: '../components/parameters.yaml#/RankingTipoActividad'
+      - $ref: '../components/parameters.yaml#/RankingPeriodo'
+      - $ref: '../components/parameters.yaml#/RankingOrden'
+    responses:
+      '200':
+        description: Tabla de posiciones.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/TablaPosiciones'
+            example:
+              tipo_actividad: bici
+              periodo: semanal
+              orden: distancia
+              desde: '2026-09-07T03:00:00.000Z'
+              top:
+                - puesto: 1
+                  usuario_id: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d
+                  nombre: Ana Pérez
+                  distancia_m: 86200
+                  tiempo_movimiento_seg: 10800
+                - puesto: 2
+                  usuario_id: 5c6d7e8f-9a0b-4c1d-8e2f-3a4b5c6d7e8f
+                  nombre: Beto Ruiz
+                  distancia_m: 54000
+                  tiempo_movimiento_seg: 7200
+                - puesto: 3
+                  usuario_id: 6d7e8f90-ab1c-4d2e-9f3a-4b5c6d7e8f90
+                  nombre: Caro Díaz
+                  distancia_m: 31000
+                  tiempo_movimiento_seg: 4500
+              mi_posicion:
+                puesto: 14
+                usuario_id: 3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d
+                nombre: Martina Gómez
+                distancia_m: 8200
+                tiempo_movimiento_seg: 1200
+              total_participantes: 31
+      '400':
+        description: '`tipoActividad` inválido (`VALIDATION_ERROR`) — incluye el caso de pedir moto (RN-070).'
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ValidationError'
+            example:
+              error: Validación fallida
+              code: VALIDATION_ERROR
+              details:
+                formErrors: []
+                fieldErrors:
+                  tipoActividad:
+                    - "Invalid enum value. Expected 'bici' | 'running' | 'trekking' | 'otro', received 'moto'"
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'

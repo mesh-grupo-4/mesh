@@ -10,6 +10,9 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { Feather } from '@expo/vector-icons'
 
 import { Btn, useTheme } from '@/components/MeshUI'
+import { BotonAyuda } from '@/components/ayuda/BotonAyuda'
+import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
+import { AYUDA_RUTA_COMPARTIDA } from '@/components/ayuda/contenidoAyuda'
 import { RouteMapView } from '@/components/route-config/RouteMapView'
 import type { RouteWaypoint } from '@/components/route-config/routeTypes'
 import { waypointTieneCoords } from '@/components/route-config/routeTypes'
@@ -149,7 +152,9 @@ export default function RutaCompartidaPreviewScreen() {
 
   return (
     <View style={[styles.root, { backgroundColor: theme.background }]}>
-      <Stack.Screen options={{ title: 'Ruta compartida', headerShown: true }} />
+      <Stack.Screen
+        options={{ title: 'Ruta compartida', headerShown: true, headerRight: () => <BotonAyuda /> }}
+      />
 
       {loading || backendSyncing ? (
         <View style={styles.center}>
@@ -165,18 +170,20 @@ export default function RutaCompartidaPreviewScreen() {
         </View>
       ) : preview && mapa ? (
         <>
-          <View style={styles.mapBox}>
-            <RouteMapView
-              waypoints={mapa.waypoints}
-              routeLineLatLng={mapa.routeLine.length > 1 ? mapa.routeLine : null}
-              mapStyle="standard"
-              initialRegion={initialRegion}
-              cameraTarget={null}
-              fitRouteCoords={fitCoords}
-              mapPickMode={false}
-              fitBottomPadding={80}
-            />
-          </View>
+          <PasoAyuda {...AYUDA_RUTA_COMPARTIDA[0]!}>
+            <View style={styles.mapBox}>
+              <RouteMapView
+                waypoints={mapa.waypoints}
+                routeLineLatLng={mapa.routeLine.length > 1 ? mapa.routeLine : null}
+                mapStyle="standard"
+                initialRegion={initialRegion}
+                cameraTarget={null}
+                fitRouteCoords={fitCoords}
+                mapPickMode={false}
+                fitBottomPadding={80}
+              />
+            </View>
+          </PasoAyuda>
           <ScrollView contentContainerStyle={styles.info}>
             <Text style={[styles.title, { color: theme.text }]}>
               {preview.origen.nombre || 'Origen'} → {preview.destino.nombre || 'Destino'}
@@ -195,17 +202,19 @@ export default function RutaCompartidaPreviewScreen() {
                 {preview.paradas.length} parada{preview.paradas.length === 1 ? '' : 's'}
               </Text>
             ) : null}
-            <Btn
-              variant="primary"
-              block
-              icon="download"
-              loading={guardando}
-              disabled={guardando}
-              onPress={() => void onGuardar()}
-              style={{ marginTop: 16 }}
-            >
-              Guardar en mis rutas
-            </Btn>
+            <PasoAyuda {...AYUDA_RUTA_COMPARTIDA[1]!}>
+              <Btn
+                variant="primary"
+                block
+                icon="download"
+                loading={guardando}
+                disabled={guardando}
+                onPress={() => void onGuardar()}
+                style={{ marginTop: 16 }}
+              >
+                Guardar en mis rutas
+              </Btn>
+            </PasoAyuda>
           </ScrollView>
         </>
       ) : null}

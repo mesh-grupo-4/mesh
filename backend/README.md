@@ -338,6 +338,33 @@ El backend verifica el token contra Firebase, resuelve el `Usuario` local a part
 `firebase_uid` y expone su UUID como `req.userId`. Los WebSockets usan el mismo token en el
 handshake (ver [`docs/websockets.md`](docs/websockets.md)).
 
+Una cuenta suspendida recibe `403 ACCOUNT_SUSPENDED` en cualquier endpoint (RN-123).
+
+### Superadmin y backoffice (RN-120 a RN-126)
+
+Además de los roles de grupo (`lider` / `participante`, RN-011) existe un rol de
+**plataforma**, `usuario.rol_sistema = superadmin`, que habilita `/api/admin`:
+gestión de cuentas (editar, suspender, reactivar, eliminar, otorgar/quitar el rol),
+grupos (reasignar líder, quitar integrantes, eliminar), viajes (forzar finalización,
+eliminar) y la auditoría de cada acción (`auditoria_admin`). Módulo:
+`src/modules/admin/`; guard: `src/middleware/requireSuperadmin.ts`.
+
+El primer superadmin se nombra desde la terminal (la persona tiene que haber iniciado
+sesión al menos una vez):
+
+```bash
+npm run admin:promover -- persona@mail.com           # otorga el rol
+npm run admin:promover -- persona@mail.com --quitar  # lo quita
+```
+
+La **reportería** (`/api/admin/reportes/*`, módulo `src/modules/reportes/`) da KPIs,
+crecimiento, retención por cohortes, uso, comunidad, seguridad, destinos, adopción y
+gastos. Todo agregado y en hora argentina; definiciones en
+`tesis-brain/reglas-de-negocio.md` (RN-127 a RN-131).
+
+A partir de ahí, cualquier superadmin otorga o quita el rol desde la app
+(*Perfil → Administración → Usuarios*) o con `PUT /api/admin/usuarios/{id}/rol`.
+
 ### GeoJSON (contrato)
 
 - `Point`: `{ "type": "Point", "coordinates": [lng, lat] }`

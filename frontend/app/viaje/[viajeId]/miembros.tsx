@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator, RefreshControl, Pressable } from 'react-native';
 import { meshAlert } from '@/lib/meshAlert';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
@@ -9,7 +9,10 @@ import {
   obtenerViaje,
   type ViajeParticipanteApi,
 } from '@/lib/viajesApi';
+import { useCopilot } from 'react-native-copilot';
 import { TopBar, Avatar, Badge, useTheme } from '@/components/MeshUI';
+import { PasoAyuda } from '@/components/ayuda/PasoAyuda';
+import { AYUDA_VIAJE_MIEMBROS } from '@/components/ayuda/contenidoAyuda';
 import { Feather } from '@expo/vector-icons';
 
 function etiquetaRol(rol: ViajeParticipanteApi['rol']): string {
@@ -38,6 +41,7 @@ export default function MiembrosViajeScreen() {
   const { backendUserId } = useAuth();
   const theme = useTheme();
   const router = useRouter();
+  const { start } = useCopilot();
 
   const [miembros, setMiembros] = useState<ViajeParticipanteApi[]>([]);
   const [viajeNombre, setViajeNombre] = useState<string | null>(null);
@@ -87,7 +91,17 @@ export default function MiembrosViajeScreen() {
     };
 
     return (
-      <View style={[styles.fila, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+      <Pressable
+        disabled={esYo}
+        onPress={() =>
+          router.push({ pathname: '/usuario/[usuarioId]', params: { usuarioId: item.usuario.id } })
+        }
+        style={({ pressed }) => [
+          styles.fila,
+          { backgroundColor: theme.surface, borderColor: theme.border },
+          pressed && !esYo && { opacity: 0.85 },
+        ]}
+      >
         <Avatar person={dummyPerson} size="sm" ring={esLider} />
 
         <View style={styles.filaContenido}>
@@ -121,14 +135,20 @@ export default function MiembrosViajeScreen() {
             )}
           </View>
         </View>
-      </View>
+      </Pressable>
     );
   };
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <TopBar title="Miembros" sub={viajeNombre ?? 'Cargando...'} onBack={() => router.back()} bordered={false} />
+      <TopBar
+        title="Miembros"
+        sub={viajeNombre ?? 'Cargando...'}
+        onBack={() => router.back()}
+        bordered={false}
+        onAyuda={() => start()}
+      />
 
       {loading ? (
         <View style={styles.centrado}>
@@ -139,22 +159,24 @@ export default function MiembrosViajeScreen() {
           <Text style={[styles.errorText, { color: theme.danger }]}>{error}</Text>
         </View>
       ) : (
-        <FlatList
-          data={miembros}
-          keyExtractor={(item) => item.usuario.id}
-          renderItem={renderItem}
-          contentContainerStyle={styles.lista}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => void cargar(true)}
-              tintColor={theme.accent}
-            />
-          }
-          ListEmptyComponent={
-            <Text style={[styles.vacio, { color: theme.textMute }]}>Este viaje aún no tiene miembros.</Text>
-          }
-        />
+        <PasoAyuda {...AYUDA_VIAJE_MIEMBROS[0]!} estilo={styles.flex1}>
+          <FlatList
+            data={miembros}
+            keyExtractor={(item) => item.usuario.id}
+            renderItem={renderItem}
+            contentContainerStyle={styles.lista}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={() => void cargar(true)}
+                tintColor={theme.accent}
+              />
+            }
+            ListEmptyComponent={
+              <Text style={[styles.vacio, { color: theme.textMute }]}>Este viaje aún no tiene miembros.</Text>
+            }
+          />
+        </PasoAyuda>
       )}
     </View>
   );
@@ -162,6 +184,9 @@ export default function MiembrosViajeScreen() {
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+  },
+  flex1: {
     flex: 1,
   },
   centrado: {

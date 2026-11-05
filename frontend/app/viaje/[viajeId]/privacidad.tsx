@@ -12,8 +12,11 @@ import {
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
+import { useCopilot } from 'react-native-copilot'
 import { AvisoUbicacion } from '@/components/AvisoUbicacion'
 import { Btn, TopBar, useTheme } from '@/components/MeshUI'
+import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
+import { AYUDA_VIAJE_PRIVACIDAD } from '@/components/ayuda/contenidoAyuda'
 import { useAuth } from '@/context/AuthContext'
 import { meshAlert } from '@/lib/meshAlert'
 import {
@@ -43,6 +46,7 @@ function fechaAccesible(iso: string): string {
 export default function PrivacidadViajeScreen() {
   const router = useRouter()
   const theme = useTheme()
+  const { start } = useCopilot()
   const insets = useSafeAreaInsets()
   const { backendUserId } = useAuth()
   const params = useLocalSearchParams<{ viajeId: string | string[] }>()
@@ -127,6 +131,7 @@ export default function PrivacidadViajeScreen() {
         title="Privacidad"
         sub="Quién ve tu ubicación en este viaje"
         onBack={() => router.back()}
+        onAyuda={() => start()}
       />
 
       {cargando ? (
@@ -140,90 +145,96 @@ export default function PrivacidadViajeScreen() {
             <RefreshControl refreshing={false} onRefresh={() => void cargar()} tintColor={theme.accent} />
           }
         >
-          <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <View style={styles.switchRow}>
-              <View style={styles.switchTexto}>
-                <Text style={[styles.switchTitulo, { color: theme.text }]}>
-                  Compartir mi ubicación
-                </Text>
-                <Text style={[styles.switchSub, { color: theme.textDim }]}>
-                  {efectivo
-                    ? 'El grupo ve tu posición en el mapa del viaje.'
-                    : 'Nadie del grupo ve tu posición en este viaje.'}
-                </Text>
+          <PasoAyuda {...AYUDA_VIAJE_PRIVACIDAD[0]!}>
+            <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <View style={styles.switchRow}>
+                <View style={styles.switchTexto}>
+                  <Text style={[styles.switchTitulo, { color: theme.text }]}>
+                    Compartir mi ubicación
+                  </Text>
+                  <Text style={[styles.switchSub, { color: theme.textDim }]}>
+                    {efectivo
+                      ? 'El grupo ve tu posición en el mapa del viaje.'
+                      : 'Nadie del grupo ve tu posición en este viaje.'}
+                  </Text>
+                </View>
+                <Switch
+                  value={comparte}
+                  onValueChange={alternar}
+                  disabled={guardando}
+                  trackColor={{ true: theme.accent, false: theme.border }}
+                />
               </View>
-              <Switch
-                value={comparte}
-                onValueChange={alternar}
-                disabled={guardando}
-                trackColor={{ true: theme.accent, false: theme.border }}
-              />
-            </View>
 
-            {!efectivo && (
-              <View style={[styles.nota, { backgroundColor: theme.surface2 }]}>
-                <Feather name="info" size={15} color={theme.textDim} style={styles.notaIcono} />
-                <Text style={[styles.notaTexto, { color: theme.textDim }]}>
-                  Tu recorrido se sigue guardando para tus métricas personales, pero el grupo no lo
-                  ve. Tampoco se generarán alertas automáticas de desvío ni de posible incidente
-                  sobre vos mientras esté apagado.
-                </Text>
-              </View>
-            )}
-          </View>
+              {!efectivo && (
+                <View style={[styles.nota, { backgroundColor: theme.surface2 }]}>
+                  <Feather name="info" size={15} color={theme.textDim} style={styles.notaIcono} />
+                  <Text style={[styles.notaTexto, { color: theme.textDim }]}>
+                    Tu recorrido se sigue guardando para tus métricas personales, pero el grupo no lo
+                    ve. Tampoco se generarán alertas automáticas de desvío ni de posible incidente
+                    sobre vos mientras esté apagado.
+                  </Text>
+                </View>
+              )}
+            </View>
+          </PasoAyuda>
 
           {faltaConsentimiento && (
-            <View
-              style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.accent }]}
-            >
-              <Text style={[styles.tituloSeccion, { color: theme.text }]}>
-                Falta tu consentimiento
-              </Text>
-              <Text style={[styles.switchSub, { color: theme.textDim, marginBottom: 12 }]}>
-                Hasta que lo aceptes, tu posición no se comparte aunque el interruptor esté
-                encendido.
-              </Text>
-              <AvisoUbicacion />
-              <Btn
-                variant="primary"
-                block
-                onPress={otorgarConsentimiento}
-                disabled={guardando}
-                style={{ marginTop: 12 }}
+            <PasoAyuda {...AYUDA_VIAJE_PRIVACIDAD[1]!}>
+              <View
+                style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.accent }]}
               >
-                Acepto compartir mi ubicación
-              </Btn>
-            </View>
+                <Text style={[styles.tituloSeccion, { color: theme.text }]}>
+                  Falta tu consentimiento
+                </Text>
+                <Text style={[styles.switchSub, { color: theme.textDim, marginBottom: 12 }]}>
+                  Hasta que lo aceptes, tu posición no se comparte aunque el interruptor esté
+                  encendido.
+                </Text>
+                <AvisoUbicacion />
+                <Btn
+                  variant="primary"
+                  block
+                  onPress={otorgarConsentimiento}
+                  disabled={guardando}
+                  style={{ marginTop: 12 }}
+                >
+                  Acepto compartir mi ubicación
+                </Btn>
+              </View>
+            </PasoAyuda>
           )}
 
-          <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-            <Text style={[styles.tituloSeccion, { color: theme.text }]}>
-              Quiénes vieron tu posición
-            </Text>
-            {accesos.length === 0 ? (
-              <Text style={[styles.vacio, { color: theme.textMute }]}>
-                Todavía nadie accedió a tu posición en este viaje.
+          <PasoAyuda {...AYUDA_VIAJE_PRIVACIDAD[2]!}>
+            <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <Text style={[styles.tituloSeccion, { color: theme.text }]}>
+                Quiénes vieron tu posición
               </Text>
-            ) : (
-              accesos.map((a) => (
-                <View
-                  key={a.observador_id}
-                  style={[styles.acceso, { borderTopColor: theme.border }]}
-                >
-                  <Feather name="eye" size={16} color={theme.accent} style={styles.accesoIcono} />
-                  <View style={styles.accesoTexto}>
-                    <Text style={[styles.accesoNombre, { color: theme.text }]}>
-                      {a.observador_nombre}
-                    </Text>
-                    <Text style={[styles.accesoDetalle, { color: theme.textDim }]}>
-                      Último acceso {fechaAccesible(a.ultima_vez)} · desde{' '}
-                      {fechaAccesible(a.primera_vez)}
-                    </Text>
+              {accesos.length === 0 ? (
+                <Text style={[styles.vacio, { color: theme.textMute }]}>
+                  Todavía nadie accedió a tu posición en este viaje.
+                </Text>
+              ) : (
+                accesos.map((a) => (
+                  <View
+                    key={a.observador_id}
+                    style={[styles.acceso, { borderTopColor: theme.border }]}
+                  >
+                    <Feather name="eye" size={16} color={theme.accent} style={styles.accesoIcono} />
+                    <View style={styles.accesoTexto}>
+                      <Text style={[styles.accesoNombre, { color: theme.text }]}>
+                        {a.observador_nombre}
+                      </Text>
+                      <Text style={[styles.accesoDetalle, { color: theme.textDim }]}>
+                        Último acceso {fechaAccesible(a.ultima_vez)} · desde{' '}
+                        {fechaAccesible(a.primera_vez)}
+                      </Text>
+                    </View>
                   </View>
-                </View>
-              ))
-            )}
-          </View>
+                ))
+              )}
+            </View>
+          </PasoAyuda>
         </ScrollView>
       )}
     </View>

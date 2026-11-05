@@ -1,0 +1,288 @@
+# Reportería del backoffice — src/modules/reportes/ (RN-127 a RN-131)
+# Router: reportes.router.ts · Service: reportes.service.ts
+# Solo superadmin. Solo agregados: sin datos personales, sin posiciones, sin velocidades.
+
+ResumenReporte:
+  get:
+    operationId: adminReporteResumen
+    summary: Resumen ejecutivo con KPIs comparados
+    description: |
+      KPIs del período contra el período anterior de igual duración: altas, usuarios activos,
+      viajes iniciados y finalizados, km y horas de actividad, grupos creados, incidentes
+      detectados y tasa de realización de viajes programados. Pensado para la primera
+      pantalla de un directorio.
+    tags:
+      - Reportes
+    parameters:
+      - $ref: '../components/parameters.yaml#/ReporteDesde'
+      - $ref: '../components/parameters.yaml#/ReporteHasta'
+      - $ref: '../components/parameters.yaml#/ReporteGranularidad'
+    responses:
+      '200':
+        description: Reporte.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ReporteResumen'
+            example: {"periodo": {"desde": "2026-03-01", "hasta": "2026-10-16", "granularidad": "mes"}, "periodo_anterior": {"desde": "2025-07-14", "hasta": "2026-02-28", "granularidad": "mes"}, "kpis": {"altas": {"actual": 76, "anterior": 4, "variacion_pct": 1800}, "usuarios_activos": {"actual": 80, "anterior": 0, "variacion_pct": null}, "viajes_iniciados": {"actual": 107, "anterior": 0, "variacion_pct": null}, "viajes_finalizados": {"actual": 105, "anterior": 0, "variacion_pct": null}, "km_recorridos": {"actual": 12266.5, "anterior": 0, "variacion_pct": null}, "horas_actividad": {"actual": 304, "anterior": 0, "variacion_pct": null}, "grupos_creados": {"actual": 12, "anterior": 0, "variacion_pct": null}, "incidentes_detectados": {"actual": 33, "anterior": 0, "variacion_pct": null}}, "tasa_realizacion": {"actual": 0.7926, "anterior": null, "variacion_pp": null}}
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/SuperadminRequerido'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+CrecimientoReporte:
+  get:
+    operationId: adminReporteCrecimiento
+    summary: Crecimiento y activación de usuarios
+    description: |
+      Serie de altas, usuarios activos y cuentas acumuladas; activación (cuántas cuentas
+      nuevas ya participaron en un viaje y en cuántos días, mediana) y distribución por
+      actividad preferida.
+    tags:
+      - Reportes
+    parameters:
+      - $ref: '../components/parameters.yaml#/ReporteDesde'
+      - $ref: '../components/parameters.yaml#/ReporteHasta'
+      - $ref: '../components/parameters.yaml#/ReporteGranularidad'
+    responses:
+      '200':
+        description: Reporte.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ReporteCrecimiento'
+            example: {"periodo": {"desde": "2026-03-01", "hasta": "2026-10-16", "granularidad": "mes"}, "serie": [{"balde": "2026-03-01", "altas": 12, "usuarios_activos": 0, "usuarios_totales": 16}, {"balde": "2026-04-01", "altas": 7, "usuarios_activos": 0, "usuarios_totales": 23}, {"balde": "2026-05-01", "altas": 6, "usuarios_activos": 55, "usuarios_totales": 29}], "activacion": {"altas": 76, "activados": 76, "tasa": 1, "mediana_dias_hasta_primer_viaje": 0}, "actividad_preferida": [{"actividad": "trekking", "cantidad": 16}, {"actividad": "sin_definir", "cantidad": 16}, {"actividad": "bici", "cantidad": 16}]}
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/SuperadminRequerido'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+RetencionReporte:
+  get:
+    operationId: adminReporteRetencion
+    summary: Retención por cohortes mensuales
+    description: |
+      Matriz de cohortes: por cada mes de alta, qué proporción participó en un viaje en
+      los meses siguientes. Las cuentas creadas antes de la migración 20261016120000 tienen
+      como fecha de alta la de esa migración, así que las cohortes previas no son
+      representativas.
+    tags:
+      - Reportes
+    parameters:
+      - name: meses
+        in: query
+        required: false
+        description: Cantidad de cohortes mensuales, contando el mes actual.
+        schema: {"type": "integer", "minimum": 2, "maximum": 12, "default": 6}
+    responses:
+      '200':
+        description: Reporte.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ReporteRetencion'
+            example: {"meses": 8, "desde": "2026-03", "hasta": "2026-10", "cohortes": [{"cohorte": "2026-03", "tamano": 12, "retencion": [0, 0, 0.75]}, {"cohorte": "2026-04", "tamano": 7, "retencion": [0, 0.8571, 0.7143]}, {"cohorte": "2026-05", "tamano": 6, "retencion": [1, 0.5, 0.6667]}]}
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/SuperadminRequerido'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+ViajesReporte:
+  get:
+    operationId: adminReporteViajes
+    summary: Uso del producto (viajes)
+    description: |
+      Serie de viajes creados, iniciados y finalizados; distancia, duración y personas
+      promedio por actividad; modos; grupales vs. individuales; tamaño de los grupos;
+      embudo de realización y mapa de calor de horarios de inicio (hora argentina).
+      **Sin velocidades** (RN-070).
+    tags:
+      - Reportes
+    parameters:
+      - $ref: '../components/parameters.yaml#/ReporteDesde'
+      - $ref: '../components/parameters.yaml#/ReporteHasta'
+      - $ref: '../components/parameters.yaml#/ReporteGranularidad'
+      - $ref: '../components/parameters.yaml#/ReporteActividad'
+    responses:
+      '200':
+        description: Reporte.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ReporteViajes'
+            example: {"periodo": {"desde": "2026-03-01", "hasta": "2026-10-16", "granularidad": "mes"}, "actividad": null, "serie": [{"balde": "2026-03-01", "creados": 2, "iniciados": 0, "finalizados": 0}, {"balde": "2026-04-01", "creados": 20, "iniciados": 0, "finalizados": 0}, {"balde": "2026-05-01", "creados": 14, "iniciados": 19, "finalizados": 19}], "por_actividad": [{"actividad": "trekking", "viajes": 24, "km_total": 2756.6, "km_promedio": 119.9, "duracion_promedio_min": 163, "personas_promedio": 6.5}, {"actividad": "bici", "viajes": 23, "km_total": 2655.6, "km_promedio": 115.5, "duracion_promedio_min": 215, "personas_promedio": 5}, {"actividad": "running", "viajes": 22, "km_total": 2251.4, "km_promedio": 107.2, "duracion_promedio_min": 178, "personas_promedio": 6.2}], "por_modo": [{"modo": "recreativo", "cantidad": 63}, {"modo": "entrenamiento", "cantidad": 31}, {"modo": "competitivo", "cantidad": 13}], "grupales_vs_individuales": {"grupales": 71, "individuales": 36}, "tamano_grupo": [{"rango": "1", "cantidad": 0}, {"rango": "2-5", "cantidad": 23}, {"rango": "6-10", "cantidad": 31}], "embudo": {"programados": 135, "iniciados": 107, "finalizados": 105, "no_realizados": 28, "tasa_realizacion": 0.7926}, "horarios": [{"dia_semana": 1, "hora": 0, "cantidad": 1}, {"dia_semana": 1, "hora": 4, "cantidad": 1}, {"dia_semana": 1, "hora": 5, "cantidad": 1}]}
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/SuperadminRequerido'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+ComunidadReporte:
+  get:
+    operationId: adminReporteComunidad
+    summary: Comunidad y crecimiento viral
+    description: |
+      Grupos (tamaño, actividad), amistades, tasas de aceptación de invitaciones a grupos
+      y viajes, canales por los que la gente se suma a los viajes (QR, link, grupo, amigo)
+      y rutas compartidas e importadas.
+    tags:
+      - Reportes
+    parameters:
+      - $ref: '../components/parameters.yaml#/ReporteDesde'
+      - $ref: '../components/parameters.yaml#/ReporteHasta'
+      - $ref: '../components/parameters.yaml#/ReporteGranularidad'
+    responses:
+      '200':
+        description: Reporte.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ReporteComunidad'
+            example: {"periodo": {"desde": "2026-03-01", "hasta": "2026-10-16", "granularidad": "mes"}, "serie": [{"balde": "2026-03-01", "grupos_creados": 0, "amistades_nuevas": 0, "rutas_compartidas": 0, "rutas_importadas": 0}, {"balde": "2026-04-01", "grupos_creados": 3, "amistades_nuevas": 0, "rutas_compartidas": 0, "rutas_importadas": 0}, {"balde": "2026-05-01", "grupos_creados": 0, "amistades_nuevas": 10, "rutas_compartidas": 0, "rutas_importadas": 0}], "grupos": {"totales": 12, "activos_en_periodo": 1, "tasa_actividad": 0.0833, "tamano_promedio": 8.3, "distribucion_tamano": [{"rango": "1", "cantidad": 0}, {"rango": "2-5", "cantidad": 4}, {"rango": "6-10", "cantidad": 4}]}, "amistades": {"aceptadas_totales": 89, "amigos_promedio_por_usuario": 2.2, "solicitudes_periodo": {"por_estado": [{"estado": "pendiente", "cantidad": 45}, {"estado": "aceptada", "cantidad": 89}, {"estado": "rechazada", "cantidad": 33}], "aceptadas": 89, "rechazadas": 33, "pendientes": 45, "tasa_aceptacion": 0.7295}}, "invitaciones_grupo": {"por_estado": [{"estado": "aceptada", "cantidad": 13}, {"estado": "pendiente", "cantidad": 21}, {"estado": "rechazada", "cantidad": 14}], "aceptadas": 13, "rechazadas": 14, "pendientes": 21, "tasa_aceptacion": 0.4815}, "invitaciones_viaje": {"por_estado": [{"estado": "salido", "cantidad": 70}, {"estado": "pendiente", "cantidad": 88}, {"estado": "rechazado", "cantidad": 72}], "aceptadas": 319, "rechazadas": 72, "pendientes": 88, "tasa_aceptacion": 0.8159}, "canales_incorporacion": [{"canal": "amigo", "cantidad": 255}, {"canal": "grupo", "cantidad": 224}, {"canal": "link", "cantidad": 220}]}
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/SuperadminRequerido'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+SeguridadReporte:
+  get:
+    operationId: adminReporteSeguridad
+    summary: Seguridad y operación
+    description: |
+      Alertas por tipo, origen y estado; posibles incidentes detectados por el motor con
+      su tasa de falsas alarmas por actividad; solicitudes de parada (aprobación y tiempo de
+      respuesta del líder) y paradas voluntarias por categoría.
+    tags:
+      - Reportes
+    parameters:
+      - $ref: '../components/parameters.yaml#/ReporteDesde'
+      - $ref: '../components/parameters.yaml#/ReporteHasta'
+      - $ref: '../components/parameters.yaml#/ReporteActividad'
+    responses:
+      '200':
+        description: Reporte.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ReporteSeguridad'
+            example: {"periodo": {"desde": "2026-03-01", "hasta": "2026-10-16", "granularidad": "mes"}, "actividad": null, "alertas": {"total": 160, "cada_100_viajes": 149.5, "por_tipo_y_origen": [{"tipo": "informacion", "origen": "lider", "cantidad": 13}, {"tipo": "parada", "origen": "integrante", "cantidad": 12}, {"tipo": "informacion", "origen": "integrante", "cantidad": 12}], "por_estado": [{"estado": "resuelta", "cantidad": 160}]}, "incidentes": {"detectados": 33, "falsas_alarmas": 13, "pidieron_ayuda": 10, "sin_respuesta": 10, "tasa_falsas_alarmas": 0.3939, "cada_100_viajes": 30.8, "por_actividad": [{"actividad": "bici", "detectados": 12, "falsas_alarmas": 6, "pidieron_ayuda": 5, "sin_respuesta": 1, "tasa_falsas_alarmas": 0.5}, {"actividad": "running", "detectados": 7, "falsas_alarmas": 1, "pidieron_ayuda": 2, "sin_respuesta": 4, "tasa_falsas_alarmas": 0.1429}, {"actividad": "trekking", "detectados": 6, "falsas_alarmas": 2, "pidieron_ayuda": 1, "sin_respuesta": 3, "tasa_falsas_alarmas": 0.3333}]}, "solicitudes_parada": {"total": 37, "aprobadas": 20, "rechazadas": 4, "canceladas": 7, "pendientes": 6, "mediana_respuesta_seg": 103, "tasa_aprobacion": 0.8333}, "paradas_voluntarias": [{"categoria": "descanso", "cantidad": 27, "duracion_promedio_min": 22.6}, {"categoria": "gastronomia", "cantidad": 26, "duracion_promedio_min": 18.4}, {"categoria": "combustible", "cantidad": 24, "duracion_promedio_min": 15.7}]}
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/SuperadminRequerido'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+DestinosReporte:
+  get:
+    operationId: adminReporteDestinos
+    summary: Destinos y demanda de servicios en ruta
+    description: |
+      Top 10 de destinos y orígenes según los nombres de las rutas planificadas, con
+      umbral de k-anonimato (RN-130); distribución de distancias planeadas y paradas
+      planificadas por categoría (combustible, gastronomía, etc.). No usa posiciones GPS
+      (RN-126).
+    tags:
+      - Reportes
+    parameters:
+      - $ref: '../components/parameters.yaml#/ReporteDesde'
+      - $ref: '../components/parameters.yaml#/ReporteHasta'
+      - $ref: '../components/parameters.yaml#/ReporteActividad'
+    responses:
+      '200':
+        description: Reporte.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ReporteDestinos'
+            example: {"periodo": {"desde": "2026-03-01", "hasta": "2026-10-16", "granularidad": "mes"}, "actividad": null, "umbral_k_anonimato": 3, "top_destinos": [{"lugar": "Los Gigantes", "viajes": 23}, {"lugar": "Cumbrecita", "viajes": 21}, {"lugar": "Mina Clavero", "viajes": 20}], "top_origenes": [{"lugar": "Córdoba", "viajes": 37}, {"lugar": "Río Cuarto", "viajes": 30}, {"lugar": "Villa Carlos Paz", "viajes": 22}], "distancia_planeada": [{"rango": "< 10 km", "cantidad": 2}, {"rango": "10-50 km", "cantidad": 6}, {"rango": "50-100 km", "cantidad": 9}], "paradas_planificadas_por_categoria": [{"categoria": "sanitario", "cantidad": 16}, {"categoria": "gastronomia", "cantidad": 13}, {"categoria": "descanso", "cantidad": 12}]}
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/SuperadminRequerido'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+AdopcionReporte:
+  get:
+    operationId: adminReporteAdopcion
+    summary: Adopción de funcionalidades y confianza
+    description: |
+      Proporción de viajes que usan cada funcionalidad (ruta, checklist, paradas, alertas,
+      gastos, ruta compartida, modos), indicadores de las cuentas (consentimiento vigente,
+      push, perfil) y proporción de participaciones con la ubicación apagada.
+    tags:
+      - Reportes
+    parameters:
+      - $ref: '../components/parameters.yaml#/ReporteDesde'
+      - $ref: '../components/parameters.yaml#/ReporteHasta'
+    responses:
+      '200':
+        description: Reporte.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ReporteAdopcion'
+            example: {"periodo": {"desde": "2026-03-01", "hasta": "2026-10-16", "granularidad": "mes"}, "viajes_iniciados": 107, "viajes_grupales": 71, "funcionalidades": [{"funcionalidad": "ruta_planificada", "viajes": 89, "tasa": 0.8318}, {"funcionalidad": "checklist", "viajes": 45, "tasa": 0.4206}, {"funcionalidad": "paradas_voluntarias", "viajes": 71, "tasa": 0.6636}], "usuarios": {"activos": 80, "indicadores": [{"indicador": "consentimiento_vigente", "usuarios": 26, "tasa": 0.325}, {"indicador": "comparte_por_defecto", "usuarios": 60, "tasa": 0.75}, {"indicador": "notificaciones_push", "usuarios": 40, "tasa": 0.5}]}, "privacidad": {"participaciones": 613, "con_ubicacion_apagada": 148, "tasa_ubicacion_apagada": 0.2414}}
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/SuperadminRequerido'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+GastosReporte:
+  get:
+    operationId: adminReporteGastos
+    summary: Gastos compartidos
+    description: |
+      Monto total, promedio por viaje y por persona, por actividad y en el tiempo. Señal
+      del gasto real de la comunidad para acuerdos comerciales.
+    tags:
+      - Reportes
+    parameters:
+      - $ref: '../components/parameters.yaml#/ReporteDesde'
+      - $ref: '../components/parameters.yaml#/ReporteHasta'
+      - $ref: '../components/parameters.yaml#/ReporteGranularidad'
+      - $ref: '../components/parameters.yaml#/ReporteActividad'
+    responses:
+      '200':
+        description: Reporte.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ReporteGastos'
+            example: {"periodo": {"desde": "2026-03-01", "hasta": "2026-10-16", "granularidad": "mes"}, "actividad": null, "resumen": {"viajes_iniciados": 107, "viajes_con_gastos": 51, "tasa_uso": 0.4766, "gastos_registrados": 68, "monto_total": 969360.6, "promedio_por_viaje": 19007.07, "promedio_por_persona": 2479.18}, "por_actividad": [{"actividad": "trekking", "viajes_con_gastos": 13, "gastos": 16, "monto_total": 257394.79, "promedio_por_viaje": 19799.6, "promedio_por_persona": 2498.98}, {"actividad": "moto", "viajes_con_gastos": 10, "gastos": 16, "monto_total": 212648.36, "promedio_por_viaje": 21264.84, "promedio_por_persona": 2798}, {"actividad": "running", "viajes_con_gastos": 11, "gastos": 15, "monto_total": 201455.51, "promedio_por_viaje": 18314.14, "promedio_por_persona": 2238.39}], "serie": [{"balde": "2026-03-01", "monto": 0}, {"balde": "2026-04-01", "monto": 0}, {"balde": "2026-05-01", "monto": 169427.64}]}
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/SuperadminRequerido'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'

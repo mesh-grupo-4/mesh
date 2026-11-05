@@ -18,3 +18,6 @@ usuariosRouter.put('/push-token', requireUser, c.upsertPushToken)
 usuariosRouter.get('/me/privacidad', ...privacidadUsuarioHandlers.obtener)
 usuariosRouter.put('/me/privacidad', ...privacidadUsuarioHandlers.actualizar)
 usuariosRouter.get('/me/accesos-ubicacion', ...privacidadUsuarioHandlers.accesos)
+
+// Perfil público: cualquier usuario autenticado puede ver el de cualquier otro.
+usuariosRouter.get('/:usuarioId/perfil', requireUser, c.perfilPublico)

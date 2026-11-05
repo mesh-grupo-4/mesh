@@ -33,7 +33,12 @@ que uno nativo.
 - **Las APIs web (Places, Geocoding, Routes) se llaman solo desde el backend** con
   `GOOGLE_MAPS_API_KEY`. La key nunca llega al dispositivo. Sin key, el backend se comporta
   igual que antes (solo OSM). Los contratos REST (`/api/geocoding/*`, `/api/routing/calcular`)
-  no cambiaron.
+  no cambiaron, salvo un campo agregado: `/api/routing/calcular` devuelve `proveedor`
+  (`google` | `osrm` | `valhalla`).
+- **Tiempo estimado (RN-023)**: si la ruta la calculó Google, el planificador usa su
+  `duracion_seg` tal cual (ya respeta auto / bici / a pie). Si vino de un respaldo OSM, la
+  recalcula con la velocidad esperada de la actividad, porque el demo de OSRM usa el grafo
+  de auto para cualquier perfil.
 - **El mapa usa keys propias del build** (`GOOGLE_MAPS_ANDROID_API_KEY`,
   `GOOGLE_MAPS_IOS_API_KEY`, leídas en `frontend/app.config.ts`), restringidas por package/bundle.
 - **Fallback automático**: cualquier error de Google (key inválida, cuota agotada, timeout,

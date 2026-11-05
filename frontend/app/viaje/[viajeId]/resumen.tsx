@@ -9,9 +9,12 @@ import {
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
+import { useCopilot } from 'react-native-copilot'
 import { AvatarFallback } from '@/components/AvatarFallback'
 import { RecorridoMapView } from '@/components/RecorridoMapView'
 import { ActivityTile, Badge, Btn, TopBar, useTheme } from '@/components/MeshUI'
+import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
+import { AYUDA_VIAJE_RESUMEN } from '@/components/ayuda/contenidoAyuda'
 import { StatCard, StatCardRow } from '@/components/StatCard'
 import { DEV_USER_ID } from '@/constants/Config'
 import { useAuth } from '@/context/AuthContext'
@@ -22,6 +25,12 @@ import {
   formatPace,
   formatSpeedKmh,
 } from '@/lib/format'
+import { meshError } from '@/lib/meshAlert'
+import {
+  despublicarRecorrido,
+  listarMisViajesPublicados,
+  publicarRecorrido,
+} from '@/lib/recorridosPublicadosApi'
 import { clearTripMetrics, loadTripMetrics } from '@/lib/tripMetricsStore'
 import {
   obtenerMetricasGrupales,
@@ -34,6 +43,7 @@ import {
 export default function ViajeResumenScreen() {
   const router = useRouter()
   const theme = useTheme()
+  const { start } = useCopilot()
   const insets = useSafeAreaInsets()
   const { backendUserId } = useAuth()
   const params = useLocalSearchParams<{ viajeId: string | string[]; userId?: string | string[] }>()
@@ -58,6 +68,13 @@ export default function ViajeResumenScreen() {
   // viaje sin GPS no demore ni rompa el resto de la pantalla.
   const [recorrido, setRecorrido] = useState<[number, number][][]>([])
   const [cargandoRecorrido, setCargandoRecorrido] = useState(true)
+  // E10 / RN-081: estado de publicación del recorrido propio en la comunidad.
+  // `null` mientras se consulta.
+  const [publicado, setPublicado] = useState<boolean | null>(null)
+  const [publicando, setPublicando] = useState(false)
+  // Solo se publica el recorrido propio: si se abrió el resumen de otro usuario
+  // (`?userId=`), la tarjeta no aparece. El backend igual publica solo lo de quien llama.
+  const esPropio = !params.userId || userId === backendUserId
 
   const cargar = useCallback(async () => {
     if (!viajeId || !userId.trim()) return
@@ -109,6 +126,43 @@ export default function ViajeResumenScreen() {
     void cargar()
   }, [cargar])
 
+  useEffect(() => {
+    if (!viajeId || !esPropio) return
+    let cancelado = false
+    void listarMisViajesPublicados()
+      .then((ids) => {
+        if (!cancelado) setPublicado(ids.includes(viajeId))
+      })
+      .catch(() => {
+        // Publicar es idempotente: ante la duda se ofrece publicar.
+        if (!cancelado) setPublicado(false)
+      })
+    return () => {
+      cancelado = true
+    }
+  }, [viajeId, esPropio])
+
+  const alternarPublicacion = async () => {
+    if (!viajeId || publicado === null) return
+    setPublicando(true)
+    try {
+      if (publicado) {
+        await despublicarRecorrido(viajeId)
+        setPublicado(false)
+      } else {
+        await publicarRecorrido(viajeId)
+        setPublicado(true)
+      }
+    } catch (e) {
+      meshError(
+        publicado ? 'No se pudo despublicar' : 'No se pudo publicar',
+        e instanceof Error ? e.message : 'Probá de nuevo en un rato.'
+      )
+    } finally {
+      setPublicando(false)
+    }
+  }
+
   const volverAlInicio = () => router.replace('/(tabs)')
 
   if (!viajeId) {
@@ -127,6 +181,10 @@ export default function ViajeResumenScreen() {
   const esMoto = resumen?.viaje.tipo_actividad === 'moto'
   const totales = resumen?.totales
   const mias = resumen?.mis_metricas
+  // Mismas condiciones que valida el backend (RECORRIDO_SIN_TRAZA): métricas propias y
+  // al menos dos puntos de traza.
+  const puedePublicar =
+    esPropio && mias?.distancia_m != null && recorrido.reduce((n, t) => n + t.length, 0) >= 2
 
   const comparativa = (() => {
     if (!totales?.distancia_planeada_m || totales.distancia_real_m == null) return null
@@ -147,6 +205,7 @@ export default function ViajeResumenScreen() {
         sub={resumen ? (esGrupal ? 'Salida grupal' : 'Salida individual') : 'Cargando...'}
         onBack={volverAlInicio}
         bordered={false}
+        onAyuda={() => start()}
       />
 
       {loading ? (
@@ -193,37 +252,41 @@ export default function ViajeResumenScreen() {
           ) : null}
 
           {/* ── Mapa del recorrido realizado (US2) ── */}
-          <RecorridoMapView segmentos={recorrido} cargando={cargandoRecorrido} />
+          <PasoAyuda {...AYUDA_VIAJE_RESUMEN[0]!}>
+            <RecorridoMapView segmentos={recorrido} cargando={cargandoRecorrido} />
+          </PasoAyuda>
 
           {/* ── El viaje (totales grupales) ── */}
           {totales ? (
             <>
               <Text style={[styles.seccion, { color: theme.text }]}>El viaje</Text>
-              <StatCardRow>
-                <StatCard
-                  icon="clock"
-                  value={formatDurationHm(totales.duracion_segundos)}
-                  label="Duración"
-                />
-                <StatCard
-                  icon="activity"
-                  value={formatKm(totales.distancia_real_m)}
-                  label="Recorrido"
-                />
-                {esGrupal ? (
+              <PasoAyuda {...AYUDA_VIAJE_RESUMEN[1]!}>
+                <StatCardRow>
                   <StatCard
-                    icon="users"
-                    value={String(totales.cantidad_integrantes)}
-                    label="Integrantes"
+                    icon="clock"
+                    value={formatDurationHm(totales.duracion_segundos)}
+                    label="Duración"
                   />
-                ) : (
                   <StatCard
-                    icon="map"
-                    value={formatKm(totales.distancia_planeada_m)}
-                    label="Planeado"
+                    icon="activity"
+                    value={formatKm(totales.distancia_real_m)}
+                    label="Recorrido"
                   />
-                )}
-              </StatCardRow>
+                  {esGrupal ? (
+                    <StatCard
+                      icon="users"
+                      value={String(totales.cantidad_integrantes)}
+                      label="Integrantes"
+                    />
+                  ) : (
+                    <StatCard
+                      icon="map"
+                      value={formatKm(totales.distancia_planeada_m)}
+                      label="Planeado"
+                    />
+                  )}
+                </StatCardRow>
+              </PasoAyuda>
 
               {totales.cantidad_paradas > 0 ? (
                 <StatCardRow>
@@ -330,17 +393,49 @@ export default function ViajeResumenScreen() {
             </Btn>
           ) : null}
 
-          <Btn
-            variant="outline"
-            block
-            icon="trending-up"
-            onPress={() =>
-              router.push({ pathname: '/viaje/[viajeId]/metricas', params: { viajeId } })
-            }
-            style={styles.cta}
-          >
-            Ver métricas detalladas
-          </Btn>
+          <PasoAyuda {...AYUDA_VIAJE_RESUMEN[2]!}>
+            <Btn
+              variant="outline"
+              block
+              icon="trending-up"
+              onPress={() =>
+                router.push({ pathname: '/viaje/[viajeId]/metricas', params: { viajeId } })
+              }
+              style={styles.cta}
+            >
+              Ver métricas detalladas
+            </Btn>
+          </PasoAyuda>
+
+          {puedePublicar ? (
+            <PasoAyuda {...AYUDA_VIAJE_RESUMEN[3]!}>
+              <View
+                style={[
+                  styles.publicarCard,
+                  { backgroundColor: theme.surface, borderColor: theme.border },
+                ]}
+              >
+                <Text style={[styles.publicarTitulo, { color: theme.text }]}>
+                  Compartir con la comunidad
+                </Text>
+                <Text style={[styles.nota, { color: theme.textDim }]}>
+                  {publicado
+                    ? 'Tu recorrido está publicado: cualquiera en Mesh puede verlo y usarlo como base de un viaje.'
+                    : 'Publicá tu recorrido para que otros lo vean y lo usen como base de sus viajes. Se comparte tu traza, la distancia y el tiempo; nunca tu velocidad.'}
+                </Text>
+                <Btn
+                  variant={publicado ? 'outline' : 'secondary'}
+                  block
+                  icon={publicado ? 'eye-off' : 'upload-cloud'}
+                  loading={publicado === null || publicando}
+                  disabled={publicado === null || publicando}
+                  onPress={() => void alternarPublicacion()}
+                >
+                  {publicado ? 'Despublicar' : 'Publicar recorrido'}
+                </Btn>
+              </View>
+            </PasoAyuda>
+          ) : null}
 
           <Btn variant="primary" block icon="home" onPress={volverAlInicio}>
             Volver al inicio
@@ -449,6 +544,16 @@ const styles = StyleSheet.create({
   },
   cta: {
     marginTop: 10,
+  },
+  publicarCard: {
+    borderWidth: 1.2,
+    borderRadius: 12,
+    padding: 14,
+    gap: 10,
+  },
+  publicarTitulo: {
+    fontSize: 15,
+    fontWeight: '700',
   },
   grupoCard: {
     borderWidth: 1.2,
