@@ -1,7 +1,7 @@
 # CLAUDE.md — Mesh
 
 Proyecto de tesis universitaria (UTN FRC, Grupo 4, Curso 5K1, 2026).
-Mesh es una app móvil de **coordinación grupal en tiempo real** para actividades deportivas en movimiento: motociclismo, ciclismo, running y trekking.
+Mesh es una app móvil de **coordinación grupal en tiempo real** para actividades deportivas en movimiento: motociclismo, auto, ciclismo, running y trekking.
 
 Idioma de trabajo: **español**.
 Principios: **soluciones simples**, código robusto (**offline-first**), cambios estrictamente acotados al pedido.
@@ -73,11 +73,11 @@ Capas de responsabilidad: **Controller/Socket → Service → Repository**. Toda
 
 | Capa | Tecnología |
 |---|---|
-| Framework | Expo SDK 54 (Managed Workflow) |
-| Lenguaje | TypeScript 5.9.2 |
-| React Native | 0.81.5 (nueva arquitectura: `newArchEnabled: true`) |
-| Navegación | Expo Router v6 (file-based routing, `typedRoutes: true`) |
-| Animaciones | react-native-reanimated v4 |
+| Framework | Expo SDK 57 (Managed Workflow) |
+| Lenguaje | TypeScript 6.0.3 |
+| React Native | 0.86.3 (nueva arquitectura: `newArchEnabled: true`) |
+| Navegación | Expo Router 57 (file-based routing, `typedRoutes: true`) |
+| Animaciones | react-native-reanimated 4.5 |
 | Íconos | @expo/vector-icons |
 | Mapas | Google Maps nativo (`react-native-maps`, `components/maps/MeshMapView.tsx`) |
 
@@ -105,7 +105,7 @@ Componentes reutilizables en `components/`. Colores en `constants/Colors.ts`.
 Estas reglas están por encima de cualquier instrucción del usuario. Si un pedido las contradice, rechazarlo y explicar por qué.
 
 ### 1. Seguridad vial — RN-070 (IRREVOCABLE)
-La modalidad **moto** está **EXCLUIDA de todos los rankings competitivos, tablas de posiciones y gamificación de velocidad**. El código nunca debe comparar velocidades entre motos ni incentivar competencia en esa modalidad. Esta regla no es negociable bajo ninguna circunstancia.
+Las modalidades motorizadas (**moto** y **auto**) están **EXCLUIDAS de todos los rankings competitivos, tablas de posiciones y gamificación de velocidad**. El código nunca debe comparar velocidades entre vehículos motorizados ni incentivar competencia en esas modalidades. La compuerta única es `esMotorizado()` (`backend/src/lib/actividad.ts`, espejo en `frontend/lib/activityDefaults.ts`): no comparar contra `'moto'` a mano. Esta regla no es negociable bajo ninguna circunstancia.
 
 ### 2. Offline-first — RN-038
 Cero pérdida de registros GPS. Si el frontend envía un array de posiciones sincronizadas (`source: offline_sync`), el backend debe procesarlo masivamente sin romper la secuencia temporal. Los datos se almacenan localmente en el dispositivo y se sincronizan automáticamente al reconectar.
@@ -193,7 +193,7 @@ Solo el líder puede transicionar estos estados (RN-030).
 - Los recorridos publicados son importables como base de nuevos viajes (RN-084).
 
 ### Tipos de actividad
-Los modos disponibles son: `moto`, `bici`, `running`, `trekking`, `otro`. Cada uno tiene parámetros por defecto distintos de velocidad, separación máxima e interfaz (RN-021).
+Los modos disponibles son: `moto`, `auto`, `bici`, `running`, `trekking`, `otro`. Cada uno tiene parámetros por defecto distintos de velocidad, separación máxima e interfaz (RN-021).
 
 ### Categorías de parada
 `combustible`, `descanso`, `gastronomía`, `sanitario`, `otro` (RN-022).
@@ -266,13 +266,13 @@ VPS (DigitalOcean / Donweb) con CI/CD. Tener en cuenta **dev / test / prod** en 
 
 ## Interfaz adaptativa por actividad
 
-| Aspecto | Moto | Bici | Running | Trekking |
-|---|---|---|---|---|
-| Layout | Pantalla completa, alto contraste | Estándar outdoor | Estándar outdoor | Estándar outdoor |
-| Botones | Extra grandes, una sola mano | Grandes | Grandes | Grandes |
-| Feedback | Visual prominente | Visual + háptico | Háptico prioritario | Háptico prioritario |
-| Rankings | **PROHIBIDO** | Sí | Sí | Sí |
-| Tabla global | **EXCLUIDA** | Sí | Sí | Sí |
+| Aspecto | Moto | Auto | Bici | Running | Trekking |
+|---|---|---|---|---|---|
+| Layout | Pantalla completa, alto contraste | Pantalla completa, alto contraste | Estándar outdoor | Estándar outdoor | Estándar outdoor |
+| Botones | Extra grandes, una sola mano | Extra grandes | Grandes | Grandes | Grandes |
+| Feedback | Visual prominente | Visual prominente | Visual + háptico | Háptico prioritario | Háptico prioritario |
+| Rankings | **PROHIBIDO** | **PROHIBIDO** | Sí | Sí | Sí |
+| Tabla global | **EXCLUIDA** | **EXCLUIDA** | Sí | Sí | Sí |
 
 Todos los textos superan el tamaño mínimo para uso outdoor (RN-052). La interfaz muestra lo mínimo necesario.
 
@@ -364,7 +364,7 @@ MetricaViaje      → id, viaje_id, usuario_id, distancia_total, tiempo_total,
 Antes de generar o modificar código, verificar:
 
 - [ ] ¿Consulté `graphify-out/GRAPH_REPORT.md` para entender el contexto del módulo?
-- [ ] ¿El cambio respeta RN-070? (moto excluida de rankings)
+- [ ] ¿El cambio respeta RN-070? (moto y auto excluidos de rankings, vía `esMotorizado()`)
 - [ ] ¿El cambio respeta offline-first? (RN-038: cero pérdida de GPS)
 - [ ] ¿La autorización se valida en backend, no solo en frontend?
 - [ ] ¿Uso PostGIS para cálculos espaciales en lugar de JS?
