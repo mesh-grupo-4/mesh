@@ -22,6 +22,7 @@ import {
   formatDurationHm,
   formatHoraCorta,
   formatKm,
+  formatMetros,
   formatPace,
   formatSpeedKmh,
 } from '@/lib/format'
@@ -341,6 +342,29 @@ export default function ViajeResumenScreen() {
                         : null
                     )}
                     label="Tiempo detenido"
+                  />
+                </StatCardRow>
+              ) : null}
+
+              {/* Altimetría del GPS del celular. Es un dato del terreno, no de
+                  velocidad: se muestra en todas las modalidades (RN-070 no aplica). */}
+              {mias.desnivel_positivo_m != null ? (
+                <StatCardRow>
+                  <StatCard
+                    icon="arrow-up-right"
+                    value={formatMetros(mias.desnivel_positivo_m)}
+                    label="Desnivel +"
+                  />
+                  <StatCard
+                    icon="arrow-down-right"
+                    value={formatMetros(mias.desnivel_negativo_m)}
+                    label="Desnivel −"
+                  />
+                  <StatCard
+                    icon="triangle"
+                    value={formatMetros(mias.altitud_max_m)}
+                    label="Altura máx."
+                    hint="Aproximada, según el GPS"
                   />
                 </StatCardRow>
               ) : null}

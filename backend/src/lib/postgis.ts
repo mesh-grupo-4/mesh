@@ -3,6 +3,12 @@ import type { PrismaClient } from '@prisma/client'
 import type { GeoJsonLineString } from './geo'
 import { assertLineString } from './geo'
 import { filtrosGpsPorActividad } from './gpsFilters'
+import {
+  calcularAltimetria,
+  PRECISION_ALTITUD_MAX_M,
+  VENTANA_SUAVIZADO_SEG,
+  type Altimetria,
+} from './altimetria'
 
 /**
  * Longitud del trazado en metros (elipsoide WGS84) usando PostGIS geography.
@@ -89,12 +95,18 @@ export type MetricaGpsUsuario = {
   distancia_m: number
   segundos_movimiento: number
   velocidad_maxima_kmh: number | null
-}
+} & Partial<Altimetria>
 
 /** Hueco largo (app cerrada o sin señal): no interpolamos el tramo faltante. */
 const SEGMENTO_MAX_SEG = 120
 /** Mínimo de segundos por segmento para calcular velocidad (evita ruido GPS). */
 const VELOCIDAD_MIN_SEG = 5
+/**
+ * Velocidad del chip GPS "sostenida": se toma el mínimo entre dos muestras
+ * consecutivas separadas como mucho por estos segundos. Así un pico aislado
+ * (rebote en un túnel, entre edificios) no queda como velocidad máxima.
+ */
+const VELOCIDAD_SOSTENIDA_MAX_SEG = 30
 
 async function tipoActividadDelViaje(
   prisma: PrismaClient,
@@ -397,12 +409,13 @@ export async function computeMetricasGpsPorUsuario(
   viajeId: string
 ): Promise<MetricaGpsUsuario[]> {
   const f = filtrosGpsPorActividad(await tipoActividadDelViaje(prisma, viajeId))
-  return prisma.$queryRaw<MetricaGpsUsuario[]>(
+  const metricas = await prisma.$queryRaw<MetricaGpsUsuario[]>(
     Prisma.sql`
       WITH puntos AS (
         SELECT
           usuario_id,
           "timestamp",
+          velocidad_kmh,
           ST_SetSRID(ST_MakePoint(lng, lat), 4326)::geography AS geog
         FROM registro_gps
         WHERE viaje_id = ${viajeId}::uuid
@@ -412,7 +425,13 @@ export async function computeMetricasGpsPorUsuario(
         SELECT
           usuario_id,
           ST_Distance(geog, LAG(geog) OVER w) AS metros,
-          EXTRACT(EPOCH FROM ("timestamp" - LAG("timestamp") OVER w)) AS segundos
+          EXTRACT(EPOCH FROM ("timestamp" - LAG("timestamp") OVER w)) AS segundos,
+          -- LEAST ignora NULL en Postgres: sin el CASE, una sola muestra con
+          -- velocidad pasaría como "sostenida".
+          CASE
+            WHEN velocidad_kmh IS NOT NULL AND LAG(velocidad_kmh) OVER w IS NOT NULL
+            THEN LEAST(velocidad_kmh, LAG(velocidad_kmh) OVER w)
+          END AS vel_sostenida_kmh
         FROM puntos
         WINDOW w AS (PARTITION BY usuario_id ORDER BY "timestamp")
       ),
@@ -425,20 +444,83 @@ export async function computeMetricasGpsPorUsuario(
           AND segundos > 0
           AND segundos <= ${SEGMENTO_MAX_SEG}
           AND (metros / segundos * 3.6) <= ${f.velocidadMaxKmh}
+      ),
+      por_distancia AS (
+        SELECT
+          usuario_id,
+          COALESCE(SUM(metros), 0)                AS distancia_m,
+          COALESCE(SUM(segundos), 0)              AS segundos_movimiento,
+          MAX(
+            CASE WHEN segundos >= ${VELOCIDAD_MIN_SEG}
+                 AND (metros / segundos * 3.6) <= ${f.velocidadMaxKmh}
+                 THEN metros / segundos * 3.6
+                 ELSE NULL
+            END
+          )                                       AS velocidad_maxima_calc_kmh
+        FROM validos
+        GROUP BY usuario_id
+      ),
+      por_dispositivo AS (
+        SELECT usuario_id, MAX(vel_sostenida_kmh) AS velocidad_maxima_chip_kmh
+        FROM segmentos
+        WHERE vel_sostenida_kmh IS NOT NULL
+          AND segundos > 0
+          AND segundos <= ${VELOCIDAD_SOSTENIDA_MAX_SEG}
+          AND vel_sostenida_kmh <= ${f.velocidadMaxKmh}
+        GROUP BY usuario_id
       )
       SELECT
-        usuario_id::text                        AS usuario_id,
-        COALESCE(SUM(metros), 0)::float8        AS distancia_m,
-        COALESCE(SUM(segundos), 0)::float8      AS segundos_movimiento,
-        MAX(
-          CASE WHEN segundos >= ${VELOCIDAD_MIN_SEG}
-               AND (metros / segundos * 3.6) <= ${f.velocidadMaxKmh}
-               THEN metros / segundos * 3.6
-               ELSE NULL
-          END
-        )::float8                               AS velocidad_maxima_kmh
-      FROM validos
-      GROUP BY usuario_id
+        d.usuario_id::text                      AS usuario_id,
+        d.distancia_m::float8                   AS distancia_m,
+        d.segundos_movimiento::float8           AS segundos_movimiento,
+        -- La velocidad del chip GPS es más precisa; la derivada de las
+        -- posiciones queda para apps viejas o dispositivos que no la informan.
+        COALESCE(c.velocidad_maxima_chip_kmh, d.velocidad_maxima_calc_kmh)::float8
+                                                AS velocidad_maxima_kmh
+      FROM por_distancia d
+      LEFT JOIN por_dispositivo c ON c.usuario_id = d.usuario_id
     `
   )
+
+  const alturas = await computeAlturasSuavizadasPorUsuario(prisma, viajeId, f.precisionMaxM)
+  return metricas.map((m) => {
+    const altimetria = calcularAltimetria(alturas.get(m.usuario_id) ?? [])
+    return altimetria ? { ...m, ...altimetria } : m
+  })
+}
+
+/**
+ * Serie de altitud por integrante, en orden temporal y suavizada en la base:
+ * mediana por ventana de `VENTANA_SUAVIZADO_SEG`, solo con muestras cuya
+ * precisión vertical sea aceptable. Reduce además el volumen que viaja a Node
+ * (una fila cada 30 s en vez de una cada 5 s).
+ */
+async function computeAlturasSuavizadasPorUsuario(
+  prisma: PrismaClient,
+  viajeId: string,
+  precisionMaxM: number
+): Promise<Map<string, number[]>> {
+  const filas = await prisma.$queryRaw<{ usuario_id: string; altitud_m: number }[]>(
+    Prisma.sql`
+      SELECT
+        usuario_id::text AS usuario_id,
+        FLOOR(EXTRACT(EPOCH FROM "timestamp") / ${VENTANA_SUAVIZADO_SEG}) AS ventana,
+        percentile_cont(0.5) WITHIN GROUP (ORDER BY altitud_m)::float8 AS altitud_m
+      FROM registro_gps
+      WHERE viaje_id = ${viajeId}::uuid
+        AND altitud_m IS NOT NULL
+        AND precision_altitud_m > 0
+        AND precision_altitud_m <= ${PRECISION_ALTITUD_MAX_M}
+        AND (precision_m IS NULL OR precision_m <= ${precisionMaxM})
+      GROUP BY usuario_id, ventana
+      ORDER BY usuario_id, ventana
+    `
+  )
+  const porUsuario = new Map<string, number[]>()
+  for (const r of filas) {
+    const serie = porUsuario.get(r.usuario_id) ?? []
+    serie.push(Number(r.altitud_m))
+    porUsuario.set(r.usuario_id, serie)
+  }
+  return porUsuario
 }

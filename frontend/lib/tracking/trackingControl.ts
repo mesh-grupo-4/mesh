@@ -4,6 +4,7 @@ import { DeviceEventEmitter, Platform } from 'react-native'
 
 import { filtrosGpsPorActividad, velocidadImplicitaKmh } from '@/lib/gpsFilters'
 import { registrarConsentimientoUbicacion } from '@/lib/privacidadApi'
+import { extraerDatosGpsExtra } from '@/lib/tracking/datosGpsExtra'
 import { enqueueGpsSample, sumarseAlViaje, tieneCheckInPendiente } from '@/lib/tracking/gpsQueue'
 import { checkInViaje } from '@/lib/viajesApi'
 import { TICK_TARGET_MS, trackingConfigPorActividad } from '@/lib/tracking/trackingConfig'
@@ -61,12 +62,14 @@ function emitLocationSample(viajeId: string, userId: string, loc: Location.Locat
   const ts = loc.timestamp > 0 ? loc.timestamp : Date.now()
   if (!aceptarMuestra(latitude, longitude, accuracy, ts)) return
 
+  const extra = extraerDatosGpsExtra(loc.coords)
   const queueId = enqueueGpsSample({
     viajeId,
     userId,
     lat: latitude,
     lng: longitude,
     accuracy: accuracy ?? null,
+    ...extra,
     ts,
   })
   DeviceEventEmitter.emit('mesh:location_tick', {
@@ -75,6 +78,7 @@ function emitLocationSample(viajeId: string, userId: string, loc: Location.Locat
     lat: latitude,
     lng: longitude,
     accuracy: accuracy ?? undefined,
+    ...extra,
     recordedAt: new Date(ts).toISOString(),
     queueId,
   })

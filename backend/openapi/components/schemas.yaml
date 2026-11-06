@@ -2529,6 +2529,43 @@ PosicionesRequest:
             nullable: true
             description: Precisión de la lectura en metros, si el dispositivo la informa.
             example: 8.4
+          altitud:
+            type: number
+            nullable: true
+            minimum: -500
+            maximum: 9000
+            description: |
+              Altitud en metros que informa el GPS del dispositivo. iOS la da sobre el
+              nivel del mar y Android sobre el elipsoide WGS84 (difiere unos metros); para
+              el desnivel no importa porque es una diferencia. El dispositivo omite el campo
+              cuando no tiene dato válido.
+
+              Los cuatro campos extra (`altitud`, `precisionAltitud`, `velocidadKmh`, `rumbo`)
+              son opcionales y tolerantes: un valor fuera de rango se guarda como `null`, sin
+              rechazar la posición (RN-038).
+            example: 452.3
+          precisionAltitud:
+            type: number
+            nullable: true
+            minimum: 0
+            description: Precisión vertical de `altitud`, en metros.
+            example: 6.5
+          velocidadKmh:
+            type: number
+            nullable: true
+            minimum: 0
+            maximum: 400
+            description: |
+              Velocidad medida por el chip GPS, en km/h. Solo alimenta métricas propias y
+              nunca se compara entre personas (RN-070).
+            example: 21.6
+          rumbo:
+            type: number
+            nullable: true
+            minimum: 0
+            maximum: 360
+            description: Rumbo de desplazamiento en grados (0 = norte, sentido horario).
+            example: 87.5
           timestamp:
             type: string
             format: date-time
@@ -2584,6 +2621,43 @@ UbicacionVivaRequest:
       type: number
       nullable: true
       example: 8.4
+    altitud:
+      type: number
+      nullable: true
+      minimum: -500
+      maximum: 9000
+      description: |
+        Altitud en metros que informa el GPS del dispositivo. iOS la da sobre el
+        nivel del mar y Android sobre el elipsoide WGS84 (difiere unos metros); para
+        el desnivel no importa porque es una diferencia. El dispositivo omite el campo
+        cuando no tiene dato válido.
+
+        Los cuatro campos extra (`altitud`, `precisionAltitud`, `velocidadKmh`, `rumbo`)
+        son opcionales y tolerantes: un valor fuera de rango se guarda como `null`, sin
+        rechazar la posición (RN-038).
+      example: 452.3
+    precisionAltitud:
+      type: number
+      nullable: true
+      minimum: 0
+      description: Precisión vertical de `altitud`, en metros.
+      example: 6.5
+    velocidadKmh:
+      type: number
+      nullable: true
+      minimum: 0
+      maximum: 400
+      description: |
+        Velocidad medida por el chip GPS, en km/h. Solo alimenta métricas propias y
+        nunca se compara entre personas (RN-070).
+      example: 21.6
+    rumbo:
+      type: number
+      nullable: true
+      minimum: 0
+      maximum: 360
+      description: Rumbo de desplazamiento en grados (0 = norte, sentido horario).
+      example: 87.5
     recordedAt:
       type: string
       format: date-time
@@ -2765,6 +2839,10 @@ ResumenViaje:
         - tiempo_movimiento_seg
         - velocidad_promedio_kmh
         - velocidad_maxima_kmh
+        - desnivel_positivo_m
+        - desnivel_negativo_m
+        - altitud_max_m
+        - altitud_min_m
         - sali_antes
         - fecha_salida
       properties:
@@ -2780,6 +2858,33 @@ ResumenViaje:
         velocidad_maxima_kmh:
           type: number
           nullable: true
+          description: |
+            Usa la velocidad medida por el chip GPS, sostenida en al menos dos muestras
+            seguidas; si el dispositivo no la informa, cae a la derivada de las posiciones.
+
+            **RN-070:** siempre `null` en `moto` y `auto`, aunque esté calculada.
+        desnivel_positivo_m:
+          type: number
+          nullable: true
+          description: |
+            Metros acumulados de subida, sobre la altitud GPS suavizada (mediana cada
+            30 s e histéresis de 8 m). `null` si el dispositivo no informó altitud.
+          example: 312.4
+        desnivel_negativo_m:
+          type: number
+          nullable: true
+          description: Metros acumulados de bajada, mismo criterio que `desnivel_positivo_m`.
+          example: 298.7
+        altitud_max_m:
+          type: number
+          nullable: true
+          description: Altitud máxima alcanzada (serie suavizada), en metros.
+          example: 1210.5
+        altitud_min_m:
+          type: number
+          nullable: true
+          description: Altitud mínima (serie suavizada), en metros.
+          example: 905.2
         sali_antes:
           type: boolean
           description: '`true` si el usuario abandonó el viaje antes de que finalizara.'

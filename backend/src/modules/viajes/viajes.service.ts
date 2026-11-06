@@ -18,10 +18,12 @@ import {
   computeTrazaRecorrido,
 } from '../../lib/postgis'
 import { filtrosGpsPorActividad } from '../../lib/gpsFilters'
+import { columnasGpsExtra } from '../../lib/datosGpsExtra'
 import { esIntegranteActivo, unirUsuarioAlViaje, WHERE_INTEGRANTE_ACTIVO } from './viajes.membership'
 import type {
   ActualizarViajeInput,
   CreateViajeInput,
+  DatosGpsExtra,
   InvitarViajeInput,
   PostPosicionesInput,
   PutRutaInput,
@@ -1430,6 +1432,10 @@ export class ViajesService {
                 ? m.distancia_m / 1000 / (m.segundos_movimiento / 3600)
                 : null,
             velocidad_maxima_kmh: m.velocidad_maxima_kmh ?? null,
+            desnivel_positivo_m: m.desnivel_positivo_m ?? null,
+            desnivel_negativo_m: m.desnivel_negativo_m ?? null,
+            altitud_max_m: m.altitud_max_m ?? null,
+            altitud_min_m: m.altitud_min_m ?? null,
           })),
         })
       }
@@ -1579,6 +1585,10 @@ export class ViajesService {
         velocidad_maxima_kmh: esMotorizado(viaje.tipo_actividad)
           ? null
           : (mia?.velocidad_maxima_kmh ?? null),
+        desnivel_positivo_m: mia?.desnivel_positivo_m ?? null,
+        desnivel_negativo_m: mia?.desnivel_negativo_m ?? null,
+        altitud_max_m: mia?.altitud_max_m ?? null,
+        altitud_min_m: mia?.altitud_min_m ?? null,
         sali_antes: miIntegrante?.estado === 'salido',
         fecha_salida: miIntegrante?.fecha_salida ?? null,
       },
@@ -2180,6 +2190,7 @@ export class ViajesService {
         lat: p.lat,
         lng: p.lng,
         precision_m: p.precision ?? null,
+        ...columnasGpsExtra(p),
         timestamp: p.timestamp,
         source: input.source,
       }))
@@ -2233,6 +2244,7 @@ export class ViajesService {
         lat: input.lat,
         lng: input.lng,
         precision_m: input.precision ?? null,
+        ...columnasGpsExtra(input),
         timestamp: input.recordedAt,
         source: 'live',
       },
@@ -2337,7 +2349,7 @@ export class ViajesService {
       accuracy?: number
       recordedAt: string
       source: 'live' | 'offline_sync'
-    }
+    } & DatosGpsExtra
   ) {
     const { viajeId, lat, lng, accuracy, recordedAt, source } = payload
     const viaje = await this.assertPuedeEnviarGps(viajeId, usuarioId)
@@ -2349,6 +2361,7 @@ export class ViajesService {
         lat,
         lng,
         precision_m: accuracy ?? null,
+        ...columnasGpsExtra(payload),
         timestamp: ts,
         source,
       },

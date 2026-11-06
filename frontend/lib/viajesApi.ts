@@ -504,6 +504,11 @@ export type ResumenViajeApi = {
     tiempo_movimiento_seg: number | null
     velocidad_promedio_kmh: number | null
     velocidad_maxima_kmh: number | null
+    /** Altimetría del GPS (suavizada). null si el celular no informó altitud. */
+    desnivel_positivo_m: number | null
+    desnivel_negativo_m: number | null
+    altitud_max_m: number | null
+    altitud_min_m: number | null
     sali_antes: boolean
     fecha_salida: string | null
   }
@@ -703,7 +708,16 @@ export async function obtenerRecorrido(
 export async function upsertUbicacionViva(
   viajeId: string,
   userId: string,
-  body: { lat: number; lng: number; precision?: number | null; recordedAt: string },
+  body: {
+    lat: number
+    lng: number
+    precision?: number | null
+    altitud?: number | null
+    precisionAltitud?: number | null
+    velocidadKmh?: number | null
+    rumbo?: number | null
+    recordedAt: string
+  },
   baseUrl: string = API_BASE_URL
 ): Promise<void> {
   const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}/ubicacion-viva`, baseUrl), {

@@ -2,6 +2,7 @@ import { openDatabaseSync, type SQLiteDatabase } from 'expo-sqlite'
 
 import { API_BASE_URL } from '@/constants/Config'
 import { bearerAuthHeaders } from '@/lib/apiClient'
+import type { DatosGpsExtra } from '@/lib/tracking/datosGpsExtra'
 
 export type PendingGpsRow = {
   id: number
@@ -10,10 +11,31 @@ export type PendingGpsRow = {
   lat: number
   lng: number
   accuracy: number | null
+  altitud: number | null
+  precision_altitud: number | null
+  velocidad_kmh: number | null
+  rumbo: number | null
   ts: number
 }
 
 let db: SQLiteDatabase | null = null
+
+/** Columnas que se sumaron después de la versión inicial de `pending_gps`. */
+const COLUMNAS_EXTRA = ['altitud', 'precision_altitud', 'velocidad_kmh', 'rumbo'] as const
+
+/**
+ * Las instalaciones existentes ya tienen `pending_gps` sin estas columnas y
+ * `CREATE TABLE IF NOT EXISTS` no las agrega. Sin esto el INSERT fallaría y se
+ * perderían posiciones (RN-038). Las filas viejas quedan con NULL.
+ */
+function migrarColumnasExtra(d: SQLiteDatabase): void {
+  const existentes = new Set(
+    d.getAllSync<{ name: string }>('PRAGMA table_info(pending_gps)').map((c) => c.name)
+  )
+  for (const col of COLUMNAS_EXTRA) {
+    if (!existentes.has(col)) d.execSync(`ALTER TABLE pending_gps ADD COLUMN ${col} REAL`)
+  }
+}
 
 function openDb(): SQLiteDatabase {
   if (!db) {
@@ -26,6 +48,10 @@ function openDb(): SQLiteDatabase {
         lat REAL NOT NULL,
         lng REAL NOT NULL,
         accuracy REAL,
+        altitud REAL,
+        precision_altitud REAL,
+        velocidad_kmh REAL,
+        rumbo REAL,
         ts INTEGER NOT NULL
       );
       CREATE TABLE IF NOT EXISTS pending_checkin (
@@ -35,6 +61,7 @@ function openDb(): SQLiteDatabase {
         PRIMARY KEY (viaje_id, user_id)
       );
     `)
+    migrarColumnasExtra(db)
   }
   return db
 }
@@ -116,22 +143,30 @@ export async function sumarseAlViaje(
 }
 
 /** Devuelve el id de la fila insertada, para poder borrarla puntualmente si el envío en vivo confirma. */
-export function enqueueGpsSample(p: {
-  viajeId: string
-  userId: string
-  lat: number
-  lng: number
-  accuracy: number | null
-  ts: number
-}): number {
+export function enqueueGpsSample(
+  p: {
+    viajeId: string
+    userId: string
+    lat: number
+    lng: number
+    accuracy: number | null
+    ts: number
+  } & DatosGpsExtra
+): number {
   const d = openDb()
   const res = d.runSync(
-    'INSERT INTO pending_gps (viaje_id, user_id, lat, lng, accuracy, ts) VALUES (?, ?, ?, ?, ?, ?)',
+    `INSERT INTO pending_gps
+       (viaje_id, user_id, lat, lng, accuracy, altitud, precision_altitud, velocidad_kmh, rumbo, ts)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     p.viajeId,
     p.userId,
     p.lat,
     p.lng,
     p.accuracy,
+    p.altitud,
+    p.precisionAltitud,
+    p.velocidadKmh,
+    p.rumbo,
     p.ts
   )
   return res.lastInsertRowId
@@ -186,6 +221,10 @@ export async function flushGpsQueue(baseUrl: string = API_BASE_URL): Promise<voi
       lat: b.lat,
       lng: b.lng,
       precision: b.accuracy,
+      altitud: b.altitud,
+      precisionAltitud: b.precision_altitud,
+      velocidadKmh: b.velocidad_kmh,
+      rumbo: b.rumbo,
       timestamp: new Date(b.ts).toISOString(),
     }))
 

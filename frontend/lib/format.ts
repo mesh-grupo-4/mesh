@@ -36,6 +36,12 @@ export function formatSpeedKmh(kmh: number | null | undefined): string {
   return `${kmh.toFixed(1)} km/h`
 }
 
+/** Metros enteros para desnivel y altitud: "312 m". Devuelve '--' si no hay dato. */
+export function formatMetros(metros: number | null | undefined): string {
+  if (metros == null) return '--'
+  return `${Math.round(metros)} m`
+}
+
 /** Hora corta en UTC-3, para "saliste a las HH:MM". */
 export function formatHoraCorta(iso: string | null | undefined): string {
   return formatearEnArg(iso, { hour: '2-digit', minute: '2-digit' })

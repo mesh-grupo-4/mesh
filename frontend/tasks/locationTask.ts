@@ -3,6 +3,7 @@ import * as Location from 'expo-location'
 import * as TaskManager from 'expo-task-manager'
 import { DeviceEventEmitter } from 'react-native'
 
+import { extraerDatosGpsExtra } from '@/lib/tracking/datosGpsExtra'
 import { enqueueGpsSample } from '@/lib/tracking/gpsQueue'
 
 export const MESH_LOCATION_TASK = 'MESH_LOCATION_TASK_V1'
@@ -63,12 +64,14 @@ TaskManager.defineTask(MESH_LOCATION_TASK, async ({ data, error }) => {
     if (!check.ok) continue
     ultimaMuestraTask = check.ultima
 
+    const extra = extraerDatosGpsExtra(loc.coords)
     const queueId = enqueueGpsSample({
       viajeId,
       userId,
       lat: latitude,
       lng: longitude,
       accuracy: accuracy ?? null,
+      ...extra,
       ts,
     })
     DeviceEventEmitter.emit('mesh:location_tick', {
@@ -77,6 +80,7 @@ TaskManager.defineTask(MESH_LOCATION_TASK, async ({ data, error }) => {
       lat: latitude,
       lng: longitude,
       accuracy: accuracy ?? undefined,
+      ...extra,
       recordedAt: new Date(ts).toISOString(),
       queueId,
     })

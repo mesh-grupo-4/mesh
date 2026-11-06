@@ -142,8 +142,51 @@ temporales de más de 120 s. Por esos filtros el valor difiere en torno a un 2-5
 en vivo del dispositivo, que no filtra.
 
 Las métricas individuales (`metrica_viaje`) cubren hoy distancia, tiempo en movimiento,
-velocidad promedio y velocidad máxima. Tiempo detenido de RN-061 se estima en el recorte
-actual como duración del viaje menos tiempo en movimiento.
+velocidad promedio, velocidad máxima y altimetría (desnivel positivo/negativo, altitud
+máxima/mínima). Tiempo detenido de RN-061 se estima en el recorte actual como duración del
+viaje menos tiempo en movimiento.
+
+#### Datos del GPS del dispositivo y altimetría
+
+Cada muestra guarda en `registro_gps`, además de lat/lng/precisión, todo lo que entrega el
+GPS del celular: `altitud_m`, `precision_altitud_m`, `velocidad_kmh` (medida por el chip) y
+`rumbo_grados`. Son opcionales: las apps viejas no los mandan y un valor fuera de rango se
+guarda como `null` sin rechazar el punto (RN-038). Sin APIs pagas: todo sale del dispositivo.
+
+- **Normalización en el dispositivo** (`frontend/lib/tracking/datosGpsExtra.ts`): Android
+  informa 0 y iOS -1 cuando no tienen el dato. La altitud solo se acepta si viene con
+  precisión vertical; el rumbo, solo en movimiento (> 0,5 m/s).
+- **Velocidad máxima:** se usa la del chip GPS, tomando el mínimo entre dos muestras
+  consecutivas (≤ 30 s) para descartar picos aislados. Si no hay dato del chip, cae a la
+  derivada de las posiciones. RN-070: en moto y auto el resumen la devuelve siempre en `null`.
+- **Altimetría** (`backend/src/lib/altimetria.ts`): la altitud GPS tiene ruido de ±10 m, así
+  que se descartan muestras con precisión vertical > 25 m, se toma la mediana cada 30 s (en
+  PostGIS/SQL) y se aplica histéresis de 8 m con seguimiento de extremos. Es conservador:
+  prefiere no contar una loma chica antes que inventar desnivel en un recorrido plano. Los
+  umbrales son calibrables con pruebas de campo.
+- **Referencia de la altitud:** iOS la da sobre el nivel del mar y Android sobre el elipsoide
+  WGS84 (en Argentina difiere unos 15–25 m). El desnivel no se ve afectado porque es una
+  diferencia; la altitud máxima/mínima se muestra como "aproximada".
+- El desnivel es un dato del terreno, no de velocidad: se muestra en todas las modalidades.
+  Cualquier ranking futuro por desnivel igual pasa por `esMotorizado()` (RN-070).
+
+#### Rumbo en el mapa grupal
+
+De los datos extra del GPS, el **rumbo** es el único que se publica al grupo: cada integrante
+en movimiento muestra una flecha junto a su avatar que indica hacia dónde va. Sirve para
+coordinar (quién se desvió, quién viene de frente, quién dobló) sin mirar la velocidad.
+
+- Viaja por los tres canales del mapa: `ubicacion_viva.rumbo_grados` (snapshot REST y Supabase
+  Realtime) y el campo `rumbo` de `viaje:ubicacion`. Pasa por el mismo camino de publicación
+  que la posición, así que **sin compartir ubicación no se publica** (RN-111).
+- Es el **último rumbo conocido**: quieto el GPS no da rumbo, y el backend conserva el anterior
+  en vez de borrarlo. El cliente oculta la flecha si el integrante está detenido, en posible
+  incidente o sin señal (`frontend/components/live/RumboMarker.tsx`).
+- La flecha es un marcador aparte girado con la rotación nativa de Google Maps (bitmap fijo,
+  barato con 200 integrantes). En iOS con Apple Maps, que no la soporta, se gira dentro de la
+  vista en pasos de 10°.
+- Altitud y velocidad **nunca** se publican al grupo: la velocidad de terceros en vivo sería
+  justamente la comparación que RN-070 prohíbe.
 
 El recap de ranking (RN-063) **no** introduce métricas nuevas: solo asigna puestos sobre
 esas filas cuando `es_grupal && !esMotorizado(tipo_actividad)`. Ver [`us-ranking-viaje.md`](us-ranking-viaje.md).

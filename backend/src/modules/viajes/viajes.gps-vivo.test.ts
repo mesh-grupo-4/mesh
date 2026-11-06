@@ -476,3 +476,69 @@ describe('RN-029b: sin check-in no se acepta GPS', () => {
   })
 })
 
+/**
+ * Altitud, velocidad del chip y rumbo tienen que llegar a `registro_gps` por las
+ * tres vías de ingreso (PUT en vivo, socket y lote offline), y las apps viejas
+ * que no los mandan tienen que seguir entrando con esas columnas en `null`.
+ */
+describe('datos extra del GPS del dispositivo', () => {
+  const extra = { altitud: 452.3, precisionAltitud: 6.5, velocidadKmh: 21.6, rumbo: 87.5 }
+  const columnas = {
+    altitud_m: 452.3,
+    precision_altitud_m: 6.5,
+    velocidad_kmh: 21.6,
+    rumbo_grados: 87.5,
+  }
+
+  it('upsertUbicacionViva los persiste', async () => {
+    const m = armarPrisma('bici')
+    await new ViajesService(m.prisma).upsertUbicacionViva(usuarioId, viajeId, {
+      lat: -31.42,
+      lng: -64.18,
+      precision: 8,
+      recordedAt: new Date('2026-08-31T12:00:00.000Z'),
+      ...extra,
+    })
+    expect(m.registroGpsCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining(columnas),
+    })
+  })
+
+  it('registrarPingUbicacion (socket) los persiste', async () => {
+    const m = armarPrisma('bici')
+    await new ViajesService(m.prisma).registrarPingUbicacion(usuarioId, {
+      viajeId,
+      lat: -31.42,
+      lng: -64.18,
+      accuracy: 8,
+      recordedAt: '2026-08-31T12:00:00.000Z',
+      source: 'live',
+      ...extra,
+    })
+    expect(m.registroGpsCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining(columnas),
+    })
+  })
+
+  it('ingresarPosiciones (offline_sync) los persiste y acepta puntos sin ellos', async () => {
+    const m = armarPrisma('bici')
+    await new ViajesService(m.prisma).ingresarPosiciones(usuarioId, viajeId, {
+      source: 'offline_sync',
+      posiciones: [
+        { lat: -31.42, lng: -64.18, precision: 8, timestamp: new Date('2026-08-31T12:00:00.000Z'), ...extra },
+        { lat: -31.421, lng: -64.181, precision: 8, timestamp: new Date('2026-08-31T12:00:05.000Z') },
+      ],
+    })
+    const { data } = m.registroGpsCreateMany.mock.calls[0]![0] as { data: Record<string, unknown>[] }
+    expect(data[0]).toEqual(expect.objectContaining(columnas))
+    expect(data[1]).toEqual(
+      expect.objectContaining({
+        altitud_m: null,
+        precision_altitud_m: null,
+        velocidad_kmh: null,
+        rumbo_grados: null,
+      })
+    )
+  })
+})
+

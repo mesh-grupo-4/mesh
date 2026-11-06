@@ -105,10 +105,20 @@ Publica una posición GPS por el canal de tiempo real. Es la alternativa de baja
   "lat": -31.4201,
   "lng": -64.1888,
   "accuracy": 8.4,                              // opcional
+  "altitud": 452.3,                             // opcional, metros
+  "precisionAltitud": 6.5,                      // opcional, precisión vertical en metros
+  "velocidadKmh": 21.6,                         // opcional, velocidad del chip GPS
+  "rumbo": 87.5,                                // opcional, grados (0 = norte)
   "recordedAt": "2026-09-01T13:05:00.000Z",     // ISO 8601 en UTC
   "source": "live"                              // opcional, por defecto "live"
 }
 ```
+
+`altitud`, `precisionAltitud`, `velocidadKmh` y `rumbo` son los mismos campos extra que aceptan
+`PUT /ubicacion-viva` y `POST /posiciones` (ver spec OpenAPI). Se guardan en `registro_gps`
+y alimentan la altimetría y la velocidad máxima del resumen. De los cuatro, solo `rumbo` se
+retransmite a la sala (en `viaje:ubicacion`); altitud y velocidad nunca (RN-070).
+Un valor fuera de rango se guarda como `null` sin rechazar el ping (RN-038).
 
 Autorizado por `assertPuedeEnviarGps`: exige que el viaje esté **en curso** y que el usuario
 sea el líder o un integrante confirmado que **ya se sumó** al viaje (`check_in_at`,

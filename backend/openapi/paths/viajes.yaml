@@ -987,6 +987,10 @@ PosicionesViaje:
               - lat: -31.4201
                 lng: -64.1888
                 precision: 8.4
+                altitud: 452.3
+                precisionAltitud: 6.5
+                velocidadKmh: 21.6
+                rumbo: 87.5
                 timestamp: '2026-09-01T13:05:00.000Z'
               - lat: -31.4215
                 lng: -64.1902

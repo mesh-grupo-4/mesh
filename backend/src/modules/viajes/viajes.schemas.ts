@@ -200,12 +200,35 @@ export const putRutaSchema = z.object({
 
 export type PutRutaInput = z.infer<typeof putRutaSchema>
 
-const posicionEntradaSchema = z.object({
-  lat: z.number().min(-90).max(90),
-  lng: z.number().min(-180).max(180),
-  precision: z.number().optional().nullable(),
-  timestamp: z.coerce.date(),
+/**
+ * Datos extra que entrega el GPS del dispositivo además de lat/lng. Todos
+ * opcionales: las versiones viejas de la app no los mandan y el ping tiene que
+ * entrar igual. El dispositivo ya descarta los valores "sin dato" (0 en
+ * Android, -1 en iOS) antes de enviarlos.
+ *
+ * RN-038: un valor fuera de rango se guarda como `null` en vez de rechazar el
+ * punto. Si rechazara, un lote offline con un solo dato raro quedaría trabado
+ * en la cola del dispositivo reintentándose para siempre.
+ */
+const extraOpcional = (s: z.ZodNumber) => s.optional().nullable().catch(null)
+
+export const datosGpsExtraSchema = z.object({
+  altitud: extraOpcional(z.number().min(-500).max(9000)),
+  precisionAltitud: extraOpcional(z.number().min(0)),
+  velocidadKmh: extraOpcional(z.number().min(0).max(400)),
+  rumbo: extraOpcional(z.number().min(0).max(360)),
 })
+
+export type DatosGpsExtra = z.infer<typeof datosGpsExtraSchema>
+
+const posicionEntradaSchema = z
+  .object({
+    lat: z.number().min(-90).max(90),
+    lng: z.number().min(-180).max(180),
+    precision: z.number().optional().nullable(),
+    timestamp: z.coerce.date(),
+  })
+  .merge(datosGpsExtraSchema)
 
 export const postPosicionesSchema = z.object({
   source: z.nativeEnum(GpsSource),
@@ -226,11 +249,13 @@ export type FantasmaQuery = z.infer<typeof fantasmaQuerySchema>
 
 export type PostPosicionesInput = z.infer<typeof postPosicionesSchema>
 
-export const upsertUbicacionVivaSchema = z.object({
-  lat: z.number().min(-90).max(90),
-  lng: z.number().min(-180).max(180),
-  precision: z.number().optional().nullable(),
-  recordedAt: z.coerce.date(),
-})
+export const upsertUbicacionVivaSchema = z
+  .object({
+    lat: z.number().min(-90).max(90),
+    lng: z.number().min(-180).max(180),
+    precision: z.number().optional().nullable(),
+    recordedAt: z.coerce.date(),
+  })
+  .merge(datosGpsExtraSchema)
 
 export type UpsertUbicacionVivaInput = z.infer<typeof upsertUbicacionVivaSchema>

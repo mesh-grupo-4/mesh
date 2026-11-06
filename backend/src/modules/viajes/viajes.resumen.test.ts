@@ -156,13 +156,56 @@ describe('ViajesService.obtenerResumen', () => {
     expect(computeMetricasMock).not.toHaveBeenCalled()
   })
 
-  it('RN-070: ranking deshabilitado en moto', async () => {
-    const { prisma } = armarPrisma({ tipoActividad: 'moto' })
+  it.each(['moto', 'auto'] as const)('RN-070: ranking deshabilitado en %s', async (tipoActividad) => {
+    const { prisma } = armarPrisma({ tipoActividad })
     const service = new ViajesService(prisma)
 
     const r = await service.obtenerResumen(creadorId, viajeId)
 
     expect(r.ranking_habilitado).toBe(false)
+  })
+
+  it.each(['moto', 'auto'] as const)(
+    'RN-070: nunca devuelve velocidad máxima en %s, aunque esté calculada',
+    async (tipoActividad) => {
+      const { prisma } = armarPrisma({
+        tipoActividad,
+        miMetrica: {
+          distancia_m: 80000,
+          tiempo_movimiento_seg: 3600,
+          velocidad_promedio_kmh: 80,
+          velocidad_maxima_kmh: 131,
+        },
+      })
+      const r = await new ViajesService(prisma).obtenerResumen(creadorId, viajeId)
+      expect(r.mis_metricas.velocidad_maxima_kmh).toBeNull()
+      // El promedio propio sí se muestra (dato informativo, no comparativo).
+      expect(r.mis_metricas.velocidad_promedio_kmh).toBe(80)
+    }
+  )
+
+  it('devuelve la velocidad máxima y la altimetría propias fuera de moto', async () => {
+    const { prisma } = armarPrisma({
+      tipoActividad: 'bici',
+      miMetrica: {
+        distancia_m: 40120.5,
+        tiempo_movimiento_seg: 5100,
+        velocidad_promedio_kmh: 28.3,
+        velocidad_maxima_kmh: 52.4,
+        desnivel_positivo_m: 312.4,
+        desnivel_negativo_m: 298.7,
+        altitud_max_m: 1210.5,
+        altitud_min_m: 905.2,
+      },
+    })
+    const r = await new ViajesService(prisma).obtenerResumen(creadorId, viajeId)
+    expect(r.mis_metricas).toMatchObject({
+      velocidad_maxima_kmh: 52.4,
+      desnivel_positivo_m: 312.4,
+      desnivel_negativo_m: 298.7,
+      altitud_max_m: 1210.5,
+      altitud_min_m: 905.2,
+    })
   })
 
   it('habilita ranking fuera de moto', async () => {
