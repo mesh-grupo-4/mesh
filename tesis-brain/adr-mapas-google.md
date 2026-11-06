@@ -60,3 +60,8 @@ que uno nativo.
   lugar; la posición viaja al backend solo para esa búsqueda y no se publica al grupo (RN-111).
 - **Fuera de alcance por ahora**: Roads API (ajuste del recorrido a la calle) y Navigation SDK.
   Fleet Engine se descartó: exige contrato y apunta a flotas con despachante, no a grupos de pares.
+- **Versión de `react-native-maps` fijada en 1.29.11** (06/11/2026), por encima de la 1.27.2 que
+  recomienda Expo SDK 57. La 1.27.2 tiene un bug nativo en Android (`MapView.safeAddFeature` pisa
+  con `set` en vez de insertar, y al desmontar la pantalla solo repone lo que quedó registrado): los
+  marcadores de integrantes desaparecían al volver de Alertas u otra pantalla. Corregido upstream en
+  1.29.0 (PR #5795). **No** bajarla con `npx expo install --fix`; el aviso de `expo doctor` es esperado.

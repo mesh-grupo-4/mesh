@@ -4,7 +4,7 @@
 # Ghost tracking: un recorrido histórico (traza GPS de un viaje finalizado, propia
 # o de otro integrante de un viaje compartido, o una ruta compartida importada como
 # plantilla) que el cliente anima sobre el mapa en vivo para comparar tiempos.
-# RN-070: nunca en moto. RN-072: no en modo recreativo.
+# RN-070: nunca en moto ni auto. RN-072: no en modo recreativo.
 
 FantasmaCandidatos:
   get:
@@ -14,7 +14,7 @@ FantasmaCandidatos:
       Viajes finalizados en los que participó el usuario (su traza y la de los demás
       integrantes) y sus plantillas de rutas compartidas con tiempo estimado.
       Primero los de la misma actividad y, dentro de eso, los propios.
-      Responde `409 FANTASMA_NO_DISPONIBLE` si el viaje es de moto (RN-070) o
+      Responde `409 FANTASMA_NO_DISPONIBLE` si el viaje es de moto o auto (RN-070) o
       está en modo recreativo (RN-072).
     tags:
       - Fantasma
@@ -141,7 +141,7 @@ FantasmaRecurso:
             schema:
               $ref: '../components/schemas.yaml#/Error'
             example:
-              error: La modalidad moto no admite fantasma (RN-070)
+              error: Las modalidades motorizadas (moto, auto) no admiten fantasma (RN-070)
               code: FANTASMA_NO_DISPONIBLE
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'

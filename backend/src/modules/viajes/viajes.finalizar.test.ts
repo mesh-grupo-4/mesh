@@ -43,6 +43,7 @@ function armarPrisma(estado = 'en_curso') {
   const alertaFindMany = vi.fn().mockResolvedValue([{ id: 'a1' }, { id: 'a2' }])
   const alertaUpdateMany = vi.fn().mockResolvedValue({ count: 2 })
   const ubicacionDeleteMany = vi.fn().mockResolvedValue({ count: 3 })
+  const integranteUpdateMany = vi.fn().mockResolvedValue({ count: 1 })
   const tx = {
     metricaViaje: { deleteMany: vi.fn(), createMany: vi.fn() },
     parada: { count: vi.fn().mockResolvedValue(0) },
@@ -53,13 +54,23 @@ function armarPrisma(estado = 'en_curso') {
       findUnique: vi.fn().mockResolvedValue(viaje),
       update: vi.fn().mockResolvedValue({ ...viaje, estado: 'finalizado' }),
     },
-    viajeIntegrante: { findMany: vi.fn().mockResolvedValue([]) },
+    viajeIntegrante: {
+      findMany: vi.fn().mockResolvedValue([]),
+      updateMany: integranteUpdateMany,
+    },
     parada: { updateMany: paradaUpdateMany },
     alerta: { findMany: alertaFindMany, updateMany: alertaUpdateMany },
     ubicacionViva: { deleteMany: ubicacionDeleteMany },
     $transaction: (fn: (t: typeof tx) => Promise<void>) => fn(tx),
   } as unknown as PrismaClient
-  return { prisma, paradaUpdateMany, alertaFindMany, alertaUpdateMany, ubicacionDeleteMany }
+  return {
+    prisma,
+    paradaUpdateMany,
+    alertaFindMany,
+    alertaUpdateMany,
+    ubicacionDeleteMany,
+    integranteUpdateMany,
+  }
 }
 
 beforeEach(() => {
@@ -94,6 +105,18 @@ describe('ViajesService.finalizar — cierre de la situación en vivo', () => {
     const eventos = emit.mock.calls.map((c) => String(c[0]))
     expect(eventos[0]).toBe('viaje:finalizado')
     expect(eventos.filter((e) => e === 'viaje:alerta_actualizada')).toHaveLength(2)
+  })
+
+  it('RN-029c: quien confirmó pero nunca se sumó queda ausente al cerrar', async () => {
+    const m = armarPrisma()
+    const service = new ViajesService(m.prisma)
+
+    await service.finalizar(creadorId, viajeId)
+
+    expect(m.integranteUpdateMany).toHaveBeenCalledWith({
+      where: { viaje_id: viajeId, estado: 'confirmado', check_in_at: null },
+      data: { estado: 'ausente' },
+    })
   })
 
   it('solo el creador finaliza (RN-030)', async () => {

@@ -1,4 +1,6 @@
+import { useEffect } from 'react'
 import { View, type StyleProp, type ViewStyle } from 'react-native'
+import { useRegistroScrollAyuda } from './ScrollViewAyuda'
 import { useIsFocused } from 'expo-router'
 import { CopilotStep, walkthroughable } from 'react-native-copilot'
 
@@ -36,6 +38,10 @@ type Props = {
  */
 export function PasoAyuda({ nombre, orden, texto, activo = true, estilo, pointerEvents, children }: Props) {
   const enfocado = useIsFocused()
+  // Dentro de un `ScrollViewAyuda`, se anota para que la lista scrollee hasta
+  // este paso si queda fuera de la vista durante el tour.
+  const registroScroll = useRegistroScrollAyuda()
+  useEffect(() => registroScroll?.registrar(nombre), [registroScroll, nombre])
   return (
     <CopilotStep name={nombre} order={orden} text={texto} active={enfocado && activo}>
       <ViewAyuda style={estilo} pointerEvents={pointerEvents}>

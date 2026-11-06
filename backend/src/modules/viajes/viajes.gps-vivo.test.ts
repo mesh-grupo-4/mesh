@@ -388,3 +388,217 @@ describe('compartir ubicación apagado (RN-111)', () => {
     expect(emit).not.toHaveBeenCalled()
   })
 })
+
+/**
+ * RN-029b: confirmó pero no se sumó (p. ej. se quedó en casa). Ninguna de las tres
+ * entradas de GPS acepta su posición: no se guarda, no se publica ni llega al motor.
+ */
+describe('RN-029b: sin check-in no se acepta GPS', () => {
+  const liderId = '99999999-9999-9999-9999-999999999999'
+
+  function armarParticipante(integrante: unknown) {
+    const m = armarPrisma('bici')
+    const prisma = m.prisma as unknown as {
+      viaje: { findUnique: ReturnType<typeof vi.fn> }
+      viajeIntegrante: { findUnique: ReturnType<typeof vi.fn> }
+    }
+    prisma.viaje.findUnique.mockResolvedValue({
+      id: viajeId,
+      creador_id: liderId,
+      estado: 'en_curso',
+      tipo_actividad: 'bici',
+    })
+    prisma.viajeIntegrante.findUnique.mockResolvedValue(integrante)
+    return m
+  }
+
+  const ping = {
+    viajeId,
+    lat: -31.42,
+    lng: -64.18,
+    accuracy: 5,
+    recordedAt: '2026-08-31T12:00:00.000Z',
+    source: 'live' as const,
+  }
+
+  it('registrarPingUbicacion responde NOT_CHECKED_IN y no guarda nada', async () => {
+    const m = armarParticipante({ estado: 'confirmado', check_in_at: null })
+
+    await expect(
+      new ViajesService(m.prisma).registrarPingUbicacion(usuarioId, ping)
+    ).rejects.toMatchObject({ status: 403, code: 'NOT_CHECKED_IN' })
+    expect(m.registroGpsCreate).not.toHaveBeenCalled()
+    expect(procesarPing).not.toHaveBeenCalled()
+  })
+
+  it('ingresarPosiciones (lote offline) responde NOT_CHECKED_IN', async () => {
+    const m = armarParticipante({ estado: 'confirmado', check_in_at: null })
+
+    await expect(
+      new ViajesService(m.prisma).ingresarPosiciones(usuarioId, viajeId, {
+        source: 'offline_sync',
+        posiciones: [
+          { lat: -31.43, lng: -64.19, precision: 8, timestamp: new Date('2026-08-31T12:00:10.000Z') },
+        ],
+      })
+    ).rejects.toMatchObject({ code: 'NOT_CHECKED_IN' })
+    expect(m.registroGpsCreateMany).not.toHaveBeenCalled()
+  })
+
+  it('upsertUbicacionViva responde NOT_CHECKED_IN', async () => {
+    const m = armarParticipante({ estado: 'confirmado', check_in_at: null })
+
+    await expect(
+      new ViajesService(m.prisma).upsertUbicacionViva(usuarioId, viajeId, {
+        lat: -31.42,
+        lng: -64.18,
+        precision: 5,
+        recordedAt: new Date('2026-08-31T12:00:00.000Z'),
+      })
+    ).rejects.toMatchObject({ code: 'NOT_CHECKED_IN' })
+    expect(m.ubicacionVivaUpsert).not.toHaveBeenCalled()
+  })
+
+  it('con check-in sí se acepta', async () => {
+    const m = armarParticipante({ estado: 'confirmado', check_in_at: new Date('2026-08-31T11:00:00.000Z') })
+
+    await new ViajesService(m.prisma).registrarPingUbicacion(usuarioId, ping)
+
+    expect(m.registroGpsCreate).toHaveBeenCalledTimes(1)
+  })
+
+  it('un ausente sigue sin acceso (FORBIDDEN)', async () => {
+    const m = armarParticipante({ estado: 'ausente', check_in_at: null })
+
+    await expect(
+      new ViajesService(m.prisma).registrarPingUbicacion(usuarioId, ping)
+    ).rejects.toMatchObject({ status: 403, code: 'FORBIDDEN' })
+  })
+})
+
+/**
+ * Altitud, velocidad del chip y rumbo tienen que llegar a `registro_gps` por las
+ * tres vías de ingreso (PUT en vivo, socket y lote offline), y las apps viejas
+ * que no los mandan tienen que seguir entrando con esas columnas en `null`.
+ */
+describe('datos extra del GPS del dispositivo', () => {
+  const extra = { altitud: 452.3, precisionAltitud: 6.5, velocidadKmh: 21.6, rumbo: 87.5 }
+  const columnas = {
+    altitud_m: 452.3,
+    precision_altitud_m: 6.5,
+    velocidad_kmh: 21.6,
+    rumbo_grados: 87.5,
+  }
+
+  it('upsertUbicacionViva los persiste', async () => {
+    const m = armarPrisma('bici')
+    await new ViajesService(m.prisma).upsertUbicacionViva(usuarioId, viajeId, {
+      lat: -31.42,
+      lng: -64.18,
+      precision: 8,
+      recordedAt: new Date('2026-08-31T12:00:00.000Z'),
+      ...extra,
+    })
+    expect(m.registroGpsCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining(columnas),
+    })
+  })
+
+  it('registrarPingUbicacion (socket) los persiste', async () => {
+    const m = armarPrisma('bici')
+    await new ViajesService(m.prisma).registrarPingUbicacion(usuarioId, {
+      viajeId,
+      lat: -31.42,
+      lng: -64.18,
+      accuracy: 8,
+      recordedAt: '2026-08-31T12:00:00.000Z',
+      source: 'live',
+      ...extra,
+    })
+    expect(m.registroGpsCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining(columnas),
+    })
+  })
+
+  it('ingresarPosiciones (offline_sync) los persiste y acepta puntos sin ellos', async () => {
+    const m = armarPrisma('bici')
+    await new ViajesService(m.prisma).ingresarPosiciones(usuarioId, viajeId, {
+      source: 'offline_sync',
+      posiciones: [
+        { lat: -31.42, lng: -64.18, precision: 8, timestamp: new Date('2026-08-31T12:00:00.000Z'), ...extra },
+        { lat: -31.421, lng: -64.181, precision: 8, timestamp: new Date('2026-08-31T12:00:05.000Z') },
+      ],
+    })
+    const { data } = m.registroGpsCreateMany.mock.calls[0]![0] as { data: Record<string, unknown>[] }
+    expect(data[0]).toEqual(expect.objectContaining(columnas))
+    expect(data[1]).toEqual(
+      expect.objectContaining({
+        altitud_m: null,
+        precision_altitud_m: null,
+        velocidad_kmh: null,
+        rumbo_grados: null,
+      })
+    )
+  })
+})
+
+/**
+ * El rumbo es lo que gira la flecha de cada integrante en el mapa grupal. Viaja
+ * en la ubicación viva y en `viaje:ubicacion`, y al detenerse (ping sin rumbo)
+ * se conserva el último en vez de pisarlo con null.
+ */
+describe('rumbo en la ubicación viva', () => {
+  it('lo guarda en ubicacion_viva y lo emite a la sala', async () => {
+    const m = armarPrisma('bici')
+    await new ViajesService(m.prisma).upsertUbicacionViva(usuarioId, viajeId, {
+      lat: -31.42,
+      lng: -64.18,
+      precision: 8,
+      recordedAt: new Date('2026-08-31T12:00:00.000Z'),
+      rumbo: 87.5,
+    })
+    const args = m.ubicacionVivaUpsert.mock.calls[0]![0] as {
+      create: { rumbo_grados: number | null }
+      update: { rumbo_grados?: number }
+    }
+    expect(args.create.rumbo_grados).toBe(87.5)
+    expect(args.update.rumbo_grados).toBe(87.5)
+    expect(emit).toHaveBeenCalledWith('viaje:ubicacion', expect.objectContaining({ rumbo: 87.5 }))
+  })
+
+  it('un ping sin rumbo no borra el último conocido y lo reemite', async () => {
+    const m = armarPrisma('bici')
+    m.ubicacionVivaUpsert.mockResolvedValueOnce({
+      usuario_id: usuarioId,
+      viaje_id: viajeId,
+      lat: -31.42,
+      lng: -64.18,
+      precision_m: 8,
+      rumbo_grados: 120,
+      updated_at: new Date('2026-08-31T12:00:05.000Z'),
+    })
+    await new ViajesService(m.prisma).registrarPingUbicacion(usuarioId, {
+      viajeId,
+      lat: -31.42,
+      lng: -64.18,
+      accuracy: 8,
+      recordedAt: '2026-08-31T12:00:05.000Z',
+      source: 'live',
+    })
+    const args = m.ubicacionVivaUpsert.mock.calls[0]![0] as { update: Record<string, unknown> }
+    expect(args.update.rumbo_grados).toBeUndefined()
+    expect(emit).toHaveBeenCalledWith('viaje:ubicacion', expect.objectContaining({ rumbo: 120 }))
+  })
+
+  it('RN-111: sin compartir ubicación no se publica el rumbo', async () => {
+    const m = armarPrisma('bici', null, { comparte: false })
+    await new ViajesService(m.prisma).upsertUbicacionViva(usuarioId, viajeId, {
+      lat: -31.42,
+      lng: -64.18,
+      recordedAt: new Date('2026-08-31T12:00:00.000Z'),
+      rumbo: 87.5,
+    })
+    expect(m.ubicacionVivaUpsert).not.toHaveBeenCalled()
+    expect(emit).not.toHaveBeenCalled()
+  })
+})

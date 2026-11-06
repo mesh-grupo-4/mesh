@@ -4,7 +4,7 @@ info:
   title: Mesh API
   version: 1.0.0
   description: |
-    **Mesh** coordina grupos en movimiento —motociclismo, ciclismo, running y trekking—
+    **Mesh** coordina grupos en movimiento —motociclismo, auto, ciclismo, running y trekking—
     combinando una API REST para el ciclo de vida de viajes, grupos y rutas, con un canal
     Socket.io para el seguimiento en vivo.
 
@@ -111,7 +111,7 @@ tags:
     description: |
       Ranking global por tipo de actividad y período (RN-076, E09), ordenado
       por distancia o tiempo en movimiento — nunca por velocidad (RN-070).
-      La modalidad moto no tiene tabla de posiciones.
+      Las modalidades motorizadas (moto, auto) no tienen tabla de posiciones.
   - name: RecorridosPublicados
     description: |
       Red social de recorridos (RN-080 a RN-084, E10): publicar un viaje del historial
@@ -148,7 +148,7 @@ tags:
   - name: Fantasma
     description: |
       Ghost tracking (RN-073): recorrido histórico para superponer en el mapa en vivo
-      y comparar tiempos. Nunca en moto (RN-070) ni en modo recreativo (RN-072).
+      y comparar tiempos. Nunca en moto ni auto (RN-070) ni en modo recreativo (RN-072).
   - name: Clima
     description: |
       Pronóstico meteorológico sobre la ruta planificada, vía Open-Meteo (RN-108).
@@ -338,6 +338,10 @@ paths:
     $ref: './paths/viajes.yaml#/SalirViaje'
   /api/viajes/{viajeId}/ocultar:
     $ref: './paths/viajes.yaml#/OcultarViaje'
+  /api/viajes/{viajeId}/check-in:
+    $ref: './paths/viajes.yaml#/CheckInViaje'
+  /api/viajes/{viajeId}/liderazgo:
+    $ref: './paths/viajes.yaml#/CederLiderazgoViaje'
 
   # ── Rutas compartidas y plantillas ─────────────────────────────────────────
   /api/viajes/{viajeId}/ruta/compartir:

@@ -4,7 +4,9 @@ import { DeviceEventEmitter, Platform } from 'react-native'
 
 import { filtrosGpsPorActividad, velocidadImplicitaKmh } from '@/lib/gpsFilters'
 import { registrarConsentimientoUbicacion } from '@/lib/privacidadApi'
-import { enqueueGpsSample } from '@/lib/tracking/gpsQueue'
+import { extraerDatosGpsExtra } from '@/lib/tracking/datosGpsExtra'
+import { enqueueGpsSample, sumarseAlViaje, tieneCheckInPendiente } from '@/lib/tracking/gpsQueue'
+import { checkInViaje } from '@/lib/viajesApi'
 import { TICK_TARGET_MS, trackingConfigPorActividad } from '@/lib/tracking/trackingConfig'
 import {
   clearTrackingContext,
@@ -60,12 +62,14 @@ function emitLocationSample(viajeId: string, userId: string, loc: Location.Locat
   const ts = loc.timestamp > 0 ? loc.timestamp : Date.now()
   if (!aceptarMuestra(latitude, longitude, accuracy, ts)) return
 
+  const extra = extraerDatosGpsExtra(loc.coords)
   const queueId = enqueueGpsSample({
     viajeId,
     userId,
     lat: latitude,
     lng: longitude,
     accuracy: accuracy ?? null,
+    ...extra,
     ts,
   })
   DeviceEventEmitter.emit('mesh:location_tick', {
@@ -74,6 +78,7 @@ function emitLocationSample(viajeId: string, userId: string, loc: Location.Locat
     lat: latitude,
     lng: longitude,
     accuracy: accuracy ?? undefined,
+    ...extra,
     recordedAt: new Date(ts).toISOString(),
     queueId,
   })
@@ -144,6 +149,28 @@ export async function solicitarPermisosUbicacion(): Promise<PermisoResultado> {
   }
   const bg = await Location.requestBackgroundPermissionsAsync()
   return { foreground: true, background: bg.status === 'granted' }
+}
+
+/**
+ * RN-029b: "Me sumo". En el dispositivo va por la cola offline (se manda antes que el
+ * GPS, aunque se toque sin señal); en web, que no trackea, es una llamada directa.
+ */
+export async function registrarCheckIn(viajeId: string, userId: string): Promise<void> {
+  if (Platform.OS === 'web') {
+    await checkInViaje(viajeId)
+    return
+  }
+  await sumarseAlViaje(viajeId, userId)
+}
+
+/** "Me sumo" tocado pero todavía sin confirmar por el backend (sin señal). */
+export function checkInPendienteLocal(viajeId: string, userId: string): boolean {
+  if (Platform.OS === 'web') return false
+  try {
+    return tieneCheckInPendiente(viajeId, userId)
+  } catch {
+    return false
+  }
 }
 
 export async function iniciarTrackingViaje(

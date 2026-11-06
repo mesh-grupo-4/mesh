@@ -3,7 +3,7 @@
 > **Estado:** lista para implementar / en implementación.  
 > **Epic:** **E06** — Cierre, métricas y estadísticas.  
 > **OpenAPI:** `GET /api/viajes/{viajeId}/metricas-grupales` en `backend/openapi/viajes.yaml`.  
-> **RN:** RN-063 (recap), RN-070 (moto excluida). No es RN-064 (Wrapped de período).  
+> **RN:** RN-063 (recap), RN-070 (moto y auto excluidos). No es RN-064 (Wrapped de período).  
 > **Dependencia:** resumen + `metrica_viaje` ya existentes.
 
 ---
@@ -38,7 +38,7 @@ Convive con lo ya definido; **no** reemplaza métricas:
 | Perfil (`GET /estadisticas`) | Agregados de vida |
 | **Recap (esta US)** | Capa competitiva: puestos + cards. Mismos números de `metrica_viaje` |
 
-Moto: sin recap (RN-070). Individual: sin recap.
+Moto y auto: sin recap (RN-070). Individual: sin recap.
 
 #### Alcance
 
@@ -56,7 +56,7 @@ Moto: sin recap (RN-070). Individual: sin recap.
 - Wrapped mensual/anual + share imagen (RN-064).
 - Leaderboard en vivo (RN-071 / E07).
 - Tabla global (RN-076 / E09).
-- Ranking en moto (ni “solo distancia”).
+- Ranking en moto o auto (ni “solo distancia”).
 - Recalcular GPS ni cambiar fórmulas de `metrica_viaje`.
 - Velocidad máxima como criterio.
 
@@ -64,13 +64,13 @@ Moto: sin recap (RN-070). Individual: sin recap.
 
 ### Criterios de aceptación
 
-1. Tras finalizar un viaje **grupal no moto**, el resumen ofrece **Recap del grupo** sin quitar El viaje / Tu recorrido / El grupo / Ver métricas detalladas.
+1. Tras finalizar un viaje **grupal no motorizado** (ni moto ni auto), el resumen ofrece **Recap del grupo** sin quitar El viaje / Tu recorrido / El grupo / Ver métricas detalladas.
 2. El recap tiene tabs Distancia / Ritmo / Tiempo en movimiento. Default: Distancia.
 3. Cada tab muestra al #1 con título (“Más kilómetros” / “Mejor ritmo” / “Más tiempo en movimiento”) y al resto en cards con el **mismo valor** que métricas.
 4. La card del usuario autenticado se marca “Vos”. Pie de invitación a mejorar, sin tono de burla.
 5. Empate: mismo puesto; el siguiente se salta (1, 2, 2, 4).
 6. Sin GPS: card al final, sin puesto, “Sin traza GPS”.
-7. **Moto:** no hay CTA de recap. `ranking_habilitado` false; puestos `null`; sin velocidades de terceros comparables.
+7. **Moto y auto:** no hay CTA de recap. `ranking_habilitado` false; puestos `null`; sin velocidades de terceros comparables.
 8. **Individual:** no hay recap.
 9. `GET /resumen` sigue **sin** `por_integrante`.
 10. Los puestos salen de `GET /metricas-grupales` (no hay un segundo listado de km).

@@ -30,7 +30,7 @@ type OtorgadaConRelaciones = {
 /**
  * RN-074: los criterios son independientes entre sí (AND) y opcionales — null
  * significa "no aplica". A propósito no existe (ni debe agregarse) un criterio
- * de velocidad: eso sería gamificación de velocidad, prohibida en moto (RN-070).
+ * de velocidad: eso sería gamificación de velocidad, prohibida en moto y auto (RN-070).
  */
 function cumpleCriterio(
   insignia: CriterioInsignia,

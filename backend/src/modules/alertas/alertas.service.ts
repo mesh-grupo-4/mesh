@@ -1,6 +1,9 @@
 import type { PrismaClient } from '@prisma/client'
+import { nombreVisible } from '../../lib/nombres'
 import { HttpError } from '../../lib/httpError'
 import { getIo } from '../../realtime/ioRegistry'
+import { ParadasService, afectadoPorIncidente } from '../paradas/paradas.service'
+import { esIntegranteActivo, WHERE_INTEGRANTE_ACTIVO } from '../viajes/viajes.membership'
 import type {
   CambiarEstadoAlertaInput,
   CrearAlertaInput,
@@ -32,7 +35,7 @@ const TITULO_POR_TIPO: Record<TipoAlerta, string> = {
 
 function nombreDe(u: { nombre: string; apellido: string | null } | null): string | null {
   if (!u) return null
-  return [u.nombre, u.apellido].filter(Boolean).join(' ').trim() || null
+  return nombreVisible(u.nombre, u.apellido) || null
 }
 
 export class AlertasService {
@@ -66,10 +69,14 @@ export class AlertasService {
 
     const integrante = await this.prisma.viajeIntegrante.findUnique({
       where: { viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId } },
-      select: { estado: true },
+      select: { estado: true, check_in_at: true },
     })
     if (integrante?.estado !== 'confirmado') {
       throw new HttpError(403, 'Sin acceso a este viaje', 'FORBIDDEN')
+    }
+    // RN-029b: alertar al grupo es una acción en vivo; requiere haberse sumado.
+    if (!esIntegranteActivo(integrante)) {
+      throw new HttpError(403, 'Tenés que sumarte al viaje para crear alertas', 'NOT_CHECKED_IN')
     }
 
     return { esLider: false }
@@ -168,6 +175,17 @@ export class AlertasService {
 
     const mapeada = this.mapAlerta(alerta)
     this.emitirActualizacion(viajeId, mapeada.id, mapeada.estado, alerta.resolved_at)
+
+    // Cerrar la alerta de un posible incidente cierra el incidente: si no, el
+    // integrante seguía marcado como "posible incidente" en el mapa.
+    const afectadoId = cerrada ? afectadoPorIncidente(alerta) : null
+    if (afectadoId) {
+      await new ParadasService(this.prisma).cerrarIncidentePorAlerta(
+        viajeId,
+        afectadoId,
+        input.estado as 'resuelta' | 'cancelada'
+      )
+    }
     return mapeada
   }
 
@@ -248,7 +266,8 @@ export class AlertasService {
     try {
       const [integrantes, viaje] = await Promise.all([
         this.prisma.viajeIntegrante.findMany({
-          where: { viaje_id: viajeId, estado: 'confirmado' },
+          // RN-029b: quien no se sumó al viaje (se quedó en casa) no recibe alertas en vivo.
+          where: { viaje_id: viajeId, ...WHERE_INTEGRANTE_ACTIVO },
           select: { usuario: { select: { id: true, push_token: true } } },
         }),
         // El creador de un viaje legacy puede no tener fila en viaje_integrante:

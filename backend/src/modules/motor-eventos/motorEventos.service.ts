@@ -1,4 +1,5 @@
 import type { PrismaClient, TipoActividad } from '@prisma/client'
+import { nombreVisible } from '../../lib/nombres'
 import {
   atrasoMetros,
   identificarBloquePrincipal,
@@ -6,10 +7,12 @@ import {
   type MiembroEnRuta,
 } from '../../lib/bloquePrincipal'
 import { distanciaMetros } from '../../lib/geo2d'
+import { esMotorizado } from '../../lib/actividad'
 import type { GeoJsonLineString } from '../../lib/geo'
 import { computeDistanciaPuntoARutaM, computeProgresoEnRutaM } from '../../lib/postgis'
 import { getIo } from '../../realtime/ioRegistry'
 import { armarLeaderboard, type IntegranteEnRuta } from '../viajes/leaderboard'
+import { WHERE_INTEGRANTE_ACTIVO } from '../viajes/viajes.membership'
 import {
   minutosIncidenteEfectivo,
   prefijoAlertaAfectado,
@@ -44,6 +47,11 @@ type EstadoDetencion = {
   anchorLat: number
   anchorLng: number
   quietoDesde: Date
+  /**
+   * RN-036: ya se cerró un posible incidente en este punto ("estoy bien" o el
+   * líder lo resolvió). No se dispara otro hasta que la persona se aleje.
+   */
+  silenciado?: boolean
 }
 
 type ProgresoCacheado = {
@@ -70,7 +78,7 @@ const LEADERBOARD_MIN_INTERVALO_MS = 3_000
 const FACTOR_RESOLUCION = 0.5
 
 function nombreDe(u: { nombre: string; apellido: string | null }): string {
-  return [u.nombre, u.apellido].filter(Boolean).join(' ').trim() || 'Un integrante'
+  return nombreVisible(u.nombre, u.apellido) || 'Un integrante'
 }
 
 /**
@@ -92,6 +100,12 @@ export class MotorEventosService {
   /** Nombres ya resueltos, para no consultar `usuario` en cada emisión del leaderboard. */
   private readonly nombrePorUsuario = new Map<string, string>()
   private readonly ultimoLeaderboardAt = new Map<string, number>()
+  /**
+   * RN-029b: integrantes cuyo GPS ya pasó cerca de la ruta. Hasta entonces el motor no
+   * los evalúa. En memoria como el resto del estado: tras un reinicio del servidor se
+   * re-arma con el próximo ping en ruta.
+   */
+  private readonly armados = new Set<string>()
 
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -141,9 +155,21 @@ export class MotorEventosService {
       }),
     ])
     const linestring = (ruta?.linestring_geojson as unknown as GeoJsonLineString | null) ?? null
+    const distM = linestring
+      ? await computeDistanciaPuntoARutaM(this.prisma, input.lat, input.lng, linestring)
+      : null
+
+    // RN-029b (red de seguridad): el motor no evalúa a nadie hasta que su primer ping
+    // cae cerca de la ruta. Aunque alguien toque "Me sumo" desde su casa, no salta un
+    // desvío, un atraso ni un posible incidente hasta que llega al recorrido.
+    const key = this.clave(input.viajeId, input.usuarioId)
+    if (!this.armados.has(key)) {
+      if (distM != null && distM > viaje.distancia_max_separacion) return
+      this.armados.add(key)
+    }
 
     await Promise.all([
-      this.evaluarDesvio(input, viaje, linestring, tieneParadaVoluntaria, activas),
+      this.evaluarDesvio(input, viaje, distM, tieneParadaVoluntaria, activas),
       this.evaluarDetencionSospechosa(input, viaje, tieneParadaVoluntaria),
       this.evaluarAtraso(input, viaje, linestring, tieneParadaVoluntaria, activas),
     ])
@@ -158,6 +184,9 @@ export class MotorEventosService {
     for (const key of this.progresoPorClave.keys()) {
       if (key.startsWith(prefijo)) this.progresoPorClave.delete(key)
     }
+    for (const key of this.armados) {
+      if (key.startsWith(prefijo)) this.armados.delete(key)
+    }
   }
 
   /** Olvida el estado en memoria de un integrante (cuando sale del viaje). */
@@ -165,6 +194,24 @@ export class MotorEventosService {
     const key = this.clave(viajeId, usuarioId)
     this.detencionPorClave.delete(key)
     this.progresoPorClave.delete(key)
+    this.armados.delete(key)
+  }
+
+  /**
+   * RN-036: se cerró el posible incidente de un integrante. Si sigue quieto en el
+   * mismo lugar no se le vuelve a generar otro incidente ahí mismo cada N minutos:
+   * la detección se rearma recién cuando se aleja del punto.
+   */
+  silenciarDeteccionEnPunto(viajeId: string, usuarioId: string, lat: number, lng: number): void {
+    this.detencionPorClave.set(this.clave(viajeId, usuarioId), {
+      anchorLat: lat,
+      anchorLng: lng,
+      // Sin fecha real: el reloj del servidor puede ir adelantado respecto del
+      // dispositivo y entonces se descartarían como "viejos" los pings que
+      // muestran que la persona ya se alejó.
+      quietoDesde: new Date(0),
+      silenciado: true,
+    })
   }
 
   /**
@@ -201,15 +248,14 @@ export class MotorEventosService {
   private async evaluarDesvio(
     input: PingInput,
     viaje: ViajeMotor,
-    linestring: GeoJsonLineString | null,
+    /** Distancia a la ruta ya calculada en `procesarPing`; null = sin ruta o sin dato. */
+    distM: number | null,
     tieneParadaVoluntaria: boolean,
     activas: AlertaSistemaActiva[]
   ): Promise<void> {
-    if (!linestring) return
+    if (distM == null) return
 
     const umbralDesvioM = viaje.distancia_max_separacion
-    const distM = await computeDistanciaPuntoARutaM(this.prisma, input.lat, input.lng, linestring)
-    if (distM == null) return
 
     const activa = activas.find((a) => a.tipo === 'desvio')
     if (activa) {
@@ -262,10 +308,15 @@ export class MotorEventosService {
     const prev = this.detencionPorClave.get(key)
 
     if (!prev) {
+      // El conteo arranca cuando el integrante entra al viaje (primera posición que
+      // recibe el servidor), no en el timestamp del punto: la primera lectura del
+      // GPS suele ser una ubicación cacheada de minutos atrás, o un punto encolado
+      // antes de iniciar el viaje, y con eso el incidente saltaba al instante.
+      const ahora = Date.now()
       this.detencionPorClave.set(key, {
         anchorLat: input.lat,
         anchorLng: input.lng,
-        quietoDesde: input.timestamp,
+        quietoDesde: new Date(Math.max(input.timestamp.getTime(), ahora)),
       })
       return
     }
@@ -282,6 +333,9 @@ export class MotorEventosService {
       })
       return
     }
+
+    // Sigue en el punto de un incidente ya cerrado: no se repite la alerta.
+    if (prev.silenciado) return
 
     const quietoMs = input.timestamp.getTime() - prev.quietoDesde.getTime()
     const umbralMs = detencionMinutos * 60 * 1000
@@ -349,7 +403,7 @@ export class MotorEventosService {
     })
 
     // RN-071: con el progreso propio ya cacheado, el leaderboard sale del caché.
-    if (viaje.modo === 'competitivo' && viaje.tipo_actividad !== 'moto') {
+    if (viaje.modo === 'competitivo' && !esMotorizado(viaje.tipo_actividad)) {
       void this.emitirLeaderboard(input.viajeId, viaje.velocidad_esperada, ahora)
     }
 
@@ -551,7 +605,8 @@ export class MotorEventosService {
       }
       if (!soloLider) {
         const integrantes = await this.prisma.viajeIntegrante.findMany({
-          where: { viaje_id: viajeId, estado: 'confirmado' },
+          // RN-029b: quien no se sumó al viaje no recibe las alertas en vivo.
+          where: { viaje_id: viajeId, ...WHERE_INTEGRANTE_ACTIVO },
           select: { usuario: { select: { id: true, push_token: true } } },
         })
         for (const i of integrantes) {

@@ -31,6 +31,7 @@ import {
   type GastoApi,
 } from '@/lib/gastosApi'
 import { meshAlert } from '@/lib/meshAlert'
+import { nombreCompleto } from '@/lib/nombres'
 import { formatearEnArg } from '@/lib/tiempoArg'
 import {
   listarParticipantesViaje,
@@ -80,7 +81,7 @@ export default function GastosViajeScreen() {
         .filter((p) => p.estado === 'confirmado')
         .map((p) => ({
           id: p.usuario.id,
-          nombre: [p.usuario.nombre, p.usuario.apellido].filter(Boolean).join(' ').trim(),
+          nombre: nombreCompleto(p.usuario.nombre, p.usuario.apellido),
         })),
     [participantes]
   )

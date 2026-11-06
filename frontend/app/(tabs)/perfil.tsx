@@ -19,11 +19,13 @@ import { obtenerMiRacha, type RachaApi } from '@/lib/rachasApi';
 import { formatKmCompact } from '@/lib/format';
 import { Btn, Field, Chip, ChipRow, Avatar, TopBar, useTheme } from '@/components/MeshUI';
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda';
+import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda'
 import { AYUDA_PERFIL } from '@/components/ayuda/contenidoAyuda';
 import { Feather } from '@expo/vector-icons';
 
 const ACTIVIDADES: { valor: ActividadPreferida; etiqueta: string; icono: keyof typeof Feather.glyphMap }[] = [
   { valor: 'moto', etiqueta: 'Moto', icono: 'compass' },
+  { valor: 'auto', etiqueta: 'Auto', icono: 'navigation' },
   { valor: 'bici', etiqueta: 'Bici', icono: 'git-commit' },
   { valor: 'running', etiqueta: 'Running', icono: 'zap' },
   { valor: 'trekking', etiqueta: 'Trekking', icono: 'map' },
@@ -210,7 +212,7 @@ export default function PerfilScreen() {
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <TopBar title="Perfil" raiz bordered={false} onAyuda={() => start()} />
 
-      <ScrollView
+      <ScrollViewAyuda
         contentContainerStyle={styles.inner}
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
@@ -553,7 +555,7 @@ export default function PerfilScreen() {
         <Text style={[styles.footerText, { color: theme.textMute }]}>
           Mesh · v1.0 — Córdoba, AR
         </Text>
-      </ScrollView>
+      </ScrollViewAyuda>
     </View>
   );
 }

@@ -14,7 +14,7 @@ import { auth } from '@/lib/firebase';
 import { syncUsuario, obtenerMiPerfil, type UsuarioPerfilResponse } from '@/lib/usuariosApi';
 import { API_BASE_URL } from '@/constants/Config';
 import { MeshApiError } from '@/lib/apiClient';
-export type ActividadPreferida = 'moto' | 'bici' | 'running' | 'trekking' | 'otro' | '';
+export type ActividadPreferida = 'moto' | 'auto' | 'bici' | 'running' | 'trekking' | 'otro' | '';
 
 export interface ProfileData {
   nombre: string;

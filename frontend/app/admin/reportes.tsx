@@ -78,6 +78,7 @@ const PRESETS: { clave: Preset; label: string }[] = [
 
 const ACTIVIDADES: { clave: Actividad; label: string }[] = [
   { clave: 'moto', label: 'Moto' },
+  { clave: 'auto', label: 'Auto' },
   { clave: 'bici', label: 'Bici' },
   { clave: 'running', label: 'Running' },
   { clave: 'trekking', label: 'Trekking' },

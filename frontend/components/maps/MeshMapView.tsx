@@ -40,6 +40,15 @@ export type MarkerSpec = {
   contentKey: string
   /** Punto de anclaje como fracción del tamaño (default: centro). */
   anchor?: { x: number; y: number }
+  /**
+   * Rotación nativa en grados, sentido horario. La aplica el SDK sobre el bitmap
+   * ya dibujado: cambiarla no obliga a redibujar el marcador (barato con 200
+   * integrantes). Con `flat` se mide desde el norte del mapa, así sigue siendo
+   * correcta aunque se gire el mapa.
+   */
+  rotation?: number
+  /** Marcador pegado al plano del mapa (gira y se inclina con él). */
+  flat?: boolean
   zIndex?: number
   popup?: { title: string; description?: string }
 }
@@ -86,6 +95,13 @@ const MS_REDIBUJO_MARCADOR = 600
 const usarGoogleEnIos = Boolean(Constants.expoConfig?.extra?.googleMapsIos)
 const PROVIDER = Platform.OS === 'ios' && !usarGoogleEnIos ? PROVIDER_DEFAULT : PROVIDER_GOOGLE
 
+/**
+ * `rotation`/`flat` de los marcadores solo existen con Google Maps (en iOS con
+ * Apple Maps se ignoran). Sin esto, quien dibuja una flecha tiene que girarla
+ * dentro de su propia vista.
+ */
+export const ROTACION_NATIVA_MARCADORES = PROVIDER === PROVIDER_GOOGLE
+
 /** Aproxima un zoom de Google Maps a partir de un `latitudeDelta`. */
 export function zoomFromLatDelta(latitudeDelta: number): number {
   const z = Math.round(Math.log2(360 / latitudeDelta))
@@ -113,6 +129,8 @@ const MarcadorMapa = memo(function MarcadorMapa({ spec }: { spec: MarkerSpec }) 
     <Marker
       coordinate={{ latitude: spec.lat, longitude: spec.lng }}
       anchor={spec.anchor ?? { x: 0.5, y: 0.5 }}
+      rotation={spec.rotation ?? 0}
+      flat={spec.flat ?? false}
       zIndex={spec.zIndex ?? 0}
       tracksViewChanges={redibujar}
       title={spec.popup?.title}

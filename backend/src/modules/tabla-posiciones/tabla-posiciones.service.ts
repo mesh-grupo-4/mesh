@@ -1,4 +1,5 @@
 import type { PrismaClient, TipoActividad } from '@prisma/client'
+import { nombreVisible } from '../../lib/nombres'
 import { diaArg, inicioDiaArg, inicioBalde } from '../reportes/reportes.periodo'
 import type {
   OrdenRanking,
@@ -7,7 +8,7 @@ import type {
 } from './tabla-posiciones.schemas'
 
 function nombreDe(u: { nombre: string; apellido: string | null }): string {
-  return [u.nombre, u.apellido].filter(Boolean).join(' ').trim() || 'Un integrante'
+  return nombreVisible(u.nombre, u.apellido) || 'Un integrante'
 }
 
 /** Inicio (00:00 ART) del período vigente que contiene a `ahora`. */
@@ -31,7 +32,7 @@ const TOP_N = 3
 /**
  * RN-076: tabla de posiciones global por tipo de actividad y período, ordenada
  * por distancia o tiempo en movimiento — nunca por velocidad (RN-070). La
- * modalidad moto queda afuera por completo: `tipoActividad` solo acepta
+ * modalidades motorizadas (moto y auto) quedan afuera por completo: `tipoActividad` solo acepta
  * bici/running/trekking/otro (ver `tabla-posiciones.schemas.ts`).
  */
 export class TablaPosicionesService {

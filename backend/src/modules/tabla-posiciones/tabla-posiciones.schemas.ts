@@ -1,8 +1,8 @@
 import { z } from 'zod'
 
 /**
- * RN-070 / RN-021: la tabla de posiciones global nunca incluye moto (único
- * excluido); bici, running, trekking y otro sí tienen tabla.
+ * RN-070 / RN-021: la tabla de posiciones global nunca incluye vehículos motorizados
+ * (moto y auto); bici, running, trekking y otro sí tienen tabla.
  */
 export const tipoActividadRankingSchema = z.enum(['bici', 'running', 'trekking', 'otro'])
 

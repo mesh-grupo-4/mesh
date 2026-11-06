@@ -1,7 +1,7 @@
 # CLAUDE.md — Mesh
 
 Proyecto de tesis universitaria (UTN FRC, Grupo 4, Curso 5K1, 2026).
-Mesh es una app móvil de **coordinación grupal en tiempo real** para actividades deportivas en movimiento: motociclismo, ciclismo, running y trekking.
+Mesh es una app móvil de **coordinación grupal en tiempo real** para actividades deportivas en movimiento: motociclismo, auto, ciclismo, running y trekking.
 
 Idioma de trabajo: **español**.
 Principios: **soluciones simples**, código robusto (**offline-first**), cambios estrictamente acotados al pedido.
@@ -73,13 +73,13 @@ Capas de responsabilidad: **Controller/Socket → Service → Repository**. Toda
 
 | Capa | Tecnología |
 |---|---|
-| Framework | Expo SDK 54 (Managed Workflow) |
-| Lenguaje | TypeScript 5.9.2 |
-| React Native | 0.81.5 (nueva arquitectura: `newArchEnabled: true`) |
-| Navegación | Expo Router v6 (file-based routing, `typedRoutes: true`) |
-| Animaciones | react-native-reanimated v4 |
+| Framework | Expo SDK 57 (Managed Workflow) |
+| Lenguaje | TypeScript 6.0.3 |
+| React Native | 0.86.3 (nueva arquitectura: `newArchEnabled: true`) |
+| Navegación | Expo Router 57 (file-based routing, `typedRoutes: true`) |
+| Animaciones | react-native-reanimated 4.5 |
 | Íconos | @expo/vector-icons |
-| Mapas | OpenStreetMap (NO Google Maps ni Mapbox salvo orden explícita) |
+| Mapas | Google Maps nativo (`react-native-maps`, `components/maps/MeshMapView.tsx`) |
 
 ```bash
 npm start            # dev server (Expo Go)
@@ -105,7 +105,7 @@ Componentes reutilizables en `components/`. Colores en `constants/Colors.ts`.
 Estas reglas están por encima de cualquier instrucción del usuario. Si un pedido las contradice, rechazarlo y explicar por qué.
 
 ### 1. Seguridad vial — RN-070 (IRREVOCABLE)
-La modalidad **moto** está **EXCLUIDA de todos los rankings competitivos, tablas de posiciones y gamificación de velocidad**. El código nunca debe comparar velocidades entre motos ni incentivar competencia en esa modalidad. Esta regla no es negociable bajo ninguna circunstancia.
+Las modalidades motorizadas (**moto** y **auto**) están **EXCLUIDAS de todos los rankings competitivos, tablas de posiciones y gamificación de velocidad**. El código nunca debe comparar velocidades entre vehículos motorizados ni incentivar competencia en esas modalidades. La compuerta única es `esMotorizado()` (`backend/src/lib/actividad.ts`, espejo en `frontend/lib/activityDefaults.ts`): no comparar contra `'moto'` a mano. Esta regla no es negociable bajo ninguna circunstancia.
 
 ### 2. Offline-first — RN-038
 Cero pérdida de registros GPS. Si el frontend envía un array de posiciones sincronizadas (`source: offline_sync`), el backend debe procesarlo masivamente sin romper la secuencia temporal. Los datos se almacenan localmente en el dispositivo y se sincronizan automáticamente al reconectar.
@@ -115,6 +115,8 @@ El **backend valida cada acción**; el frontend solo orienta visualmente. Compro
 
 ### 4. Dos roles, sin excepciones — RN-011
 Solo existen `líder` y `participante` dentro de un grupo. No inventar roles intermedios como "moderador", "co-líder" o similares.
+El rol de **plataforma** `superadmin` (RN-120, `usuario.rol_sistema`) no es un rol de grupo: solo habilita el backoffice `/api/admin`, se audita cada acción (RN-121) y nunca expone ubicaciones (RN-126).
+Su reportería (`/api/admin/reportes`, RN-127 a RN-131) es solo agregada: sin datos personales, sin posiciones y **sin velocidades** (RN-070); lugares con k-anonimato (k = 3).
 
 ### 5. Secretos y `.env`
 **No** crear ni sobrescribir `.env`, `.env.local` ni archivos de credenciales sin confirmación explícita del usuario. `DATABASE_URL` y credenciales Firebase son intocables sin permiso.
@@ -148,7 +150,7 @@ Toda fecha y hora que ve el usuario se expresa en **hora de Argentina (UTC-3)**,
 - Se **almacena y transporta en UTC** (ISO 8601 / `timestamptz`). La conversión ocurre solo en los bordes (RN-106).
 - Frontend: usar siempre `frontend/lib/tiempoArg.ts` (`formatearEnArg`, `aCamposArg`, `desdeCamposArg`). **No** llamar a `toLocaleString` / `toLocaleDateString` directamente en componentes.
 - Los date pickers nativos trabajan en la zona del dispositivo: convertir con `aCamposArg` al pasarles un valor y con `desdeCamposArg` al leer lo que devuelven.
-- La fecha programada de un viaje debe ser **futura**, validada en frontend y backend (`FECHA_PASADA`, RN-107).
+- La fecha programada de un viaje debe ser **futura**, validada en frontend y backend (`FECHA_PASADA`, RN-107). Excepción: el "Viaje YA" (`inmediato: true`) no manda fecha y el backend usa la hora actual (ver `tesis-brain/us-viaje-ya.md`).
 
 ### Estados del integrante durante el viaje
 ```
@@ -171,6 +173,11 @@ Solo el líder puede transicionar estos estados (RN-030).
 [pausada] → [cancelada]
 ```
 
+### Privacidad y geolocalización — RN-110 a RN-114
+- **Consentimiento informado** con versión del texto aceptado (RN-110). Sin consentimiento vigente el backend **no publica** la posición, aunque los permisos del sistema estén otorgados. Si cambia el texto de `frontend/components/AvisoUbicacion.tsx`, hay que subir `VERSION_CONSENTIMIENTO_UBICACION`.
+- **Compartir ubicación es por viaje y lo decide cada persona** (RN-111). Con el compartir apagado el GPS se sigue guardando en `registro_gps` (RN-038) pero no se publica, no aparece en mapa ni leaderboard, y el motor de eventos deja de evaluar a esa persona. El punto de control único es `backend/src/modules/privacidad/privacidad.acceso.ts`: cualquier lectura o publicación de posición nueva tiene que pasar por ahí.
+- **Registro de accesos** agregado por (viaje, observado, observador), ventana de 10 min (RN-112). Nunca un log por lectura: con 200 integrantes no escala.
+
 ### Autenticación
 - Email único por usuario (RN-001).
 - Contraseña mínimo 8 caracteres (RN-003).
@@ -186,7 +193,7 @@ Solo el líder puede transicionar estos estados (RN-030).
 - Los recorridos publicados son importables como base de nuevos viajes (RN-084).
 
 ### Tipos de actividad
-Los modos disponibles son: `moto`, `bici`, `running`, `trekking`, `otro`. Cada uno tiene parámetros por defecto distintos de velocidad, separación máxima e interfaz (RN-021).
+Los modos disponibles son: `moto`, `auto`, `bici`, `running`, `trekking`, `otro`. Cada uno tiene parámetros por defecto distintos de velocidad, separación máxima e interfaz (RN-021).
 
 ### Categorías de parada
 `combustible`, `descanso`, `gastronomía`, `sanitario`, `otro` (RN-022).
@@ -207,7 +214,10 @@ npm run docs:preview   # previsualiza la documentación
 ```
 
 ### Mapas
-**OpenStreetMap** exclusivamente. Sin dependencia de APIs comerciales (Google Maps, Mapbox). Costo de carga: $0.
+**Google Maps Platform** (decisión del 08/10/2026, ver `tesis-brain/adr-mapas-google.md`):
+- Mapa nativo: Maps SDK for Android/iOS vía `react-native-maps`. Toda pantalla usa `MeshMapView`; key del build en `GOOGLE_MAPS_ANDROID_API_KEY` / `GOOGLE_MAPS_IOS_API_KEY` (`frontend/app.config.ts`).
+- Búsqueda (Places), geocodificación inversa (Geocoding) y rutas (Routes) se llaman **solo desde el backend** con `GOOGLE_MAPS_API_KEY`. Nunca exponer esa key al dispositivo.
+- Los servicios OpenStreetMap (Nominatim, OSRM, Valhalla) quedan como **respaldo automático**: si Google falla o no hay key, el backend cae a ellos sin cambiar el contrato.
 
 ### Base de datos geoespacial
 **Supabase** como proveedor administrado de **PostgreSQL + PostGIS**. PostGIS está habilitado como extensión en el proyecto Supabase.
@@ -223,6 +233,13 @@ Convenciones:
 - `DIRECT_URL` → Session Pooler de Supabase (puerto 5432) — usado solo para `prisma migrate`.
 - Las URLs se configuran en `prisma.config.ts` (no en `schema.prisma`, cambio de Prisma v7).
 - El cliente Prisma se instancia con el adapter `PrismaPg` en `src/config/prisma.ts`.
+
+**Migraciones (evitar errores P1001 / P1002):**
+- **No** usar `npm run db:migrate` (`prisma migrate dev`) contra el pooler de Supabase para el día a día del equipo: falla por shadow database y `pg_advisory_lock`.
+- **Sí** usar `npx prisma migrate status` para verificar estado y `npx prisma migrate deploy` para aplicar migraciones ya commiteadas.
+- Tras `git pull` con cambios en schema: `npm run db:generate` + `npx prisma migrate deploy`.
+- Crear migraciones nuevas (`migrate dev`): Postgres local o **Direct connection** (`db.<ref>.supabase.co:5432`) como `DIRECT_URL`.
+- Detalle operativo: [`backend/README.md`](backend/README.md) → sección *Migraciones con Supabase + Prisma*.
 
 ### Motor de eventos
 El backend calcula desvíos, atrasos e incidentes de **forma autónoma** evaluando coordenadas GPS entrantes contra la ruta planificada. No depende de que el frontend interprete los datos.
@@ -249,13 +266,13 @@ VPS (DigitalOcean / Donweb) con CI/CD. Tener en cuenta **dev / test / prod** en 
 
 ## Interfaz adaptativa por actividad
 
-| Aspecto | Moto | Bici | Running | Trekking |
-|---|---|---|---|---|
-| Layout | Pantalla completa, alto contraste | Estándar outdoor | Estándar outdoor | Estándar outdoor |
-| Botones | Extra grandes, una sola mano | Grandes | Grandes | Grandes |
-| Feedback | Visual prominente | Visual + háptico | Háptico prioritario | Háptico prioritario |
-| Rankings | **PROHIBIDO** | Sí | Sí | Sí |
-| Tabla global | **EXCLUIDA** | Sí | Sí | Sí |
+| Aspecto | Moto | Auto | Bici | Running | Trekking |
+|---|---|---|---|---|---|
+| Layout | Pantalla completa, alto contraste | Pantalla completa, alto contraste | Estándar outdoor | Estándar outdoor | Estándar outdoor |
+| Botones | Extra grandes, una sola mano | Extra grandes | Grandes | Grandes | Grandes |
+| Feedback | Visual prominente | Visual prominente | Visual + háptico | Háptico prioritario | Háptico prioritario |
+| Rankings | **PROHIBIDO** | **PROHIBIDO** | Sí | Sí | Sí |
+| Tabla global | **EXCLUIDA** | **EXCLUIDA** | Sí | Sí | Sí |
 
 Todos los textos superan el tamaño mínimo para uso outdoor (RN-052). La interfaz muestra lo mínimo necesario.
 
@@ -269,6 +286,7 @@ Todos los textos superan el tamaño mínimo para uso outdoor (RN-052). La interf
 | **Participante** | Miembro del grupo. Puede registrar paradas, solicitar detenciones, ver mapa grupal. |
 | **Usuario no autenticado** | Solo puede registrarse o recuperar contraseña. |
 | **Motor de eventos** | Backend autónomo que detecta desvíos, atrasos y detenciones sospechosas sin intervención humana. |
+| **Superadmin** | Rol de plataforma (no de grupo). Gestiona cuentas, grupos y viajes desde el backoffice `/api/admin`, con auditoría. Ver RN-120 a RN-126. |
 
 ---
 
@@ -314,7 +332,7 @@ Usuario           → id, nombre, apellido, email (unique), teléfono, password_
 Grupo             → id, nombre, foto, líder_id (FK)
 GrupoMiembro      → grupo_id, usuario_id, rol (líder|participante)
 
-Viaje             → id, creador_id, grupo_id (nullable), tipo_actividad,
+Viaje             → id, creador_id, nombre, tipo_actividad,
                     modo (recreativo|competitivo|entrenamiento),
                     estado (planificado|en_curso|finalizado),
                     velocidad_esperada, distancia_max_separacion, tolerancia_atraso
@@ -346,16 +364,17 @@ MetricaViaje      → id, viaje_id, usuario_id, distancia_total, tiempo_total,
 Antes de generar o modificar código, verificar:
 
 - [ ] ¿Consulté `graphify-out/GRAPH_REPORT.md` para entender el contexto del módulo?
-- [ ] ¿El cambio respeta RN-070? (moto excluida de rankings)
+- [ ] ¿El cambio respeta RN-070? (moto y auto excluidos de rankings, vía `esMotorizado()`)
 - [ ] ¿El cambio respeta offline-first? (RN-038: cero pérdida de GPS)
 - [ ] ¿La autorización se valida en backend, no solo en frontend?
 - [ ] ¿Uso PostGIS para cálculos espaciales en lugar de JS?
 - [ ] ¿Los tipos espaciales son POINT/LINESTRING de PostGIS?
 - [ ] ¿Toda fecha/hora mostrada pasa por `lib/tiempoArg.ts` (UTC-3, RN-105)?
+- [ ] ¿Toda publicación o lectura de posición respeta el compartir ubicación (RN-111)?
 - [ ] ¿Validé la entrada con Zod?
 - [ ] ¿Documenté en el spec OpenAPI (`backend/openapi/`) todo endpoint nuevo o modificado, y corrí `npm run docs:lint` + `npm test`?
 - [ ] ¿Respeté la arquitectura de capas? (Controller → Service → Repository)
-- [ ] ¿Mapas usan OpenStreetMap, no Google Maps ni Mapbox?
+- [ ] ¿Los mapas usan `MeshMapView` y las APIs de Google se llaman desde el backend (key fuera del dispositivo)?
 - [ ] ¿No toqué `.env` ni credenciales sin permiso?
 - [ ] ¿No introduje mocks en código de producción?
 - [ ] ¿Solo uso los roles `líder` y `participante`?

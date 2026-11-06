@@ -1,6 +1,6 @@
 import { apiUrl, meshFetchAuthed, parseJson } from './apiClient'
 
-/** RN-070 / RN-021: la tabla de posiciones global nunca incluye moto (único excluido). */
+/** RN-070 / RN-021: la tabla de posiciones global nunca incluye vehículos motorizados (moto, auto). */
 export type TipoActividadRankingApi = 'bici' | 'running' | 'trekking' | 'otro'
 export type PeriodoRankingApi = 'semanal' | 'mensual' | 'anual'
 export type OrdenRankingApi = 'distancia' | 'tiempo'

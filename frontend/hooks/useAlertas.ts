@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DeviceEventEmitter } from 'react-native'
 
+import { marcarAlertasVistas, useAlertasVistas } from '@/lib/alertasVistasStore'
 import { connectMeshSocket, onMeshSocketConnect } from '@/lib/meshSocket'
 import { meshWarning } from '@/lib/meshAlert'
 import { calcularGuiaHastaDestino } from '@/lib/osrmGuia'
@@ -80,6 +81,24 @@ export function useAlertas({
   myPositionRef.current = myPosition
 
   const alertaEntrante = alertasEntrantes[0] ?? null
+
+  // Contador de la campanita: alertas de otros (o del sistema) que todavía no se vieron.
+  const vistasPersistidas = useAlertasVistas(viajeId)
+  const noVistas = useMemo(
+    () =>
+      alertas.filter(
+        (a) => !vistasPersistidas.has(a.id) && !(userId != null && a.creada_por_id === userId)
+      ).length,
+    [alertas, vistasPersistidas, userId]
+  )
+
+  /** Se llama desde el historial: todo lo que está en la lista ya se vio. */
+  const marcarTodasVistas = useCallback(() => {
+    marcarAlertasVistas(
+      viajeId,
+      alertas.map((a) => a.id)
+    )
+  }, [viajeId, alertas])
 
   const refrescar = useCallback(async () => {
     if (!viajeId || !habilitado) return
@@ -185,6 +204,7 @@ export function useAlertas({
         const alerta = await crearAlerta(viajeId, input)
         setAlertas((prev) => agregarSinDuplicar(prev, alerta))
         vistasRef.current.add(alerta.id)
+        marcarAlertasVistas(viajeId, [alerta.id])
         return alerta
       } finally {
         setEnviando(false)
@@ -203,9 +223,11 @@ export function useAlertas({
     [viajeId]
   )
 
+  // Descartar el banner cuenta como haberla visto: baja de la campanita.
   const ignorarAlertaEntrante = useCallback(() => {
+    if (alertaEntrante) marcarAlertasVistas(viajeId, [alertaEntrante.id])
     setAlertasEntrantes((prev) => prev.slice(1))
-  }, [])
+  }, [viajeId, alertaEntrante])
 
   const activarSeguirAlerta = useCallback(async () => {
     const entrante = alertasEntrantes[0]
@@ -229,12 +251,13 @@ export function useAlertas({
         polyline,
       }
       setSeguirAlerta(activa)
+      marcarAlertasVistas(viajeId, [entrante.id])
       setAlertasEntrantes((prev) => prev.filter((a) => a.id !== entrante.id))
       return activa
     } finally {
       setCalculandoSeguir(false)
     }
-  }, [alertasEntrantes, tipoActividad])
+  }, [alertasEntrantes, tipoActividad, viajeId])
 
   const dejarDeSeguirAlerta = useCallback(() => {
     setSeguirAlerta(null)
@@ -242,6 +265,8 @@ export function useAlertas({
 
   return {
     alertas,
+    noVistas,
+    marcarTodasVistas,
     alertaEntrante,
     alertasEntrantes,
     seguirAlerta,

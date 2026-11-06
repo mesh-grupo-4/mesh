@@ -23,7 +23,7 @@ ChecklistColeccion:
       Devuelve el checklist del consultante, sincronizado antes de responder:
 
       * La primera vez siembra los ítems que el sistema sugiere para el
-        `tipo_actividad` del viaje (moto, bici, running, trekking, otro).
+        `tipo_actividad` del viaje (moto, auto, bici, running, trekking, otro).
       * En cada llamada agrega los ítems base que el creador haya sumado desde la
         última consulta, así quien se une tarde al viaje también los recibe.
 

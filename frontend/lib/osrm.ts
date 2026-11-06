@@ -10,9 +10,13 @@ export type MobilityProfile = 'walking' | 'cycling' | 'driving'
  * demos públicos de OSRM/Valhalla. El backend prueba Google, después OSRM y
  * después Valhalla antes de devolver el error; acá solo hay un salto de red
  * hacia nuestro propio server.
+ *
+ * Estos valores tienen que superar siempre el peor caso del backend, en el que
+ * los tres proveedores agotan su timeout (`routing.service.ts`): 3 × (8 s + 60 ms
+ * por km), hasta 60 s. Si no, la app corta antes de que responda el último.
  */
-const TIMEOUT_BASE_MS = 15000
-const TIMEOUT_MAX_MS = 50000
+const TIMEOUT_BASE_MS = 30000
+const TIMEOUT_MAX_MS = 65000
 const TIMEOUT_MS_POR_KM = 200
 
 function distanciaHaversineKm(
@@ -28,8 +32,6 @@ function distanciaHaversineKm(
   return 2 * R * Math.asin(Math.sqrt(a))
 }
 
-/** El backend puede tardar hasta ~40s probando dos proveedores en rutas largas:
- * el timeout del lado del cliente tiene que darle margen de sobra a eso. */
 function timeoutParaRuta(pointsLngLat: [number, number][]): number {
   const km = distanciaHaversineKm(pointsLngLat[0]!, pointsLngLat[pointsLngLat.length - 1]!)
   return Math.min(TIMEOUT_MAX_MS, TIMEOUT_BASE_MS + km * TIMEOUT_MS_POR_KM)
@@ -127,7 +129,7 @@ export async function calcularRutaOsrm(
 
   // Mismo patrón de reintento por token vencido que `meshFetchAuthed`, pero con
   // el timeout propio de este endpoint (puede tardar bastante más que el resto
-  // de la API porque el backend intenta dos proveedores externos).
+  // de la API porque el backend intenta hasta tres proveedores externos).
   let res = await intentar(false)
   if (res.status === 401) res = await intentar(true)
 
@@ -156,10 +158,11 @@ export async function calcularRutaOsrm(
 
 /** Mapea tipo de actividad del viaje al perfil OSRM más cercano. */
 export function perfilOsrmDesdeActividad(
-  tipo: 'moto' | 'bici' | 'running' | 'trekking' | 'otro'
+  tipo: 'moto' | 'auto' | 'bici' | 'running' | 'trekking' | 'otro'
 ): MobilityProfile {
   switch (tipo) {
     case 'moto':
+    case 'auto':
       return 'driving'
     case 'bici':
       return 'cycling'

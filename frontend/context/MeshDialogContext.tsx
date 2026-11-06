@@ -29,7 +29,7 @@ export type MeshAlertConfig = {
   buttons?: MeshAlertButton[]
 }
 
-type DialogState = MeshAlertConfig & {
+type DialogState = Omit<MeshAlertConfig, 'buttons'> & {
   visible: boolean
   buttons: MeshDialogButton[]
 }

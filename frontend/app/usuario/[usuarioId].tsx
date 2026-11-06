@@ -13,6 +13,7 @@ import { meshAlert } from '@/lib/meshAlert';
 
 const ETIQUETA_ACTIVIDAD: Record<string, string> = {
   moto: 'Moto',
+  auto: 'Auto',
   bici: 'Bici',
   running: 'Running',
   trekking: 'Trekking',

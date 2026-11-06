@@ -1,6 +1,6 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
 import { useCopilot } from 'react-native-copilot'
 import { Feather } from '@expo/vector-icons'
 
@@ -8,6 +8,7 @@ import { RecorridoMapView } from '@/components/RecorridoMapView'
 import { StatCard, StatCardRow } from '@/components/StatCard'
 import { ActivityTile, Btn, TopBar, useTheme } from '@/components/MeshUI'
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
+import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda'
 import { AYUDA_RECORRIDO_PUBLICADO } from '@/components/ayuda/contenidoAyuda'
 import { useAuth } from '@/context/AuthContext'
 import { formatDurationHm, formatKm } from '@/lib/format'
@@ -24,6 +25,7 @@ import { abrirNuevoViaje } from '@/lib/nuevoViaje'
 
 const NOMBRE_ACTIVIDAD = {
   moto: 'Moto',
+  auto: 'Auto',
   bici: 'Bici',
   running: 'Running',
   trekking: 'Trekking',
@@ -154,7 +156,7 @@ export default function RecorridoPublicadoScreen() {
           </Text>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.inner}>
+        <ScrollViewAyuda contentContainerStyle={styles.inner}>
           <View style={styles.hero}>
             <ActivityTile activity={recorrido.tipo_actividad} size={46} />
             <View style={styles.heroText}>
@@ -280,7 +282,7 @@ export default function RecorridoPublicadoScreen() {
               </Btn>
             </PasoAyuda>
           ) : null}
-        </ScrollView>
+        </ScrollViewAyuda>
       )}
     </View>
   )

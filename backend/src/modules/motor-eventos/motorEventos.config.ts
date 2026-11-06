@@ -20,6 +20,7 @@ const POR_ACTIVIDAD: Record<TipoActividad, UmbralesMotor> = {
   running: { detencionMinutos: 4, radioDetenidoM: 15, toleranciaAtrasoMinutos: 3 },
   bici: { detencionMinutos: 3, radioDetenidoM: 20, toleranciaAtrasoMinutos: 5 },
   moto: { detencionMinutos: 3, radioDetenidoM: 25, toleranciaAtrasoMinutos: 10 },
+  auto: { detencionMinutos: 3, radioDetenidoM: 25, toleranciaAtrasoMinutos: 10 },
   otro: DEFAULTS,
 }
 
@@ -39,6 +40,11 @@ export function minutosIncidenteEfectivo(
 /** Prefijo en `alerta.mensaje` para deduplicar alertas del sistema por integrante. */
 export function prefijoAlertaAfectado(usuarioId: string): string {
   return `[afectado:${usuarioId}]`
+}
+
+/** Inverso de `prefijoAlertaAfectado`: a quién afecta una alerta, o null. */
+export function usuarioAfectadoDesdeMensaje(mensaje: string | null): string | null {
+  return mensaje?.match(/^\[afectado:([0-9a-f-]+)\]/i)?.[1] ?? null
 }
 
 export function mensajeVisible(raw: string): string {

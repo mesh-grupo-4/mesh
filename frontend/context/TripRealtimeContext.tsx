@@ -14,10 +14,15 @@ import { AppState, Platform, Vibration } from 'react-native'
 import { TripStartedModal } from '@/components/TripStartedModal'
 import { useAuth } from '@/context/AuthContext'
 import { connectMeshSocket, joinViajeRoom } from '@/lib/meshSocket'
-import { iniciarTrackingViaje, solicitarPermisosUbicacion } from '@/lib/tracking/trackingControl'
+import {
+  iniciarTrackingViaje,
+  registrarCheckIn,
+  solicitarPermisosUbicacion,
+} from '@/lib/tracking/trackingControl'
 import { subscribeTripChannel, type TripStartedPayload } from '@/lib/tripBroadcast'
 import { isSupabaseConfigured } from '@/lib/supabase'
-import { listarViajesPlanificados, obtenerViajeEnCurso } from '@/lib/viajesApi'
+import { listarViajesPlanificados, obtenerViajeEnCurso, salirViaje } from '@/lib/viajesApi'
+import { meshAlert } from '@/lib/meshAlert'
 
 const WATCH_TRIP_IDS_KEY = 'mesh:watchTripIds'
 const REFRESH_INTERVAL_MS = 45_000
@@ -52,6 +57,7 @@ export function TripRealtimeProvider({ children }: { children: ReactNode }) {
   const { backendUserId, backendSyncing } = useAuth()
   const [pendingTrip, setPendingTrip] = useState<TripStartedPayload | null>(null)
   const [joining, setJoining] = useState(false)
+  const [declining, setDeclining] = useState(false)
   const cleanupsRef = useRef<(() => void)[]>([])
   const shownTripIdsRef = useRef<Set<string>>(new Set())
   const watchIdsRef = useRef<Set<string>>(new Set())
@@ -252,6 +258,9 @@ export function TripRealtimeProvider({ children }: { children: ReactNode }) {
     const { viajeId } = pendingTrip
 
     try {
+      // RN-029b: "Me sumo" va primero (encolado si no hay señal). Sin check-in el
+      // backend rechaza el GPS: así no se trackea a quien confirmó y se quedó en casa.
+      await registrarCheckIn(viajeId, backendUserId)
       const perm = await solicitarPermisosUbicacion()
       if (perm.foreground && Platform.OS !== 'web') {
         await iniciarTrackingViaje(viajeId, backendUserId)
@@ -271,6 +280,26 @@ export function TripRealtimeProvider({ children }: { children: ReactNode }) {
     }
   }, [pendingTrip, backendUserId, router])
 
+  /** RN-029c: confirmó pero no va. El backend lo deja `ausente`: sin GPS ni alertas. */
+  const handleDecline = useCallback(async () => {
+    if (!pendingTrip || !backendUserId) return
+    setDeclining(true)
+    const { viajeId } = pendingTrip
+    try {
+      await salirViaje(viajeId, backendUserId)
+      watchIdsRef.current.delete(viajeId)
+      void persistWatchIds(watchIdsRef.current)
+      setPendingTrip(null)
+    } catch (e) {
+      meshAlert(
+        'No se pudo avisar',
+        e instanceof Error ? e.message : 'Revisá tu conexión e intentá de nuevo.'
+      )
+    } finally {
+      setDeclining(false)
+    }
+  }, [pendingTrip, backendUserId, persistWatchIds])
+
   return (
     <TripRealtimeContext.Provider value={{ pendingTrip, syncKnownTripIds }}>
       {children}
@@ -279,6 +308,8 @@ export function TripRealtimeProvider({ children }: { children: ReactNode }) {
         trip={pendingTrip}
         joining={joining}
         onJoin={() => void handleJoin()}
+        declining={declining}
+        onDecline={() => void handleDecline()}
       />
     </TripRealtimeContext.Provider>
   )

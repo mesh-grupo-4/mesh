@@ -2,7 +2,6 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -14,6 +13,7 @@ import { AvatarFallback } from '@/components/AvatarFallback'
 import { RecorridoMapView } from '@/components/RecorridoMapView'
 import { ActivityTile, Badge, Btn, TopBar, useTheme } from '@/components/MeshUI'
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
+import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda'
 import { AYUDA_VIAJE_RESUMEN } from '@/components/ayuda/contenidoAyuda'
 import { StatCard, StatCardRow } from '@/components/StatCard'
 import { DEV_USER_ID } from '@/constants/Config'
@@ -22,10 +22,12 @@ import {
   formatDurationHm,
   formatHoraCorta,
   formatKm,
+  formatMetros,
   formatPace,
   formatSpeedKmh,
 } from '@/lib/format'
 import { meshError } from '@/lib/meshAlert'
+import { esMotorizado } from '@/lib/activityDefaults'
 import {
   despublicarRecorrido,
   listarMisViajesPublicados,
@@ -178,7 +180,7 @@ export default function ViajeResumenScreen() {
   }
 
   const esGrupal = resumen?.viaje.es_grupal ?? false
-  const esMoto = resumen?.viaje.tipo_actividad === 'moto'
+  const esMoto = esMotorizado(resumen?.viaje.tipo_actividad)
   const totales = resumen?.totales
   const mias = resumen?.mis_metricas
   // Mismas condiciones que valida el backend (RECORRIDO_SIN_TRAZA): métricas propias y
@@ -213,7 +215,7 @@ export default function ViajeResumenScreen() {
           <ActivityIndicator color={theme.accent} size="large" />
         </View>
       ) : (
-        <ScrollView
+        <ScrollViewAyuda
           contentContainerStyle={[
             styles.content,
             { paddingBottom: Math.max(insets.bottom, 16) + 16 },
@@ -344,6 +346,29 @@ export default function ViajeResumenScreen() {
                 </StatCardRow>
               ) : null}
 
+              {/* Altimetría del GPS del celular. Es un dato del terreno, no de
+                  velocidad: se muestra en todas las modalidades (RN-070 no aplica). */}
+              {mias.desnivel_positivo_m != null ? (
+                <StatCardRow>
+                  <StatCard
+                    icon="arrow-up-right"
+                    value={formatMetros(mias.desnivel_positivo_m)}
+                    label="Desnivel +"
+                  />
+                  <StatCard
+                    icon="arrow-down-right"
+                    value={formatMetros(mias.desnivel_negativo_m)}
+                    label="Desnivel −"
+                  />
+                  <StatCard
+                    icon="triangle"
+                    value={formatMetros(mias.altitud_max_m)}
+                    label="Altura máx."
+                    hint="Aproximada, según el GPS"
+                  />
+                </StatCardRow>
+              ) : null}
+
               {mias.sali_antes ? (
                 <Text style={[styles.nota, { color: theme.textDim }]}>
                   Saliste del viaje a las {formatHoraCorta(mias.fecha_salida)}. Estos son tus datos
@@ -440,7 +465,7 @@ export default function ViajeResumenScreen() {
           <Btn variant="primary" block icon="home" onPress={volverAlInicio}>
             Volver al inicio
           </Btn>
-        </ScrollView>
+        </ScrollViewAyuda>
       )}
     </View>
   )

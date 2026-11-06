@@ -9,7 +9,7 @@ import { usePendientesBadge } from '@/lib/pendientesStore';
 
 function TabBarIcon(props: {
   name: React.ComponentProps<typeof FontAwesome>['name'];
-  color: string;
+  color: React.ComponentProps<typeof FontAwesome>['color'];
 }) {
   return <FontAwesome size={24} style={{ marginBottom: -3 }} {...props} />;
 }

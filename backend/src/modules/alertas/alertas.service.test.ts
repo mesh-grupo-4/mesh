@@ -41,7 +41,10 @@ function armarPrisma(
     estado: estadoViaje,
     alertas_solo_lider: alertasSoloLider,
   })
-  const integranteFindUnique = vi.fn().mockResolvedValue({ estado: 'confirmado' })
+  const integranteFindUnique = vi.fn().mockResolvedValue({
+    estado: 'confirmado',
+    check_in_at: new Date('2026-08-21T13:00:00.000Z'),
+  })
   const integranteFindMany = vi.fn().mockResolvedValue([
     { usuario: { id: integranteId, push_token: 'ExponentPushToken[ana]' } },
     { usuario: { id: liderId, push_token: 'ExponentPushToken[juan]' } },
@@ -285,6 +288,61 @@ describe('RN-042 — gestión de estado por el líder', () => {
 
     const args = m.alertaUpdate.mock.calls[0]![0] as { data: { resolved_at: Date | null } }
     expect(args.data.resolved_at).toBeInstanceOf(Date)
+  })
+
+  it('resolver la alerta de un posible incidente cierra el incidente en el mapa', async () => {
+    const m = armarPrisma()
+    m.alertaUpdate.mockResolvedValue({
+      ...alertaCreada,
+      tipo: 'peligro',
+      origen: 'sistema',
+      creada_por_id: null,
+      creada_por: null,
+      mensaje: `[afectado:${integranteId}]Posible incidente — Ana lleva 5 min detenido sin registrar parada`,
+      estado: 'resuelta',
+      resolved_at: new Date(),
+    })
+    const alertaFindManyIncidente = vi.fn().mockResolvedValue([])
+    const alertaUpdateMany = vi.fn()
+    Object.assign(m.prisma.alerta, { findMany: alertaFindManyIncidente, updateMany: alertaUpdateMany })
+    const paradaUpdate = vi.fn().mockResolvedValue({
+      id: 'parada-incidente',
+      usuario_id: integranteId,
+      lat: -31.42,
+      lng: -64.18,
+      inicio: new Date('2026-08-21T14:00:00.000Z'),
+      usuario: { nombre: 'Ana', apellido: 'García' },
+    })
+    Object.assign(m.prisma, {
+      parada: {
+        findFirst: vi.fn().mockResolvedValue({ id: 'parada-incidente' }),
+        update: paradaUpdate,
+      },
+    })
+
+    await new AlertasService(m.prisma).cambiarEstado(liderId, viajeId, alertaId, {
+      estado: 'resuelta',
+    })
+
+    expect(paradaUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'parada-incidente' } })
+    )
+    expect(emit).toHaveBeenCalledWith(
+      'viaje:parada_finalizada',
+      expect.objectContaining({ usuarioId: integranteId, estado: 'en_movimiento' })
+    )
+  })
+
+  it('cerrar una alerta que no es de incidente no toca paradas', async () => {
+    const m = armarPrisma()
+    const paradaFindFirst = vi.fn()
+    Object.assign(m.prisma, { parada: { findFirst: paradaFindFirst } })
+
+    await new AlertasService(m.prisma).cambiarEstado(liderId, viajeId, alertaId, {
+      estado: 'resuelta',
+    })
+
+    expect(paradaFindFirst).not.toHaveBeenCalled()
   })
 
   it('rechaza transiciones inválidas (resuelta → activa)', async () => {

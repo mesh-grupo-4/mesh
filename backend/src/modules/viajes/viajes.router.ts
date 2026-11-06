@@ -62,6 +62,9 @@ viajesRouter.post('/:viajeId/finalizar', requireUser, c.finalizar)
 viajesRouter.post('/:viajeId/salir', requireUser, c.salir)
 // "Borrar para mí": quita un viaje finalizado del historial propio.
 viajesRouter.post('/:viajeId/ocultar', requireUser, c.ocultar)
+// RN-029b / RN-029d: sumarse al viaje en curso y ceder el liderazgo.
+viajesRouter.post('/:viajeId/check-in', requireUser, c.checkIn)
+viajesRouter.post('/:viajeId/liderazgo', requireUser, c.cederLiderazgo)
 
 // Paradas voluntarias y solicitudes de parada (US1–US3, RN-037 / RN-044).
 viajesRouter.get('/:viajeId/paradas/activa', ...paradasHandlers.activa)

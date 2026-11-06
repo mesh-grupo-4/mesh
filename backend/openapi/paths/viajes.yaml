@@ -8,7 +8,7 @@
 #   · assertPuedeVerEnVivo  → creador o integrante CONFIRMADO (ubicaciones vivas, sockets)
 #   · assertPuedeEnviarGps  → los anteriores, y además el viaje debe estar en curso
 #
-# RN-070 (irrevocable): la modalidad `moto` queda excluida de rankings y de la
+# RN-070 (irrevocable): las modalidades `moto` y `auto` quedan excluidas de rankings y de la
 # gamificación de velocidad. Se refleja en `ranking_habilitado` y en las velocidades
 # nulas de las respuestas de métricas.
 
@@ -634,7 +634,7 @@ ResumenViajeRecurso:
       de filas GPS puede tardar— o el viaje es anterior a esta funcionalidad, la consulta
       lo recalcula al vuelo de forma transparente.
 
-      **RN-070:** `ranking_habilitado` es `false` en modalidad `moto`.
+      **RN-070:** `ranking_habilitado` es `false` en modalidades `moto` y `auto`.
     tags:
       - Viajes
     parameters:
@@ -680,7 +680,7 @@ MetricasGrupalesViaje:
       GPS (con los campos en `null`).
 
       **RN-070 (irrevocable):** `ranking_habilitado` es `true` únicamente si el viaje es
-      grupal **y** la actividad no es `moto`. En moto no se calculan puestos ni se
+      grupal **y** la actividad no es motorizada (`moto`, `auto`). En ellas no se calculan puestos ni se
       exponen velocidades: los campos correspondientes llegan en `null`. Es una regla
       de seguridad vial, no una preferencia de producto.
 
@@ -729,7 +729,7 @@ MisMetricasViaje:
       Métricas individuales detalladas más el perfil de velocidad minuto a minuto,
       pensado para graficarlo.
 
-      **RN-070:** en modalidad `moto` las velocidades llegan en `null` y
+      **RN-070:** en modalidades `moto` y `auto` las velocidades llegan en `null` y
       `perfil_velocidad` es un array vacío.
 
       Requiere el viaje finalizado.
@@ -968,7 +968,9 @@ PosicionesViaje:
       Hasta 2000 posiciones por llamada. La última del lote actualiza además la
       ubicación viva del usuario y se emite a la sala del viaje por Socket.io.
 
-      Requiere el viaje **en curso** y ser creador o integrante confirmado.
+      Requiere el viaje **en curso** y ser el líder o un integrante confirmado que
+      **ya se sumó** (`check_in_at`, RN-029b). La cola offline del dispositivo manda el
+      check-in antes que las posiciones, así el lote no se rechaza.
     tags:
       - Viajes
     parameters:
@@ -985,6 +987,10 @@ PosicionesViaje:
               - lat: -31.4201
                 lng: -64.1888
                 precision: 8.4
+                altitud: 452.3
+                precisionAltitud: 6.5
+                velocidadKmh: 21.6
+                rumbo: 87.5
                 timestamp: '2026-09-01T13:05:00.000Z'
               - lat: -31.4215
                 lng: -64.1902
@@ -1002,14 +1008,22 @@ PosicionesViaje:
       '401':
         $ref: '../components/responses.yaml#/Unauthorized'
       '403':
-        description: El usuario no participa del viaje (`FORBIDDEN`).
+        description: |
+          El usuario no participa del viaje (`FORBIDDEN`), o confirmó pero todavía no
+          se sumó al viaje en curso (`NOT_CHECKED_IN`, RN-029b: ver `POST /check-in`).
         content:
           application/json:
             schema:
               $ref: '../components/schemas.yaml#/Error'
-            example:
-              error: Sin acceso a este viaje
-              code: FORBIDDEN
+            examples:
+              sinAcceso:
+                value:
+                  error: Sin acceso a este viaje
+                  code: FORBIDDEN
+              sinCheckIn:
+                value:
+                  error: Tenés que sumarte al viaje antes de compartir tu ubicación
+                  code: NOT_CHECKED_IN
       '404':
         $ref: '../components/responses.yaml#/NotFound'
       '409':
@@ -1074,14 +1088,22 @@ UbicacionVivaViaje:
       '401':
         $ref: '../components/responses.yaml#/Unauthorized'
       '403':
-        description: El usuario no participa del viaje (`FORBIDDEN`).
+        description: |
+          El usuario no participa del viaje (`FORBIDDEN`), o confirmó pero todavía no
+          se sumó al viaje en curso (`NOT_CHECKED_IN`, RN-029b: ver `POST /check-in`).
         content:
           application/json:
             schema:
               $ref: '../components/schemas.yaml#/Error'
-            example:
-              error: Sin acceso a este viaje
-              code: FORBIDDEN
+            examples:
+              sinAcceso:
+                value:
+                  error: Sin acceso a este viaje
+                  code: FORBIDDEN
+              sinCheckIn:
+                value:
+                  error: Tenés que sumarte al viaje antes de compartir tu ubicación
+                  code: NOT_CHECKED_IN
       '404':
         $ref: '../components/responses.yaml#/NotFound'
       '409':
@@ -1354,61 +1376,290 @@ FinalizarViaje:
 SalirViaje:
   post:
     operationId: salirViaje
-    summary: Salir de un viaje grupal
+    summary: Bajarse de un viaje grupal
     description: |
-      Salida blanda: la persona pasa a `salido` y deja de compartir ubicación, pero
-      **conserva su fila**, de modo que sigue figurando en el resumen con lo que recorrió.
+      El estado en que queda la persona depende de cuándo se baja (RN-029c):
 
-      El viaje **no** se cierra para los demás; eso solo lo hace finalizar.
+      | Viaje | Situación | Queda |
+      |---|---|---|
+      | `planificado` | confirmado | `rechazado` (nunca fue, no le figura en el historial) |
+      | `en_curso` | sin check-in ("No voy a ir") | `ausente` |
+      | `en_curso` | con check-in | `salido` (salida blanda: conserva su fila y figura en el resumen) |
 
-      Restricciones:
+      Con el viaje en curso se emite `viaje:participante_salio` (con `estado`) a la sala.
+      Si queda `salido` además se cierran su parada abierta, sus alertas del sistema y
+      su posición viva. El viaje **no** se cierra para los demás.
 
-      - El líder no puede salir, debe finalizar el viaje (`LEADER_CANNOT_LEAVE`).
-      - Un viaje individual no se abandona, se finaliza (`INDIVIDUAL_TRIP`).
-      - Hay que ser integrante `confirmado` (`NOT_PARTICIPANT`).
-
-      Si el viaje está en curso, se emite `viaje:participante_salio` a la sala.
+      **El líder** también puede bajarse (RN-029d), pero antes tiene que ceder el
+      liderazgo enviando `nuevo_lider_id` (igual que en grupos, RN-013). En curso el
+      sucesor tiene que haberse sumado. Si no hay a quién cederlo responde
+      `LEADER_LAST_MEMBER`: hay que eliminar el viaje (planificado) o finalizarlo (en curso).
     tags:
       - Viajes
     parameters:
       - $ref: '../components/parameters.yaml#/ViajeId'
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/SalirViajeRequest'
+          examples:
+            participante:
+              summary: Participante (sin body)
+              value: {}
+            lider:
+              summary: Líder que cede antes de bajarse
+              value:
+                nuevo_lider_id: 44444444-4444-4444-4444-444444444444
     responses:
       '200':
-        description: El usuario salió del viaje.
+        description: La persona se bajó del viaje.
         content:
           application/json:
             schema:
               $ref: '../components/schemas.yaml#/SalidaDeViaje'
-      '401':
-        $ref: '../components/responses.yaml#/Unauthorized'
-      '403':
+            examples:
+              enCurso:
+                value:
+                  viaje_id: 11111111-1111-1111-1111-111111111111
+                  accion: salido
+              noVoy:
+                value:
+                  viaje_id: 11111111-1111-1111-1111-111111111111
+                  accion: ausente
+              antesDelInicio:
+                value:
+                  viaje_id: 11111111-1111-1111-1111-111111111111
+                  accion: rechazado
+      '400':
         description: |
-          El líder intentó salir (`LEADER_CANNOT_LEAVE`) o el usuario no es integrante
-          confirmado (`NOT_PARTICIPANT`).
+          El líder no eligió sucesor (`LEADER_MUST_TRANSFER`), se eligió a sí mismo
+          (`INVALID_LEADER`) o el body es inválido (`VALIDATION_ERROR`).
         content:
           application/json:
             schema:
               $ref: '../components/schemas.yaml#/Error'
             examples:
-              lider:
+              sinSucesor:
                 value:
-                  error: El líder no puede salir del viaje, debe finalizarlo
-                  code: LEADER_CANNOT_LEAVE
+                  error: Elegí a quién cederle el liderazgo antes de salir
+                  code: LEADER_MUST_TRANSFER
+              aSiMismo:
+                value:
+                  error: No podés cederte el liderazgo a vos mismo
+                  code: INVALID_LEADER
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: |
+          El usuario no es integrante confirmado (`NOT_PARTICIPANT`), o es el líder de
+          un viaje ya finalizado (`LEADER_CANNOT_LEAVE`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            examples:
               noConfirmado:
                 value:
                   error: No sos participante confirmado de este viaje
                   code: NOT_PARTICIPANT
+              liderFinalizado:
+                value:
+                  error: El líder no puede salir de un viaje finalizado
+                  code: LEADER_CANNOT_LEAVE
       '404':
-        $ref: '../components/responses.yaml#/NotFound'
-      '409':
-        description: El viaje es individual (`INDIVIDUAL_TRIP`).
+        description: |
+          El viaje no existe (`VIAJE_NOT_FOUND`) o el sucesor no es integrante
+          confirmado (`MEMBER_NOT_FOUND`).
         content:
           application/json:
             schema:
               $ref: '../components/schemas.yaml#/Error'
             example:
-              error: Un viaje individual no se abandona, se finaliza
-              code: INDIVIDUAL_TRIP
+              error: El nuevo líder no es integrante confirmado del viaje
+              code: MEMBER_NOT_FOUND
+      '409':
+        description: |
+          El viaje es individual (`INDIVIDUAL_TRIP`), no hay a quién ceder el liderazgo
+          (`LEADER_LAST_MEMBER`) o el sucesor elegido todavía no se sumó al viaje en
+          curso (`NOT_CHECKED_IN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            examples:
+              individual:
+                value:
+                  error: Un viaje individual no se abandona, se finaliza
+                  code: INDIVIDUAL_TRIP
+              ultimo:
+                value:
+                  error: 'No hay otro integrante sumado al viaje: finalizalo en lugar de salir'
+                  code: LEADER_LAST_MEMBER
+              sucesorSinCheckIn:
+                value:
+                  error: El nuevo líder todavía no se sumó al viaje
+                  code: NOT_CHECKED_IN
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+CheckInViaje:
+  post:
+    operationId: checkInViaje
+    summary: Sumarse al viaje en curso ("Me sumo")
+    description: |
+      RN-029b: `confirmado` solo significa "dije que voy". La presencia real se marca
+      con este check-in. Recién desde acá se acepta el GPS de la persona, la evalúa
+      el motor de eventos y recibe las alertas en vivo; sin check-in el envío de GPS
+      responde `NOT_CHECKED_IN`.
+
+      Es **idempotente**: si ya se había sumado devuelve el check-in original (puede
+      llegar repetido desde la cola offline, que lo manda antes que las posiciones).
+      El líder hace check-in implícito al iniciar.
+
+      Emite `viaje:participante_sumado` a la sala.
+    tags:
+      - Viajes
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/CheckInRequest'
+          example:
+            check_in_at: '2026-08-21T14:05:00.000Z'
+    responses:
+      '200':
+        description: La persona quedó sumada al viaje.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/CheckInViaje'
+            example:
+              viaje_id: 11111111-1111-1111-1111-111111111111
+              check_in_at: '2026-08-21T14:05:00.000Z'
+      '400':
+        description: Body inválido (`VALIDATION_ERROR`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: check_in_at debe ser una fecha válida
+              code: VALIDATION_ERROR
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: |
+          No es integrante confirmado del viaje (`NOT_PARTICIPANT`). Incluye a quien
+          quedó `ausente`, `salido`, `rechazado` o sigue `pendiente`.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: No sos participante confirmado de este viaje
+              code: NOT_PARTICIPANT
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '409':
+        description: El viaje no está en curso (`INVALID_STATE`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: El viaje no está en curso
+              code: INVALID_STATE
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+CederLiderazgoViaje:
+  post:
+    operationId: cederLiderazgoViaje
+    summary: Ceder el liderazgo del viaje
+    description: |
+      RN-029d: el líder le pasa el viaje a otro integrante, antes de iniciarlo (a un
+      `confirmado`) o en curso (a alguien que ya se sumó). El líder anterior sigue en
+      el viaje como participante. No crea roles nuevos (RN-011): solo cambia quién
+      es el líder, y desde ese momento el nuevo líder es quien puede iniciar,
+      finalizar, aprobar paradas, etc. (RN-030).
+
+      Emite `viaje:lider_cambiado` a la sala y notifica por push al nuevo líder.
+    tags:
+      - Viajes
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/CederLiderazgoRequest'
+          example:
+            nuevo_lider_id: 44444444-4444-4444-4444-444444444444
+    responses:
+      '200':
+        description: Liderazgo cedido.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/LiderazgoCedido'
+            example:
+              viaje_id: 11111111-1111-1111-1111-111111111111
+              lider_id: 44444444-4444-4444-4444-444444444444
+      '400':
+        description: |
+          Se eligió a sí mismo (`INVALID_LEADER`) o el body es inválido (`VALIDATION_ERROR`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: No podés cederte el liderazgo a vos mismo
+              code: INVALID_LEADER
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: Solo el líder actual puede ceder el liderazgo (`NOT_CREATOR`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Solo el líder puede ceder el liderazgo
+              code: NOT_CREATOR
+      '404':
+        description: |
+          El viaje no existe (`VIAJE_NOT_FOUND`) o el sucesor no es integrante
+          confirmado (`MEMBER_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: El nuevo líder no es integrante confirmado del viaje
+              code: MEMBER_NOT_FOUND
+      '409':
+        description: |
+          Viaje individual (`INDIVIDUAL_TRIP`), ya finalizado (`INVALID_STATE`) o el
+          sucesor todavía no se sumó al viaje en curso (`NOT_CHECKED_IN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            examples:
+              finalizado:
+                value:
+                  error: El viaje ya finalizó
+                  code: INVALID_STATE
+              sinCheckIn:
+                value:
+                  error: El nuevo líder todavía no se sumó al viaje
+                  code: NOT_CHECKED_IN
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'
 
@@ -1483,7 +1734,7 @@ LeaderboardViaje:
       velocidad esperada del viaje). Sirve para cargar la tabla al entrar; después el
       motor de eventos la re-emite por Socket.io (`viaje:leaderboard`) con cada ping,
       como máximo cada 3 s por viaje. Solo con `modo: competitivo`, viaje en curso y
-      nunca en moto (RN-070).
+      nunca en moto ni auto (RN-070).
     tags:
       - Viajes
     parameters:
@@ -1531,7 +1782,7 @@ LeaderboardViaje:
       '404':
         $ref: '../components/responses.yaml#/NotFound'
       '409':
-        description: No es competitivo o es moto (`MODO_INVALIDO`), o no está en curso (`INVALID_STATE`).
+        description: No es competitivo o es moto/auto (`MODO_INVALIDO`), o no está en curso (`INVALID_STATE`).
         content:
           application/json:
             schema:

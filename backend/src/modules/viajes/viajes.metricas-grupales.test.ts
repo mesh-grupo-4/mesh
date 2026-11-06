@@ -151,8 +151,8 @@ describe('ViajesService.obtenerMetricasGrupales', () => {
     expect(r.por_integrante.find((p) => p.usuario_id === sinGpsId)?.distancia_m).toBeNull()
   })
 
-  it('RN-070: moto sin puestos ni velocidades', async () => {
-    const { prisma } = armarPrisma({ tipoActividad: 'moto' })
+  it.each(['moto', 'auto'] as const)('RN-070: %s sin puestos ni velocidades', async (tipoActividad) => {
+    const { prisma } = armarPrisma({ tipoActividad })
     const service = new ViajesService(prisma)
 
     const r = await service.obtenerMetricasGrupales(usuarioId, viajeId)

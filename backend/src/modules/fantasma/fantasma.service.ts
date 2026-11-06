@@ -1,7 +1,9 @@
 import type { PrismaClient } from '@prisma/client'
+import { nombreVisible } from '../../lib/nombres'
 import { distanciaMetros } from '../../lib/geo2d'
 import type { GeoJsonLineString } from '../../lib/geo'
 import { HttpError } from '../../lib/httpError'
+import { ACTIVIDADES_MOTORIZADAS, esMotorizado } from '../../lib/actividad'
 import { computeTrazaFantasma, type PuntoFantasma } from '../../lib/postgis'
 import type { FantasmaQuery } from '../viajes/viajes.schemas'
 
@@ -39,7 +41,7 @@ export type Fantasma = {
 }
 
 function nombreDe(u: { nombre: string; apellido: string | null }): string {
-  return [u.nombre, u.apellido].filter(Boolean).join(' ').trim() || 'Integrante'
+  return nombreVisible(u.nombre, u.apellido) || 'Integrante'
 }
 
 /**
@@ -51,7 +53,7 @@ function nombreDe(u: { nombre: string; apellido: string | null }): string {
 export class FantasmaService {
   constructor(private readonly prisma: PrismaClient) {}
 
-  /** RN-070 / RN-072: sin fantasma en moto ni en modo recreativo. */
+  /** RN-070 / RN-072: sin fantasma en vehículos motorizados ni en modo recreativo. */
   private async assertViajeAdmiteFantasma(viajeId: string, usuarioId: string) {
     const viaje = await this.prisma.viaje.findUnique({
       where: { id: viajeId },
@@ -66,8 +68,8 @@ export class FantasmaService {
     const participa =
       viaje.creador_id === usuarioId || viaje.integrantes.some((i) => i.estado !== 'rechazado')
     if (!participa) throw new HttpError(403, 'Sin acceso a este viaje', 'FORBIDDEN')
-    if (viaje.tipo_actividad === 'moto') {
-      throw new HttpError(409, 'La modalidad moto no admite fantasma (RN-070)', 'FANTASMA_NO_DISPONIBLE')
+    if (esMotorizado(viaje.tipo_actividad)) {
+      throw new HttpError(409, 'Las modalidades motorizadas (moto, auto) no admiten fantasma (RN-070)', 'FANTASMA_NO_DISPONIBLE')
     }
     if (viaje.modo === 'recreativo') {
       throw new HttpError(
@@ -90,7 +92,7 @@ export class FantasmaService {
           viaje_id: { not: viajeId },
           viaje: {
             estado: 'finalizado',
-            tipo_actividad: { not: 'moto' },
+            tipo_actividad: { notIn: [...ACTIVIDADES_MOTORIZADAS] },
             OR: [
               { creador_id: usuarioId },
               { integrantes: { some: { usuario_id: usuarioId, estado: { in: ['confirmado', 'salido'] } } } },
@@ -110,7 +112,7 @@ export class FantasmaService {
         take: 60,
       }),
       this.prisma.rutaPlantilla.findMany({
-        where: { usuario_id: usuarioId, tipo_actividad: { not: 'moto' }, tiempo_estimado_seg: { gt: 0 } },
+        where: { usuario_id: usuarioId, tipo_actividad: { notIn: [...ACTIVIDADES_MOTORIZADAS] }, tiempo_estimado_seg: { gt: 0 } },
         select: {
           id: true,
           nombre: true,
@@ -186,8 +188,8 @@ export class FantasmaService {
     if (viaje.estado !== 'finalizado') {
       throw new HttpError(409, 'El viaje de referencia todavía no finalizó', 'TRIP_NOT_FINISHED')
     }
-    if (viaje.tipo_actividad === 'moto') {
-      throw new HttpError(409, 'La modalidad moto no admite fantasma (RN-070)', 'FANTASMA_NO_DISPONIBLE')
+    if (esMotorizado(viaje.tipo_actividad)) {
+      throw new HttpError(409, 'Las modalidades motorizadas (moto, auto) no admiten fantasma (RN-070)', 'FANTASMA_NO_DISPONIBLE')
     }
 
     const [puntos, autor] = await Promise.all([
@@ -229,8 +231,8 @@ export class FantasmaService {
     if (!plantilla || plantilla.usuario_id !== usuarioId) {
       throw new HttpError(404, 'Plantilla no encontrada', 'PLANTILLA_NOT_FOUND')
     }
-    if (plantilla.tipo_actividad === 'moto') {
-      throw new HttpError(409, 'La modalidad moto no admite fantasma (RN-070)', 'FANTASMA_NO_DISPONIBLE')
+    if (esMotorizado(plantilla.tipo_actividad)) {
+      throw new HttpError(409, 'Las modalidades motorizadas (moto, auto) no admiten fantasma (RN-070)', 'FANTASMA_NO_DISPONIBLE')
     }
     const coords = ((plantilla.linestring_geojson as unknown as GeoJsonLineString)?.coordinates ??
       []) as [number, number][]

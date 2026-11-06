@@ -10,6 +10,14 @@ describe('parametrosPorActividad', () => {
     })
   })
 
+  it('asigna defaults de auto (RN-021)', () => {
+    expect(parametrosPorActividad('auto')).toEqual({
+      velocidadEsperada: 100,
+      distanciaMaxSeparacion: 1000,
+      toleranciaAtrasoMin: 10,
+    })
+  })
+
   it('asigna defaults de bici', () => {
     expect(parametrosPorActividad('bici')).toEqual({
       velocidadEsperada: 35,

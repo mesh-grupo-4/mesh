@@ -25,6 +25,7 @@ function telefonoArgentinoValido(tel: string): boolean {
 
 const ACTIVIDADES: { id: ActividadPreferida; label: string }[] = [
   { id: 'moto', label: 'Motociclismo' },
+  { id: 'auto', label: 'Auto' },
   { id: 'bici', label: 'Ciclismo' },
   { id: 'running', label: 'Running' },
   { id: 'trekking', label: 'Trekking' },

@@ -105,13 +105,26 @@ Publica una posición GPS por el canal de tiempo real. Es la alternativa de baja
   "lat": -31.4201,
   "lng": -64.1888,
   "accuracy": 8.4,                              // opcional
+  "altitud": 452.3,                             // opcional, metros
+  "precisionAltitud": 6.5,                      // opcional, precisión vertical en metros
+  "velocidadKmh": 21.6,                         // opcional, velocidad del chip GPS
+  "rumbo": 87.5,                                // opcional, grados (0 = norte)
   "recordedAt": "2026-09-01T13:05:00.000Z",     // ISO 8601 en UTC
   "source": "live"                              // opcional, por defecto "live"
 }
 ```
 
+`altitud`, `precisionAltitud`, `velocidadKmh` y `rumbo` son los mismos campos extra que aceptan
+`PUT /ubicacion-viva` y `POST /posiciones` (ver spec OpenAPI). Se guardan en `registro_gps`
+y alimentan la altimetría y la velocidad máxima del resumen. De los cuatro, solo `rumbo` se
+retransmite a la sala (en `viaje:ubicacion`); altitud y velocidad nunca (RN-070).
+Un valor fuera de rango se guarda como `null` sin rechazar el ping (RN-038).
+
 Autorizado por `assertPuedeEnviarGps`: exige que el viaje esté **en curso** y que el usuario
-sea creador o integrante confirmado.
+sea el líder o un integrante confirmado que **ya se sumó** al viaje (`check_in_at`,
+RN-029b, `POST /api/viajes/{viajeId}/check-in`). Quien confirmó pero no se sumó recibe
+`{ "ok": false, "error": "Tenés que sumarte al viaje antes de compartir tu ubicación" }`
+(código `NOT_CHECKED_IN` en REST): así no se trackea ni dispara alertas a quien se quedó en casa.
 
 A diferencia de los otros dos eventos, el `error` del ack trae el **mensaje** del `HttpError`,
 no su código:
@@ -146,6 +159,11 @@ Emitido por `ViajesService.iniciar()` cuando el creador arranca el viaje.
 ```
 
 A partir de este evento el viaje acepta GPS, y el QR de invitación queda caduco (RN-015).
+El líder queda sumado (check-in implícito); el resto de los confirmados tiene que tocar
+"Me sumo" (o "No voy a ir") antes de que su app empiece a mandar GPS (RN-029b).
+
+Para recibir este evento la sala admite a cualquier `confirmado`, se haya sumado o no:
+la restricción de check-in aplica solo al envío de GPS, no a ver el mapa.
 
 ### `viaje:finalizado`
 
@@ -162,7 +180,8 @@ mismo en ambos casos.
 ```
 
 Se emite **antes** de calcular el resumen: el cierre del viaje no espera al agregado de
-métricas. Los integrantes confirmados reciben además una notificación push.
+métricas. Los integrantes confirmados reciben además una notificación push. Quien estaba
+`confirmado` pero nunca se sumó pasa a `ausente` antes de armar el resumen (RN-029c).
 
 Tras emitirlo, el backend cierra todo lo que solo tiene sentido en curso: pone `fin` a las
 paradas abiertas, resuelve las alertas `activa`/`pausada` (una `viaje:alerta_actualizada`
@@ -179,10 +198,15 @@ Posición de un integrante. Es lo que mueve los marcadores del mapa grupal.
   "lat": -31.4201,
   "lng": -64.1888,
   "precision": 8.4,
+  "rumbo": 87.5,                                // grados (0 = norte) o null si nunca se movió
   "recordedAt": "2026-09-01T13:05:00.000Z",
   "source": "live"
 }
 ```
+
+`rumbo` es el **último rumbo conocido**: si el ping llega sin rumbo (detenido) se conserva el
+anterior, para que la flecha no salte al norte en un semáforo. El cliente oculta la flecha
+cuando el integrante está detenido, en posible incidente o sin señal.
 
 Se dispara desde `upsertUbicacionVivaSnapshot`, así que sale por igual venga la posición
 del socket (`viaje:gps_ping`) o de cualquiera de los dos endpoints REST de GPS.
@@ -210,15 +234,55 @@ Emitido por `ViajesService.salirViaje()`, y **solo si el viaje está en curso**.
 ```jsonc
 {
   "viajeId": "3f2c9a10-...",
-  "usuarioId": "9d8c7b6a-..."
+  "usuarioId": "9d8c7b6a-...",
+  "estado": "salido"   // "salido" | "ausente"
 }
 ```
 
-La persona pasa a estado `salido` y deja de publicar ubicación, pero conserva su fila para
-seguir figurando en el resumen con lo que recorrió. El viaje **no** se cierra para el resto.
-Al salir se cierra su parada abierta (si tenía), se resuelven sus alertas del sistema
-(con `viaje:alerta_actualizada`) y se borra su `ubicacion_viva`: deja de aparecer en el
-mapa también para quien rehidrata por `GET /ubicaciones-vivas`.
+- `salido`: se había sumado. Deja de publicar ubicación, pero conserva su fila para
+  seguir figurando en el resumen con lo que recorrió. Se cierra su parada abierta (si
+  tenía), se resuelven sus alertas del sistema (con `viaje:alerta_actualizada`) y se
+  borra su `ubicacion_viva`: deja de aparecer en el mapa también para quien rehidrata por
+  `GET /ubicaciones-vivas`.
+- `ausente` (RN-029c): nunca se sumó y tocó "No voy a ir". No había nada en vivo que cerrar.
+
+El viaje **no** se cierra para el resto. Si quien sale es el líder, antes se emite
+`viaje:lider_cambiado` (tiene que ceder el liderazgo para poder irse, RN-029d).
+
+### `viaje:participante_sumado`
+
+Emitido por `ViajesService.checkIn()` (`POST /api/viajes/{viajeId}/check-in`) cuando un
+confirmado toca "Me sumo" con el viaje en curso (RN-029b). No se emite si ya estaba sumado
+(el check-in es idempotente).
+
+```jsonc
+{
+  "viajeId": "3f2c9a10-...",
+  "usuarioId": "9d8c7b6a-...",
+  "checkInAt": "2026-09-01T13:04:10.000Z"
+}
+```
+
+Desde ese momento se acepta su GPS. El motor de eventos, además, no lo evalúa (desvío,
+atraso, posible incidente) hasta que su primer ping cae a menos de
+`distancia_max_separacion` de la ruta: un "Me sumo" tocado desde casa no dispara alertas.
+
+### `viaje:lider_cambiado`
+
+Emitido cuando el líder cede el viaje (`POST /api/viajes/{viajeId}/liderazgo`) o lo cede
+para poder bajarse (`POST /salir` con `nuevo_lider_id`), RN-029d.
+
+```jsonc
+{
+  "viajeId": "3f2c9a10-...",
+  "liderAnteriorId": "9d8c7b6a-...",
+  "liderNuevoId": "1a2b3c4d-..."
+}
+```
+
+El cliente refresca el detalle del viaje: desde ese momento las acciones de líder
+(iniciar, finalizar, aprobar paradas) son del nuevo líder. Al nuevo líder le llega además
+una notificación push.
 
 ### `viaje:ubicacion_oculta`
 
@@ -286,7 +350,10 @@ mismo tipo para él. Una parada voluntaria fuera del trazado no cuenta como desv
 Cambio de estado de una alerta ya emitida. Lo disparan:
 
 - `PATCH /api/viajes/{viajeId}/alertas/{alertaId}` (RN-042): el líder pausa, reactiva,
-  cancela o resuelve una alerta.
+  cancela o resuelve una alerta. Si cancela o resuelve la de un posible incidente (o el
+  pedido de ayuda), se cierra el incidente entero: se cierra también la otra alerta
+  asociada (misma transición), la parada `incidente_detectado` y se emite
+  `viaje:parada_finalizada`.
 - `MotorEventosService`: resolución automática de `desvio` cuando el integrante vuelve a
   menos de la **mitad** del umbral de separación, y de `atraso` cuando su atraso baja de la
   mitad de la tolerancia (histéresis para no oscilar en el borde).
@@ -310,7 +377,7 @@ y cierra su banner si todavía estaba en pantalla.
 ### `viaje:leaderboard`
 
 RN-071 (modo competitivo): clasificación en vivo. La emite `MotorEventosService` con cada
-ping GPS de un viaje `competitivo` (nunca en moto, RN-070), como máximo una vez cada 3 s
+ping GPS de un viaje `competitivo` (nunca en moto ni auto, RN-070), como máximo una vez cada 3 s
 por viaje, a partir del progreso sobre la ruta que ya tiene cacheado de cada integrante.
 La foto inicial se carga con `GET /api/viajes/{viajeId}/leaderboard`.
 
@@ -336,7 +403,7 @@ descarga la traza histórica por REST y la anima localmente.
 | Evento | Cuándo |
 |---|---|
 | `viaje:parada_iniciada` | Parada voluntaria (US1) o incidente detectado por el motor (RN-036) |
-| `viaje:parada_finalizada` | Retomar viaje (US3) o confirmar "Estoy bien" (RN-036) |
+| `viaje:parada_finalizada` | Retomar viaje (US3), confirmar "Estoy bien" (RN-036) o el líder cancela/resuelve la alerta del incidente (RN-042) |
 | `viaje:solicitud_parada` | Solicitud de parada al líder (US2) |
 | `viaje:solicitud_parada_resuelta` | El líder aprueba o rechaza la solicitud |
 
@@ -366,11 +433,13 @@ Para paradas voluntarias, `estado` es `detenido_voluntario`. El frontend en `liv
 |---|---|---|---|
 | `join_viaje` | cliente → servidor | sí | `assertPuedeVerEnVivo` (confirmado) |
 | `leave_viaje` | cliente → servidor | no | ninguna |
-| `viaje:gps_ping` | cliente → servidor | sí | `assertPuedeEnviarGps` (confirmado + en curso) |
+| `viaje:gps_ping` | cliente → servidor | sí | `assertPuedeEnviarGps` (confirmado con check-in + en curso) |
 | `viaje:iniciado` | servidor → sala | — | solo el creador la dispara |
 | `viaje:finalizado` | servidor → sala | — | solo el creador la dispara |
 | `viaje:ubicacion` | servidor → sala | — | — |
 | `viaje:participante_salio` | servidor → sala | — | — |
+| `viaje:participante_sumado` | servidor → sala | — | solo la propia persona la dispara |
+| `viaje:lider_cambiado` | servidor → sala | — | solo el líder la dispara |
 | `viaje:ubicacion_oculta` | servidor → sala | — | solo la propia persona la dispara |
 | `viaje:alerta` | servidor → sala | — | — |
 | `viaje:alerta_actualizada` | servidor → sala | — | — |

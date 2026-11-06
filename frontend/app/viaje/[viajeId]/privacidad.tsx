@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Switch,
   Text,
@@ -16,6 +15,7 @@ import { useCopilot } from 'react-native-copilot'
 import { AvisoUbicacion } from '@/components/AvisoUbicacion'
 import { Btn, TopBar, useTheme } from '@/components/MeshUI'
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
+import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda'
 import { AYUDA_VIAJE_PRIVACIDAD } from '@/components/ayuda/contenidoAyuda'
 import { useAuth } from '@/context/AuthContext'
 import { meshAlert } from '@/lib/meshAlert'
@@ -139,7 +139,7 @@ export default function PrivacidadViajeScreen() {
           <ActivityIndicator color={theme.accent} />
         </View>
       ) : (
-        <ScrollView
+        <ScrollViewAyuda
           contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 24 }]}
           refreshControl={
             <RefreshControl refreshing={false} onRefresh={() => void cargar()} tintColor={theme.accent} />
@@ -235,7 +235,7 @@ export default function PrivacidadViajeScreen() {
               )}
             </View>
           </PasoAyuda>
-        </ScrollView>
+        </ScrollViewAyuda>
       )}
     </View>
   )

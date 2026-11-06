@@ -19,6 +19,16 @@ function errorResponse(status: number): Response {
   } as unknown as Response
 }
 
+function jsonInvalidoResponse(): Response {
+  return {
+    ok: true,
+    status: 200,
+    json: async () => {
+      throw new SyntaxError('Unexpected token < in JSON')
+    },
+  } as unknown as Response
+}
+
 class AbortErrorFalso extends Error {
   constructor() {
     super('The operation was aborted')
@@ -261,6 +271,28 @@ describe('RoutingService.calcularRuta — Google Routes (con API key)', () => {
 
     expect(ruta.duracion_seg).toBe(20)
     expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('si Google responde 200 con un JSON inválido, cae a OSRM', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonInvalidoResponse())
+      .mockResolvedValueOnce(okResponse({ routes: [{ distance: 10, duration: 20, geometry: OSRM_GEOMETRY }] }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const ruta = await new RoutingService('KEY_TEST').calcularRuta(input)
+
+    expect(ruta.proveedor).toBe('osrm')
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('si el último proveedor responde un JSON inválido, devuelve ROUTING_UPSTREAM_ERROR', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonInvalidoResponse()))
+
+    await expect(new RoutingService('KEY_TEST').calcularRuta(input)).rejects.toMatchObject({
+      status: 502,
+      code: 'ROUTING_UPSTREAM_ERROR',
+    })
   })
 
   it('sin API key no llama a Google', async () => {

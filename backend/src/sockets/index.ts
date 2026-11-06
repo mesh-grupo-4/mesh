@@ -2,6 +2,7 @@ import type { Server } from 'socket.io'
 import { z } from 'zod'
 import { prisma } from '../config/prisma'
 import { HttpError } from '../lib/httpError'
+import { datosGpsExtraSchema } from '../modules/viajes/viajes.schemas'
 import { ViajesService } from '../modules/viajes/viajes.service'
 import { socketRequireUser } from './auth'
 
@@ -9,14 +10,16 @@ const joinPayload = z.object({
   viajeId: z.string().uuid(),
 })
 
-const gpsPingSchema = z.object({
-  viajeId: z.string().uuid(),
-  lat: z.number(),
-  lng: z.number(),
-  accuracy: z.number().optional(),
-  recordedAt: z.string().datetime(),
-  source: z.enum(['live', 'offline_sync']).optional().default('live'),
-})
+const gpsPingSchema = z
+  .object({
+    viajeId: z.string().uuid(),
+    lat: z.number(),
+    lng: z.number(),
+    accuracy: z.number().optional(),
+    recordedAt: z.string().datetime(),
+    source: z.enum(['live', 'offline_sync']).optional().default('live'),
+  })
+  .merge(datosGpsExtraSchema)
 
 const viajesService = new ViajesService(prisma)
 

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { itemsSugeridos } from './checklistDefaults'
 
-const ACTIVIDADES = ['moto', 'bici', 'running', 'trekking', 'otro'] as const
+const ACTIVIDADES = ['moto', 'auto', 'bici', 'running', 'trekking', 'otro'] as const
 
 describe('RN-026 — ítems sugeridos por tipo de actividad', () => {
-  it('cubre las cinco actividades de RN-021 con al menos un ítem', () => {
+  it('cubre las seis actividades de RN-021 con al menos un ítem', () => {
     for (const actividad of ACTIVIDADES) {
       expect(itemsSugeridos(actividad).length).toBeGreaterThan(0)
     }
@@ -29,6 +29,7 @@ describe('RN-026 — ítems sugeridos por tipo de actividad', () => {
 
   it('sugiere equipamiento propio de cada actividad, no una lista genérica', () => {
     expect(itemsSugeridos('moto')).toContain('Casco')
+    expect(itemsSugeridos('auto')).toContain('Matafuegos')
     expect(itemsSugeridos('bici')).toContain('Inflador')
     expect(itemsSugeridos('trekking')).toContain('Calzado de trekking')
     expect(itemsSugeridos('running')).toContain('Zapatillas de running')

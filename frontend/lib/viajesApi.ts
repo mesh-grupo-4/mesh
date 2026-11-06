@@ -3,7 +3,7 @@ import type { PutRutaBody, RutaDetalleApi } from './viajesTypes'
 import { apiUrl, meshFetchAuthed, parseJson } from './apiClient'
 import type { CategoriaParadaApi, EstadoIntegranteApi } from './paradasApi'
 
-export type TipoActividadApi = 'moto' | 'bici' | 'running' | 'trekking' | 'otro'
+export type TipoActividadApi = 'moto' | 'auto' | 'bici' | 'running' | 'trekking' | 'otro'
 
 export type ViajeCreadoApi = {
   id: string
@@ -73,13 +73,18 @@ export type InvitacionViajePendienteApi = {
   created_at: string
 }
 
+/** RN-029c: `ausente` = confirmó pero nunca se sumó al viaje en curso. */
+export type EstadoViajeIntegranteApi = 'pendiente' | 'confirmado' | 'rechazado' | 'salido' | 'ausente'
+
 export type ViajeParticipanteApi = {
   usuario: { id: string; nombre: string; apellido: string | null; email: string }
-  estado: 'pendiente' | 'confirmado' | 'rechazado' | 'salido'
+  estado: EstadoViajeIntegranteApi
   origen: 'creador' | 'qr' | 'link' | 'grupo' | 'amigo'
   created_at: string
   rol: 'lider' | 'participante'
   union_efectiva: boolean
+  /** RN-029b: cuándo se sumó al viaje en curso; null si no se sumó. */
+  check_in_at: string | null
   grupo_origen: { id: string; nombre: string } | null
 }
 
@@ -266,7 +271,12 @@ export type ViajeDetalleApi = {
   created_at: string
   creador: { id: string; nombre: string; apellido: string | null; email: string }
   ruta: { id: string; distancia_planeada_m: number | null } | null
-  mi_participacion: { estado: string; origen: string } | null
+  mi_participacion: {
+    estado: string
+    origen: string
+    /** RN-029b: null = todavía no se sumó al viaje en curso (no se arranca el GPS). */
+    check_in_at?: string | null
+  } | null
 }
 
 export async function obtenerViaje(
@@ -400,16 +410,24 @@ export async function finalizarViaje(
 
 export type SalirViajeResponse = {
   viaje_id: string
-  accion: 'salido'
+  /** RN-029c: rechazado (antes del inicio), ausente (en curso sin sumarse) o salido. */
+  accion: 'salido' | 'ausente' | 'rechazado'
 }
 
+/**
+ * Bajarse del viaje. El líder tiene que pasar `nuevoLiderId` (RN-029d): si no, el
+ * backend responde `LEADER_MUST_TRANSFER`, o `LEADER_LAST_MEMBER` si no hay a quién cederlo.
+ */
 export async function salirViaje(
   viajeId: string,
   userId: string,
+  nuevoLiderId?: string,
   baseUrl: string = API_BASE_URL
 ): Promise<SalirViajeResponse> {
   const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}/salir`, baseUrl), {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(nuevoLiderId ? { nuevo_lider_id: nuevoLiderId } : {}),
   })
   return parseJson<SalirViajeResponse>(res)
 }
@@ -429,6 +447,36 @@ export async function ocultarViaje(
     method: 'POST',
   })
   return parseJson<OcultarViajeResponse>(res)
+}
+
+/**
+ * RN-029b: "Me sumo" directo, sin cola. En el dispositivo usar `registrarCheckIn`
+ * (`lib/tracking/trackingControl.ts`), que lo encola para no perderlo sin señal.
+ */
+export async function checkInViaje(
+  viajeId: string,
+  baseUrl: string = API_BASE_URL
+): Promise<{ viaje_id: string; check_in_at: string }> {
+  const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}/check-in`, baseUrl), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  })
+  return parseJson<{ viaje_id: string; check_in_at: string }>(res)
+}
+
+/** RN-029d: el líder cede el viaje a otro integrante (confirmado; en curso, sumado). */
+export async function cederLiderazgo(
+  viajeId: string,
+  nuevoLiderId: string,
+  baseUrl: string = API_BASE_URL
+): Promise<{ viaje_id: string; lider_id: string }> {
+  const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}/liderazgo`, baseUrl), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nuevo_lider_id: nuevoLiderId }),
+  })
+  return parseJson<{ viaje_id: string; lider_id: string }>(res)
 }
 
 /**
@@ -456,6 +504,11 @@ export type ResumenViajeApi = {
     tiempo_movimiento_seg: number | null
     velocidad_promedio_kmh: number | null
     velocidad_maxima_kmh: number | null
+    /** Altimetría del GPS (suavizada). null si el celular no informó altitud. */
+    desnivel_positivo_m: number | null
+    desnivel_negativo_m: number | null
+    altitud_max_m: number | null
+    altitud_min_m: number | null
     sali_antes: boolean
     fecha_salida: string | null
   }
@@ -636,6 +689,8 @@ export type UbicacionVivaSnapshotApi = {
   lat: number
   lng: number
   precision: number | null
+  /** Último rumbo conocido en grados (0 = norte). Se conserva al detenerse. */
+  rumbo?: number | null
   updatedAt: string
   nombre: string
   /** RN-037: derivado en el backend de la parada abierta del integrante. */
@@ -655,7 +710,16 @@ export async function obtenerRecorrido(
 export async function upsertUbicacionViva(
   viajeId: string,
   userId: string,
-  body: { lat: number; lng: number; precision?: number | null; recordedAt: string },
+  body: {
+    lat: number
+    lng: number
+    precision?: number | null
+    altitud?: number | null
+    precisionAltitud?: number | null
+    velocidadKmh?: number | null
+    rumbo?: number | null
+    recordedAt: string
+  },
   baseUrl: string = API_BASE_URL
 ): Promise<void> {
   const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}/ubicacion-viva`, baseUrl), {

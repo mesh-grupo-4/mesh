@@ -26,6 +26,7 @@ enum RolSistema {
 
 enum TipoActividad {
   moto
+  auto
   bici
   running
   trekking
@@ -132,6 +133,8 @@ enum EstadoViajeIntegrante {
   rechazado
   /// Abandonó el viaje en curso. Salida blanda: conserva su histórico y figura en el resumen.
   salido
+  /// RN-029c: confirmó pero no hizo check-in (no fue). No cuenta en historial ni métricas.
+  ausente
 }
 
 enum OrigenViajeIntegrante {
@@ -350,12 +353,15 @@ model AccesoUbicacion {
 }
 
 model UbicacionViva {
-  usuario_id  String   @id @map("usuario_id") @db.Uuid
-  viaje_id    String   @map("viaje_id") @db.Uuid
-  lat         Float
-  lng         Float
-  precision_m Float?   @map("precision_m")
-  updated_at  DateTime @updatedAt @map("updated_at")
+  usuario_id   String   @id @map("usuario_id") @db.Uuid
+  viaje_id     String   @map("viaje_id") @db.Uuid
+  lat          Float
+  lng          Float
+  precision_m  Float?   @map("precision_m")
+  /// Último rumbo conocido (grados, 0 = norte). Se conserva cuando el ping
+  /// llega sin rumbo (detenido): el mapa oculta la flecha según el estado.
+  rumbo_grados Float?   @map("rumbo_grados")
+  updated_at   DateTime @updatedAt @map("updated_at")
 
   usuario Usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
   viaje   Viaje   @relation(fields: [viaje_id], references: [id], onDelete: Cascade)
@@ -387,6 +393,9 @@ model ViajeIntegrante {
   fecha_salida    DateTime?             @map("fecha_salida")
   /// El participante quitó el viaje finalizado de su historial. Solo afecta su lista.
   oculto_en_historial Boolean           @default(false) @map("oculto_en_historial")
+  /// RN-029b: momento en que se sumó al viaje en curso ("Me sumo"). Sin check-in no hay
+  /// tracking, motor de eventos ni alertas en vivo para esta persona.
+  check_in_at     DateTime?             @map("check_in_at")
 
   viaje        Viaje   @relation(fields: [viaje_id], references: [id], onDelete: Cascade)
   usuario      Usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
@@ -398,15 +407,25 @@ model ViajeIntegrante {
 }
 
 model RegistroGPS {
-  id          String    @id @default(uuid()) @db.Uuid
-  viaje_id    String    @map("viaje_id") @db.Uuid
-  usuario_id  String    @map("usuario_id") @db.Uuid
-  lat         Float
-  lng         Float
-  precision_m Float?    @map("precision_m")
-  timestamp   DateTime
-  source      GpsSource @default(live)
-  created_at  DateTime  @default(now()) @map("created_at")
+  id                  String    @id @default(uuid()) @db.Uuid
+  viaje_id            String    @map("viaje_id") @db.Uuid
+  usuario_id          String    @map("usuario_id") @db.Uuid
+  lat                 Float
+  lng                 Float
+  precision_m         Float?    @map("precision_m")
+  /// Altitud que informa el GPS del dispositivo. iOS: sobre el nivel del mar;
+  /// Android: sobre el elipsoide WGS84 (difiere unos metros). Sirve para el
+  /// desnivel, que es una diferencia y no depende de la referencia.
+  altitud_m           Float?    @map("altitud_m")
+  precision_altitud_m Float?    @map("precision_altitud_m")
+  /// Velocidad medida por el chip GPS (efecto Doppler), más precisa que la
+  /// derivada de distancia/tiempo. RN-070: nunca se usa para comparar personas.
+  velocidad_kmh       Float?    @map("velocidad_kmh")
+  /// Rumbo de desplazamiento en grados (0 = norte, sentido horario).
+  rumbo_grados        Float?    @map("rumbo_grados")
+  timestamp           DateTime
+  source              GpsSource @default(live)
+  created_at          DateTime  @default(now()) @map("created_at")
 
   viaje   Viaje   @relation(fields: [viaje_id], references: [id], onDelete: Cascade)
   usuario Usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
@@ -606,6 +625,11 @@ model MetricaViaje {
   tiempo_movimiento_seg  Int      @map("tiempo_movimiento_seg")
   velocidad_promedio_kmh Float?   @map("velocidad_promedio_kmh")
   velocidad_maxima_kmh   Float?   @map("velocidad_maxima_kmh")
+  /// Altimetría a partir de la altitud del GPS (suavizada). null = sin datos de altitud.
+  desnivel_positivo_m    Float?   @map("desnivel_positivo_m")
+  desnivel_negativo_m    Float?   @map("desnivel_negativo_m")
+  altitud_max_m          Float?   @map("altitud_max_m")
+  altitud_min_m          Float?   @map("altitud_min_m")
   generado_en            DateTime @default(now()) @map("generado_en")
 
   viaje   Viaje   @relation(fields: [viaje_id], references: [id], onDelete: Cascade)

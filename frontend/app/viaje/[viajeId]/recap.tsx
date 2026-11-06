@@ -2,7 +2,6 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -13,6 +12,7 @@ import { useCopilot } from 'react-native-copilot'
 import { AvatarFallback } from '@/components/AvatarFallback'
 import { Badge, Btn, Chip, ChipRow, TopBar, useTheme } from '@/components/MeshUI'
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
+import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda'
 import { AYUDA_VIAJE_RECAP } from '@/components/ayuda/contenidoAyuda'
 import { DEV_USER_ID } from '@/constants/Config'
 import { useAuth } from '@/context/AuthContext'
@@ -171,11 +171,11 @@ export default function ViajeRecapScreen() {
       ) : !rankingOk ? (
         <View style={styles.center}>
           <Text style={[styles.errorText, { color: theme.textDim }]}>
-            Este viaje no tiene recap competitivo (moto o salida individual).
+            Este viaje no tiene recap competitivo (moto, auto o salida individual).
           </Text>
         </View>
       ) : (
-        <ScrollView
+        <ScrollViewAyuda
           contentContainerStyle={[
             styles.content,
             { paddingBottom: Math.max(insets.bottom, 16) + 16 },
@@ -254,7 +254,7 @@ export default function ViajeRecapScreen() {
           {pieMejora(mia, criterio, tipo) ? (
             <Text style={[styles.nota, { color: theme.textDim }]}>{pieMejora(mia, criterio, tipo)}</Text>
           ) : null}
-        </ScrollView>
+        </ScrollViewAyuda>
       )}
     </View>
   )

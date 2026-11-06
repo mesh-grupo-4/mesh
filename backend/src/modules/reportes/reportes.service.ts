@@ -461,7 +461,8 @@ export class ReportesService {
         solicitudes_periodo: resumirEstados(solicitudesAmistad, ['aceptada']),
       },
       invitaciones_grupo: resumirEstados(invGrupo, ['aceptada']),
-      invitaciones_viaje: resumirEstados(invViaje, ['confirmado', 'salido']),
+      // `ausente` aceptó la invitación aunque después no fue (RN-029c).
+      invitaciones_viaje: resumirEstados(invViaje, ['confirmado', 'salido', 'ausente']),
       canales_incorporacion: canales,
     }
   }

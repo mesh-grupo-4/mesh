@@ -19,6 +19,7 @@ const POR_ACTIVIDAD: Record<string, TrackingConfig> = {
   // Van rápido: prioriza cadencia estable sobre precisión extra.
   bici: { accuracy: Location.Accuracy.High, distanceInterval: 5 },
   moto: { accuracy: Location.Accuracy.High, distanceInterval: 6 },
+  auto: { accuracy: Location.Accuracy.High, distanceInterval: 6 },
   otro: DEFAULT,
 }
 

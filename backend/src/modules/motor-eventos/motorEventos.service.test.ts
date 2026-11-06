@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PrismaClient } from '@prisma/client'
 import { MotorEventosService, obtenerMotorEventos } from './motorEventos.service'
 
@@ -143,8 +143,10 @@ describe('MotorEventosService — desvío (RN-034)', () => {
 
   it('crea alerta de desvío cuando la distancia supera el umbral del viaje', async () => {
     const m = armarPrisma()
-    computeDistanciaPuntoARutaM.mockResolvedValue(120)
     const service = new MotorEventosService(m.prisma)
+    // Primero pasa por la ruta (queda armado, RN-029b) y después se aleja.
+    await service.procesarPing(ping('2026-08-21T13:59:55.000Z'))
+    computeDistanciaPuntoARutaM.mockResolvedValue(120)
 
     await service.procesarPing(ping('2026-08-21T14:00:00.000Z'))
 
@@ -218,6 +220,67 @@ describe('MotorEventosService — desvío (RN-034)', () => {
     expect(m.alertaCreate).not.toHaveBeenCalled()
   })
 
+  it('RN-029b: no evalúa a quien nunca pasó cerca de la ruta (p. ej. se quedó en casa)', async () => {
+    const m = armarPrisma()
+    computeDistanciaPuntoARutaM.mockResolvedValue(5_000)
+    const service = new MotorEventosService(m.prisma)
+
+    await service.procesarPing(ping('2026-08-21T14:00:00.000Z'))
+    await service.procesarPing(ping('2026-08-21T14:30:00.000Z'))
+
+    expect(m.alertaCreate).not.toHaveBeenCalled()
+    expect(m.paradaCreate).not.toHaveBeenCalled()
+    expect(computeProgresoEnRutaM).not.toHaveBeenCalled()
+  })
+
+  it('RN-029b: queda armado al primer ping cerca de la ruta y desde ahí sí detecta el desvío', async () => {
+    const m = armarPrisma()
+    const service = new MotorEventosService(m.prisma)
+
+    computeDistanciaPuntoARutaM.mockResolvedValue(5_000)
+    await service.procesarPing(ping('2026-08-21T13:50:00.000Z'))
+    computeDistanciaPuntoARutaM.mockResolvedValue(30)
+    await service.procesarPing(ping('2026-08-21T13:55:00.000Z'))
+    computeDistanciaPuntoARutaM.mockResolvedValue(120)
+    await service.procesarPing(ping('2026-08-21T14:00:00.000Z'))
+
+    expect(m.alertaCreate).toHaveBeenCalledTimes(1)
+    expect(m.alertaCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ tipo: 'desvio' }) })
+    )
+  })
+
+  it('RN-029b: limpiarIntegrante lo desarma', async () => {
+    const m = armarPrisma()
+    const service = new MotorEventosService(m.prisma)
+    await service.procesarPing(ping('2026-08-21T13:55:00.000Z'))
+    service.limpiarIntegrante(viajeId, usuarioId)
+
+    computeDistanciaPuntoARutaM.mockResolvedValue(120)
+    await service.procesarPing(ping('2026-08-21T14:00:00.000Z'))
+
+    expect(m.alertaCreate).not.toHaveBeenCalled()
+  })
+
+  it('RN-029b: el push del posible incidente solo va a integrantes sumados', async () => {
+    const m = armarPrisma()
+    const service = new MotorEventosService(m.prisma)
+    // Acceso al helper privado de push: lo que importa es el filtro de destinatarios.
+    await (
+      service as unknown as {
+        notificarPush: (v: string, a: string, t: string, msg: string, s: boolean) => Promise<void>
+      }
+    ).notificarPush(viajeId, usuarioId, 'Posible incidente', 'x', false)
+
+    const findMany = (m.prisma as unknown as { viajeIntegrante: { findMany: ReturnType<typeof vi.fn> } })
+      .viajeIntegrante.findMany
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { viaje_id: viajeId, estado: 'confirmado', check_in_at: { not: null } },
+      })
+    )
+  })
+
   it('obtenerMotorEventos devuelve una única instancia por cliente Prisma', () => {
     const m = armarPrisma()
     expect(obtenerMotorEventos(m.prisma)).toBe(obtenerMotorEventos(m.prisma))
@@ -226,6 +289,31 @@ describe('MotorEventosService — desvío (RN-034)', () => {
 })
 
 describe('MotorEventosService — detención sospechosa (RN-036)', () => {
+  // El conteo arranca en la hora del servidor: se fija para que coincida con los pings.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-08-21T14:00:00.000Z'))
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('un primer punto viejo (GPS cacheado) no cuenta como tiempo quieto', async () => {
+    const m = armarPrisma()
+    const service = new MotorEventosService(m.prisma)
+
+    // Primera lectura con timestamp de hace 20 min, y enseguida una fresca en el mismo lugar.
+    await service.procesarPing(ping('2026-08-21T13:40:00.000Z'))
+    await service.procesarPing(ping('2026-08-21T14:00:05.000Z'))
+    expect(m.paradaCreate).not.toHaveBeenCalled()
+
+    // El umbral (5 min en trekking) se cuenta desde que entró al viaje.
+    await service.procesarPing(ping('2026-08-21T14:05:00.000Z'))
+    expect(m.paradaCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ tipo: 'incidente_detectado' }) })
+    )
+  })
+
   it('abre parada incidente_detectado tras superar el umbral quieto', async () => {
     const m = armarPrisma()
     const service = new MotorEventosService(m.prisma)
@@ -298,6 +386,35 @@ describe('MotorEventosService — detención sospechosa (RN-036)', () => {
     await service.procesarPing(ping('2026-08-21T14:08:00.000Z', -31.4202, -64.1802))
 
     expect(m.paradaCreate).not.toHaveBeenCalled()
+  })
+
+  it('tras cerrar un incidente, seguir quieto en el mismo punto no genera otro', async () => {
+    const m = armarPrisma()
+    const service = new MotorEventosService(m.prisma)
+    const t0 = Date.now()
+    const en = (min: number) => new Date(t0 + min * 60_000).toISOString()
+
+    service.silenciarDeteccionEnPunto(viajeId, usuarioId, -31.42, -64.18)
+    await service.procesarPing(ping(en(1)))
+    await service.procesarPing(ping(en(15)))
+
+    expect(m.paradaCreate).not.toHaveBeenCalled()
+    expect(m.alertaCreate).not.toHaveBeenCalled()
+  })
+
+  it('tras cerrar un incidente, la detección se rearma al alejarse del punto', async () => {
+    const m = armarPrisma()
+    const service = new MotorEventosService(m.prisma)
+    const t0 = Date.now()
+    const en = (min: number) => new Date(t0 + min * 60_000).toISOString()
+
+    service.silenciarDeteccionEnPunto(viajeId, usuarioId, -31.42, -64.18)
+    await service.procesarPing(ping(en(1), -31.421, -64.18))
+    await service.procesarPing(ping(en(8), -31.421, -64.18))
+
+    expect(m.paradaCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ tipo: 'incidente_detectado' }) })
+    )
   })
 
   it('no evalúa detención si ya hay parada voluntaria abierta', async () => {

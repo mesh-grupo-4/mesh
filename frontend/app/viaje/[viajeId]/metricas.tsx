@@ -2,7 +2,6 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -20,6 +19,7 @@ import Svg, {
 import { useCopilot } from 'react-native-copilot'
 import { ActivityTile, Badge, Btn, TopBar, useTheme } from '@/components/MeshUI'
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
+import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda'
 import { AYUDA_VIAJE_METRICAS } from '@/components/ayuda/contenidoAyuda'
 import { StatCard, StatCardRow } from '@/components/StatCard'
 import { DEV_USER_ID } from '@/constants/Config'
@@ -34,6 +34,7 @@ import {
   formatSpeedKmh,
 } from '@/lib/format'
 import { formatearEnArg } from '@/lib/tiempoArg'
+import { esMotorizado } from '@/lib/activityDefaults'
 import {
   obtenerMetricasIndividuales,
   type MetricasIndividualesApi,
@@ -99,7 +100,7 @@ export default function MetricasScreen() {
   const splits = data?.splits_km ?? []
   const entrenamiento = data?.entrenamiento ?? null
   const esEntrenamiento = viaje?.modo === 'entrenamiento'
-  const esMoto = viaje?.tipo_actividad === 'moto'
+  const esMoto = esMotorizado(viaje?.tipo_actividad)
   const esPace = viaje?.tipo_actividad === 'running' || viaje?.tipo_actividad === 'trekking'
 
   const nombreViaje =
@@ -129,7 +130,7 @@ export default function MetricasScreen() {
           </Btn>
         </View>
       ) : (
-        <ScrollView
+        <ScrollViewAyuda
           contentContainerStyle={[
             styles.content,
             { paddingBottom: Math.max(insets.bottom, 16) + 16 },
@@ -329,7 +330,7 @@ export default function MetricasScreen() {
               </View>
             </>
           ) : null}
-        </ScrollView>
+        </ScrollViewAyuda>
       )}
     </View>
   )

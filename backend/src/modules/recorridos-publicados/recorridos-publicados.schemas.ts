@@ -18,7 +18,7 @@ export const RADIO_ZONA_MAX_KM = 200
  */
 export const listarRecorridosQuery = z
   .object({
-    tipoActividad: z.enum(['moto', 'bici', 'running', 'trekking', 'otro']).optional(),
+    tipoActividad: z.enum(['moto', 'auto', 'bici', 'running', 'trekking', 'otro']).optional(),
     lat: z.coerce.number().min(-90).max(90).optional(),
     lng: z.coerce.number().min(-180).max(180).optional(),
     radioKm: z.coerce.number().min(1).max(RADIO_ZONA_MAX_KM).optional(),

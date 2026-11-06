@@ -4,6 +4,7 @@ import { upsertUbicacionViva } from '@/lib/viajesApi'
 import { useEffect } from 'react'
 import { AppState, DeviceEventEmitter } from 'react-native'
 
+import type { DatosGpsExtra } from '@/lib/tracking/datosGpsExtra'
 import { dequeueGpsSample, flushGpsQueue } from '@/lib/tracking/gpsQueue'
 
 type LocationTick = {
@@ -15,6 +16,16 @@ type LocationTick = {
   recordedAt: string
   /** Id de la fila en la cola SQLite local, para borrarla si este tick se confirma en vivo. */
   queueId?: number
+} & Partial<DatosGpsExtra>
+
+/** Altitud, velocidad del chip y rumbo, igual para REST y socket. */
+function datosExtra(p: LocationTick): DatosGpsExtra {
+  return {
+    altitud: p.altitud ?? null,
+    precisionAltitud: p.precisionAltitud ?? null,
+    velocidadKmh: p.velocidadKmh ?? null,
+    rumbo: p.rumbo ?? null,
+  }
 }
 
 /** Fallback por socket con ack: solo se considera confirmado si el servidor responde `ok`. */
@@ -24,6 +35,7 @@ async function emitGpsPingConAck(p: LocationTick, userId: string): Promise<boole
     lat: p.lat,
     lng: p.lng,
     accuracy: p.accuracy,
+    ...datosExtra(p),
     recordedAt: p.recordedAt,
     source: 'live' as const,
   }
@@ -47,6 +59,7 @@ async function confirmarEnvioEnVivo(p: LocationTick, userId: string): Promise<bo
       lat: p.lat,
       lng: p.lng,
       precision: p.accuracy ?? null,
+      ...datosExtra(p),
       recordedAt: p.recordedAt,
     })
     return true

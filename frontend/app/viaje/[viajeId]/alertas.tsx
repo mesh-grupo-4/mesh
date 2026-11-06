@@ -43,11 +43,18 @@ export default function AlertasViajeScreen() {
   const [viaje, setViaje] = useState<ViajeDetalleApi | null>(null)
   const [componiendo, setComponiendo] = useState(false)
 
-  const { alertas, cargando, enviando, publicar, cambiarEstado, refrescar } = useAlertas({
-    viajeId: viajeId ?? '',
-    userId,
-    habilitado: Boolean(viajeId && userId.trim()),
-  })
+  const { alertas, cargando, enviando, publicar, cambiarEstado, refrescar, marcarTodasVistas } =
+    useAlertas({
+      viajeId: viajeId ?? '',
+      userId,
+      habilitado: Boolean(viajeId && userId.trim()),
+    })
+
+  // Lo que aparece en el historial ya se vio: la campanita del mapa baja a cero,
+  // y también las que lleguen por socket mientras la pantalla está abierta.
+  useEffect(() => {
+    marcarTodasVistas()
+  }, [marcarTodasVistas])
 
   useEffect(() => {
     if (!viajeId || !userId.trim()) return

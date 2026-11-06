@@ -7,10 +7,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
   ActivityIndicator,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native'
+import { Btn } from '@/components/MeshUI'
 import { meshAlert, meshConfirmDestructive } from '@/lib/meshAlert';
 
 import { AlertaGrupalBanner } from '@/components/live/AlertaGrupalBanner'
@@ -50,6 +52,7 @@ import { useParadas } from '@/hooks/useParadas'
 import { useNextStopEta } from '@/hooks/useNextStopEta'
 import { useTripMetrics } from '@/hooks/useTripMetrics'
 import { uiConfigPorActividad } from '@/lib/activityUi'
+import { esMotorizado } from '@/lib/activityDefaults'
 import type { RouteStop } from '@/lib/geo/nextStop'
 import { haversineDistanceM } from '@/lib/geo/haversine'
 import { buscarLugaresCercanos, type CategoriaLugar, type LugarSugerido } from '@/lib/lugaresApi'
@@ -66,10 +69,13 @@ import { linestringToLatLng, waypointsFromRutaDetalle } from '@/lib/routePayload
 import { connectMeshSocket, joinViajeRoom } from '@/lib/meshSocket'
 import { isSupabaseConfigured } from '@/lib/supabase'
 import {
+  checkInPendienteLocal,
   detenerTrackingViaje,
   iniciarTrackingViaje,
+  registrarCheckIn,
   solicitarPermisosUbicacion,
 } from '@/lib/tracking/trackingControl'
+import { AvisoUbicacion } from '@/components/AvisoUbicacion'
 import { trackingConfigPorActividad } from '@/lib/tracking/trackingConfig'
 import {
   listarParticipantesViaje,
@@ -221,16 +227,24 @@ export default function ViajeLiveScreen() {
   }, [viaje])
 
   const esLider = viaje != null && userId === viaje.creador_id
+  /** "Me sumo" tocado sin señal: todavía no lo confirmó el backend pero ya cuenta. */
+  const [checkInLocal, setCheckInLocal] = useState(false)
+  const [sumandome, setSumandome] = useState(false)
+  /**
+   * RN-029b: solo quien se sumó comparte GPS y opera en vivo. Quien confirmó pero se
+   * quedó en casa puede mirar el mapa sin que se lo trackee ni dispare alertas.
+   */
+  const sumado = esLider || !!viaje?.mi_participacion?.check_in_at || checkInLocal
 
   // RN-052: interfaz adaptativa por actividad (pantalla completa/alto contraste en
-  // moto, botones grandes, háptica prioritaria en trekking/running).
+  // moto/auto, botones grandes, háptica prioritaria en trekking/running).
   const tipoActividad = (viaje?.tipo_actividad ?? 'otro') as TipoActividadApi
   const uiConfig = uiConfigPorActividad(tipoActividad)
   const theme = useTheme(uiConfig.altoContraste)
 
   // Solo tiene sentido pedirle una parada al líder si hay líder distinto de uno
   // mismo y el viaje es grupal: en una salida individual no hay a quién pedirle.
-  const puedeSolicitarParada = viaje != null && viaje.es_grupal && !esLider
+  const puedeSolicitarParada = viaje != null && viaje.es_grupal && !esLider && sumado
 
   const {
     paradaActiva,
@@ -275,6 +289,7 @@ export default function ViajeLiveScreen() {
 
   const {
     alertas,
+    noVistas: alertasNoVistas,
     alertaEntrante,
     alertasEntrantes,
     seguirAlerta,
@@ -327,7 +342,7 @@ export default function ViajeLiveScreen() {
 
   const puedeCrearAlertas =
     viaje?.estado === 'en_curso' &&
-    (esLider || (viaje?.alertas_solo_lider ?? true) === false)
+    (esLider || (sumado && (viaje?.alertas_solo_lider ?? true) === false))
 
   const centroMapaAlerta = useMemo(() => {
     if (myPosition) return { latitude: myPosition.lat, longitude: myPosition.lng }
@@ -342,9 +357,9 @@ export default function ViajeLiveScreen() {
     tipoActividad: viaje?.tipo_actividad ?? 'otro',
   })
 
-  // RN-065: panel de entrenamiento. RN-070: en moto no se muestran velocidades.
+  // RN-065: panel de entrenamiento. RN-070: en moto/auto no se muestran velocidades.
   const entrenamientoEnVivo = useMemo(() => {
-    if (viaje?.modo !== 'entrenamiento' || viaje.tipo_actividad === 'moto') return null
+    if (viaje?.modo !== 'entrenamiento' || esMotorizado(viaje.tipo_actividad)) return null
     const esPace = viaje.tipo_actividad === 'running' || viaje.tipo_actividad === 'trekking'
     return {
       velocidadActual: formatSpeedKmh(velocidadActualKmh),
@@ -353,9 +368,9 @@ export default function ViajeLiveScreen() {
     }
   }, [viaje?.modo, viaje?.tipo_actividad, velocidadActualKmh, velocidadPromedioKmh, paceMinKm])
 
-  // RN-072 / RN-070: sin comparaciones en recreativo ni en moto.
+  // RN-072 / RN-070: sin comparaciones en recreativo ni en moto/auto.
   const permiteComparar =
-    viaje?.estado === 'en_curso' && viaje.modo !== 'recreativo' && viaje.tipo_actividad !== 'moto'
+    viaje?.estado === 'en_curso' && viaje.modo !== 'recreativo' && !esMotorizado(viaje.tipo_actividad)
 
   // RN-073: fantasma contra el reloj del viaje.
   const {
@@ -432,6 +447,7 @@ export default function ViajeLiveScreen() {
         if (cancelled) return
         setViaje(v)
         setParticipantes(parts)
+        setCheckInLocal(checkInPendienteLocal(viajeId, userId))
         if (ruta?.linestring) {
           setRouteLine(linestringToLatLng(ruta.linestring))
           const h = waypointsFromRutaDetalle(ruta)
@@ -485,20 +501,50 @@ export default function ViajeLiveScreen() {
         router.replace({ pathname: '/viaje/[viajeId]/resumen', params: { viajeId } })
       }
 
-      const onSalio = (payload: { viajeId: string; usuarioId: string }) => {
+      const onSalio = (payload: {
+        viajeId: string
+        usuarioId: string
+        estado?: 'salido' | 'ausente'
+      }) => {
         if (payload.viajeId !== viajeId) return
         setParticipantes((prev) =>
           prev.map((p) =>
-            p.usuario.id === payload.usuarioId ? { ...p, estado: 'salido' as const } : p
+            p.usuario.id === payload.usuarioId ? { ...p, estado: payload.estado ?? 'salido' } : p
           )
         )
       }
 
+      // RN-029b: alguien tocó "Me sumo".
+      const onSumado = (payload: { viajeId: string; usuarioId: string; checkInAt: string }) => {
+        if (payload.viajeId !== viajeId) return
+        setParticipantes((prev) =>
+          prev.map((p) =>
+            p.usuario.id === payload.usuarioId ? { ...p, check_in_at: payload.checkInAt } : p
+          )
+        )
+      }
+
+      // RN-029d: cambió el líder; se recarga el detalle para que los botones de
+      // líder (finalizar, aprobar paradas) aparezcan en quien corresponde.
+      const onLiderCambiado = (payload: { viajeId: string }) => {
+        if (payload.viajeId !== viajeId) return
+        void Promise.all([obtenerViaje(viajeId, userId), listarParticipantesViaje(viajeId, userId)])
+          .then(([v, parts]) => {
+            setViaje(v)
+            setParticipantes(parts)
+          })
+          .catch((e) => console.warn('[live] no se pudo refrescar el líder:', e))
+      }
+
       sock.on('viaje:finalizado', onFin)
       sock.on('viaje:participante_salio', onSalio)
+      sock.on('viaje:participante_sumado', onSumado)
+      sock.on('viaje:lider_cambiado', onLiderCambiado)
       cleanup = () => {
         sock.off('viaje:finalizado', onFin)
         sock.off('viaje:participante_salio', onSalio)
+        sock.off('viaje:participante_sumado', onSumado)
+        sock.off('viaje:lider_cambiado', onLiderCambiado)
       }
     })()
 
@@ -511,6 +557,12 @@ export default function ViajeLiveScreen() {
     let cancelled = false
     void (async () => {
       if (!viajeId || !userId.trim() || !viaje || Platform.OS === 'web') return
+      // RN-029b: sin "Me sumo" no se pide permiso ni se arranca el GPS; el mapa se
+      // centra en el origen de la ruta.
+      if (!sumado) {
+        setGpsCenterFailed(true)
+        return
+      }
       const perm = await solicitarPermisosUbicacion()
       if (cancelled) return
       setFg(perm.foreground)
@@ -530,7 +582,7 @@ export default function ViajeLiveScreen() {
     return () => {
       cancelled = true
     }
-  }, [viajeId, userId, viaje?.tipo_actividad])
+  }, [viajeId, userId, viaje?.tipo_actividad, sumado])
 
   // Fallback: si el GPS no resolvió una posición, centramos en el origen de la ruta.
   useEffect(() => {
@@ -574,14 +626,40 @@ export default function ViajeLiveScreen() {
   }
 
   const confirmarSalir = () => {
+    // RN-029c: si nunca se sumó no hay ubicación que dejar de compartir: avisa que no va.
     meshAlert(
-      'Salir del viaje',
-      '¿Estás seguro? Dejarás de compartir tu ubicación con el grupo.',
+      sumado ? 'Salir del viaje' : 'No voy a ir',
+      sumado
+        ? '¿Estás seguro? Dejarás de compartir tu ubicación con el grupo.'
+        : '¿Seguro? El grupo va a ver que no vas a participar de este viaje.',
       [
         { text: 'Cancelar', style: 'cancel' },
-        { text: 'Salir', style: 'destructive', onPress: () => void ejecutarSalir() },
+        { text: sumado ? 'Salir' : 'No voy', style: 'destructive', onPress: () => void ejecutarSalir() },
       ]
     )
+  }
+
+  /**
+   * RN-029b: "Me sumo". El check-in va por la cola offline (se manda antes que el
+   * GPS aunque no haya señal); al marcarlo, el efecto de tracking pide permisos y
+   * arranca el GPS.
+   */
+  const sumarmeAlViaje = async () => {
+    if (!viajeId || !userId.trim()) return
+    setSumandome(true)
+    try {
+      await registrarCheckIn(viajeId, userId.trim())
+      setCheckInLocal(true)
+      void obtenerViaje(viajeId, userId)
+        .then(setViaje)
+        .catch(() => {
+          /* sin señal: el check-in local alcanza hasta que vuelva la red */
+        })
+    } catch (e) {
+      meshAlert('No se pudo sumarte al viaje', mensajeDeError(e))
+    } finally {
+      setSumandome(false)
+    }
   }
 
   const ejecutarSalir = async () => {
@@ -940,7 +1018,7 @@ export default function ViajeLiveScreen() {
             pointerEvents="box-none"
           >
             <AlertasButton
-              cantidad={alertas.length}
+              cantidad={alertasNoVistas}
               topOffset={topFlotantes + 14}
               onPress={irAAlertas}
               onCrear={puedeCrearAlertas ? () => setComponiendoAlerta(true) : undefined}
@@ -981,6 +1059,49 @@ export default function ViajeLiveScreen() {
         />
       ) : null}
 
+      {/* RN-029b: confirmó pero todavía no se sumó. Ve el mapa, pero no se lo trackea
+          ni puede operar en vivo hasta que elija. */}
+      {viaje?.estado === 'en_curso' && !sumado ? (
+        <View
+          style={[
+            styles.sumarseCard,
+            {
+              backgroundColor: theme.surface,
+              borderColor: theme.border,
+              paddingBottom: 16 + insets.bottom,
+            },
+          ]}
+        >
+          <Text style={[styles.sumarseTitulo, { color: theme.text, fontSize: tamanoOutdoor(18) }]}>
+            El viaje está en curso
+          </Text>
+          <Text style={[styles.sumarseTexto, { color: theme.textDim, fontSize: tamanoOutdoor(15) }]}>
+            Tu ubicación no se comparte hasta que te sumes. Si no vas a ir, avisale al grupo.
+          </Text>
+          <ScrollView style={styles.sumarseAviso}>
+            <AvisoUbicacion />
+          </ScrollView>
+          <Btn
+            variant="primary"
+            block
+            size="lg"
+            onPress={() => void sumarmeAlViaje()}
+            loading={sumandome}
+            disabled={sumandome || !!accion}
+          >
+            Acepto y me sumo
+          </Btn>
+          <Btn
+            variant="ghost"
+            block
+            size="lg"
+            onPress={confirmarSalir}
+            disabled={sumandome || !!accion}
+          >
+            No voy a ir
+          </Btn>
+        </View>
+      ) : (
       <PasoAyuda {...AYUDA_VIAJE_LIVE[3]!} estilo={StyleSheet.absoluteFill} pointerEvents="box-none">
         <LiveBottomPanel
           elapsedLabel={elapsedLabel}
@@ -1004,6 +1125,7 @@ export default function ViajeLiveScreen() {
           tipoActividad={tipoActividad}
         />
       </PasoAyuda>
+      )}
 
       {/* La alerta entrante va en su propia capa, arriba de todo (header,
           banners, botones flotantes): es lo primero que tiene que verse. */}
@@ -1059,6 +1181,28 @@ export default function ViajeLiveScreen() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
+  },
+  sumarseCard: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 60,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingTop: 18,
+    gap: 10,
+  },
+  sumarseTitulo: {
+    fontWeight: '800',
+  },
+  sumarseTexto: {
+    lineHeight: 22,
+  },
+  sumarseAviso: {
+    maxHeight: 140,
   },
   flex1: {
     flex: 1,
