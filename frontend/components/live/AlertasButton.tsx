@@ -4,9 +4,10 @@ import { Pressable } from '@/components/Pressable'
 import { uiConfigPorActividad } from '@/lib/activityUi'
 import type { TipoActividadApi } from '@/lib/viajesApi'
 
-/** Acceso al historial de alertas desde el mapa, con contador.
+/** Acceso al historial de alertas desde el mapa, con contador de no vistas.
  *  Al líder le suma el botón de crear, para no obligarlo a entrar al historial. */
 type Props = {
+  /** Alertas que el usuario todavía no vio (ver `alertasVistasStore`). */
   cantidad: number
   topOffset: number
   onPress: () => void
@@ -43,7 +44,7 @@ export function AlertasButton({
         onPress={onPress}
         accessibilityRole="button"
         accessibilityLabel={
-          cantidad > 0 ? `Ver alertas del viaje, ${cantidad} en total` : 'Ver alertas del viaje'
+          cantidad > 0 ? `Ver alertas del viaje, ${cantidad} sin ver` : 'Ver alertas del viaje'
         }
       >
         <Text style={[styles.icono, { fontSize: Math.round(20 * escalaBotones) }]}>🔔</Text>

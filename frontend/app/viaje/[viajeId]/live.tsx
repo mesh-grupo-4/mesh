@@ -289,6 +289,7 @@ export default function ViajeLiveScreen() {
 
   const {
     alertas,
+    noVistas: alertasNoVistas,
     alertaEntrante,
     alertasEntrantes,
     seguirAlerta,
@@ -1017,7 +1018,7 @@ export default function ViajeLiveScreen() {
             pointerEvents="box-none"
           >
             <AlertasButton
-              cantidad={alertas.length}
+              cantidad={alertasNoVistas}
               topOffset={topFlotantes + 14}
               onPress={irAAlertas}
               onCrear={puedeCrearAlertas ? () => setComponiendoAlerta(true) : undefined}
