@@ -114,14 +114,6 @@ function assertOk(res: Response): void {
   throw new HttpError(502, 'El servicio de rutas respondió con un error', 'ROUTING_UPSTREAM_ERROR')
 }
 
-/** Reintentable: la falla fue transitoria (timeout/red/upstream), no un dato de entrada inválido. */
-function esReintentable(e: unknown): boolean {
-  return (
-    e instanceof HttpError &&
-    (e.code === 'ROUTING_TIMEOUT' || e.code === 'ROUTING_UPSTREAM_ERROR')
-  )
-}
-
 /**
  * Google Routes API: proveedor principal cuando hay API key. Devuelve la
  * polyline con la misma precisión (5) que OSRM. Si Google no tiene ruta para
@@ -289,22 +281,24 @@ export class RoutingService {
   }
 
   /**
-   * Prueba cada proveedor una vez; si falla de forma transitoria (timeout o
-   * error de upstream), pasa al siguiente antes de rendirse. Son
-   * infraestructuras independientes: que una esté caída/lenta no implica que
-   * la otra también lo esté. `no_route`/`rate_limit` no valen la pena
-   * reintentar en el mismo proveedor, pero sí probar el siguiente.
+   * Prueba cada proveedor una sola vez y, ante cualquier falla, pasa al
+   * siguiente antes de rendirse. Son infraestructuras independientes: que una
+   * esté caída, lenta o sin ruta no implica que a la otra le pase lo mismo.
+   * Una respuesta ilegible (JSON inválido, forma inesperada) no llega como
+   * `HttpError`, así que se traduce para devolver siempre `{ error, code }`.
    */
   async calcularRuta(input: CalcularRutaInput): Promise<RutaCalculada> {
     const timeoutMs = timeoutParaRuta(input.puntos)
 
-    let ultimoError: unknown
+    let ultimoError: HttpError | undefined
     for (const proveedor of this.proveedores) {
       try {
         return await proveedor(input.perfil, input.puntos, timeoutMs)
       } catch (e) {
-        ultimoError = e
-        if (!esReintentable(e) && !(e instanceof HttpError)) throw e
+        ultimoError =
+          e instanceof HttpError
+            ? e
+            : new HttpError(502, 'El servicio de rutas respondió con un error', 'ROUTING_UPSTREAM_ERROR')
       }
     }
     throw ultimoError
