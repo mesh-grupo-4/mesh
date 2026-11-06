@@ -1,0 +1,12 @@
+---
+import Icono from '../Icono.astro'
+---
+
+<div class="app-aviso pant-desvio">
+  <span class="pant-desvio__icono"><Icono nombre="navigation" tam={18} /></span>
+  <span><strong>Gonza se desvió de la ruta</strong><span class="app-sub">Le llega al líder</span></span>
+</div>
+
+<style is:global>
+  .pant-desvio__icono { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: rgba(139, 92, 246, .24); color: #C4B0FF; flex: none; }
+</style>

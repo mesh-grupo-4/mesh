@@ -1,0 +1,41 @@
+---
+import Logo from '../components/Logo.astro'
+import AvisoSeguridad from '../components/AvisoSeguridad.astro'
+import { ESLOGAN, FOOTER } from '../content/copy'
+---
+
+<footer class="pie tema-noche" id="pie">
+  <div class="envoltura pie__grilla">
+    <div class="pie__marca">
+      <Logo ancho={72} />
+      <p class="pie__eslogan">{ESLOGAN}</p>
+    </div>
+    <AvisoSeguridad />
+    <div class="pie__fila">
+      <nav aria-label="Legales">
+        <a href="/privacidad/">Privacidad</a>
+        <a href="/terminos/">Términos</a>
+      </nav>
+      <button type="button" class="pie__pausa btn btn-secundario" data-pausar aria-pressed="false" data-solo-js data-texto-pausar={FOOTER.pausar} data-texto-reanudar={FOOTER.reanudar}>{FOOTER.pausar}</button>
+    </div>
+    <div class="pie__legal suave">
+      <p class="mono">{FOOTER.linea}</p>
+      <p>{FOOTER.edad}</p>
+      <p>{FOOTER.atribucion}</p>
+    </div>
+  </div>
+</footer>
+
+<style is:global>
+  .pie { position: relative; z-index: 2; padding-block: 56px calc(96px + env(safe-area-inset-bottom)); }
+  .pie__grilla { display: grid; gap: 28px; }
+  .pie__marca { display: flex; align-items: center; gap: 20px; }
+  .pie__eslogan { font-family: var(--f-display); font-size: var(--t-h3); font-weight: 800; line-height: 1.05; letter-spacing: -.02em; }
+  .pie__fila { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; }
+  .pie__fila nav { display: flex; gap: 20px; }
+  .pie__fila nav a { display: inline-flex; align-items: center; min-height: 44px; text-underline-offset: 4px; }
+  .pie__pausa { min-height: 44px; padding-block: 8px; }
+  .pie__legal { display: grid; gap: 4px; }
+  .pie__legal .mono { letter-spacing: 0; }
+  @media (min-width: 900px) { .pie { padding-bottom: 56px; } }
+</style>

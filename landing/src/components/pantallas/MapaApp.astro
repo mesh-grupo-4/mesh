@@ -1,0 +1,32 @@
+---
+// Mapa estilizado de los mockups: SVG, sin teselas reales (plan, 4.6).
+import Rueda from '../Rueda.astro'
+import { crearRuta } from '../../lib/ruta'
+
+const RUTA = 'M 40 620 C 90 520 20 450 80 370 C 130 300 240 330 240 240 C 240 160 110 170 120 80 C 124 40 150 10 170 -20'
+
+interface Props {
+  /** t de cada rueda sobre la ruta. */
+  grupo?: number[]
+  class?: string
+}
+const { grupo = [0.62, 0.58, 0.54, 0.5, 0.46, 0.42], class: clase } = Astro.props
+const ruta = crearRuta(RUTA)
+---
+
+<svg class:list={['mapa-app', clase]} viewBox="0 0 300 600" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+  <rect width="300" height="600" fill="var(--map-bg)" />
+  <g stroke="var(--map-grid)" stroke-width="10" fill="none" stroke-linecap="round">
+    <path d="M-10 120 L 310 90" />
+    <path d="M-10 300 L 310 340" />
+    <path d="M-10 480 L 310 440" />
+    <path d="M70 -10 L 40 610" />
+    <path d="M230 -10 L 262 610" />
+  </g>
+  <path d={RUTA} fill="none" stroke="var(--map-route)" stroke-width="20" stroke-linecap="round" />
+  <path class="mapa-app__ruta" d={RUTA} pathLength="1" fill="none" stroke="var(--naranja)" stroke-width="7" stroke-linecap="round" />
+  {grupo.map((t) => {
+    const p = ruta.punto(t)
+    return <Rueda g r={13} x={p.x} y={p.y} fondo="var(--map-bg)" />
+  })}
+</svg>

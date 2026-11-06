@@ -1,0 +1,82 @@
+:root {
+  /* Marca */
+  --naranja: #FE3A0F;        /* logo, cinta, CTA */
+  --naranja-texto: #C92A06;  /* solo para texto naranja sobre fondo crema */
+  --coral: #D76655;          /* acento de la UI real, dentro de mockups */
+
+  /* Base clara */
+  --crema: #F4F1EE;
+  --crema-2: #EFEAE5;
+  --blanco: #FFFFFF;
+  --tinta: #141210;
+  --tinta-suave: #6F675F;
+  --linea: #E4DDD6;
+
+  /* Base oscura */
+  --noche: #0F0F0F;
+  --noche-2: #1C1C1C;
+  --hueso: #F4F2F0;
+  --hueso-suave: #9A948F;
+
+  /* Modo moto: alto contraste real de la app */
+  --moto-fondo: #000000;
+  --moto-acento: #FFCC00;
+
+  /* Estados de integrante */
+  --ok: #2F9E63;
+  --parada: #F59E0B;
+  --incidente: #DC2626;
+
+  /* Tipos de alerta */
+  --al-desvio: #8B5CF6;
+  --al-atraso: #EA580C;
+  --al-combustible: #0EA5E9;
+  --al-peligro: #DC2626;
+  --al-info: #6B7280;
+
+  /* Mapa de los mockups */
+  --map-bg: #ECE6DF;
+  --map-grid: #E0D8CF;
+  --map-route: #D3C8BD;
+
+  /* Tipografía */
+  --f-display: 'Bricolage Grotesque Variable', 'Bricolage Respaldo', system-ui, sans-serif;
+  --f-texto: 'Plus Jakarta Sans Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --f-mono: 'Space Mono', ui-monospace, Menlo, monospace;
+
+  --t-hero: clamp(3.5rem, 13vw, 12rem);
+  --t-h2: clamp(2.5rem, 7vw, 6rem);
+  --t-h3: clamp(1.5rem, 3vw, 2.25rem);
+  --t-lead: clamp(1.125rem, 1.8vw, 1.5rem);
+  --t-body: 1.0625rem;
+  /* El plan pide .875rem (14 px) y también un mínimo de 15 px: gana la accesibilidad (0.3). */
+  --t-mono: .9375rem;
+
+  /* Forma */
+  --r-tarjeta: 28px;
+  --r-boton: 999px;
+  --r-telefono: 44px;
+  --sombra: 0 20px 60px rgba(60, 45, 35, .16);
+
+  /* Ritmo */
+  --borde-pagina: clamp(20px, 4vw, 56px);
+  --seccion-y: clamp(96px, 13vw, 200px);
+
+  /* Movimiento: espejo de src/motion/tokens.ts para lo que resuelve CSS */
+  --d-micro: .18s;
+  --d-corta: .35s;
+  --d-media: .6s;
+  --e-salida: cubic-bezier(.215, .61, .355, 1);
+  --e-suave: cubic-bezier(.45, 0, .55, 1);
+  --e-rebote: cubic-bezier(.34, 1.56, .64, 1);
+}
+
+/* Fuente de respaldo con métricas ajustadas para que el swap del H1 no mueva la página. */
+@font-face {
+  font-family: 'Bricolage Respaldo';
+  src: local('Arial');
+  size-adjust: 96%;
+  ascent-override: 96%;
+  descent-override: 26%;
+  line-gap-override: 0%;
+}

@@ -1,0 +1,23 @@
+---
+import Icono from '../Icono.astro'
+---
+
+<div class="app pant-ya">
+  <p class="app-titulo"><Icono nombre="zap" tam={20} /> Viaje YA</p>
+  <p class="app-sub">¿En qué salen?</p>
+  <div class="pant-ya__grilla">
+    <span class="app-chip">Moto</span>
+    <span class="app-chip app-chip--on">Bici</span>
+    <span class="app-chip">Running</span>
+    <span class="app-chip">Trekking</span>
+  </div>
+  <p class="app-sub pant-ya__nota">Sin ruta, sin planificar. Se arma la salida y arrancan.</p>
+  <span class="app-boton">Arrancar</span>
+</div>
+
+<style is:global>
+  .pant-ya .app-titulo { display: flex; align-items: center; gap: 8px; }
+  .pant-ya__grilla { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .pant-ya__grilla .app-chip { justify-content: center; min-height: 72px; }
+  .pant-ya__nota { margin-top: auto; }
+</style>

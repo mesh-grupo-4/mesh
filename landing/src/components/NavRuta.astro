@@ -1,0 +1,77 @@
+---
+import Logo from './Logo.astro'
+import Rueda from './Rueda.astro'
+import BotonDescarga from './BotonDescarga.astro'
+import { NAV } from '../content/copy'
+---
+
+<header class="nav" data-nav>
+  <div class="nav__fila">
+    <a class="nav__logo" href="#inicio" aria-label="Mesh, ir al inicio"><Logo ancho={46} etiqueta="Mesh" /></a>
+    <nav class="nav__ruta" aria-label="Recorrido de la página">
+      <span class="nav__linea" aria-hidden="true"></span>
+      <ol>
+        {NAV.hitos.map((h) => (
+          <li>
+            <a href={h.href} aria-label={`Ir a ${h.texto}`} data-nav-hito>
+              <span class="nav__punto" aria-hidden="true"></span>
+              <span class="nav__texto">{h.texto}</span>
+            </a>
+          </li>
+        ))}
+      </ol>
+      <span class="nav__rueda" data-nav-rueda aria-hidden="true"><Rueda r={9} fondo="var(--crema)" /></span>
+    </nav>
+    <BotonDescarga seccion="nav" clase="btn-primario nav__cta" />
+  </div>
+  <span class="nav__progreso" data-nav-progreso aria-hidden="true"></span>
+</header>
+
+<div class="cta-fijo" data-cta-fijo>
+  <BotonDescarga seccion="cta_fijo" />
+</div>
+
+<style is:global>
+  .nav {
+    position: fixed;
+    inset: 0 0 auto;
+    z-index: 50;
+    transition: transform var(--d-corta) var(--e-salida), background-color var(--d-corta);
+  }
+  .nav.nav--oculta { transform: translateY(-110%); }
+  .nav:focus-within { transform: none; }
+  .nav.nav--fondo { background: rgba(244, 241, 238, .95); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: 0 1px 0 var(--linea); }
+  .nav__fila { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 10px var(--borde-pagina); color: var(--tinta); }
+  .nav__logo { display: flex; align-items: center; min-height: 44px; flex: none; }
+  .nav__cta { min-height: 44px; padding: 8px 20px; font-size: 1rem; white-space: nowrap; }
+
+  .nav__ruta { position: relative; display: none; flex: 1; max-width: 720px; }
+  .nav__ruta ol { position: relative; display: flex; justify-content: space-between; }
+  .nav__linea { position: absolute; left: 8px; right: 8px; top: 21px; height: 3px; border-radius: 3px; background: var(--linea); }
+  .nav__ruta a { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 44px; min-height: 44px; padding-top: 16px; text-decoration: none; }
+  .nav__punto { width: 13px; height: 13px; border-radius: 50%; background: var(--crema); border: 3px solid var(--tinta-suave); }
+  .nav__texto { position: absolute; top: 34px; padding: 2px 8px; border-radius: 6px; font-family: var(--f-mono); font-size: var(--t-mono); white-space: nowrap; background: var(--crema); box-shadow: 0 2px 8px rgba(60, 45, 35, .16); opacity: 0; pointer-events: none; transition: opacity var(--d-micro); }
+  .nav__ruta a:hover .nav__texto, .nav__ruta a:focus-visible .nav__texto { opacity: 1; }
+  .nav__rueda { position: absolute; left: 0; top: 13px; line-height: 0; pointer-events: none; }
+  .nav__progreso { display: block; height: 3px; background: var(--naranja); transform: scaleX(var(--progreso, 0)); transform-origin: left; }
+
+  .cta-fijo {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 40;
+    padding: 10px var(--borde-pagina) calc(10px + env(safe-area-inset-bottom));
+    background: rgba(244, 241, 238, .94);
+    box-shadow: 0 -1px 0 var(--linea);
+    transform: translateY(110%);
+    visibility: hidden;
+    transition: transform var(--d-corta) var(--e-salida), visibility var(--d-corta);
+  }
+  .cta-fijo.cta-fijo--on { transform: none; visibility: visible; }
+  .cta-fijo .btn { width: 100%; }
+
+  @media (min-width: 900px) {
+    .nav__ruta { display: block; }
+    .nav__progreso { display: none; }
+    .cta-fijo { display: none; }
+  }
+</style>

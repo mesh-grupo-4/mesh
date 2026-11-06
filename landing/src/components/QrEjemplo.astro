@@ -1,0 +1,23 @@
+---
+// Un QR de muestra para los mockups. Escaneado solo dice que es de ejemplo: no lleva a ningún lado.
+import QRCode from 'qrcode'
+
+interface Props {
+  texto?: string
+  color?: string
+  class?: string
+}
+const { texto = 'Mesh: QR de ejemplo', color = '#141210', class: clase } = Astro.props
+const { modules } = QRCode.create(texto, { errorCorrectionLevel: 'L' })
+const n = modules.size
+const celdas: { x: number; y: number }[] = []
+for (let y = 0; y < n; y++) {
+  for (let x = 0; x < n; x++) {
+    if (modules.get(y, x)) celdas.push({ x, y })
+  }
+}
+---
+
+<svg class:list={['qr', clase]} viewBox={`0 0 ${n} ${n}`} shape-rendering="crispEdges" aria-hidden="true">
+  <g fill={color}>{celdas.map((c) => <rect x={c.x} y={c.y} width="1" height="1" />)}</g>
+</svg>

@@ -1,0 +1,26 @@
+---
+// Alto contraste real de la app. RN-070: sin velocidad, sin posiciones, sin nada que compita.
+import Icono from '../Icono.astro'
+---
+
+<div class="pant-moto">
+  <svg class="pant-moto__mapa" viewBox="0 0 300 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <rect width="300" height="300" fill="#0A0A0A" />
+    <path d="M-10 280 C 70 220 40 170 120 150 C 200 130 200 80 310 40" fill="none" stroke="#555" stroke-width="22" stroke-linecap="round" />
+    <path d="M-10 280 C 70 220 40 170 120 150 C 200 130 200 80 310 40" fill="none" stroke="var(--moto-acento)" stroke-width="7" stroke-linecap="round" />
+    <circle cx="120" cy="150" r="14" fill="var(--moto-acento)" /><circle cx="120" cy="150" r="6" fill="#000" />
+    <circle cx="74" cy="196" r="14" fill="#fff" /><circle cx="74" cy="196" r="6" fill="#000" />
+    <circle cx="186" cy="110" r="14" fill="#fff" /><circle cx="186" cy="110" r="6" fill="#000" />
+  </svg>
+  <div class="pant-moto__botones">
+    <span><Icono nombre="pause" tam={26} /> Parada</span>
+    <span><Icono nombre="alert-triangle" tam={26} /> Alerta</span>
+  </div>
+</div>
+
+<style is:global>
+  .pant-moto { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+  .pant-moto__mapa { flex: 1; min-height: 0; width: 100%; }
+  .pant-moto__botones { display: grid; gap: 10px; padding: 12px; }
+  .pant-moto__botones span { display: flex; align-items: center; justify-content: center; gap: 12px; min-height: 84px; border-radius: 16px; background: var(--moto-acento); color: #000; font-weight: 800; font-size: 24px; }
+</style>

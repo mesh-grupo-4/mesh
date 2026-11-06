@@ -1,0 +1,71 @@
+---
+import Base from '../layouts/Base.astro'
+import NavRuta from '../components/NavRuta.astro'
+import CintaGlobal from '../components/CintaGlobal.astro'
+import Hero from '../sections/Hero.astro'
+import Problema from '../sections/Problema.astro'
+import ComoFunciona from '../sections/ComoFunciona.astro'
+import Simulador from '../sections/Simulador.astro'
+import Transicion from '../sections/Transicion.astro'
+import Actividades from '../sections/Actividades.astro'
+import Offline from '../sections/Offline.astro'
+import Privacidad from '../sections/Privacidad.astro'
+import Bento from '../sections/Bento.astro'
+import Competir from '../sections/Competir.astro'
+import Diferencia from '../sections/Diferencia.astro'
+import Faq, { preguntasFaq } from '../sections/Faq.astro'
+import Llegada from '../sections/Llegada.astro'
+import Footer from '../sections/Footer.astro'
+import { SEO } from '../content/copy'
+
+const jsonLd = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'MobileApplication',
+    name: 'Mesh',
+    description: SEO.descripcion,
+    applicationCategory: 'TravelApplication',
+    operatingSystem: 'Android, iOS',
+    inLanguage: 'es-AR',
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: preguntasFaq().map(([p, r]) => ({
+      '@type': 'Question',
+      name: p,
+      acceptedAnswer: { '@type': 'Answer', text: r },
+    })),
+  },
+]
+---
+
+<Base jsonLd={jsonLd} conMotion>
+  <NavRuta />
+  <main id="contenido" class="pagina" data-pagina>
+    <CintaGlobal />
+    <Hero />
+    <Problema />
+    <div class="tr-noche" data-tr-noche aria-hidden="true"><span class="tr-noche__banda"></span></div>
+    <ComoFunciona />
+    <Simulador />
+    <Transicion />
+    <Actividades />
+    <Offline />
+    <Privacidad />
+    <Bento />
+    <Competir />
+    <Diferencia />
+    <Faq />
+    <Llegada />
+  </main>
+  <Footer />
+</Base>
+
+<style is:global>
+  .pagina { position: relative; }
+  /* Crema a noche: la cinta se ensancha hasta ser el fondo de la sección siguiente (plan, 6.4). */
+  .tr-noche { display: none; }
+  html[data-motion='on'] .tr-noche { display: block; position: relative; z-index: 2; height: 70svh; background: var(--crema); overflow: hidden; }
+  .tr-noche__banda { position: absolute; inset: 0; background: var(--naranja); transform: scaleX(.03); transform-origin: 18% 50%; }
+</style>

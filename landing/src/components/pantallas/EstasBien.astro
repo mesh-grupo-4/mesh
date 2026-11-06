@@ -1,0 +1,23 @@
+---
+// Banner "¿Estás bien?". En el simulador sus botones son reales; en el catálogo son ilustrativos.
+import { SIM } from '../../content/copy'
+const { pregunta, preguntaDetalle, bien, mal } = SIM.situaciones.incidente
+---
+
+<div class="pant-bien">
+  <p class="pant-bien__titulo">{pregunta}</p>
+  <p>{preguntaDetalle}</p>
+  <div class="pant-bien__botones">
+    <button type="button" class="pant-bien__ok" data-sim-accion="ESTOY_BIEN">{bien}</button>
+    <button type="button" class="pant-bien__mal" data-sim-accion="ESTOY_MAL">{mal}</button>
+  </div>
+</div>
+
+<style is:global>
+  .pant-bien { display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 16px; background: #2A1412; border: 1px solid var(--incidente); color: var(--hueso); line-height: 1.3; }
+  .pant-bien__titulo { font-size: 21px; font-weight: 800; }
+  .pant-bien__botones { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
+  .pant-bien__botones button { min-height: 56px; border-radius: 12px; font-weight: 700; padding: 6px; }
+  .pant-bien__ok { background: var(--hueso); color: var(--tinta); }
+  .pant-bien__mal { background: #FF8A80; color: #2A0B08; }
+</style>

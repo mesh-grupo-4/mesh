@@ -1,0 +1,18 @@
+---
+import Base from '../layouts/Base.astro'
+import Logo from '../components/Logo.astro'
+import { ERROR_404 } from '../content/copy'
+---
+
+<Base titulo={ERROR_404.titulo} descripcion={ERROR_404.sub} indexable={false}>
+  <main id="contenido" class="envoltura e404">
+    <a href="/" aria-label="Mesh, ir al inicio"><Logo ancho={64} /></a>
+    <h1 class="h2">{ERROR_404.h1}</h1>
+    <p class="lead">{ERROR_404.sub}</p>
+    <a class="btn btn-primario" href="/">{ERROR_404.volver}</a>
+  </main>
+</Base>
+
+<style is:global>
+  .e404 { display: grid; gap: 24px; justify-items: start; align-content: center; min-height: 100svh; padding-block: 48px; --suave: var(--tinta-suave); }
+</style>

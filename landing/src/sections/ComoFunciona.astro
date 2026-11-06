@@ -1,0 +1,89 @@
+---
+import Telefono from '../components/Telefono.astro'
+import Rueda from '../components/Rueda.astro'
+import Rotulo from '../components/Rotulo.astro'
+import ViajeYa from '../components/pantallas/ViajeYa.astro'
+import Qr from '../components/pantallas/Qr.astro'
+import MapaVivo from '../components/pantallas/MapaVivo.astro'
+import Resumen from '../components/pantallas/Resumen.astro'
+import { COMO } from '../content/copy'
+
+const descripciones = [
+  'Pantalla Viaje YA con la elección de actividad.',
+  'Pantalla con el QR de la salida y seis de seis integrantes sumados.',
+  'Mapa en vivo con el grupo y un aviso de desvío.',
+  'Resumen de la salida con distancia, tiempo y paradas.',
+]
+---
+
+<section class="como seccion tema-noche" id="como-funciona" data-seccion="como" data-cinta-seccion>
+  <div class="envoltura como__cabeza">
+    <p class="etiqueta">{COMO.etiqueta}</p>
+    <h2 class="h2" data-titulo>{COMO.h2}</h2>
+    <Rotulo />
+  </div>
+
+  <div class="como__escena" data-como-pin>
+    <svg class="como__cinta" data-como-cinta viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <path d="M 120 -10 C 120 300 500 240 500 520" pathLength="1" fill="none" stroke="var(--naranja)" stroke-width="16" stroke-linecap="round" stroke-dasharray="1" stroke-dashoffset="1" />
+    </svg>
+    <ol class="como__pasos envoltura" data-como-pasos>
+      {COMO.pasos.map((p, i) => (
+        <li class="paso" data-paso={i}>
+          <div class="paso__texto" data-paso-texto>
+            <span class="paso__num mono" aria-hidden="true">{i + 1}</span>
+            <h3 class="h3">{p.titulo}</h3>
+            <p class="suave">{p.texto}</p>
+          </div>
+          <Telefono etiqueta={descripciones[i]} class="paso__tel" data-paso-tel>
+            {i === 0 && <ViajeYa />}
+            {i === 1 && <Qr />}
+            {i === 2 && <MapaVivo />}
+            {i === 3 && <Resumen />}
+          </Telefono>
+        </li>
+      ))}
+    </ol>
+    <div class="como__ruedas" data-como-ruedas aria-hidden="true">
+      {[0, 1, 2, 3, 4, 5].map(() => <Rueda r={15} fondo="var(--noche)" />)}
+    </div>
+  </div>
+</section>
+
+<style is:global>
+  .como__cabeza { margin-bottom: 56px; display: grid; gap: 16px; justify-items: start; }
+  .como__cabeza .etiqueta { margin: 0; }
+  .como__cinta, .como__ruedas { display: none; }
+  .como__pasos { display: grid; gap: 28px; }
+  .paso { position: sticky; top: 76px; display: flex; flex-direction: column; gap: 20px; padding: 24px; background: var(--noche-2); border: 1px solid #2E2E2E; border-radius: var(--r-tarjeta); }
+  .paso__num { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--naranja); color: var(--tinta); font-weight: 700; margin-bottom: 10px; letter-spacing: 0; }
+  .paso__texto .h3 { margin-bottom: 6px; }
+  .paso__tel { --tel-ancho: 280px; align-self: center; }
+
+  /* Sin JS, con reduced motion o en una ventana baja: una tarjeta por paso, siempre legibles. */
+  @media (min-width: 900px) {
+    .como__pasos { grid-template-columns: repeat(2, 1fr); }
+    .paso { position: static; flex-direction: row; align-items: flex-start; }
+    .paso__texto { flex: 1; }
+    .paso__tel { --tel-ancho: 240px; }
+  }
+
+  /* Con pin (lo activa src/motion/como.ts): teléfono al centro, textos a los lados. */
+  html[data-como='pin'] .como { padding-bottom: 0; }
+  html[data-como='pin'] .como__cabeza { margin-bottom: 0; }
+  html[data-como='pin'] .como__escena { position: relative; z-index: 2; height: 100svh; overflow: hidden; background: var(--noche); }
+  html[data-como='pin'] .como__cinta { display: block; position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; pointer-events: none; }
+  html[data-como='pin'] .como__pasos { position: relative; height: 100%; display: grid; grid-template-columns: 1fr minmax(0, 320px) 1fr; grid-template-rows: 1fr 1fr; align-items: center; column-gap: clamp(32px, 6vw, 96px); row-gap: 0; }
+  html[data-como='pin'] .paso { display: contents; }
+  html[data-como='pin'] .paso__texto { grid-row: var(--fila); grid-column: var(--col); text-align: var(--alinear, left); transition: opacity var(--d-corta); opacity: .32; }
+  html[data-como='pin'] .paso__texto.paso__texto--activo { opacity: 1; }
+  html[data-como='pin'] .paso__num { margin-inline: var(--num-m, 0); }
+  html[data-como='pin'] [data-paso='0'] { --fila: 1; --col: 1; --alinear: right; --num-m: auto 0; }
+  html[data-como='pin'] [data-paso='1'] { --fila: 1; --col: 3; }
+  html[data-como='pin'] [data-paso='2'] { --fila: 2; --col: 1; --alinear: right; --num-m: auto 0; }
+  html[data-como='pin'] [data-paso='3'] { --fila: 2; --col: 3; }
+  html[data-como='pin'] .paso__tel { --tel-ancho: 320px; grid-column: 2; grid-row: 1 / span 2; align-self: center; justify-self: center; height: min(640px, calc(100svh - 96px)); width: auto; aspect-ratio: 320 / 640; }
+  html[data-como='pin'] .paso__tel:not([data-paso-tel='primero']) { background: none; box-shadow: none; }
+  html[data-como='pin'] .como__ruedas { display: block; position: absolute; inset: 0; pointer-events: none; }
+  html[data-como='pin'] .como__ruedas .rueda { position: absolute; top: 50%; left: 50%; opacity: 0; }
+</style>

@@ -1,0 +1,15 @@
+---
+import { TRANSICION } from '../content/copy'
+const palabras = TRANSICION.split(' ')
+---
+
+<section class="transicion seccion tema-noche" aria-label="Transición" data-cinta-seccion>
+  <p class="transicion__frase envoltura" data-frase>
+    {palabras.map((p) => <><span class="transicion__palabra">{p}</span>{' '}</>)}
+  </p>
+</section>
+
+<style is:global>
+  .transicion { min-height: 90svh; display: flex; align-items: center; }
+  .transicion__frase { font-family: var(--f-display); font-weight: 800; font-size: var(--t-h2); line-height: 1; letter-spacing: -.03em; text-wrap: balance; }
+</style>

@@ -1,0 +1,13 @@
+---
+// La cinta que recorre la página. El trazo real lo calcula src/motion/cinta.ts midiendo las secciones:
+// sin JS no hay nada que dibujar, y la historia se entiende igual.
+---
+
+<svg class="cinta-global" data-cinta-global aria-hidden="true" width="0" height="0" focusable="false">
+  <path class="cinta-global__trazo" data-cinta-trazo fill="none" stroke="var(--naranja)" stroke-linecap="round" stroke-linejoin="round" pathLength="1" stroke-dasharray="1" stroke-dashoffset="1"></path>
+  <g data-cinta-ruedas></g>
+</svg>
+
+<style is:global>
+  .cinta-global { position: absolute; top: 0; left: 0; z-index: 1; pointer-events: none; overflow: hidden; max-width: none; }
+</style>
