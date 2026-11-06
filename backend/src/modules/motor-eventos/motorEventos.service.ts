@@ -7,6 +7,7 @@ import {
   type MiembroEnRuta,
 } from '../../lib/bloquePrincipal'
 import { distanciaMetros } from '../../lib/geo2d'
+import { esMotorizado } from '../../lib/actividad'
 import type { GeoJsonLineString } from '../../lib/geo'
 import { computeDistanciaPuntoARutaM, computeProgresoEnRutaM } from '../../lib/postgis'
 import { getIo } from '../../realtime/ioRegistry'
@@ -350,7 +351,7 @@ export class MotorEventosService {
     })
 
     // RN-071: con el progreso propio ya cacheado, el leaderboard sale del caché.
-    if (viaje.modo === 'competitivo' && viaje.tipo_actividad !== 'moto') {
+    if (viaje.modo === 'competitivo' && !esMotorizado(viaje.tipo_actividad)) {
       void this.emitirLeaderboard(input.viajeId, viaje.velocidad_esperada, ahora)
     }
 

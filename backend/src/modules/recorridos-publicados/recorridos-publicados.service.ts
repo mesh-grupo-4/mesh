@@ -56,7 +56,7 @@ type FilaResumen = {
 }
 
 /**
- * Solo distancia y tiempo: nunca velocidad (RN-070). Un recorrido en moto se puede
+ * Solo distancia y tiempo: nunca velocidad (RN-070). Un recorrido en moto o auto se puede
  * publicar y ver como referencia, pero no se compara ni se ordena por rendimiento.
  */
 function aResumen(r: FilaResumen) {

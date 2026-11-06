@@ -32,7 +32,7 @@ const TOP_N = 3
 /**
  * RN-076: tabla de posiciones global por tipo de actividad y período, ordenada
  * por distancia o tiempo en movimiento — nunca por velocidad (RN-070). La
- * modalidad moto queda afuera por completo: `tipoActividad` solo acepta
+ * modalidades motorizadas (moto y auto) quedan afuera por completo: `tipoActividad` solo acepta
  * bici/running/trekking/otro (ver `tabla-posiciones.schemas.ts`).
  */
 export class TablaPosicionesService {

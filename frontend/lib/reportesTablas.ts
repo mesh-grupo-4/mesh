@@ -17,6 +17,7 @@ import type {
 /** Rótulos en castellano de los valores que devuelve la API. */
 export const ROTULO: Record<string, string> = {
   moto: 'Moto',
+  auto: 'Auto',
   bici: 'Bici',
   running: 'Running',
   trekking: 'Trekking',

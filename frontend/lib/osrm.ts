@@ -158,10 +158,11 @@ export async function calcularRutaOsrm(
 
 /** Mapea tipo de actividad del viaje al perfil OSRM más cercano. */
 export function perfilOsrmDesdeActividad(
-  tipo: 'moto' | 'bici' | 'running' | 'trekking' | 'otro'
+  tipo: 'moto' | 'auto' | 'bici' | 'running' | 'trekking' | 'otro'
 ): MobilityProfile {
   switch (tipo) {
     case 'moto':
+    case 'auto':
       return 'driving'
     case 'bici':
       return 'cycling'

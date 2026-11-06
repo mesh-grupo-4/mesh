@@ -20,6 +20,7 @@ const POR_ACTIVIDAD: Record<TipoActividad, UmbralesMotor> = {
   running: { detencionMinutos: 4, radioDetenidoM: 15, toleranciaAtrasoMinutos: 3 },
   bici: { detencionMinutos: 3, radioDetenidoM: 20, toleranciaAtrasoMinutos: 5 },
   moto: { detencionMinutos: 3, radioDetenidoM: 25, toleranciaAtrasoMinutos: 10 },
+  auto: { detencionMinutos: 3, radioDetenidoM: 25, toleranciaAtrasoMinutos: 10 },
   otro: DEFAULTS,
 }
 

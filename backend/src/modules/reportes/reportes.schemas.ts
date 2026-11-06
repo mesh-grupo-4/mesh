@@ -6,7 +6,7 @@ const fecha = z
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato de fecha esperado: AAAA-MM-DD')
   .refine((s) => !Number.isNaN(Date.parse(`${s}T00:00:00Z`)), 'Fecha inválida')
 
-const actividad = z.enum(['moto', 'bici', 'running', 'trekking', 'otro'])
+const actividad = z.enum(['moto', 'auto', 'bici', 'running', 'trekking', 'otro'])
 
 /** Fechas calendario en hora argentina (RN-105), ambas inclusive. */
 export const periodoQuery = z

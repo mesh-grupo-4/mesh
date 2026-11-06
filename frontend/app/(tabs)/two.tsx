@@ -683,6 +683,7 @@ export default function ViajesScreen() {
           {([
             { key: 'all', label: 'Todas' },
             { key: 'moto', label: 'Moto' },
+            { key: 'auto', label: 'Auto' },
             { key: 'bici', label: 'Bici' },
             { key: 'running', label: 'Running' },
             { key: 'trekking', label: 'Trekking' },

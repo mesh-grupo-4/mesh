@@ -26,6 +26,7 @@ import {
   formatSpeedKmh,
 } from '@/lib/format'
 import { meshError } from '@/lib/meshAlert'
+import { esMotorizado } from '@/lib/activityDefaults'
 import {
   despublicarRecorrido,
   listarMisViajesPublicados,
@@ -178,7 +179,7 @@ export default function ViajeResumenScreen() {
   }
 
   const esGrupal = resumen?.viaje.es_grupal ?? false
-  const esMoto = resumen?.viaje.tipo_actividad === 'moto'
+  const esMoto = esMotorizado(resumen?.viaje.tipo_actividad)
   const totales = resumen?.totales
   const mias = resumen?.mis_metricas
   // Mismas condiciones que valida el backend (RECORRIDO_SIN_TRAZA): métricas propias y

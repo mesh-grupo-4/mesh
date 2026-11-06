@@ -8,7 +8,7 @@
 
 ## 1. ¿Qué es Mesh?
 
-Mesh es una aplicación móvil diseñada para la **coordinación grupal en tiempo real** durante actividades deportivas y recreativas en movimiento: motociclismo, ciclismo, running, trekking y rollers.
+Mesh es una aplicación móvil diseñada para la **coordinación grupal en tiempo real** durante actividades deportivas y recreativas en movimiento: motociclismo, auto, ciclismo, running, trekking y rollers.
 
 A diferencia de soluciones existentes (Strava, Garmin, Google Maps, Life360) que se enfocan en rendimiento individual o navegación punto a punto, Mesh resuelve un problema específico: **interpretar qué está pasando con el grupo como conjunto** — quién se desvió, quién se atrasó, quién se detuvo voluntariamente y quién podría estar en problemas.
 
@@ -74,7 +74,7 @@ A diferencia de soluciones existentes (Strava, Garmin, Google Maps, Life360) que
 | RN-020 | Un viaje puede ser **individual** (sin invitados iniciales) o **grupal** (con uno o más participantes). |
 | RN-028 | Al crear un viaje grupal, el creador puede invitar por dos vías (UI: dos `Collapsible`, Grupos y Amigos): **(a) grupos** de los que es **miembro**, invitando en bloque a sus integrantes (`origen: grupo`); y **(b) amigos** individuales con amistad **aceptada** (`origen: amigo`, validado en backend con 403 `NOT_FRIEND` si no son amigos). Ambos `grupoIds` y `amigoIds` solo se aceptan en viajes grupales. Si un usuario llega por varios caminos (varios grupos, o grupo + amigo) recibe **una sola invitación** (se prioriza `origen: grupo`). El campo `invitaciones_enviadas` cuenta el total sin duplicar. El viaje se crea con `nombre` obligatorio (1–100) y `fecha_programada` futura definida por el creador. Los `grupoIds` invitados se **persisten** en `viaje_grupo` (RN-027) para trazabilidad y conteo de viajes por grupo. **Después de crear:** el líder puede sumar grupos/amigos con `POST /api/viajes/:viajeId/invitaciones` mientras el viaje esté `planificado` (mismas validaciones; 403 `NOT_CREATOR` si no es el líder, 409 `INVALID_STATE` si ya arrancó, 409 `INDIVIDUAL_TRIP` si es individual). Quien ya figura en el viaje, en cualquier estado, no se vuelve a invitar. |
 | RN-029 | Las invitaciones al viaje (originadas por grupos o por amigos) requieren **confirmación** del invitado (aceptar/rechazar asistencia). El creador del viaje ve la lista de confirmados y rechazados. Distinto de RN-016 (QR al viaje) y de RN-018 (membresía de grupo). |
-| RN-021 | Los tipos de actividad disponibles son: **moto**, **bici**, **running**, **trekking**, **otro**. Cada uno tiene parámetros por defecto diferentes. |
+| RN-021 | Los tipos de actividad disponibles son: **moto**, **auto**, **bici**, **running**, **trekking**, **otro**. Cada uno tiene parámetros por defecto diferentes. |
 | RN-022 | Las categorías de parada son: **accidente**, **combustible**, **descanso**, **gastronomía**, **punto de control**, **sanitario**, **otro**. `accidente` solo aplica a paradas voluntarias del viaje en vivo (se muestra destacada en el selector "¿por qué parás?") y además genera una alerta de peligro para todo el grupo. Las paradas planificadas de la ruta no usan `accidente`. |
 | RN-023 | La estimación de tiempos depende del tipo de actividad seleccionado y la distancia, más el tiempo configurable de cada parada. |
 | RN-024 | Las rutas se trazan sobre Google Maps (Routes API, con OSRM/Valhalla de respaldo); las paradas son reordenables. Ver [[adr-mapas-google]]. |
@@ -111,7 +111,7 @@ A diferencia de soluciones existentes (Strava, Garmin, Google Maps, Life360) que
 
 | ID | Regla |
 |---|---|
-| RN-050 | En **modo moto**: pantalla completa, botones grandes, alto contraste. Prioridad a la seguridad vial. |
+| RN-050 | En **modo moto y auto**: pantalla completa, botones grandes, alto contraste. Prioridad a la seguridad vial. |
 | RN-051 | En **modo trekking/running**: retroalimentación háptica (vibración) priorizada sobre visual. |
 | RN-052 | Todos los textos superan el tamaño mínimo para uso outdoor. La interfaz muestra lo mínimo necesario. |
 
@@ -122,7 +122,7 @@ A diferencia de soluciones existentes (Strava, Garmin, Google Maps, Life360) que
 | RN-060 | Al finalizar un viaje se detiene el tracking de todos los integrantes y se genera automáticamente el resumen. |
 | RN-061 | Métricas individuales: distancia recorrida, tiempo total, tiempo en movimiento, tiempo detenido, velocidad promedio. |
 | RN-062 | Métricas grupales: integrantes totales, distancia promedio, cantidad de alertas generadas. |
-| RN-063 | El ranking de **este viaje** (recap post-cierre, cards con tabs) se ordena por velocidad promedio, distancia o tiempo en movimiento. Solo viajes **grupales** y **no moto**. Usa los números ya calculados en `metrica_viaje`; no es una tabla global ni el Wrapped de período. |
+| RN-063 | El ranking de **este viaje** (recap post-cierre, cards con tabs) se ordena por velocidad promedio, distancia o tiempo en movimiento. Solo viajes **grupales** y **no motorizados** (ni moto ni auto, RN-070). Usa los números ya calculados en `metrica_viaje`; no es una tabla global ni el Wrapped de período. |
 | RN-065 | **Modo entrenamiento (SCRUM-47/48):** al crear, el viaje elige `modo` = `recreativo` (default), `entrenamiento` o `competitivo` (ver RN-071). En entrenamiento el mapa en vivo suma un panel con velocidad actual, promedio y ritmo, y al cerrar `GET /mis-metricas` agrega `splits_km` (tiempo por kilómetro, PostGIS sobre `registro_gps`) y `entrenamiento` (número de sesión, mejor ritmo/distancia, delta contra la sesión anterior y evolución de las últimas 6 sesiones de la misma actividad, todo desde `metrica_viaje`). RN-070 aplica: en moto no hay velocidades, ritmos ni splits, solo distancia y tiempo. |
 | RN-064 | El resumen visual (tipo "Wrapped") se genera **mensual y anualmente**; es compartible como imagen. Distinto del recap de un viaje (RN-063). |
 
@@ -143,13 +143,13 @@ velocidad promedio y velocidad máxima. Tiempo detenido de RN-061 se estima en e
 actual como duración del viaje menos tiempo en movimiento.
 
 El recap de ranking (RN-063) **no** introduce métricas nuevas: solo asigna puestos sobre
-esas filas cuando `es_grupal && tipo_actividad !== 'moto'`. Ver [`us-ranking-viaje.md`](us-ranking-viaje.md).
+esas filas cuando `es_grupal && !esMotorizado(tipo_actividad)`. Ver [`us-ranking-viaje.md`](us-ranking-viaje.md).
 
 ### 2.8 Reglas de Gamificación y Competición
 
 | ID | Regla |
 |---|---|
-| RN-070 | **La modalidad moto queda EXCLUIDA de todos los rankings competitivos y tablas de posiciones** para evitar conductas de riesgo asociadas a la competencia. Esta es una regla de seguridad vial no negociable. |
+| RN-070 | **Las modalidades motorizadas (moto y auto) quedan EXCLUIDAS de todos los rankings competitivos y tablas de posiciones** para evitar conductas de riesgo asociadas a la competencia. Esta es una regla de seguridad vial no negociable. **Implementación:** la compuerta única es `esMotorizado()` (`backend/src/lib/actividad.ts`, espejo en `frontend/lib/activityDefaults.ts`); ningún código compara contra `'moto'` a mano. |
 
 #### RN-070 aplicada al resumen post-viaje
 
@@ -164,7 +164,7 @@ promedio, también en moto. Criterio adoptado y su fundamento:
 Salvaguardas que el código debe mantener, verificadas en `viajes.resumen.test.ts`:
 
 1. `GET /resumen` **nunca** devuelve métricas de terceros. No agregar un campo `por_integrante`.
-2. El contrato lleva `ranking_habilitado: tipo_actividad !== 'moto'`, como compuerta única para
+2. El contrato lleva `ranking_habilitado: !esMotorizado(tipo_actividad)`, como compuerta única para
    cualquier feature comparativa futura.
 3. **Nunca velocidad máxima en moto** — eso sí sería gamificación de velocidad. Solo promedio.
 4. En moto el rótulo es "Ritmo promedio" con el pie "Dato informativo, no comparativo". Sin
@@ -173,12 +173,12 @@ Salvaguardas que el código debe mantener, verificadas en `viajes.resumen.test.t
 
 Si el PO prefiere un criterio más conservador, la alternativa es devolver
 `velocidad_promedio_kmh: null` cuando la actividad es moto: es un solo `if` en el service.
-| RN-071 | El modo competitivo activa un leaderboard en tiempo real basado en posición y tiempos relativos. **Implementación (SCRUM-51):** `modo = competitivo` solo en viajes grupales y nunca en moto (RN-070; `400 MODO_INVALIDO`). El motor de eventos emite `viaje:leaderboard` con cada ping (máx. cada 3 s) ordenando por progreso sobre la ruta planificada, con `deltaM` y `gapSeg` (atraso a la velocidad esperada) respecto del líder; `GET /leaderboard` da la foto inicial. El recap post-cierre (RN-063) solo tiene puestos en competitivo. |
+| RN-071 | El modo competitivo activa un leaderboard en tiempo real basado en posición y tiempos relativos. **Implementación (SCRUM-51):** `modo = competitivo` solo en viajes grupales y nunca en moto ni auto (RN-070; `400 MODO_INVALIDO`). El motor de eventos emite `viaje:leaderboard` con cada ping (máx. cada 3 s) ordenando por progreso sobre la ruta planificada, con `deltaM` y `gapSeg` (atraso a la velocidad esperada) respecto del líder; `GET /leaderboard` da la foto inicial. El recap post-cierre (RN-063) solo tiene puestos en competitivo. |
 | RN-072 | El modo recreativo desactiva rankings y comparaciones pero mantiene navegación y alertas de seguridad. **Implementación (SCRUM-52):** en `recreativo` el resumen y las métricas grupales devuelven `ranking_habilitado: false`, no hay leaderboard, no hay fantasma (`409 FANTASMA_NO_DISPONIBLE`) ni panel de ritmo en vivo; el mapa, las paradas y todas las alertas siguen igual. |
 | RN-073 | El ghost tracking superpone un marcador fantasma de un recorrido histórico que se mueve en tiempo real. El usuario ve si va adelante o atrás. **Implementación (SCRUM-49/50):** fuentes = traza GPS de un viaje finalizado en el que participó (propia o de otro integrante) o una ruta compartida importada como plantilla, recorrida a ritmo constante según su tiempo estimado. `GET /fantasma/candidatos` y `GET /fantasma` (≤ 1500 puntos con `t_seg` y `d_m`). El cliente anima el fantasma contra el tiempo desde el inicio del viaje, muestra metros y segundos adelante/atrás comparando distancia recorrida, y permite pausarlo o quitarlo. Nunca en moto (RN-070) ni en recreativo (RN-072). |
 | RN-074 | Las insignias se otorgan automáticamente al cumplir criterios de logro (distancia, duración, tipo de actividad). **Implementación:** `InsigniasService.evaluarYOtorgar()`, llamado por `ViajesService.generarResumen()` al finalizar el viaje, contra la `MetricaViaje` recién calculada de cada integrante. Ver [`us-insignias.md`](us-insignias.md). |
 | RN-075 | Las rachas se miden en semanas consecutivas con al menos una actividad (un viaje finalizado). Al romperse, el contador se reinicia. **Implementación:** `RachasService.registrarActividad()`, llamado por `ViajesService.generarResumen()` al finalizar un viaje; detecta hitos (3, 5, 10 semanas) y rotura. Un job diario (`src/jobs/rachasJob.ts`) notifica las rachas rotas por pura inactividad el mismo día, sin esperar al próximo viaje. Ver [`us-rachas.md`](us-rachas.md). |
-| RN-076 | La tabla global de posiciones está segmentada por tipo de actividad (bici, running, trekking — moto no tiene tabla, RN-070) y filtrable por período (semanal, mensual, anual). **Implementación:** `TablaPosicionesService.obtener()`, calculada on-demand sumando `MetricaViaje` de los viajes finalizados desde el inicio del período vigente; nada persistido aparte. Ver [`us-tabla-posiciones.md`](us-tabla-posiciones.md). |
+| RN-076 | La tabla global de posiciones está segmentada por tipo de actividad (bici, running, trekking, otro — moto y auto no tienen tabla, RN-070) y filtrable por período (semanal, mensual, anual). **Implementación:** `TablaPosicionesService.obtener()`, calculada on-demand sumando `MetricaViaje` de los viajes finalizados desde el inicio del período vigente; nada persistido aparte. Ver [`us-tabla-posiciones.md`](us-tabla-posiciones.md). |
 
 ### 2.9 Reglas de Red Social de Recorridos
 
@@ -382,7 +382,7 @@ Si el PO prefiere un criterio más conservador, la alternativa es devolver
     │
     ├── Crear viaje
     │     ├── ¿Individual o grupal? (RN-020)
-    │     ├── Tipo de actividad (moto / bici / running / trekking / otro)
+    │     ├── Tipo de actividad (moto / auto / bici / running / trekking / otro)
     │     ├── Fecha y hora de salida
     │     ├── Modo de viaje (competitivo / recreativo / entrenamiento)
     │     └── [Si grupal] Seleccionar 1+ grupos (solo donde soy miembro) ──► RN-028/029
@@ -489,7 +489,7 @@ Si el PO prefiere un criterio más conservador, la alternativa es devolver
     │     └── Resumen: totales del viaje + métricas de quien consulta
     │
     ├── Ranking / recap del viaje (RN-063): cards + tabs sobre esas métricas
-    │     └── EXCEPCIÓN: moto e individual no tienen ranking
+    │     └── EXCEPCIÓN: moto, auto e individual no tienen ranking
     │
     ├── [Avanzado] Wrapped de período (RN-064, mensual/anual)
     │     └── Compartible como imagen — no es el recap de un viaje
@@ -543,7 +543,7 @@ Usuario
 ├── teléfono
 ├── password_hash
 ├── foto_perfil
-├── actividad_preferida (enum: moto, bici, running, trekking, otro)
+├── actividad_preferida (enum: moto, auto, bici, running, trekking, otro)
 ├── consentimiento_ubicacion_at (timestamp, nullable)       ← RN-110
 ├── consentimiento_ubicacion_version (text, nullable)       ← RN-110
 ├── comparte_ubicacion_default (bool, default true)         ← RN-111
@@ -608,7 +608,7 @@ Viaje
 ├── creador_id (FK → Usuario) — líder del viaje (RN-030)
 ├── nombre (string, 1–100) — identificador principal mostrado en listas e invitaciones; nullable en viajes antiguos
 ├── es_grupal (boolean)
-├── tipo_actividad (enum: moto, bici, running, trekking, otro)
+├── tipo_actividad (enum: moto, auto, bici, running, trekking, otro)
 ├── modo (enum: recreativo, competitivo, entrenamiento)
 ├── fecha_salida
 ├── estado (enum: planificado, en_curso, finalizado)
@@ -838,7 +838,7 @@ RachaActividad
 ### 6.4 Usabilidad
 
 - Interfaz diseñada para uso outdoor: botones grandes, brillo alto, texto legible.
-- Interfaz adaptativa por tipo de actividad (moto = pantalla completa; trekking = háptica).
+- Interfaz adaptativa por tipo de actividad (moto/auto = pantalla completa; trekking = háptica).
 - Se muestra lo mínimo necesario en pantalla.
 
 ### 6.5 Arquitectura
@@ -899,19 +899,19 @@ Funcionalidades para **fases futuras**:
 
 Valores por defecto asignados al crear el viaje (RN-021, SCRUM-25). Unidades: velocidad en **km/h**, separación en **metros**.
 
-| Parámetro | Moto | Bici | Running | Trekking | Otro |
-|---|---|---|---|---|---|
-| Velocidad máxima esperada (`velocidad_esperada`) | 120 km/h | 35 km/h | 15 km/h | 5 km/h | 20 km/h |
-| Distancia máx. separación grupo (`distancia_max_separacion`) | 1000 m (1 km) | 300 m | 100 m | 50 m | 200 m |
-| Tolerancia de atraso (`tolerancia_atraso_min`, RN-025) | 10 min | 5 min | 3 min | 3 min | 5 min |
-| Interfaz | Pantalla completa, alto contraste, botones grandes | Estándar outdoor | Háptica + visual | Háptica + visual | Estándar outdoor |
-| Ranking competitivo | **PROHIBIDO** | Sí | Sí | Sí | Sí |
-| Tabla de posiciones global | **EXCLUIDA** | Sí | Sí | Sí | Sí |
-| Perfil de ruta (Google `DRIVE`/`BICYCLE`/`WALK`, OSRM de respaldo) | `driving` | `cycling` | `walking` | `walking` | `walking` |
+| Parámetro | Moto | Auto | Bici | Running | Trekking | Otro |
+|---|---|---|---|---|---|---|
+| Velocidad máxima esperada (`velocidad_esperada`) | 120 km/h | 100 km/h | 35 km/h | 15 km/h | 5 km/h | 20 km/h |
+| Distancia máx. separación grupo (`distancia_max_separacion`) | 1000 m (1 km) | 1000 m (1 km) | 300 m | 100 m | 50 m | 200 m |
+| Tolerancia de atraso (`tolerancia_atraso_min`, RN-025) | 10 min | 10 min | 5 min | 3 min | 3 min | 5 min |
+| Interfaz | Pantalla completa, alto contraste, botones grandes | Pantalla completa, alto contraste, botones grandes | Estándar outdoor | Háptica + visual | Háptica + visual | Estándar outdoor |
+| Ranking competitivo | **PROHIBIDO** | **PROHIBIDO** | Sí | Sí | Sí | Sí |
+| Tabla de posiciones global | **EXCLUIDA** | **EXCLUIDA** | Sí | Sí | Sí | Sí |
+| Perfil de ruta (Google `DRIVE`/`BICYCLE`/`WALK`, OSRM de respaldo) | `driving` | `driving` | `cycling` | `walking` | `walking` | `walking` |
 
 Implementación: el backend aplica estos defaults en `POST /api/viajes` según `tipo_actividad`; el líder puede sobreescribir los tres parámetros al crear o con `PATCH` (RN-025, SCRUM-26). La tolerancia vive en `motorEventos.config.ts` y `activityDefaults.ts` la reexpone, así el motor y la API leen la misma tabla.
 
-> **Nota crítica**: La exclusión de moto de rankings y tablas competitivas es una decisión de seguridad vial irrevocable. Nunca se debe incentivar la competencia de velocidad en motocicletas.
+> **Nota crítica**: La exclusión de moto y auto de rankings y tablas competitivas es una decisión de seguridad vial irrevocable. Nunca se debe incentivar la competencia de velocidad en vehículos motorizados.
 
 ---
 

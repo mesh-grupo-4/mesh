@@ -531,7 +531,7 @@ export function ActivityTile({
   size = 46,
   color,
 }: {
-  activity: 'moto' | 'bici' | 'running' | 'trekking' | string;
+  activity: 'moto' | 'auto' | 'bici' | 'running' | 'trekking' | string;
   size?: number;
   color?: string;
 }) {
@@ -545,6 +545,8 @@ export function ActivityTile({
     switch (activity) {
       case 'moto':
         return <MaterialCommunityIcons name="motorbike" size={size * 0.52} color={col} />;
+      case 'auto':
+        return <MaterialCommunityIcons name="car" size={size * 0.52} color={col} />;
       case 'bici':
         return <MaterialCommunityIcons name="bike" size={size * 0.52} color={col} />;
       case 'running':

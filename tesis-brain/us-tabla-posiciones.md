@@ -3,7 +3,7 @@
 > **Estado:** implementada (backend + frontend, pantalla dedicada).
 > **Epic:** **E09** — Gamificación extendida (insignias, rachas, tabla global). Tier Deseable.
 > **OpenAPI:** `backend/openapi/paths/tabla-posiciones.yaml` (spec modular, ver [[adr-documentacion-api]]).
-> **RN:** RN-076 (segmentación y período), RN-070 (moto excluida, nunca por velocidad).
+> **RN:** RN-076 (segmentación y período), RN-070 (moto y auto excluidos, nunca por velocidad).
 > **Dependencias:** `MetricaViaje` (mismo dato que [[us-insignias]] y [[us-rachas]]); `reportes.periodo.ts` para los cálculos de fecha en ART.
 
 ---
@@ -17,7 +17,7 @@
 ### Criterios de aceptación
 
 - La tabla está segmentada por tipo de actividad (bici, running, trekking).
-- La modalidad moto no tiene tabla de posiciones.
+- Las modalidades moto y auto no tienen tabla de posiciones.
 - El ranking puede filtrarse por período: semanal, mensual, anual.
 - Se muestra la posición del usuario en la tabla y los 3 primeros puestos.
 
@@ -51,7 +51,7 @@ existentes.
 | `GET` | `/api/tabla-posiciones?tipoActividad=&periodo=&orden=` | Cualquier usuario autenticado |
 
 Parámetros: `tipoActividad` (requerido: `bici`\|`running`\|`trekking`\|`otro` —
-`moto` responde `400 VALIDATION_ERROR`), `periodo` (opcional, default
+`moto` o `auto` responde `400 VALIDATION_ERROR`), `periodo` (opcional, default
 `semanal`), `orden` (opcional, default `distancia`).
 
 ---
@@ -62,7 +62,7 @@ Pantalla dedicada `app/ranking.tsx` (ruta standalone, no es tab — se llega
 desde un link "Tabla de posiciones" en el perfil propio, junto a "Mis rutas"
 y "Privacidad y ubicación"):
 
-- Tres filas de chips: actividad (Bici/Running/Trekking/Otro — sin Moto),
+- Tres filas de chips: actividad (Bici/Running/Trekking/Otro — sin Moto ni Auto),
   período (Esta semana/Este mes/Este año), orden (Kilómetros/Tiempo en
   movimiento).
 - Podio con los 3 primeros puestos (medallas 🥇🥈🥉), resaltando la fila propia

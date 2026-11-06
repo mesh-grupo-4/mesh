@@ -12,6 +12,7 @@ export type ParametrosActividad = {
 
 const DEFAULTS: Record<TipoActividad, Omit<ParametrosActividad, 'toleranciaAtrasoMin'>> = {
   moto: { velocidadEsperada: 120, distanciaMaxSeparacion: 1000 },
+  auto: { velocidadEsperada: 100, distanciaMaxSeparacion: 1000 },
   bici: { velocidadEsperada: 35, distanciaMaxSeparacion: 300 },
   running: { velocidadEsperada: 15, distanciaMaxSeparacion: 100 },
   trekking: { velocidadEsperada: 5, distanciaMaxSeparacion: 50 },

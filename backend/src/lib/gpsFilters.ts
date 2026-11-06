@@ -39,6 +39,12 @@ const POR_ACTIVIDAD: Record<string, FiltrosGps> = {
     segmentoMaxM: 500,
     velocidadMaxKmh: 200,
   },
+  auto: {
+    precisionMaxM: 50,
+    segmentoMinM: 2,
+    segmentoMaxM: 500,
+    velocidadMaxKmh: 200,
+  },
   otro: DEFAULTS,
 }
 

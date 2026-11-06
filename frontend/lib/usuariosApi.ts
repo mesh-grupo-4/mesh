@@ -4,7 +4,7 @@ import type { InsigniaObtenidaApi } from './insigniasApi'
 import type { RachaApi } from './rachasApi'
 import type { EstadisticasUsuarioApi } from './viajesApi'
 
-export type ActividadPreferidaApi = 'moto' | 'bici' | 'running' | 'trekking' | 'otro'
+export type ActividadPreferidaApi = 'moto' | 'auto' | 'bici' | 'running' | 'trekking' | 'otro'
 
 export type UsuarioPerfilResponse = {
   id: string

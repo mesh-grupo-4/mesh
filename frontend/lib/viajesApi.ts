@@ -3,7 +3,7 @@ import type { PutRutaBody, RutaDetalleApi } from './viajesTypes'
 import { apiUrl, meshFetchAuthed, parseJson } from './apiClient'
 import type { CategoriaParadaApi, EstadoIntegranteApi } from './paradasApi'
 
-export type TipoActividadApi = 'moto' | 'bici' | 'running' | 'trekking' | 'otro'
+export type TipoActividadApi = 'moto' | 'auto' | 'bici' | 'running' | 'trekking' | 'otro'
 
 export type ViajeCreadoApi = {
   id: string

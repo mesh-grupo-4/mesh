@@ -26,6 +26,7 @@ enum RolSistema {
 
 enum TipoActividad {
   moto
+  auto
   bici
   running
   trekking

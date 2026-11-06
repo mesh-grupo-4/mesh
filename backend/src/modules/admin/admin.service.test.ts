@@ -434,17 +434,17 @@ describe('checklist de preparativos (RN-132)', () => {
     updated_at: new Date('2026-11-06T12:00:00.000Z'),
   }
 
-  it('lista las cinco actividades y marca cuáles personalizó el superadmin', async () => {
+  it('lista todas las actividades y marca cuáles personalizó el superadmin', async () => {
     const { service } = armar({
       checklistActividad: { findMany: vi.fn().mockResolvedValue([filaMoto]) },
     })
 
     const { items } = await service.listarChecklistActividades()
 
-    expect(items.map((i) => i.tipo_actividad)).toEqual(['moto', 'bici', 'running', 'trekking', 'otro'])
+    expect(items.map((i) => i.tipo_actividad)).toEqual(['moto', 'auto', 'bici', 'running', 'trekking', 'otro'])
     expect(items[0]).toMatchObject({ items: filaMoto.items, personalizado: true })
-    expect(items[1]).toMatchObject({ personalizado: false, updated_at: null })
-    expect(items[1]!.items).toContain('Inflador')
+    expect(items[2]).toMatchObject({ personalizado: false, updated_at: null })
+    expect(items[2]!.items).toContain('Inflador')
   })
 
   it('definir los sugeridos los guarda y lo audita con la lista nueva', async () => {

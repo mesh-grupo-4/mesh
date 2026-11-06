@@ -18,6 +18,7 @@ export const RANGO_PARAMETROS = {
 
 export const ACTIVIDADES: { id: TipoActividadApi; label: string }[] = [
   { id: 'moto', label: 'Moto' },
+  { id: 'auto', label: 'Auto' },
   { id: 'bici', label: 'Bicicleta' },
   { id: 'running', label: 'Running' },
   { id: 'trekking', label: 'Trekking' },
@@ -26,6 +27,7 @@ export const ACTIVIDADES: { id: TipoActividadApi; label: string }[] = [
 
 const DEFAULTS: Record<TipoActividadApi, ParametrosActividad> = {
   moto: { velocidadEsperada: 120, distanciaMaxSeparacion: 1000, toleranciaAtrasoMin: 10 },
+  auto: { velocidadEsperada: 100, distanciaMaxSeparacion: 1000, toleranciaAtrasoMin: 10 },
   bici: { velocidadEsperada: 35, distanciaMaxSeparacion: 300, toleranciaAtrasoMin: 5 },
   running: { velocidadEsperada: 15, distanciaMaxSeparacion: 100, toleranciaAtrasoMin: 3 },
   trekking: { velocidadEsperada: 5, distanciaMaxSeparacion: 50, toleranciaAtrasoMin: 3 },
@@ -52,6 +54,7 @@ export function textoParametrosActividad(tipo: TipoActividadApi): string {
 export function textoPerfilRuta(tipo: TipoActividadApi): string {
   switch (tipo) {
     case 'moto':
+    case 'auto':
       return 'La ruta se calcula para vehículo según la actividad elegida.'
     case 'bici':
       return 'La ruta se calcula para bicicleta según la actividad elegida.'
@@ -65,7 +68,16 @@ export function textoPerfilRuta(tipo: TipoActividadApi): string {
 }
 
 export function actividadValida(val: string | undefined | null): val is TipoActividadApi {
-  return val === 'moto' || val === 'bici' || val === 'running' || val === 'trekking' || val === 'otro'
+  return ACTIVIDADES.some((a) => a.id === val)
+}
+
+/**
+ * RN-070 (IRREVOCABLE): moto y auto quedan fuera de todo ranking, modo competitivo,
+ * fantasma y comparación de velocidades (seguridad vial). Solo orienta la UI:
+ * el backend aplica la misma regla.
+ */
+export function esMotorizado(tipo: string | null | undefined): boolean {
+  return tipo === 'moto' || tipo === 'auto'
 }
 
 export function actividadInicialDesdePerfil(

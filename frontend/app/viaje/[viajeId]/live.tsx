@@ -50,6 +50,7 @@ import { useParadas } from '@/hooks/useParadas'
 import { useNextStopEta } from '@/hooks/useNextStopEta'
 import { useTripMetrics } from '@/hooks/useTripMetrics'
 import { uiConfigPorActividad } from '@/lib/activityUi'
+import { esMotorizado } from '@/lib/activityDefaults'
 import type { RouteStop } from '@/lib/geo/nextStop'
 import { haversineDistanceM } from '@/lib/geo/haversine'
 import { buscarLugaresCercanos, type CategoriaLugar, type LugarSugerido } from '@/lib/lugaresApi'
@@ -223,7 +224,7 @@ export default function ViajeLiveScreen() {
   const esLider = viaje != null && userId === viaje.creador_id
 
   // RN-052: interfaz adaptativa por actividad (pantalla completa/alto contraste en
-  // moto, botones grandes, háptica prioritaria en trekking/running).
+  // moto/auto, botones grandes, háptica prioritaria en trekking/running).
   const tipoActividad = (viaje?.tipo_actividad ?? 'otro') as TipoActividadApi
   const uiConfig = uiConfigPorActividad(tipoActividad)
   const theme = useTheme(uiConfig.altoContraste)
@@ -342,9 +343,9 @@ export default function ViajeLiveScreen() {
     tipoActividad: viaje?.tipo_actividad ?? 'otro',
   })
 
-  // RN-065: panel de entrenamiento. RN-070: en moto no se muestran velocidades.
+  // RN-065: panel de entrenamiento. RN-070: en moto/auto no se muestran velocidades.
   const entrenamientoEnVivo = useMemo(() => {
-    if (viaje?.modo !== 'entrenamiento' || viaje.tipo_actividad === 'moto') return null
+    if (viaje?.modo !== 'entrenamiento' || esMotorizado(viaje.tipo_actividad)) return null
     const esPace = viaje.tipo_actividad === 'running' || viaje.tipo_actividad === 'trekking'
     return {
       velocidadActual: formatSpeedKmh(velocidadActualKmh),
@@ -353,9 +354,9 @@ export default function ViajeLiveScreen() {
     }
   }, [viaje?.modo, viaje?.tipo_actividad, velocidadActualKmh, velocidadPromedioKmh, paceMinKm])
 
-  // RN-072 / RN-070: sin comparaciones en recreativo ni en moto.
+  // RN-072 / RN-070: sin comparaciones en recreativo ni en moto/auto.
   const permiteComparar =
-    viaje?.estado === 'en_curso' && viaje.modo !== 'recreativo' && viaje.tipo_actividad !== 'moto'
+    viaje?.estado === 'en_curso' && viaje.modo !== 'recreativo' && !esMotorizado(viaje.tipo_actividad)
 
   // RN-073: fantasma contra el reloj del viaje.
   const {

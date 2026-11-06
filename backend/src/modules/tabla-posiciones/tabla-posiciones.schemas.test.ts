@@ -9,8 +9,8 @@ describe('obtenerTablaPosicionesQuery', () => {
     }
   )
 
-  it('rechaza moto (RN-070: nunca tabla de posiciones para moto)', () => {
-    expect(() => obtenerTablaPosicionesQuery.parse({ tipoActividad: 'moto' })).toThrow()
+  it.each(['moto', 'auto'])('rechaza %s (RN-070: nunca tabla de posiciones para motorizados)', (tipoActividad) => {
+    expect(() => obtenerTablaPosicionesQuery.parse({ tipoActividad })).toThrow()
   })
 
   it('aplica los valores por defecto periodo=semanal y orden=distancia', () => {

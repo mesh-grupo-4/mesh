@@ -251,7 +251,7 @@ RankingTipoActividad:
   name: tipoActividad
   in: query
   required: true
-  description: 'RN-070: la tabla de posiciones global nunca incluye moto (único tipo excluido).'
+  description: 'RN-070: la tabla de posiciones global nunca incluye vehículos motorizados (moto, auto).'
   schema:
     type: string
     enum: [bici, running, trekking, otro]

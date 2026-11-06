@@ -8,6 +8,7 @@ import { nombreVisible } from '../../lib/nombres'
 import type { PrismaClient } from '@prisma/client'
 import { getIo } from '../../realtime/ioRegistry'
 import { HttpError } from '../../lib/httpError'
+import { esMotorizado } from '../../lib/actividad'
 import { QR_EXPIRED_MESSAGE } from '../../lib/qrInvite'
 import {
   computeLineStringLengthMeters,
@@ -197,15 +198,15 @@ export class ViajesService {
       tipoActividad = plantilla.tipo_actividad
     }
 
-    // RN-071 / RN-070 / RN-072: competir exige grupo y nunca en moto.
+    // RN-071 / RN-070 / RN-072: competir exige grupo y nunca en vehículo motorizado.
     if (input.modo === 'competitivo') {
       if (!input.esGrupal) {
         throw new HttpError(400, 'El modo competitivo requiere un viaje grupal', 'MODO_INVALIDO')
       }
-      if (tipoActividad === 'moto') {
+      if (esMotorizado(tipoActividad)) {
         throw new HttpError(
           400,
-          'La modalidad moto no admite modo competitivo (RN-070)',
+          'Las modalidades motorizadas (moto, auto) no admiten modo competitivo (RN-070)',
           'MODO_INVALIDO'
         )
       }
@@ -1319,19 +1320,23 @@ export class ViajesService {
         distancia_m: mia?.distancia_m ?? null,
         tiempo_movimiento_seg: mia?.tiempo_movimiento_seg ?? null,
         velocidad_promedio_kmh: mia?.velocidad_promedio_kmh ?? null,
-        velocidad_maxima_kmh: mia?.velocidad_maxima_kmh ?? null,
+        // RN-070 (salvaguarda 3): nunca velocidad máxima en moto ni auto, ni
+        // siquiera la propia. La compuerta va acá y no solo en la pantalla.
+        velocidad_maxima_kmh: esMotorizado(viaje.tipo_actividad)
+          ? null
+          : (mia?.velocidad_maxima_kmh ?? null),
         sali_antes: miIntegrante?.estado === 'salido',
         fecha_salida: miIntegrante?.fecha_salida ?? null,
       },
-      // RN-070 + RN-072: comparar solo en modo competitivo, y nunca en moto.
-      ranking_habilitado: viaje.tipo_actividad !== 'moto' && viaje.modo === 'competitivo',
+      // RN-070 + RN-072: comparar solo en modo competitivo, y nunca en vehículo motorizado.
+      ranking_habilitado: !esMotorizado(viaje.tipo_actividad) && viaje.modo === 'competitivo',
       generado_en: resumen?.generado_en ?? null,
     }
   }
 
   /**
    * Métricas agregadas del viaje + desglose por integrante.
-   * Velocidades omitidas para moto (RN-070).
+   * Velocidades omitidas para vehículos motorizados: moto y auto (RN-070).
    */
   async obtenerMetricasGrupales(usuarioId: string, viajeId: string) {
     await this.assertPuedeVerViaje(viajeId, usuarioId)
@@ -1352,7 +1357,7 @@ export class ViajesService {
       throw new HttpError(409, 'El viaje todavía no finalizó', 'TRIP_NOT_FINISHED')
     }
 
-    const esMoto = viaje.tipo_actividad === 'moto'
+    const motorizado = esMotorizado(viaje.tipo_actividad)
 
     const [resumen, metricas, integrantes] = await Promise.all([
       this.prisma.resumenViaje.findUnique({ where: { viaje_id: viajeId } }),
@@ -1416,8 +1421,8 @@ export class ViajesService {
         tiempo_movimiento_seg: m.tiempo_movimiento_seg,
         tiempo_detenido_seg: tiempoDetenidoSeg,
         pace_min_km: paceMinKm,
-        velocidad_promedio_kmh: esMoto ? null : (m.velocidad_promedio_kmh ?? null),
-        velocidad_maxima_kmh: esMoto ? null : (m.velocidad_maxima_kmh ?? null),
+        velocidad_promedio_kmh: motorizado ? null : (m.velocidad_promedio_kmh ?? null),
+        velocidad_maxima_kmh: motorizado ? null : (m.velocidad_maxima_kmh ?? null),
       }
     })
 
@@ -1439,9 +1444,9 @@ export class ViajesService {
         velocidad_maxima_kmh: null as number | null,
       }))
 
-    // Recap RN-063: puestos solo en viaje grupal, competitivo (RN-072) y no moto
+    // Recap RN-063: puestos solo en viaje grupal, competitivo (RN-072) y no motorizado
     // (RN-070). Los números siguen siendo los de metrica_viaje; acá solo se ordena.
-    const rankingHabilitado = viaje.es_grupal && !esMoto && viaje.modo === 'competitivo'
+    const rankingHabilitado = viaje.es_grupal && !motorizado && viaje.modo === 'competitivo'
     const por_integrante = aplicarPuestosRanking(
       [...porIntegrante, ...sinGps],
       rankingHabilitado
@@ -1464,7 +1469,7 @@ export class ViajesService {
 
   /**
    * Métricas individuales detalladas + perfil de velocidad por minuto.
-   * Velocidades omitidas para moto (RN-070).
+   * Velocidades omitidas para vehículos motorizados: moto y auto (RN-070).
    */
   /**
    * US2: traza GPS que recorrió el usuario en el viaje, para dibujarla en el mapa.
@@ -1503,7 +1508,7 @@ export class ViajesService {
       throw new HttpError(409, 'El viaje todavía no finalizó', 'TRIP_NOT_FINISHED')
     }
 
-    const esMoto = viaje.tipo_actividad === 'moto'
+    const motorizado = esMotorizado(viaje.tipo_actividad)
     const esEntrenamiento = viaje.modo === 'entrenamiento'
 
     const [resumen, miMetrica, perfil, splits, entrenamiento] = await Promise.all([
@@ -1512,8 +1517,8 @@ export class ViajesService {
         where: { viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId } },
       }),
       computePerfilVelocidad(this.prisma, viajeId, usuarioId),
-      // RN-070: en moto no se exponen ritmos ni velocidades, tampoco por kilómetro.
-      esMoto ? Promise.resolve([]) : computeSplitsPorKm(this.prisma, viajeId, usuarioId),
+      // RN-070: en moto/auto no se exponen ritmos ni velocidades, tampoco por kilómetro.
+      motorizado ? Promise.resolve([]) : computeSplitsPorKm(this.prisma, viajeId, usuarioId),
       esEntrenamiento
         ? this.evolucionEntrenamiento(usuarioId, viajeId, viaje.tipo_actividad)
         : Promise.resolve(null),
@@ -1544,13 +1549,13 @@ export class ViajesService {
         duracion_segundos: resumen?.duracion_segundos ?? null,
         tiempo_movimiento_seg: miMetrica?.tiempo_movimiento_seg ?? null,
         tiempo_detenido_seg: tiempoDetenidoSeg,
-        velocidad_promedio_kmh: esMoto ? null : (miMetrica?.velocidad_promedio_kmh ?? null),
-        velocidad_maxima_kmh: esMoto ? null : (miMetrica?.velocidad_maxima_kmh ?? null),
+        velocidad_promedio_kmh: motorizado ? null : (miMetrica?.velocidad_promedio_kmh ?? null),
+        velocidad_maxima_kmh: motorizado ? null : (miMetrica?.velocidad_maxima_kmh ?? null),
         pace_min_km: paceMinKm,
         distancia_planeada_m: resumen?.distancia_planeada_m ?? null,
         cantidad_paradas: resumen?.cantidad_paradas ?? 0,
       },
-      perfil_velocidad: esMoto
+      perfil_velocidad: motorizado
         ? []
         : perfil.map((p) => ({ t_seg: Number(p.t_seg), velocidad_kmh: Number(p.velocidad_kmh) })),
       // RN-065: tiempo por kilómetro. El último split puede ser parcial.
@@ -1573,7 +1578,7 @@ export class ViajesService {
     viajeId: string,
     tipoActividad: TipoActividadEnum
   ) {
-    const esMoto = tipoActividad === 'moto'
+    const motorizado = esMotorizado(tipoActividad)
     const filas = await this.prisma.metricaViaje.findMany({
       where: {
         usuario_id: usuarioId,
@@ -1595,9 +1600,9 @@ export class ViajesService {
       fecha_fin_real: f.viaje.fecha_fin_real,
       distancia_m: f.distancia_m,
       tiempo_movimiento_seg: f.tiempo_movimiento_seg,
-      velocidad_promedio_kmh: esMoto ? null : f.velocidad_promedio_kmh,
+      velocidad_promedio_kmh: motorizado ? null : f.velocidad_promedio_kmh,
       pace_min_km:
-        !esMoto && f.tiempo_movimiento_seg > 0 && f.distancia_m > 0
+        !motorizado && f.tiempo_movimiento_seg > 0 && f.distancia_m > 0
           ? (f.tiempo_movimiento_seg / 60) / (f.distancia_m / 1000)
           : null,
     }))
@@ -1819,7 +1824,7 @@ export class ViajesService {
       },
     })
     if (!viaje) throw new HttpError(404, 'Viaje no encontrado', 'VIAJE_NOT_FOUND')
-    if (viaje.modo !== 'competitivo' || viaje.tipo_actividad === 'moto') {
+    if (viaje.modo !== 'competitivo' || esMotorizado(viaje.tipo_actividad)) {
       throw new HttpError(409, 'El viaje no está en modo competitivo', 'MODO_INVALIDO')
     }
     if (viaje.estado !== 'en_curso') {

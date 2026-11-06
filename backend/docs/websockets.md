@@ -310,7 +310,7 @@ y cierra su banner si todavía estaba en pantalla.
 ### `viaje:leaderboard`
 
 RN-071 (modo competitivo): clasificación en vivo. La emite `MotorEventosService` con cada
-ping GPS de un viaje `competitivo` (nunca en moto, RN-070), como máximo una vez cada 3 s
+ping GPS de un viaje `competitivo` (nunca en moto ni auto, RN-070), como máximo una vez cada 3 s
 por viaje, a partir del progreso sobre la ruta que ya tiene cacheado de cada integrante.
 La foto inicial se carga con `GET /api/viajes/{viajeId}/leaderboard`.
 

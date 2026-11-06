@@ -34,6 +34,7 @@ import {
   formatSpeedKmh,
 } from '@/lib/format'
 import { formatearEnArg } from '@/lib/tiempoArg'
+import { esMotorizado } from '@/lib/activityDefaults'
 import {
   obtenerMetricasIndividuales,
   type MetricasIndividualesApi,
@@ -99,7 +100,7 @@ export default function MetricasScreen() {
   const splits = data?.splits_km ?? []
   const entrenamiento = data?.entrenamiento ?? null
   const esEntrenamiento = viaje?.modo === 'entrenamiento'
-  const esMoto = viaje?.tipo_actividad === 'moto'
+  const esMoto = esMotorizado(viaje?.tipo_actividad)
   const esPace = viaje?.tipo_actividad === 'running' || viaje?.tipo_actividad === 'trekking'
 
   const nombreViaje =

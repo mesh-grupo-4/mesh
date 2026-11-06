@@ -171,7 +171,7 @@ export default function ViajeRecapScreen() {
       ) : !rankingOk ? (
         <View style={styles.center}>
           <Text style={[styles.errorText, { color: theme.textDim }]}>
-            Este viaje no tiene recap competitivo (moto o salida individual).
+            Este viaje no tiene recap competitivo (moto, auto o salida individual).
           </Text>
         </View>
       ) : (

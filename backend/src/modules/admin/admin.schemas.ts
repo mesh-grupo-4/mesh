@@ -38,7 +38,7 @@ export const actualizarUsuarioAdminSchema = z
     nombre: z.string().trim().min(1, 'El nombre es obligatorio').max(100),
     apellido: z.string().trim().max(100).nullable(),
     telefono: z.string().trim().max(30).nullable(),
-    actividad_preferida: z.enum(['moto', 'bici', 'running', 'trekking', 'otro']).nullable(),
+    actividad_preferida: z.enum(['moto', 'auto', 'bici', 'running', 'trekking', 'otro']).nullable(),
   })
   .partial()
   .refine((d) => Object.keys(d).length > 0, 'No hay campos para actualizar')
@@ -55,7 +55,7 @@ export const reasignarLiderSchema = z.object({
   usuario_id: z.string().uuid(),
 })
 
-export const tipoActividadParam = z.enum(['moto', 'bici', 'running', 'trekking', 'otro'])
+export const tipoActividadParam = z.enum(['moto', 'auto', 'bici', 'running', 'trekking', 'otro'])
 
 /**
  * RN-132: la lista completa de sugeridos de una actividad, en orden. Mismo límite de

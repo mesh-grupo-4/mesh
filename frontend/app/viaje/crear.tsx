@@ -30,6 +30,8 @@ import {
   ACTIVIDADES,
   RANGO_PARAMETROS,
   actividadInicialDesdePerfil,
+  actividadValida,
+  esMotorizado,
   parametrosPorActividad,
   textoParametrosActividad,
 } from '@/lib/activityDefaults'
@@ -73,7 +75,7 @@ export default function CrearViajeScreen() {
   const tipoDesdePlantilla = useMemo(() => {
     const t = params.tipoActividad
     const raw = (Array.isArray(t) ? t[0] : t)?.trim()
-    if (raw === 'moto' || raw === 'bici' || raw === 'running' || raw === 'trekking' || raw === 'otro') return raw
+    if (actividadValida(raw)) return raw
     return null
   }, [params.tipoActividad])
 
@@ -88,8 +90,8 @@ export default function CrearViajeScreen() {
   const [esGrupal, setEsGrupal] = useState(true)
   // RN-065: entrenamiento muestra ritmo en vivo y métricas de sesión al cerrar.
   const [modo, setModo] = useState<'recreativo' | 'entrenamiento' | 'competitivo'>('recreativo')
-  // RN-071 / RN-070: competir exige grupo y nunca moto.
-  const puedeCompetir = esGrupal && tipoActividad !== 'moto'
+  // RN-071 / RN-070: competir exige grupo y nunca vehículo motorizado.
+  const puedeCompetir = esGrupal && !esMotorizado(tipoActividad)
   useEffect(() => {
     if (!puedeCompetir && modo === 'competitivo') setModo('recreativo')
   }, [puedeCompetir, modo])
@@ -565,7 +567,7 @@ export default function CrearViajeScreen() {
             Entrenamiento
           </Text>
           <Text style={[styles.opcionHint, { color: theme.textDim }]}>
-            {tipoActividad === 'moto' ? 'Splits y evolución de tus sesiones' : 'Ritmo en vivo, splits y evolución'}
+            {esMotorizado(tipoActividad) ? 'Splits y evolución de tus sesiones' : 'Ritmo en vivo, splits y evolución'}
           </Text>
         </Pressable>
         {puedeCompetir ? (
@@ -585,9 +587,9 @@ export default function CrearViajeScreen() {
           </Pressable>
         ) : null}
       </View>
-      {tipoActividad === 'moto' ? (
+      {esMotorizado(tipoActividad) ? (
         <Text style={[styles.paramHint, { color: theme.textDim }]}>
-          En moto no hay modo competitivo ni comparaciones de velocidad (seguridad vial).
+          En moto y auto no hay modo competitivo ni comparaciones de velocidad (seguridad vial).
         </Text>
       ) : null}
 

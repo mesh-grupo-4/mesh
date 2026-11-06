@@ -54,7 +54,7 @@ export const createViajeSchema = z
     grupoIds: z.array(z.string().uuid()).optional().default([]),
     amigoIds: z.array(z.string().uuid()).optional().default([]),
     tipoActividad: z.nativeEnum(TipoActividad),
-    /** RN-065 / RN-071: `competitivo` exige viaje grupal y no moto (RN-070); lo valida el servicio. */
+    /** RN-065 / RN-071: `competitivo` exige viaje grupal y no motorizado (moto/auto, RN-070); lo valida el servicio. */
     modo: z.enum(['recreativo', 'entrenamiento', 'competitivo']).optional().default('recreativo'),
     /** Obligatoria salvo en un viaje inmediato (`inmediato: true`), donde la fija el backend. */
     fechaProgramada: fechaProgramadaFuturaSchema.optional(),

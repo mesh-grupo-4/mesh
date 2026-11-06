@@ -22,6 +22,7 @@ const DEFAULT: UiConfigActividad = {
 const UI_POR_ACTIVIDAD: Record<TipoActividadApi, UiConfigActividad> = {
   // Una mano, sol directo, guantes: pantalla completa + alto contraste + botones grandes.
   moto: { pantallaCompleta: true, altoContraste: true, escalaBotones: 1.3, hapticaPrioritaria: false },
+  auto: { pantallaCompleta: true, altoContraste: true, escalaBotones: 1.3, hapticaPrioritaria: false },
   bici: DEFAULT,
   // Sin mirar la pantalla en movimiento: la vibración reemplaza al feedback visual.
   running: { ...DEFAULT, hapticaPrioritaria: true },

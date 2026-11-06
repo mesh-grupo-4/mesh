@@ -46,6 +46,7 @@ export const ETIQUETA_ESTADO_VIAJE = {
 
 export const ETIQUETA_ACTIVIDAD: Record<string, string> = {
   moto: 'Moto',
+  auto: 'Auto',
   bici: 'Bici',
   running: 'Running',
   trekking: 'Trekking',

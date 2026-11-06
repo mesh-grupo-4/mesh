@@ -24,6 +24,7 @@ import { Feather } from '@expo/vector-icons';
 
 const ACTIVIDADES: { valor: ActividadPreferida; etiqueta: string; icono: keyof typeof Feather.glyphMap }[] = [
   { valor: 'moto', etiqueta: 'Moto', icono: 'compass' },
+  { valor: 'auto', etiqueta: 'Auto', icono: 'navigation' },
   { valor: 'bici', etiqueta: 'Bici', icono: 'git-commit' },
   { valor: 'running', etiqueta: 'Running', icono: 'zap' },
   { valor: 'trekking', etiqueta: 'Trekking', icono: 'map' },

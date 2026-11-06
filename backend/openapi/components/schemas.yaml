@@ -254,9 +254,10 @@ TipoActividad:
     Modalidad del viaje (RN-021). Cada una define por defecto velocidad esperada,
     separación máxima e interfaz.
 
-    **RN-070 (irrevocable):** `moto` está excluida de todo ranking competitivo,
-    tabla de posiciones y gamificación de velocidad. Es una regla de seguridad vial.
-  enum: [moto, bici, running, trekking, otro]
+    **RN-070 (irrevocable):** los vehículos motorizados (`moto` y `auto`) están
+    excluidos de todo ranking competitivo, tabla de posiciones y gamificación de
+    velocidad. Es una regla de seguridad vial.
+  enum: [moto, auto, bici, running, trekking, otro]
   example: bici
 
 TipoActividadNullable:
@@ -266,7 +267,7 @@ TipoActividadNullable:
     Igual que `TipoActividad`, pero admite `null` cuando el usuario todavía no
     eligió una modalidad preferida. Variante necesaria porque OpenAPI 3.0 no
     permite combinar `nullable` con `$ref`.
-  enum: [moto, bici, running, trekking, otro, null]
+  enum: [moto, auto, bici, running, trekking, otro, null]
   example: bici
 
 ModoViaje:
@@ -274,7 +275,7 @@ ModoViaje:
   description: |
     Modo del viaje. `recreativo` (RN-072) sin rankings ni comparaciones;
     `entrenamiento` (RN-065) con métricas de sesión; `competitivo` (RN-071) con
-    leaderboard en vivo y recap con puestos. Solo grupal y no moto para competir.
+    leaderboard en vivo y recap con puestos. Solo grupal y no motorizado (moto/auto) para competir.
   enum: [recreativo, competitivo, entrenamiento]
 
 EstadoViaje:
@@ -1462,13 +1463,13 @@ Viaje:
       type: number
       description: |
         Velocidad de referencia en km/h, derivada de la actividad (RN-021):
-        moto 120 · bici 35 · running 15 · trekking 5 · otro 20.
+        moto 120 · auto 100 · bici 35 · running 15 · trekking 5 · otro 20.
       example: 35
     distancia_max_separacion:
       type: integer
       description: |
         Separación máxima tolerada en metros antes de generar una alerta (RN-021):
-        moto 1000 · bici 300 · running 100 · trekking 50 · otro 200.
+        moto 1000 · auto 1000 · bici 300 · running 100 · trekking 50 · otro 200.
       example: 300
     tolerancia_atraso_min:
       type: integer
@@ -1478,7 +1479,7 @@ Viaje:
       description: |
         RN-025 / RN-035: minutos de atraso tolerados respecto del bloque principal
         antes de alertar. `null` usa el default por actividad
-        (trekking 3 · running 3 · bici 5 · moto 10 · otro 5).
+        (trekking 3 · running 3 · bici 5 · moto/auto 10 · otro 5).
       example: null
     tolerancia_atraso_min_efectivo:
       type: integer
@@ -1499,7 +1500,7 @@ Viaje:
       maximum: 30
       description: |
         Minutos quieto sin parada manual antes de marcar posible incidente.
-        `null` usa el umbral por actividad (trekking 5 · running 4 · bici/moto 3).
+        `null` usa el umbral por actividad (trekking 5 · running 4 · bici/moto/auto 3).
       example: null
     alerta_incidente_minutos_efectivo:
       type: integer
@@ -1803,8 +1804,8 @@ CrearViajeRequest:
         - $ref: '#/ModoViaje'
       description: |
         RN-065. `entrenamiento` habilita el panel de ritmo en vivo y las métricas
-        de sesión al cerrar. `competitivo` (RN-071) exige viaje grupal y no moto
-        (RN-070); si no, `400 MODO_INVALIDO`. Por defecto `recreativo`.
+        de sesión al cerrar. `competitivo` (RN-071) exige viaje grupal y no motorizado
+        (moto/auto, RN-070); si no, `400 MODO_INVALIDO`. Por defecto `recreativo`.
     fechaProgramada:
       type: string
       format: date-time
@@ -2169,7 +2170,7 @@ Racha:
 
 # ── Tabla de posiciones ────────────────────────────────────────────────────
 # Ranking global por tipo de actividad y período (RN-076, E09). Nunca por
-# velocidad (RN-070) y nunca moto. Ver src/modules/tabla-posiciones/.
+# velocidad (RN-070) y nunca moto ni auto. Ver src/modules/tabla-posiciones/.
 
 FilaTablaPosiciones:
   type: object
@@ -2689,8 +2690,8 @@ ResumenViaje:
     ranking_habilitado:
       type: boolean
       description: |
-        **RN-070 (irrevocable):** siempre `false` en modalidad `moto`. La moto está
-        excluida de todo ranking competitivo y de la gamificación de velocidad, por
+        **RN-070 (irrevocable):** siempre `false` en modalidades motorizadas (`moto`,
+        `auto`). Están excluidas de todo ranking competitivo y de la gamificación de velocidad, por
         seguridad vial. Este campo es la única compuerta para cualquier funcionalidad
         comparativa.
       example: true
@@ -2706,7 +2707,7 @@ MetricaIntegrante:
     Métricas de un integrante. Los campos vienen en `null` cuando la persona no
     registró GPS durante el viaje.
 
-    **RN-070:** en modalidad `moto`, `velocidad_promedio_kmh` y `velocidad_maxima_kmh`
+    **RN-070:** en modalidades `moto` y `auto`, `velocidad_promedio_kmh` y `velocidad_maxima_kmh`
     llegan siempre en `null`, y los tres campos de puesto también.
   required:
     - usuario_id
@@ -2766,7 +2767,7 @@ MetricasGrupales:
     Métricas agregadas del viaje más el desglose por integrante.
 
     **RN-070:** `ranking_habilitado` es `true` únicamente si el viaje es grupal **y**
-    la actividad no es `moto`. Con moto no se calculan puestos ni se exponen velocidades.
+    la actividad no es motorizada (`moto`, `auto`). En ellas no se calculan puestos ni se exponen velocidades.
   required:
     - tipo_actividad
     - es_grupal
@@ -2815,7 +2816,7 @@ MisMetricas:
   description: |
     Métricas individuales detalladas más el perfil de velocidad minuto a minuto.
 
-    **RN-070:** con actividad `moto`, las velocidades llegan en `null`,
+    **RN-070:** con actividad `moto` o `auto`, las velocidades llegan en `null`,
     `perfil_velocidad` y `splits_km` son arrays vacíos.
 
     **RN-065:** `splits_km` trae el tiempo por kilómetro; `entrenamiento` solo
@@ -2903,8 +2904,8 @@ MisMetricas:
     perfil_velocidad:
       type: array
       description: |
-        Serie de velocidad a lo largo del viaje, para graficarla. Vacía en modalidad
-        `moto` por RN-070.
+        Serie de velocidad a lo largo del viaje, para graficarla. Vacía en modalidades
+        `moto` y `auto` por RN-070.
       items:
         type: object
         required:
@@ -3919,7 +3920,7 @@ Insignia:
     Entrada del catálogo. Los tres criterios son independientes entre sí
     (deben cumplirse todos los que no sean `null`) y evalúan la métrica de UN
     viaje finalizado, nunca acumulada entre viajes. Nunca hay criterio de
-    velocidad (RN-070: prohibido gamificar velocidad, especialmente en moto).
+    velocidad (RN-070: prohibido gamificar velocidad, especialmente en moto y auto).
   required:
     - id
     - codigo

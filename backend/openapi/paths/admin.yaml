@@ -646,7 +646,7 @@ ChecklistActividadesAdmin:
     operationId: adminListarChecklistActividades
     summary: Ítems sugeridos del checklist por actividad
     description: |
-      RN-132: los ítems que el sistema sugiere al armar el checklist de preparativos (RN-026), para cada una de las cinco actividades. `personalizado: false` indica que rige la lista por defecto.
+      RN-132: los ítems que el sistema sugiere al armar el checklist de preparativos (RN-026), para cada una de las actividades. `personalizado: false` indica que rige la lista por defecto.
     tags:
       - Admin
     responses:

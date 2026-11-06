@@ -8,7 +8,7 @@
 #   · assertPuedeVerEnVivo  → creador o integrante CONFIRMADO (ubicaciones vivas, sockets)
 #   · assertPuedeEnviarGps  → los anteriores, y además el viaje debe estar en curso
 #
-# RN-070 (irrevocable): la modalidad `moto` queda excluida de rankings y de la
+# RN-070 (irrevocable): las modalidades `moto` y `auto` quedan excluidas de rankings y de la
 # gamificación de velocidad. Se refleja en `ranking_habilitado` y en las velocidades
 # nulas de las respuestas de métricas.
 
@@ -634,7 +634,7 @@ ResumenViajeRecurso:
       de filas GPS puede tardar— o el viaje es anterior a esta funcionalidad, la consulta
       lo recalcula al vuelo de forma transparente.
 
-      **RN-070:** `ranking_habilitado` es `false` en modalidad `moto`.
+      **RN-070:** `ranking_habilitado` es `false` en modalidades `moto` y `auto`.
     tags:
       - Viajes
     parameters:
@@ -680,7 +680,7 @@ MetricasGrupalesViaje:
       GPS (con los campos en `null`).
 
       **RN-070 (irrevocable):** `ranking_habilitado` es `true` únicamente si el viaje es
-      grupal **y** la actividad no es `moto`. En moto no se calculan puestos ni se
+      grupal **y** la actividad no es motorizada (`moto`, `auto`). En ellas no se calculan puestos ni se
       exponen velocidades: los campos correspondientes llegan en `null`. Es una regla
       de seguridad vial, no una preferencia de producto.
 
@@ -729,7 +729,7 @@ MisMetricasViaje:
       Métricas individuales detalladas más el perfil de velocidad minuto a minuto,
       pensado para graficarlo.
 
-      **RN-070:** en modalidad `moto` las velocidades llegan en `null` y
+      **RN-070:** en modalidades `moto` y `auto` las velocidades llegan en `null` y
       `perfil_velocidad` es un array vacío.
 
       Requiere el viaje finalizado.
@@ -1483,7 +1483,7 @@ LeaderboardViaje:
       velocidad esperada del viaje). Sirve para cargar la tabla al entrar; después el
       motor de eventos la re-emite por Socket.io (`viaje:leaderboard`) con cada ping,
       como máximo cada 3 s por viaje. Solo con `modo: competitivo`, viaje en curso y
-      nunca en moto (RN-070).
+      nunca en moto ni auto (RN-070).
     tags:
       - Viajes
     parameters:
@@ -1531,7 +1531,7 @@ LeaderboardViaje:
       '404':
         $ref: '../components/responses.yaml#/NotFound'
       '409':
-        description: No es competitivo o es moto (`MODO_INVALIDO`), o no está en curso (`INVALID_STATE`).
+        description: No es competitivo o es moto/auto (`MODO_INVALIDO`), o no está en curso (`INVALID_STATE`).
         content:
           application/json:
             schema:

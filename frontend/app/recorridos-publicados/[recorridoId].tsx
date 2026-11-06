@@ -24,6 +24,7 @@ import { abrirNuevoViaje } from '@/lib/nuevoViaje'
 
 const NOMBRE_ACTIVIDAD = {
   moto: 'Moto',
+  auto: 'Auto',
   bici: 'Bici',
   running: 'Running',
   trekking: 'Trekking',

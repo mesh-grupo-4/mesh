@@ -31,6 +31,7 @@ import type { TipoActividadApi } from '@/lib/viajesApi'
 const FILTROS: { id: TipoActividadApi | null; label: string }[] = [
   { id: null, label: 'Todos' },
   { id: 'moto', label: 'Moto' },
+  { id: 'auto', label: 'Auto' },
   { id: 'bici', label: 'Bici' },
   { id: 'running', label: 'Running' },
   { id: 'trekking', label: 'Trekking' },

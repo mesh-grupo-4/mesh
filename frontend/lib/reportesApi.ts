@@ -7,7 +7,7 @@ import { apiUrl, meshFetchAuthed, parseJson } from './apiClient'
  */
 
 export type Granularidad = 'dia' | 'semana' | 'mes'
-export type Actividad = 'moto' | 'bici' | 'running' | 'trekking' | 'otro'
+export type Actividad = 'moto' | 'auto' | 'bici' | 'running' | 'trekking' | 'otro'
 
 export type FiltroReporte = {
   /** Fechas calendario en hora argentina (AAAA-MM-DD), ambas inclusive. */

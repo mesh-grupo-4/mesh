@@ -99,8 +99,8 @@ describe('RN-073 — fantasma', () => {
     })
   })
 
-  it('RN-070: en moto no hay fantasma', async () => {
-    const m = armar({ tipo: 'moto' })
+  it.each(['moto', 'auto'])('RN-070: en %s no hay fantasma', async (tipo) => {
+    const m = armar({ tipo })
     await expect(new FantasmaService(m.prisma).listarCandidatos(yo, viajeId)).rejects.toMatchObject({
       code: 'FANTASMA_NO_DISPONIBLE',
     })
