@@ -11,6 +11,8 @@ export type MemberLocation = {
   lat: number
   lng: number
   precision: number | null
+  /** Último rumbo conocido en grados (0 = norte). null = todavía no se movió. */
+  rumbo: number | null
   updatedAt: string
   nombre: string
   /** La última posición conocida quedó vieja: el integrante perdió señal. */
@@ -48,6 +50,7 @@ type LocationTick = {
   lat: number
   lng: number
   accuracy?: number
+  rumbo?: number | null
   recordedAt: string
 }
 
@@ -57,6 +60,7 @@ export function rowToMember(row: UbicacionVivaSnapshotApi, names: Record<string,
     lat: row.lat,
     lng: row.lng,
     precision: row.precision,
+    rumbo: row.rumbo ?? null,
     updatedAt: row.updatedAt,
     nombre: names[row.usuarioId] || row.nombre || 'Integrante',
     estado: row.estado ?? 'en_movimiento',
@@ -76,6 +80,7 @@ function dbRowToMember(
     lat: Number(row.lat),
     lng: Number(row.lng),
     precision: row.precision_m != null ? Number(row.precision_m) : null,
+    rumbo: row.rumbo_grados != null ? Number(row.rumbo_grados) : null,
     updatedAt: String(row.updated_at ?? new Date().toISOString()),
     nombre: names[usuarioId] || 'Integrante',
     estado: 'en_movimiento',
@@ -89,6 +94,7 @@ function socketPayloadToMember(
     lat: number
     lng: number
     precision: number | null
+    rumbo?: number | null
     recordedAt: string
   },
   names: Record<string, string>
@@ -98,6 +104,7 @@ function socketPayloadToMember(
     lat: payload.lat,
     lng: payload.lng,
     precision: payload.precision,
+    rumbo: payload.rumbo ?? null,
     updatedAt: payload.recordedAt,
     nombre: names[payload.usuarioId] || 'Integrante',
     estado: 'en_movimiento',
@@ -120,9 +127,13 @@ export function useLiveLocations({ viajeId, userId, nameByUserId = {}, selfSeed 
           opciones?.conservarEstado &&
           anterior &&
           (anterior.estado === 'detenido_voluntario' || anterior.estado === 'posible_incidente')
-        const siguiente = conservar
+        const base = conservar
           ? { ...member, estado: anterior.estado, paradaDesde: anterior.paradaDesde }
           : member
+        // Quieto el GPS no da rumbo: la flecha conserva la última dirección
+        // conocida en vez de desaparecer o saltar al norte.
+        const siguiente =
+          base.rumbo == null && anterior?.rumbo != null ? { ...base, rumbo: anterior.rumbo } : base
         return { ...prev, [member.usuarioId]: siguiente }
       })
     },
@@ -182,6 +193,7 @@ export function useLiveLocations({ viajeId, userId, nameByUserId = {}, selfSeed 
           lat: selfSeed.lat,
           lng: selfSeed.lng,
           precision: null,
+          rumbo: null,
           updatedAt: new Date().toISOString(),
           nombre: namesRef.current[userId] || 'Vos',
           estado: 'en_movimiento',
@@ -201,6 +213,7 @@ export function useLiveLocations({ viajeId, userId, nameByUserId = {}, selfSeed 
           lat: tick.lat,
           lng: tick.lng,
           precision: tick.accuracy ?? null,
+          rumbo: tick.rumbo ?? null,
           updatedAt: tick.recordedAt,
           nombre: namesRef.current[userId] || 'Vos',
           estado: 'en_movimiento',
@@ -269,6 +282,7 @@ export function useLiveLocations({ viajeId, userId, nameByUserId = {}, selfSeed 
           lat: number
           lng: number
           precision: number | null
+          rumbo?: number | null
           recordedAt: string
         }) => {
           if (payload.viajeId !== viajeId) return

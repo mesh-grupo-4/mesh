@@ -353,12 +353,15 @@ model AccesoUbicacion {
 }
 
 model UbicacionViva {
-  usuario_id  String   @id @map("usuario_id") @db.Uuid
-  viaje_id    String   @map("viaje_id") @db.Uuid
-  lat         Float
-  lng         Float
-  precision_m Float?   @map("precision_m")
-  updated_at  DateTime @updatedAt @map("updated_at")
+  usuario_id   String   @id @map("usuario_id") @db.Uuid
+  viaje_id     String   @map("viaje_id") @db.Uuid
+  lat          Float
+  lng          Float
+  precision_m  Float?   @map("precision_m")
+  /// Último rumbo conocido (grados, 0 = norte). Se conserva cuando el ping
+  /// llega sin rumbo (detenido): el mapa oculta la flecha según el estado.
+  rumbo_grados Float?   @map("rumbo_grados")
+  updated_at   DateTime @updatedAt @map("updated_at")
 
   usuario Usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
   viaje   Viaje   @relation(fields: [viaje_id], references: [id], onDelete: Cascade)

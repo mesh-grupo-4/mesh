@@ -2688,6 +2688,10 @@ UbicacionVivaFila:
     precision_m:
       type: number
       nullable: true
+    rumbo_grados:
+      type: number
+      nullable: true
+      description: Último rumbo conocido, en grados (0 = norte).
     updated_at:
       type: string
       format: date-time
@@ -2747,6 +2751,16 @@ UbicacionViva:
       type: number
       nullable: true
       example: 8.4
+    rumbo:
+      type: number
+      nullable: true
+      minimum: 0
+      maximum: 360
+      description: |
+        Último rumbo conocido, en grados (0 = norte, sentido horario). El mapa gira la
+        flecha del integrante con este valor. Se conserva al detenerse (el GPS no da
+        rumbo quieto), así que el cliente lo oculta si el integrante no está en movimiento.
+      example: 87.5
     updatedAt:
       type: string
       format: date-time

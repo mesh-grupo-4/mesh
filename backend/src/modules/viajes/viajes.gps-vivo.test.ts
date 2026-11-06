@@ -542,3 +542,63 @@ describe('datos extra del GPS del dispositivo', () => {
   })
 })
 
+/**
+ * El rumbo es lo que gira la flecha de cada integrante en el mapa grupal. Viaja
+ * en la ubicación viva y en `viaje:ubicacion`, y al detenerse (ping sin rumbo)
+ * se conserva el último en vez de pisarlo con null.
+ */
+describe('rumbo en la ubicación viva', () => {
+  it('lo guarda en ubicacion_viva y lo emite a la sala', async () => {
+    const m = armarPrisma('bici')
+    await new ViajesService(m.prisma).upsertUbicacionViva(usuarioId, viajeId, {
+      lat: -31.42,
+      lng: -64.18,
+      precision: 8,
+      recordedAt: new Date('2026-08-31T12:00:00.000Z'),
+      rumbo: 87.5,
+    })
+    const args = m.ubicacionVivaUpsert.mock.calls[0]![0] as {
+      create: { rumbo_grados: number | null }
+      update: { rumbo_grados?: number }
+    }
+    expect(args.create.rumbo_grados).toBe(87.5)
+    expect(args.update.rumbo_grados).toBe(87.5)
+    expect(emit).toHaveBeenCalledWith('viaje:ubicacion', expect.objectContaining({ rumbo: 87.5 }))
+  })
+
+  it('un ping sin rumbo no borra el último conocido y lo reemite', async () => {
+    const m = armarPrisma('bici')
+    m.ubicacionVivaUpsert.mockResolvedValueOnce({
+      usuario_id: usuarioId,
+      viaje_id: viajeId,
+      lat: -31.42,
+      lng: -64.18,
+      precision_m: 8,
+      rumbo_grados: 120,
+      updated_at: new Date('2026-08-31T12:00:05.000Z'),
+    })
+    await new ViajesService(m.prisma).registrarPingUbicacion(usuarioId, {
+      viajeId,
+      lat: -31.42,
+      lng: -64.18,
+      accuracy: 8,
+      recordedAt: '2026-08-31T12:00:05.000Z',
+      source: 'live',
+    })
+    const args = m.ubicacionVivaUpsert.mock.calls[0]![0] as { update: Record<string, unknown> }
+    expect(args.update.rumbo_grados).toBeUndefined()
+    expect(emit).toHaveBeenCalledWith('viaje:ubicacion', expect.objectContaining({ rumbo: 120 }))
+  })
+
+  it('RN-111: sin compartir ubicación no se publica el rumbo', async () => {
+    const m = armarPrisma('bici', null, { comparte: false })
+    await new ViajesService(m.prisma).upsertUbicacionViva(usuarioId, viajeId, {
+      lat: -31.42,
+      lng: -64.18,
+      recordedAt: new Date('2026-08-31T12:00:00.000Z'),
+      rumbo: 87.5,
+    })
+    expect(m.ubicacionVivaUpsert).not.toHaveBeenCalled()
+    expect(emit).not.toHaveBeenCalled()
+  })
+})

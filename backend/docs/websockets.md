@@ -198,10 +198,15 @@ Posición de un integrante. Es lo que mueve los marcadores del mapa grupal.
   "lat": -31.4201,
   "lng": -64.1888,
   "precision": 8.4,
+  "rumbo": 87.5,                                // grados (0 = norte) o null si nunca se movió
   "recordedAt": "2026-09-01T13:05:00.000Z",
   "source": "live"
 }
 ```
+
+`rumbo` es el **último rumbo conocido**: si el ping llega sin rumbo (detenido) se conserva el
+anterior, para que la flecha no salte al norte en un semáforo. El cliente oculta la flecha
+cuando el integrante está detenido, en posible incidente o sin señal.
 
 Se dispara desde `upsertUbicacionVivaSnapshot`, así que sale por igual venga la posición
 del socket (`viaje:gps_ping`) o de cualquiera de los dos endpoints REST de GPS.
@@ -275,11 +280,9 @@ para poder bajarse (`POST /salir` con `nuevo_lider_id`), RN-029d.
 }
 ```
 
-La persona pasa a estado `salido` y deja de publicar ubicación, pero conserva su fila para
-seguir figurando en el resumen con lo que recorrió. El viaje **no** se cierra para el resto.
-Al salir se cierra su parada abierta (si tenía), se resuelven sus alertas del sistema
-(con `viaje:alerta_actualizada`) y se borra su `ubicacion_viva`: deja de aparecer en el
-mapa también para quien rehidrata por `GET /ubicaciones-vivas`.
+El cliente refresca el detalle del viaje: desde ese momento las acciones de líder
+(iniciar, finalizar, aprobar paradas) son del nuevo líder. Al nuevo líder le llega además
+una notificación push.
 
 ### `viaje:ubicacion_oculta`
 

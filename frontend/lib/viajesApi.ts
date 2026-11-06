@@ -689,6 +689,8 @@ export type UbicacionVivaSnapshotApi = {
   lat: number
   lng: number
   precision: number | null
+  /** Último rumbo conocido en grados (0 = norte). Se conserva al detenerse. */
+  rumbo?: number | null
   updatedAt: string
   nombre: string
   /** RN-037: derivado en el backend de la parada abierta del integrante. */

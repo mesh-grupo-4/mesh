@@ -5,6 +5,7 @@ import { getMapStyle, type MapStyleId } from '@/components/route-config/mapStyle
 import { PinMarker, PIN_ANCHOR } from '@/components/maps/PinMarker'
 import {
   MeshMapView,
+  ROTACION_NATIVA_MARCADORES,
   zoomFromLatDelta,
   type PolylineSpec,
   type MeshMapViewHandle,
@@ -16,6 +17,7 @@ import type { AlertaApi } from '@/lib/alertasApi'
 import { AlertMarker, alertMarkerKey, alertMarkerPopup } from './AlertMarker'
 import { GHOST_TRAIL_COLOR, GhostMarker } from './GhostMarker'
 import { MemberMarker, memberMarkerKey } from './MemberMarker'
+import { mostrarRumbo, RumboMarker, rumboColor, rumboEnPasos } from './RumboMarker'
 import { ParadaMarker, paradaMarkerPopup } from './ParadaMarker'
 import type { CategoriaParadaApi } from '@/lib/paradasApi'
 import { motivoParadaLegible } from '@/lib/paradasApi'
@@ -117,8 +119,32 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
       lng: m.lng,
       content: <MemberMarker member={m} isMe={m.usuarioId === currentUserId} />,
       contentKey: memberMarkerKey({ member: m, isMe: m.usuarioId === currentUserId }),
-      zIndex: m.usuarioId === currentUserId ? 1000 : 0,
+      zIndex: m.usuarioId === currentUserId ? 1000 : 1,
     }))
+
+    // Flecha de rumbo de cada integrante en movimiento, justo debajo de su
+    // avatar. Con Google Maps el bitmap no cambia y el giro es la `rotation`
+    // nativa; sin ella (Apple Maps) la flecha se gira dentro de su vista.
+    const rumbos: MarkerSpec[] = members.filter(mostrarRumbo).map((m) => {
+      const isMe = m.usuarioId === currentUserId
+      const color = rumboColor(m, isMe)
+      const base = { id: `rumbo-${m.usuarioId}`, lat: m.lat, lng: m.lng, zIndex: isMe ? 999 : 0 }
+      if (ROTACION_NATIVA_MARCADORES) {
+        return {
+          ...base,
+          content: <RumboMarker color={color} />,
+          contentKey: color,
+          rotation: m.rumbo,
+          flat: true,
+        }
+      }
+      const giro = rumboEnPasos(m.rumbo)
+      return {
+        ...base,
+        content: <RumboMarker color={color} giro={giro} />,
+        contentKey: `${color}|${giro}`,
+      }
+    })
 
     const alertas: MarkerSpec[] = alertasEnMapa
       .filter((a) => a.lat != null && a.lng != null)
@@ -192,7 +218,15 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
         ]
       : []
 
-    return [...alertaGuia, ...paradaGuia, ...lugarGuia, ...alertas, ...ghost, ...integrantes]
+    return [
+      ...alertaGuia,
+      ...paradaGuia,
+      ...lugarGuia,
+      ...alertas,
+      ...ghost,
+      ...rumbos,
+      ...integrantes,
+    ]
   }, [members, alertasEnMapa, guiaParada, guiaAlerta, guiaLugar, fantasma, currentUserId])
 
   const polylines = useMemo((): PolylineSpec[] => {

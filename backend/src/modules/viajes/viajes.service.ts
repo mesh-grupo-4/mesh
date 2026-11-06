@@ -2061,6 +2061,8 @@ export class ViajesService {
       lat: number
       lng: number
       precision: number | null
+      /** null = el ping no trae rumbo (detenido): se conserva el último conocido. */
+      rumbo: number | null
       recordedAt: Date
       source: 'live' | 'offline_sync'
     }
@@ -2224,6 +2226,7 @@ export class ViajesService {
         lat: last.lat,
         lng: last.lng,
         precision: last.precision_m,
+        rumbo: last.rumbo_grados,
         recordedAt: last.timestamp,
         source: input.source,
       })
@@ -2259,6 +2262,7 @@ export class ViajesService {
       lat: input.lat,
       lng: input.lng,
       precision: input.precision ?? null,
+      rumbo: input.rumbo ?? null,
       recordedAt: input.recordedAt,
       source: 'live',
     })
@@ -2331,6 +2335,7 @@ export class ViajesService {
         lat: r.lat,
         lng: r.lng,
         precision: r.precision_m,
+        rumbo: r.rumbo_grados ?? null,
         updatedAt: r.updated_at.toISOString(),
         nombre: nombreVisible(r.usuario.nombre, r.usuario.apellido),
         estado,
@@ -2374,6 +2379,7 @@ export class ViajesService {
       lat,
       lng,
       precision: accuracy ?? null,
+      rumbo: payload.rumbo ?? null,
       recordedAt: ts,
       source,
     })
@@ -2398,6 +2404,7 @@ export class ViajesService {
     lat: number,
     lng: number,
     precision: number | null,
+    rumbo: number | null,
     recordedAt: Date,
     source: 'live' | 'offline_sync'
   ) {
@@ -2407,6 +2414,7 @@ export class ViajesService {
       lat,
       lng,
       precision,
+      rumbo,
       recordedAt: recordedAt.toISOString(),
       source,
     })
@@ -2418,6 +2426,7 @@ export class ViajesService {
     lat: number
     lng: number
     precision: number | null
+    rumbo: number | null
     recordedAt: Date
     source: 'live' | 'offline_sync'
   }) {
@@ -2429,20 +2438,26 @@ export class ViajesService {
         lat: input.lat,
         lng: input.lng,
         precision_m: input.precision,
+        rumbo_grados: input.rumbo,
       },
       update: {
         viaje_id: input.viajeId,
         lat: input.lat,
         lng: input.lng,
         precision_m: input.precision,
+        // Detenido el GPS no da rumbo: `undefined` deja el último conocido en
+        // vez de borrarlo, así la flecha no "salta" al norte en un semáforo.
+        rumbo_grados: input.rumbo ?? undefined,
       },
     })
+    const rumbo = input.rumbo ?? row.rumbo_grados ?? null
     this.emitUbicacionLive(
       input.viajeId,
       input.usuarioId,
       input.lat,
       input.lng,
       input.precision,
+      rumbo,
       input.recordedAt,
       input.source
     )
