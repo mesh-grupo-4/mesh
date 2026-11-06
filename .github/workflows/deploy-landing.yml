@@ -1,0 +1,84 @@
+name: Deploy landing
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'landing/**'
+      - '.github/workflows/deploy-landing.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-landing
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: landing
+    # Definir en GitHub solo las variables de descarga que existan: una vacía
+    # debe dejar el botón en "próximamente".
+    env:
+      PUBLIC_ANDROID_URL: ${{ vars.PUBLIC_ANDROID_URL }}
+      PUBLIC_APK_URL: ${{ vars.PUBLIC_APK_URL }}
+      PUBLIC_IOS_URL: ${{ vars.PUBLIC_IOS_URL }}
+      PUBLIC_LISTA_ESPERA_URL: ${{ vars.PUBLIC_LISTA_ESPERA_URL }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: landing/package-lock.json
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Tests
+        run: npm test
+
+      - name: Compilar
+        run: npm run build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: landing
+          retention-days: 5
+          path: landing/dist
+
+  deploy:
+    needs: ci
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: landing
+          path: dist
+
+      - name: Configurar SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "${{ secrets.SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+
+      - name: Subir el release
+        run: |
+          rsync -az --delete --chmod=D755,F644 \
+            -e "ssh -p ${{ secrets.SSH_PORT }} -i ~/.ssh/id_ed25519" \
+            dist/ \
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/srv/mesh-landing/releases/${{ github.sha }}/"
+
+      # Cambio atómico del symlink. Conserva los últimos 5 releases para poder volver atrás.
+      - name: Activar
+        run: |
+          ssh -p ${{ secrets.SSH_PORT }} -i ~/.ssh/id_ed25519 \
+            "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
+            'cd /srv/mesh-landing \
+              && ln -sfn "releases/${{ github.sha }}" current.tmp \
+              && mv -T current.tmp current \
+              && cd releases && ls -1t | tail -n +6 | xargs -r rm -rf --'

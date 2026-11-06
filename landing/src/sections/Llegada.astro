@@ -1,0 +1,43 @@
+---
+import BotonDescarga from '../components/BotonDescarga.astro'
+import Rueda from '../components/Rueda.astro'
+import { LLEGADA } from '../content/copy'
+import { HAY_DESCARGA } from '../config/descarga'
+---
+
+<section class="lleg seccion" id="llegada" data-seccion="llegada" data-llegada data-cinta-seccion>
+  <div class="lleg__anillos" data-lleg-anillos aria-hidden="true">
+    <span></span><span></span><span></span>
+  </div>
+  <div class="envoltura lleg__grilla">
+    <div class="lleg__escena" aria-hidden="true">
+      <div class="lleg__ruedas" data-lleg-ruedas>
+        {[0, 1, 2, 3, 4].map(() => <Rueda r={26} color="var(--tinta)" fondo="var(--naranja)" muesca class="lleg__rueda" />)}
+        <Rueda r={26} color="var(--tinta)" fondo="var(--naranja)" muesca class="lleg__rueda" data-lleg-gonza />
+      </div>
+    </div>
+    <p class="lleg__contador mono" data-lleg-contador>6/6</p>
+    <p class="lleg__grande">
+      <span class="lleg__falta" data-lleg-falta aria-hidden="true" hidden>{LLEGADA.falta}</span>
+      <span data-lleg-final>{LLEGADA.grande}</span>
+    </p>
+    <h2 class="h2 lleg__h2">{LLEGADA.h2}</h2>
+    <p class="lead lleg__sub">{HAY_DESCARGA ? LLEGADA.sub : LLEGADA.subSinDescarga}</p>
+    <BotonDescarga seccion="llegada" modo="completo" />
+    <p class="lleg__pie mono">{LLEGADA.pie}</p>
+  </div>
+</section>
+
+<style is:global>
+  .lleg { background: var(--naranja); color: var(--tinta); overflow: clip; padding-block: clamp(80px, 11vw, 160px); --suave: var(--tinta); }
+  .lleg__anillos { position: absolute !important; inset: 0; z-index: 0 !important; pointer-events: none; display: none; }
+  .lleg__anillos span { position: absolute; top: 24%; left: 50%; width: 60vmax; height: 60vmax; margin: -30vmax 0 0 -30vmax; border-radius: 50%; border: 5vmax solid rgba(20, 18, 16, .12); opacity: 0; }
+  .lleg__grilla { display: grid; gap: 14px; justify-items: start; }
+  .lleg__ruedas { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+  .lleg__contador { font-size: clamp(5rem, 22vw, 14rem); font-weight: 700; line-height: .95; letter-spacing: -.04em; }
+  .lleg__grande { font-family: var(--f-display); font-weight: 800; font-size: var(--t-h3); line-height: 1.05; letter-spacing: -.02em; }
+  .lleg__h2 { margin-top: 28px; }
+  .lleg__sub { color: var(--tinta); margin-bottom: 14px; }
+  .lleg__pie { margin-top: 14px; font-weight: 700; }
+  html[data-motion='on'] .lleg__anillos { display: block; }
+</style>

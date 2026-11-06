@@ -1,0 +1,124 @@
+---
+import Rueda from '../components/Rueda.astro'
+import QrEjemplo from '../components/QrEjemplo.astro'
+import Icono from '../components/Icono.astro'
+import { BENTO } from '../content/copy'
+---
+
+<section class="bento seccion topo tema-crema" id="mas" data-seccion="bento" data-cinta-seccion>
+  <div class="envoltura">
+    <p class="etiqueta">{BENTO.etiqueta}</p>
+    <h2 class="h2" data-titulo>{BENTO.h2}</h2>
+    <ul class="bento__grilla">
+      {BENTO.celdas.map((c) => (
+        <li class:list={['celda', `celda--${c.tam}`, `celda-${c.id}`]} data-celda>
+          <div class="celda__micro" aria-hidden="true">
+            {c.id === 'viaje-ya' && (
+              <>
+                <span class="m-rayo"><Icono nombre="zap" tam={72} /></span>
+                <span class="m-boton">Arrancar</span>
+              </>
+            )}
+            {c.id === 'clima' && (
+              <svg viewBox="0 0 220 110" class="m-svg">
+                <path d="M-6 96 C 50 40 110 118 226 56" fill="none" stroke="var(--naranja)" stroke-width="14" stroke-linecap="round" />
+                {[28, 70, 112, 154, 196].map((x, i) => <rect class="m-gota" style={`animation-delay:${i * 90}ms`} x={x} y={8 + (i % 2) * 14} width="5" height="16" rx="2.5" fill="#0EA5E9" />)}
+              </svg>
+            )}
+            {c.id === 'qr' && <span class="m-qr"><QrEjemplo /></span>}
+            {c.id === 'paradas' && (
+              <div class="m-chips">
+                {['Combustible', 'Comida', 'Descanso'].map((t, i) => <span class="m-chip" style={`animation-delay:${i * 120}ms`}>{t}</span>)}
+              </div>
+            )}
+            {c.id === 'pedido' && <span class="m-burbuja"><Icono nombre="check" tam={28} /></span>}
+            {c.id === 'checklist' && (
+              <ul class="m-lista">
+                {['Casco', 'Agua', 'Cargador'].map((t, i) => <li style={`--i:${i}`}><span class="m-tilde"><Icono nombre="check" tam={16} /></span>{t}</li>)}
+              </ul>
+            )}
+            {c.id === 'gastos' && (
+              <svg viewBox="0 0 220 96" class="m-svg">
+                {[0, 1, 2, 3].map((i) => <circle class="m-moneda" style={`--x:${(i - 1.5) * 52}px;animation-delay:${i * 80}ms`} cx="110" cy="48" r="22" fill="var(--parada)" stroke="var(--tinta)" stroke-width="3" />)}
+              </svg>
+            )}
+            {c.id === 'comunidad' && (
+              <svg viewBox="0 0 420 150" class="m-svg" preserveAspectRatio="xMidYMid slice">
+                <rect width="420" height="150" rx="18" fill="var(--map-bg)" />
+                <path class="m-traza" pathLength="1" d="M-6 120 C 80 40 140 140 230 80 S 340 20 430 60" fill="none" stroke="var(--naranja)" stroke-width="9" stroke-linecap="round" />
+                <path class="m-traza m-traza--2" pathLength="1" d="M60 156 C 90 90 190 110 240 150" fill="none" stroke="var(--tinta)" stroke-width="7" stroke-linecap="round" />
+                <path class="m-traza m-traza--3" pathLength="1" d="M300 -6 C 280 50 340 90 330 156" fill="none" stroke="var(--tinta-suave)" stroke-width="7" stroke-linecap="round" />
+              </svg>
+            )}
+            {c.id === 'insignias' && <span class="m-medalla"><Rueda r={36} muesca /></span>}
+            {c.id === 'resumen' && (
+              <p class="m-numeros mono"><span><strong data-contar="86">86</strong> km</span><span><strong data-contar="3">3</strong> paradas</span></p>
+            )}
+          </div>
+          <h3 class="celda__titulo">{c.titulo}</h3>
+          <p class="suave">{c.texto}</p>
+        </li>
+      ))}
+    </ul>
+  </div>
+</section>
+
+<style is:global>
+  .bento__grilla { display: grid; gap: 12px; margin-top: 44px; }
+  .celda { display: flex; flex-direction: column; padding: 22px; border-radius: var(--r-tarjeta); background: var(--blanco); border: 1px solid var(--linea); overflow: clip; }
+  .celda__micro { display: grid; place-items: center; min-height: 96px; margin-bottom: 14px; }
+  .celda__titulo { font-family: var(--f-display); font-size: 1.625rem; font-weight: 800; line-height: 1.08; letter-spacing: -.02em; margin-bottom: 6px; }
+  .celda-viaje-ya { background: var(--tinta); color: var(--crema); --suave: var(--hueso-suave); }
+  .celda-comunidad { background: var(--crema-2); }
+
+  .m-svg { width: 100%; }
+  .celda-viaje-ya .celda__micro { justify-items: start; position: relative; min-height: 150px; }
+  .m-rayo { color: var(--naranja); }
+  .m-rayo svg { fill: var(--naranja); }
+  .m-boton { display: inline-flex; align-items: center; min-height: 44px; padding: 8px 22px; border-radius: 999px; background: var(--naranja); color: var(--tinta); font-weight: 700; margin-top: 8px; }
+  .m-qr { width: 104px; }
+  .m-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+  .m-chip { padding: 8px 14px; border-radius: 999px; background: var(--crema-2); border: 1px solid var(--linea); font-weight: 700; }
+  .m-burbuja { display: grid; place-items: center; width: 72px; height: 58px; border-radius: 18px 18px 18px 4px; background: var(--ok); color: #fff; }
+  .m-lista { display: grid; gap: 6px; width: 100%; }
+  .m-lista li { display: flex; align-items: center; gap: 10px; font-weight: 700; }
+  .m-tilde { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; background: var(--ok); color: #fff; }
+  .m-numeros { display: flex; flex-wrap: wrap; gap: 8px 24px; letter-spacing: 0; }
+  .m-numeros strong { font-size: 2.25rem; color: var(--naranja-texto); }
+  .m-medalla { line-height: 0; }
+
+  @media (min-width: 700px) {
+    .bento__grilla { grid-template-columns: repeat(6, 1fr); gap: 16px; }
+    .celda--grande { grid-column: span 4; }
+    .celda--mediana { grid-column: span 2; }
+    .celda--chica { grid-column: span 2; }
+    .celda-gastos, .celda-checklist { grid-column: span 3; }
+    .celda-resumen { grid-column: span 4; }
+    .celda-comunidad { grid-column: span 4; }
+  }
+
+  /* Microanimaciones: el estado por defecto ya es el final, así sin JS se ve todo. */
+  @keyframes m-rayo { from { transform: translateX(-120%) skewX(-12deg); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes m-gota { from { transform: translateY(-34px); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes m-caer { from { transform: translateY(-40px) rotate(-8deg); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes m-moneda { from { transform: translateX(0); } to { transform: translateX(var(--x)); } }
+  @keyframes m-traza { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+  @keyframes m-qr { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0); } }
+  @keyframes m-girar { from { transform: rotate(-200deg); } to { transform: none; } }
+
+  .m-moneda { transform: translateX(var(--x)); transform-box: fill-box; }
+  .m-traza { stroke-dasharray: 1; }
+  .m-medalla .rueda__giro { transform-box: fill-box; transform-origin: center; }
+  .animar .m-rayo { animation: m-rayo var(--d-media) var(--e-salida) both; }
+  .animar .m-boton { animation: pop var(--d-corta) var(--e-rebote) .3s both; }
+  .animar .m-gota { animation: m-gota var(--d-media) var(--e-salida) both; }
+  .animar .m-chip { animation: m-caer var(--d-corta) var(--e-rebote) both; }
+  .animar .m-burbuja { animation: pop var(--d-corta) var(--e-rebote) both; }
+  .animar .m-tilde { animation: pop var(--d-corta) var(--e-rebote) both; animation-delay: calc(var(--i) * 140ms); }
+  .animar .m-moneda { animation: m-moneda var(--d-media) var(--e-suave) both; }
+  .animar .m-traza { animation: m-traza .9s var(--e-suave) both; }
+  .animar .m-traza--2 { animation-delay: .2s; }
+  .animar .m-traza--3 { animation-delay: .4s; }
+  .animar .m-qr { animation: m-qr var(--d-media) steps(8) both; }
+  .animar .m-medalla .rueda__giro { animation: m-girar .9s var(--e-salida) both; }
+</style>

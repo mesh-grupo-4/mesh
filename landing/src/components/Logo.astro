@@ -1,0 +1,24 @@
+---
+import logo from '../assets/logo.svg?raw'
+
+interface Props {
+  ancho?: number | string
+  class?: string
+  etiqueta?: string
+}
+const { ancho = 44, class: clase = '', etiqueta = 'Mesh' } = Astro.props
+
+// En el archivo los grupos tienen id (#cinta, #rueda-izq, #rueda-der). Como el logo aparece varias
+// veces en la página, acá pasan a ser clases para no duplicar ids.
+const svg = logo
+  .replace(/\bid="/g, 'class="logo-')
+  .replace('aria-label="Mesh"', `aria-label="${etiqueta}"`)
+  .replace('style="color:#FE3A0F"', '')
+---
+
+<span class:list={['logo', clase]} style={`--ancho:${typeof ancho === 'number' ? `${ancho}px` : ancho}`} set:html={svg} />
+
+<style is:global>
+  .logo { display: inline-block; width: var(--ancho); color: var(--naranja); line-height: 0; }
+  .logo svg { width: 100%; height: auto; overflow: visible; }
+</style>

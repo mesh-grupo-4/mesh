@@ -1,0 +1,56 @@
+---
+// Catálogo para revisión. Solo existe con `npm run dev`: ver la integración en astro.config.mjs.
+import Base from '../layouts/Base.astro'
+import Logo from '../components/Logo.astro'
+import Rueda from '../components/Rueda.astro'
+import Telefono from '../components/Telefono.astro'
+import BotonDescarga from '../components/BotonDescarga.astro'
+import ViajeYa from '../components/pantallas/ViajeYa.astro'
+import Qr from '../components/pantallas/Qr.astro'
+import MapaVivo from '../components/pantallas/MapaVivo.astro'
+import EstasBien from '../components/pantallas/EstasBien.astro'
+import Resumen from '../components/pantallas/Resumen.astro'
+import ModoMoto from '../components/pantallas/ModoMoto.astro'
+import Minima from '../components/pantallas/Minima.astro'
+
+const colores = ['naranja', 'naranja-texto', 'coral', 'crema', 'crema-2', 'blanco', 'tinta', 'tinta-suave', 'linea', 'noche', 'noche-2', 'hueso', 'hueso-suave', 'moto-fondo', 'moto-acento', 'ok', 'parada', 'incidente', 'al-desvio', 'al-atraso', 'al-combustible', 'al-peligro', 'al-info']
+---
+
+<Base titulo="Estilos · Mesh">
+  <main id="contenido" class="envoltura estilos">
+    <h1 class="h2">Sistema de diseño</h1>
+    <section><h2 class="h3">Logo y rueda</h2><div class="fila"><Logo ancho={160} /><Rueda r={48} muesca /><Rueda r={24} color="var(--tinta)" /></div></section>
+    <section>
+      <h2 class="h3">Color</h2>
+      <div class="fila">{colores.map((c) => <figure class="muestra"><span style={`background:var(--${c})`}></span><figcaption class="mono">{c}</figcaption></figure>)}</div>
+    </section>
+    <section>
+      <h2 class="h3">Tipografía</h2>
+      <p class="h2">Display. Salen juntos.</p>
+      <p class="lead">Lead. Mesh muestra a todo tu grupo en un solo mapa.</p>
+      <p>Cuerpo. Tu posición se lee cada 5 segundos mientras el viaje está en curso.</p>
+      <p class="mono">Datos 6/6 · 450 m</p>
+    </section>
+    <section><h2 class="h3">Botones</h2><div class="fila"><BotonDescarga seccion="estilos" /><a class="btn btn-secundario" href="#">Secundario</a><a class="btn btn-tinta" href="#">Tinta</a></div></section>
+    <section class="tema-noche oscuro">
+      <h2 class="h3">Pantallas</h2>
+      <div class="fila">
+        <Telefono><ViajeYa /></Telefono>
+        <Telefono><Qr /></Telefono>
+        <Telefono><MapaVivo /></Telefono>
+        <Telefono><div class="app" style="margin-top:auto"><EstasBien /></div></Telefono>
+        <Telefono><Resumen /></Telefono>
+        <Telefono moto><ModoMoto /></Telefono>
+        <Telefono><Minima variante="running" /></Telefono>
+        <Telefono><Minima variante="trekking" /></Telefono>
+      </div>
+    </section>
+  </main>
+</Base>
+
+<style is:global>
+  .estilos { display: grid; gap: 48px; padding-block: 48px; }
+  .estilos .fila { display: flex; flex-wrap: wrap; gap: 20px; align-items: center; margin-top: 16px; }
+  .muestra span { display: block; width: 96px; height: 64px; border-radius: 12px; border: 1px solid var(--linea); }
+  .oscuro { padding: 32px; border-radius: var(--r-tarjeta); }
+</style>

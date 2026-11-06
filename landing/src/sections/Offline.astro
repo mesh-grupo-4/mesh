@@ -1,0 +1,92 @@
+---
+import Rueda from '../components/Rueda.astro'
+import Rotulo from '../components/Rotulo.astro'
+import Icono from '../components/Icono.astro'
+import { OFFLINE } from '../content/copy'
+import { crearRuta } from '../lib/ruta'
+import { RUTA_OFFLINE } from '../motion/offline-datos'
+
+const ruta = crearRuta(RUTA_OFFLINE)
+const inicio = ruta.punto(0.08)
+---
+
+<section class="off seccion tema-noche" id="offline" data-seccion="offline" data-cinta-seccion>
+  <div class="envoltura off__cabeza">
+    <p class="etiqueta">{OFFLINE.etiqueta}</p>
+    <h2 class="h2" data-titulo>{OFFLINE.h2}</h2>
+    <p class="lead off__sub">{OFFLINE.sub}</p>
+    <Rotulo />
+  </div>
+
+  <div class="off__escena" data-off-pin aria-hidden="true">
+    <svg viewBox="0 0 1400 700" preserveAspectRatio="xMidYMid slice" data-off-svg>
+      <rect class="off__zona" data-off-zona x="430" y="0" width="520" height="700" fill="#2A2826" />
+      <g fill="none" stroke="#3A3633" stroke-width="3">
+        <path d="M430 620 C 520 480 590 400 690 300 C 790 400 860 480 950 620" />
+        <path d="M480 620 C 550 510 610 440 690 370 C 770 440 830 510 900 620" />
+        <path d="M530 620 C 580 540 630 490 690 440 C 750 490 800 540 850 620" />
+      </g>
+      <path d={RUTA_OFFLINE} fill="none" stroke="#2E2E2E" stroke-width="30" stroke-linecap="round" />
+      <path data-off-solida d={RUTA_OFFLINE} pathLength="1" fill="none" stroke="var(--naranja)" stroke-width="14" stroke-linecap="round" stroke-dasharray="1" stroke-dashoffset="1" />
+      <g data-off-puntos-g></g>
+      <Rueda g r={26} x={inicio.x} y={inicio.y} fondo="var(--noche)" data-off-gonza />
+      <text data-off-nombre x={inicio.x} y={inicio.y - 42} text-anchor="middle" fill="var(--hueso)" font-size="26" font-weight="800">Gonza</text>
+    </svg>
+    <div class="off__panel mono">
+      <p class="off__senal">
+        <span class="off__barras" data-off-barras><i></i><i></i><i></i><i></i></span>
+        <span data-off-senal>{OFFLINE.conSenal}</span>
+      </p>
+      <p data-off-contador>{OFFLINE.contador}: <strong data-off-puntos>0</strong> {OFFLINE.puntos}</p>
+    </div>
+  </div>
+
+  <ol class="off__vinetas envoltura" data-off-vinetas tabindex="0" aria-label="El recorrido de Gonza, paso a paso">
+    {OFFLINE.vinetas.map((v, i) => (
+      <li class="vineta">
+        <span class="vineta__icono">
+          <Icono nombre={i === 0 ? 'map' : i === 1 ? 'wifi-off' : i === 2 ? 'list' : 'check'} tam={22} />
+        </span>
+        <h3 class="vineta__titulo">{v.titulo}</h3>
+        <p class="suave">{v.texto}</p>
+      </li>
+    ))}
+  </ol>
+
+  <div class="envoltura off__remate">
+    <p class="off__grande">{OFFLINE.remate}</p>
+    <p class="lead">{OFFLINE.pie}</p>
+  </div>
+</section>
+
+<style is:global>
+  .off__cabeza { display: grid; gap: 16px; justify-items: start; }
+  .off__cabeza .etiqueta { margin: 0; }
+  .off__sub { color: var(--hueso); }
+  .off__escena { display: none; }
+  .off__vinetas { display: flex; gap: 12px; overflow-x: auto; margin-top: 40px; padding-bottom: 12px; scroll-snap-type: x mandatory; }
+  .vineta { flex: 0 0 min(78%, 300px); padding: 20px; border-radius: var(--r-tarjeta); background: var(--noche-2); border: 1px solid #2E2E2E; scroll-snap-align: start; }
+  .vineta__icono { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: #2C2C2C; color: var(--naranja); margin-bottom: 12px; }
+  .vineta__titulo { font-family: var(--f-display); font-size: 1.5rem; font-weight: 700; line-height: 1.1; margin-bottom: 6px; }
+  .off__remate { margin-top: clamp(40px, 7vw, 96px); }
+  .off__grande { font-family: var(--f-display); font-weight: 800; font-size: var(--t-h2); line-height: .95; letter-spacing: -.03em; color: var(--naranja); margin-bottom: 16px; }
+
+  @media (min-width: 900px) {
+    .off__vinetas { display: grid; grid-template-columns: repeat(4, 1fr); overflow: visible; }
+  }
+
+  /* Con pin (lo activa src/motion/offline.ts). Las viñetas quedan para lector de pantalla. */
+  html[data-off='pin'] .off__escena { display: block; position: relative; z-index: 2; height: 100svh; overflow: hidden; background: var(--noche); margin-top: 32px; }
+  html[data-off='pin'] .off__escena svg { width: 100%; height: 100%; max-width: none; }
+  html[data-off='pin'] .off__vinetas { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); padding: 0; margin: 0; }
+  .off__panel { position: absolute; top: 32px; left: 50%; translate: -50% 0; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px 32px; padding: 14px 24px; border-radius: 20px; background: var(--noche-2); border: 1px solid #2E2E2E; letter-spacing: 0; font-size: 1.0625rem; white-space: nowrap; }
+  .off__panel strong { color: var(--naranja); font-size: 1.375rem; }
+  .off__senal { display: flex; align-items: center; gap: 12px; }
+  .off__barras { display: inline-flex; align-items: flex-end; gap: 3px; height: 20px; }
+  .off__barras i { display: block; width: 5px; border-radius: 2px; background: var(--ok); }
+  .off__barras i:nth-child(1) { height: 25%; }
+  .off__barras i:nth-child(2) { height: 50%; }
+  .off__barras i:nth-child(3) { height: 75%; }
+  .off__barras i:nth-child(4) { height: 100%; }
+  .off__barras[data-vacia] i { background: #4A4542; }
+</style>

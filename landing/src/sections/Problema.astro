@@ -1,0 +1,59 @@
+---
+import Rotulo from '../components/Rotulo.astro'
+import { PROBLEMA } from '../content/copy'
+---
+
+<section class="problema seccion topo tema-crema" id="problema" data-seccion="problema" data-cinta-seccion>
+  <div class="envoltura problema__grilla">
+    <div class="problema__chat" data-chat>
+      <div class="chat__cabecera">
+        <strong>{PROBLEMA.chatTitulo}</strong>
+        <span class="chat__estado mono" data-chat-estado>{PROBLEMA.chatSub}</span>
+      </div>
+      <ol class="chat__lista">
+        {PROBLEMA.mensajes.map(([quien, texto]) => (
+          <li class:list={['burbuja', { 'burbuja--gonza': quien === 'Gonza' }]} data-burbuja data-quien={quien}>
+            <span class="burbuja__quien">{quien}</span>
+            {texto}
+          </li>
+        ))}
+      </ol>
+      <Rotulo class="chat__rotulo" />
+    </div>
+    <div class="problema__texto">
+      <div class="problema__fijo">
+        <p class="etiqueta">{PROBLEMA.etiqueta}</p>
+        <h2 class="h2" data-titulo>{PROBLEMA.h2}</h2>
+      </div>
+      <div class="problema__remate" data-remate>
+        <p class="problema__grande">{PROBLEMA.remate}</p>
+        <p class="lead">{PROBLEMA.pie}</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style is:global>
+  .problema { padding-top: clamp(64px, 8vw, 120px); }
+  .problema__grilla { display: grid; gap: 40px; }
+  .problema__texto { display: contents; }
+  .problema__fijo { order: -1; }
+  .problema__chat { width: 100%; max-width: 480px; background: var(--blanco); border: 1px solid var(--linea); border-radius: var(--r-tarjeta); box-shadow: var(--sombra); padding-bottom: 16px; }
+  .chat__cabecera { position: sticky; top: 0; z-index: 2; display: flex; flex-direction: column; padding: 16px 20px; border-bottom: 1px solid var(--linea); background: var(--blanco); border-radius: var(--r-tarjeta) var(--r-tarjeta) 0 0; line-height: 1.3; }
+  .chat--encogido .chat__cabecera { box-shadow: 0 -80px 0 var(--blanco); }
+  .chat__estado { letter-spacing: 0; color: var(--tinta-suave); }
+  .chat__lista { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 16px; }
+  .burbuja { max-width: 86%; padding: 10px 14px; border-radius: 6px 18px 18px 18px; background: var(--crema-2); line-height: 1.3; }
+  .burbuja__quien { display: block; font-size: 15px; font-weight: 800; color: var(--naranja-texto); }
+  .burbuja--gonza { background: var(--tinta); color: var(--crema); }
+  .burbuja--gonza .burbuja__quien { color: #FF8C6F; }
+  .chat__rotulo { margin-inline: 20px; }
+  .problema__grande { font-family: var(--f-display); font-weight: 800; font-size: var(--t-h3); line-height: 1.05; letter-spacing: -.02em; margin-bottom: 14px; color: var(--naranja-texto); text-wrap: balance; }
+
+  @media (min-width: 900px) {
+    .problema__grilla { grid-template-columns: minmax(380px, 480px) 1fr; column-gap: clamp(48px, 7vw, 120px); align-items: start; }
+    .problema__texto { display: flex; flex-direction: column; gap: clamp(32px, 6svh, 64px); position: sticky; top: 96px; }
+    .problema__fijo { order: 0; }
+    .problema__grande { font-size: clamp(2rem, 4vw, 3.5rem); }
+  }
+</style>

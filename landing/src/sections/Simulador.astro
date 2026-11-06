@@ -1,0 +1,201 @@
+---
+import Telefono from '../components/Telefono.astro'
+import Rueda from '../components/Rueda.astro'
+import Rotulo from '../components/Rotulo.astro'
+import AvisoSeguridad from '../components/AvisoSeguridad.astro'
+import BotonDescarga from '../components/BotonDescarga.astro'
+import Icono from '../components/Icono.astro'
+import EstasBien from '../components/pantallas/EstasBien.astro'
+import { SIM } from '../content/copy'
+import { crearRuta } from '../lib/ruta'
+import { INTEGRANTES_EJEMPLO } from '../sim/datos-ejemplo'
+import { RUTA_SIM, posicion } from '../sim/geometria'
+
+const ruta = crearRuta(RUTA_SIM)
+const lineas = INTEGRANTES_EJEMPLO.slice(0, -1).map((_, i) => i)
+const s = SIM.situaciones
+const botones = [
+  { id: 'desvio', icono: 'navigation', texto: s.desvio.boton },
+  { id: 'atraso', icono: 'users', texto: s.atraso.boton },
+  { id: 'parada', icono: 'droplet', texto: s.parada.boton },
+  { id: 'incidente', icono: 'alert-triangle', texto: s.incidente.boton },
+]
+---
+
+<section class="sim seccion tema-noche" id="simulador" data-seccion="simulador" data-cinta-seccion data-sim>
+  <div class="envoltura">
+    <div class="sim__cabeza">
+      <div>
+        <p class="etiqueta">{SIM.etiqueta}</p>
+        <h2 class="h2" data-titulo>{SIM.h2}</h2>
+        <p class="lead sim__sub">{SIM.sub}</p>
+      </div>
+      <p class="sim__contador mono" data-solo-js><strong data-sim-contador>0/4</strong> {SIM.contador}</p>
+    </div>
+
+    <div class="sim__tablero">
+      <div class="sim__mapa" data-sim-mapa-caja>
+        <svg viewBox="0 0 900 620" preserveAspectRatio="xMidYMid slice" role="img" aria-label={SIM.mapaDescripcion} data-sim-mapa>
+          <rect width="900" height="620" fill="var(--map-bg)" />
+          <g fill="none" stroke="#DBD2C7" stroke-width="2">
+            <path d="M-20 520 C 120 420 240 500 380 430 S 620 310 920 420" />
+            <path d="M-20 450 C 120 360 250 430 380 360 S 620 240 920 350" />
+            <path d="M-20 370 C 120 290 260 360 380 290 S 620 170 920 270" />
+            <path d="M-20 280 C 120 210 270 280 390 210 S 620 90 920 180" />
+            <path d="M-20 180 C 120 120 280 190 400 120 S 640 20 920 90" />
+          </g>
+          <path d={RUTA_SIM} fill="none" stroke="var(--map-route)" stroke-width="42" stroke-linecap="round" />
+          <path d={RUTA_SIM} fill="none" stroke="var(--naranja)" stroke-width="12" stroke-linecap="round" />
+          <g data-sim-malla>
+            {lineas.map((i) => {
+              const a = posicion(ruta, INTEGRANTES_EJEMPLO[i]!)
+              const b = posicion(ruta, INTEGRANTES_EJEMPLO[i + 1]!)
+              return <line data-linea={i} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="var(--tinta)" stroke-width="3" stroke-linecap="round" />
+            })}
+          </g>
+          {INTEGRANTES_EJEMPLO.map((p) => {
+            const pos = posicion(ruta, p)
+            return (
+              <g class="sim-persona" data-persona={p.id} transform={`translate(${pos.x.toFixed(1)} ${pos.y.toFixed(1)})`}>
+                <circle class="sim-persona__pulso" r="26" fill="none" stroke="var(--incidente)" stroke-width="5" />
+                <circle class="sim-persona__pulso sim-persona__pulso--2" r="26" fill="none" stroke="var(--incidente)" stroke-width="5" />
+                <circle class="sim-persona__anillo" r="31" fill="none" stroke-width="7" />
+                <Rueda g r={22} fondo="var(--map-bg)" color="var(--tinta)" />
+                <text class="sim-persona__nombre" y="-34" text-anchor="middle">{p.nombre}</text>
+                <g class="sim-persona__chip" transform="translate(0 52)" opacity="0">
+                  <rect rx="15" height="30" y="-20" fill="var(--tinta)" />
+                  <text text-anchor="middle" fill="#fff"></text>
+                </g>
+              </g>
+            )
+          })}
+        </svg>
+        <p class="sim__cartel mono" data-sim-cartel hidden>{s.incidente.cartel}</p>
+        <div class="sim__toast" data-sim-toast hidden></div>
+        <Rotulo class="sim__rotulo" />
+      </div>
+
+      <Telefono class="sim__tel">
+        <div class="app sim__app">
+          <p class="app-titulo">{SIM.telefono}</p>
+          <ul class="sim__avisos" data-sim-avisos data-solo-js>
+            <li class="sim__vacio app-sub" data-sim-vacio>{SIM.sinAvisos}</li>
+          </ul>
+          <noscript><div class="app-aviso"><Icono nombre="navigation" tam={18} /><span><strong>{s.desvio.aviso}</strong><span class="app-sub">{s.desvio.destino}</span></span></div></noscript>
+          <div class="sim__categorias" data-sim-categorias hidden>
+            <p class="app-sub">En el teléfono de Nico</p>
+            <div class="sim__chips">
+              {s.parada.categorias.map((c, i) => <span class:list={['app-chip', { 'app-chip--on': i === 0 }]}>{c}</span>)}
+            </div>
+          </div>
+          <div class="sim__banner" data-sim-banner hidden>
+            <p class="app-sub">{s.incidente.telefonoCami}</p>
+            <EstasBien />
+          </div>
+        </div>
+      </Telefono>
+    </div>
+
+    <p class="sim__leyenda lead">{SIM.leyendaSinJs}</p>
+
+    <div class="sim__controles" data-solo-js>
+      <div class="sim__botones" role="group" aria-label="Situaciones para provocar">
+        {botones.map((b) => (
+          <button type="button" class="sim__boton" data-sim-situacion={b.id} aria-pressed="false">
+            <Icono nombre={b.icono} tam={22} />
+            <span>{b.texto}</span>
+          </button>
+        ))}
+      </div>
+      <div class="sim__salida" data-sim-salida hidden>
+        <p data-sim-nota></p>
+        <button type="button" class="btn btn-primario" data-sim-salir></button>
+      </div>
+    </div>
+
+    <p class="solo-lector" aria-live="polite" data-sim-vivo></p>
+
+    <AvisoSeguridad class="sim__aviso" />
+
+    <div class="sim__secundario" data-sim-secundario hidden>
+      <BotonDescarga seccion="simulador" clase="btn-secundario" />
+    </div>
+
+    <div class="sim__meta" data-sim-meta hidden>
+      <p class="h2">{SIM.meta}</p>
+      <BotonDescarga seccion="simulador_final" />
+    </div>
+  </div>
+</section>
+
+<style is:global>
+  .sim { transition: background-color var(--d-media); }
+  .sim[data-serio] { background: #080706; }
+  .sim__cabeza { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 40px; }
+  .sim__sub { margin-top: 16px; }
+  .sim__contador { letter-spacing: 0; font-size: 1.125rem; }
+  .sim__contador strong { font-size: 2.5rem; color: var(--naranja); }
+
+  .sim__tablero { display: grid; gap: 16px; }
+  .sim__mapa { position: relative; aspect-ratio: 1; border-radius: var(--r-tarjeta); overflow: hidden; background: var(--map-bg); }
+  .sim__mapa > svg { width: 100%; height: 100%; touch-action: pan-y; }
+  .sim__mapa::after { content: ''; position: absolute; inset: 0; background: rgba(0, 0, 0, .2); opacity: 0; pointer-events: none; transition: opacity var(--d-media); }
+  .sim[data-serio] .sim__mapa::after { opacity: 1; }
+  .sim__rotulo { z-index: 1; position: absolute; left: 12px; top: 12px; padding: 4px 10px; border-radius: 999px; background: rgba(20, 18, 16, .92); color: var(--hueso); line-height: 1.2; }
+  .sim__cartel { z-index: 1; position: absolute; left: 50%; bottom: 12px; translate: -50% 0; white-space: nowrap; padding: 8px 16px; border-radius: 999px; background: var(--tinta); color: #fff; }
+  /* Arriba, donde el mapa está vacío: nunca tapa a quien le está pasando algo. */
+  .sim__toast { z-index: 1; position: absolute; left: 10px; right: 10px; top: 52px; }
+  /* En mobile no hay marco: lo que pasa en el teléfono (banner y categorías) queda bajo el mapa. */
+  .sim__tel { --tel-ancho: 100%; aspect-ratio: auto; padding: 0; background: none; box-shadow: none; }
+  .sim__tel .tel__pantalla { height: auto; overflow: visible; border-radius: 0; background: none; }
+  .sim__tel .sim__app { padding: 0; }
+  .sim__tel .app-titulo, .sim__tel .sim__avisos, .sim__tel noscript { display: none; }
+
+  .sim-persona__nombre { font-family: var(--f-texto); font-size: 26px; font-weight: 800; fill: var(--tinta); paint-order: stroke; stroke: var(--map-bg); stroke-width: 6px; }
+  .sim-persona__chip text { font-family: var(--f-texto); font-size: 22px; font-weight: 700; }
+  .sim-persona__anillo { stroke: transparent; }
+  .sim-persona[data-estado='detenido_voluntario'] .sim-persona__anillo { stroke: var(--parada); }
+  .sim-persona[data-estado='posible_incidente'] .sim-persona__anillo { stroke: var(--incidente); }
+  .sim-persona__pulso { opacity: 0; transform-box: fill-box; transform-origin: center; }
+  .sim-persona[data-estado='posible_incidente'] .sim-persona__pulso { animation: pulso 1.6s var(--e-salida) infinite; }
+  .sim-persona[data-estado='posible_incidente'] .sim-persona__pulso--2 { animation-delay: .8s; }
+  [data-persona='gonza'] { cursor: grab; }
+  [data-sim-mapa][data-ayuda] .sim-persona:not([data-estado='posible_incidente']) .sim-persona__nombre { display: none; }
+
+  .sim__avisos { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+  .sim__avisos .app-aviso { border-left: 4px solid var(--color, #3A3A3A); }
+  .sim__avisos .icono { color: var(--color); }
+  .sim__chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .sim__banner, .sim__categorias { margin-top: auto; }
+  .sim__banner .app-sub { margin-bottom: 6px; }
+
+  .sim__controles { margin-top: 16px; }
+  .sim__botones { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .sim__boton { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-height: 56px; padding: 14px; border-radius: 20px; background: var(--noche-2); border: 2px solid #2E2E2E; text-align: left; font-weight: 700; line-height: 1.2; transition: border-color var(--d-micro), background-color var(--d-micro); }
+  @media (hover: hover) { .sim__boton:hover { border-color: var(--naranja); } }
+  .sim__boton[aria-pressed='true'] { border-color: var(--naranja); background: #2A1A15; }
+  .sim__boton[data-vista]::after { content: '✓ Visto'; font-family: var(--f-mono); font-size: 15px; font-weight: 400; color: var(--hueso-suave); }
+  .sim__salida { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin-top: 12px; padding: 14px 16px; border-radius: 20px; background: var(--noche-2); }
+  .sim__salida p { flex: 1 1 240px; }
+  .sim__salida p:empty { display: none; }
+
+  .sim__aviso { margin-top: 20px; }
+  .sim__leyenda { margin-top: 20px; max-width: 70ch; }
+  html.js .sim__leyenda { display: none; }
+  .sim__secundario { margin-top: 16px; }
+  .sim__meta { margin-top: 56px; display: grid; gap: 24px; justify-items: start; }
+
+  @media (min-width: 900px) {
+    .sim__tablero { grid-template-columns: 1fr 320px; }
+    .sim__mapa { aspect-ratio: auto; min-height: 560px; }
+    .sim__tel { --tel-ancho: 320px; height: 640px; aspect-ratio: 320 / 640; padding: 10px; background: #24211E; box-shadow: 0 0 0 1px #3A3633, var(--sombra); }
+    .sim__tel .tel__pantalla { height: 100%; overflow: hidden; border-radius: 34px; background: var(--noche); }
+    .sim__tel .sim__app { padding: 26px 16px 16px; }
+    .sim__tel .app-titulo { display: block; }
+    .sim__tel .sim__avisos { display: flex; }
+    .sim__toast { display: none !important; }
+    .sim__cartel { bottom: auto; top: 12%; }
+    .sim__botones { grid-template-columns: repeat(4, 1fr); }
+    .sim__boton { padding: 18px; }
+  }
+</style>

@@ -1,0 +1,94 @@
+---
+import Telefono from '../components/Telefono.astro'
+import Rueda from '../components/Rueda.astro'
+import Icono from '../components/Icono.astro'
+import Rotulo from '../components/Rotulo.astro'
+import { PRIV } from '../content/copy'
+---
+
+<section class="priv seccion topo tema-crema" id="privacidad" data-seccion="privacidad" data-cinta-seccion data-privacidad data-comparte="si">
+  <div class="envoltura">
+    <p class="etiqueta">{PRIV.etiqueta}</p>
+    <h2 class="h2" data-titulo>{PRIV.h2}</h2>
+
+    <div class="priv__demo">
+      <Telefono class="priv__tel">
+        <div class="app priv__app">
+          <p class="app-titulo">Este viaje</p>
+          <div class="priv__fila">
+            <span id="priv-etiqueta">{PRIV.interruptor}</span>
+            <button type="button" class="interruptor" role="switch" aria-checked="true" aria-labelledby="priv-etiqueta" data-priv-interruptor>
+              <span class="interruptor__perilla"></span>
+            </button>
+          </div>
+          <p class="priv__estado" aria-live="polite" data-priv-estado>{PRIV.encendido}</p>
+          <div class="priv__guardado mono" data-priv-guardado>
+            <span>{PRIV.contador}</span>
+            <strong><span data-priv-puntos>0</span> puntos</strong>
+          </div>
+        </div>
+      </Telefono>
+
+      <figure class="priv__mapa">
+        <figcaption class="mono">{PRIV.mapaGrupo}</figcaption>
+        <svg viewBox="0 0 520 380" role="img" aria-label={PRIV.mapaDescripcion}>
+          <rect width="520" height="380" fill="var(--map-bg)" />
+          <path d="M-10 330 C 110 330 140 220 260 210 C 380 200 400 80 530 60" fill="none" stroke="var(--map-route)" stroke-width="32" stroke-linecap="round" />
+          <path d="M-10 330 C 110 330 140 220 260 210 C 380 200 400 80 530 60" fill="none" stroke="var(--naranja)" stroke-width="8" stroke-linecap="round" />
+          <Rueda g r={15} x={350} y={158} color="var(--tinta)" fondo="var(--map-bg)" />
+          <Rueda g r={15} x={300} y={200} color="var(--tinta)" fondo="var(--map-bg)" />
+          <Rueda g r={15} x={158} y={268} color="var(--tinta)" fondo="var(--map-bg)" />
+          <g data-priv-rueda>
+            <Rueda g r={20} x={226} y={216} fondo="var(--map-bg)" />
+            <text x="226" y="184" text-anchor="middle" font-size="20" font-weight="800" fill="var(--tinta)">Vos</text>
+          </g>
+        </svg>
+        <Rotulo />
+      </figure>
+    </div>
+
+    <p class="priv__consecuencia" data-priv-consecuencia>
+      <Icono nombre="eye-off" tam={22} />
+      {PRIV.consecuencia}
+    </p>
+
+    <ul class="priv__puntos">
+      {PRIV.puntos.map((p) => (
+        <li class="priv__punto" data-priv-punto>
+          <Icono nombre={p.icono} tam={24} />
+          <p><strong>{p.titulo}</strong> {p.texto}</p>
+        </li>
+      ))}
+    </ul>
+  </div>
+</section>
+
+<style is:global>
+  .priv__demo { display: grid; gap: 20px; margin-top: 44px; }
+  .priv__tel { --tel-ancho: 300px; aspect-ratio: auto; height: auto; justify-self: center; width: 100%; max-width: 320px; }
+  .priv__app { padding-bottom: 24px; }
+  .priv__fila { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px; border-radius: 16px; background: var(--noche-2); font-weight: 700; }
+  .interruptor { position: relative; flex: none; width: 76px; height: 44px; border-radius: 999px; background: #55504B; transition: background-color var(--d-corta); }
+  .interruptor[aria-checked='true'] { background: var(--naranja); }
+  .interruptor__perilla { position: absolute; top: 4px; left: 4px; width: 36px; height: 36px; border-radius: 50%; background: #fff; transition: transform var(--d-corta) var(--e-suave); }
+  .interruptor[aria-checked='true'] .interruptor__perilla { transform: translateX(32px); }
+  .priv__estado { font-weight: 700; }
+  .priv__guardado { display: grid; gap: 4px; padding: 14px; border-radius: 16px; border: 1px dashed #55504B; letter-spacing: 0; }
+  .priv__guardado strong { font-size: 1.375rem; color: #FF8C6F; }
+  .priv__mapa { display: grid; gap: 10px; align-content: start; }
+  .priv__mapa svg { width: 100%; border-radius: var(--r-tarjeta); height: auto; }
+  .priv__mapa figcaption { color: var(--tinta-suave); }
+  [data-priv-rueda] { transition: opacity var(--d-media) var(--e-suave); }
+  [data-comparte='no'] [data-priv-rueda] { opacity: 0; }
+  .priv__consecuencia { display: flex; gap: 12px; align-items: flex-start; margin-top: 24px; padding: 18px 20px; border-radius: 20px; background: var(--blanco); border: 1px solid var(--linea); font-weight: 700; line-height: 1.35; max-width: 76ch; transition: border-color var(--d-corta); }
+  .priv__consecuencia svg { flex: none; margin-top: 1px; }
+  [data-comparte='no'] .priv__consecuencia { border-color: var(--tinta); }
+  .priv__puntos { display: grid; gap: 12px; margin-top: 32px; }
+  .priv__punto { display: flex; gap: 14px; padding: 20px; border-radius: var(--r-tarjeta); background: var(--blanco); border: 1px solid var(--linea); }
+  .priv__punto svg { flex: none; color: var(--naranja-texto); margin-top: 2px; }
+
+  @media (min-width: 900px) {
+    .priv__demo { grid-template-columns: 320px 1fr; gap: 40px; align-items: start; }
+    .priv__puntos { grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  }
+</style>

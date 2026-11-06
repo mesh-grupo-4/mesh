@@ -1,0 +1,76 @@
+---
+import '@fontsource-variable/bricolage-grotesque/wght.css'
+import '@fontsource-variable/plus-jakarta-sans/wght.css'
+import '@fontsource/space-mono/400.css'
+import '@fontsource/space-mono/700.css'
+import '../styles/tokens.css'
+import '../styles/base.css'
+import '../styles/motion.css'
+import fuenteDisplay from '@fontsource-variable/bricolage-grotesque/files/bricolage-grotesque-latin-wght-normal.woff2?url'
+import { SEO } from '../content/copy'
+
+interface Props {
+  titulo?: string
+  descripcion?: string
+  jsonLd?: unknown[]
+  /** Solo la landing necesita el JS de animación e interacción. */
+  conMotion?: boolean
+  /** La página de error no se indexa ni declara URL canónica. */
+  indexable?: boolean
+}
+
+const { titulo = SEO.titulo, descripcion = SEO.descripcion, jsonLd = [], conMotion = false, indexable = true } = Astro.props
+const canonica = indexable ? new URL(Astro.url.pathname, Astro.site).href : undefined
+const ogImagen = new URL('/og-mesh.png', Astro.site).href
+---
+
+<!doctype html>
+<html lang="es-AR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>{titulo}</title>
+    <meta name="description" content={descripcion} />
+    {canonica ? <link rel="canonical" href={canonica} /> : <meta name="robots" content="noindex" />}
+    <meta name="theme-color" content="#F4F1EE" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preload" href={fuenteDisplay} as="font" type="font/woff2" crossorigin />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="es_AR" />
+    <meta property="og:site_name" content="Mesh" />
+    <meta property="og:title" content={titulo} />
+    <meta property="og:description" content={descripcion} />
+    <meta property="og:image" content={ogImagen} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Logo de Mesh y la frase ¿Y el Gonza?" />
+    {canonica && <meta property="og:url" content={canonica} />}
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={titulo} />
+    <meta name="twitter:description" content={descripcion} />
+    <meta name="twitter:image" content={ogImagen} />
+
+    {jsonLd.map((dato) => <script is:inline type="application/ld+json" set:html={JSON.stringify(dato)} />)}
+
+    <!-- Antes de pintar: evita que el contenido salte al aplicar la preferencia de movimiento. -->
+    <script is:inline>
+      (function () {
+        var r = document.documentElement
+        r.classList.add('js')
+        var pausado = false
+        try { pausado = localStorage.getItem('mesh-animaciones') === 'pausadas' } catch (e) {}
+        r.dataset.motion = pausado || matchMedia('(prefers-reduced-motion: reduce)').matches ? 'off' : 'on'
+      })()
+    </script>
+  </head>
+  <body>
+    <a class="saltar" href="#contenido">Saltar al contenido</a>
+    <slot />
+    {conMotion && (
+      <script>
+        import '../motion/init'
+      </script>
+    )}
+  </body>
+</html>

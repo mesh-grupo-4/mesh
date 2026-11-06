@@ -1,0 +1,31 @@
+---
+// Feather, un SVG por ícono: solo los que usa la landing entran al build, sin JS en el cliente.
+const iconos = import.meta.glob<string>(
+  '/node_modules/feather-icons/dist/icons/{alert-triangle,arrow-down,bell,check,cloud-rain,credit-card,droplet,eye-off,flag,list,map,map-pin,navigation,pause,play,share-2,shield,users,wifi-off,zap}.svg',
+  { query: '?raw', import: 'default', eager: true },
+)
+
+interface Props {
+  nombre: string
+  tam?: number
+  class?: string
+}
+const { nombre, tam = 20, class: clase } = Astro.props
+const crudo = iconos[`/node_modules/feather-icons/dist/icons/${nombre}.svg`]
+if (!crudo) throw new Error(`Ícono no registrado: ${nombre}`)
+const interior = crudo.replace(/^[\s\S]*?<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '')
+---
+
+<svg
+  class:list={['icono', clase]}
+  width={tam}
+  height={tam}
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="2"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+  aria-hidden="true"
+  set:html={interior}
+/>

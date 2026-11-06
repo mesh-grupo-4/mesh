@@ -1,0 +1,48 @@
+---
+// Pantalla outdoor de running y trekking: casi nada para mirar. Sin ritmo ni velocidad (plan, 8.6).
+import Rueda from '../Rueda.astro'
+
+interface Props {
+  variante: 'running' | 'trekking'
+}
+const { variante } = Astro.props
+---
+
+{variante === 'running' ? (
+  <div class="app pant-min">
+    <p class="app-sub">Grupo</p>
+    <p class="app-titulo">Todos cerca</p>
+    <div class="pant-min__rueda" data-rueda-vibra>
+      <span class="pant-min__onda"></span>
+      <span class="pant-min__onda pant-min__onda--2"></span>
+      <Rueda r={46} fondo="var(--noche)" />
+    </div>
+    <p class="app-sub pant-min__nota">Si algo cambia, vibra.</p>
+  </div>
+) : (
+  <div class="pant-cerro">
+    <svg viewBox="0 0 300 400" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <rect width="300" height="400" fill="#26301F" />
+      <g fill="none" stroke="#6C7F60" stroke-width="2">
+        <path d="M-20 340 C 60 240 120 200 160 150 S 260 210 330 300" />
+        <path d="M10 350 C 70 262 120 230 160 190 S 240 236 300 320" />
+        <path d="M40 356 C 84 290 124 258 160 228 S 226 262 276 332" />
+        <path d="M70 360 C 100 316 130 290 160 266 S 208 288 248 340" />
+        <path d="M100 362 C 118 340 138 322 160 304 S 192 318 218 350" />
+      </g>
+      <path d="M30 400 C 80 340 96 300 130 270 S 170 210 160 150" fill="none" stroke="var(--naranja)" stroke-width="6" stroke-linecap="round" />
+      <Rueda g r={12} x={160} y={150} fondo="#26301F" />
+    </svg>
+    <p class="pant-cerro__dato mono">Sin señal · Se guarda igual</p>
+  </div>
+)}
+
+<style is:global>
+  .pant-min__rueda { position: relative; display: grid; place-items: center; margin-block: auto; }
+  .pant-min__onda { position: absolute; width: 92px; height: 92px; border-radius: 50%; border: 2px solid var(--naranja); opacity: .5; animation: pulso 2.4s ease-out infinite; }
+  .pant-min__onda--2 { animation-delay: 1.2s; }
+  .pant-min__nota { text-align: center; }
+  .pant-cerro { position: relative; flex: 1; min-height: 0; }
+  .pant-cerro svg { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; }
+  .pant-cerro__dato { position: absolute; left: 12px; right: 12px; bottom: 16px; padding: 10px 12px; border-radius: 12px; background: rgba(15, 15, 15, .86); text-align: center; letter-spacing: 0; }
+</style>

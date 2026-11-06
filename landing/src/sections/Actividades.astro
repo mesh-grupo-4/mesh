@@ -1,0 +1,117 @@
+---
+import Telefono from '../components/Telefono.astro'
+import Rueda from '../components/Rueda.astro'
+import Rotulo from '../components/Rotulo.astro'
+import ModoMoto from '../components/pantallas/ModoMoto.astro'
+import MapaVivo from '../components/pantallas/MapaVivo.astro'
+import Minima from '../components/pantallas/Minima.astro'
+import { ACT } from '../content/copy'
+import { ACTIVIDADES, IDS_ACTIVIDAD } from '../config/actividades'
+
+const miles = new Intl.NumberFormat('es-AR')
+const descripciones = {
+  moto: 'Pantalla de alto contraste, negra y amarilla, con botones enormes.',
+  bici: 'Mapa con el grupo cerca.',
+  running: 'Pantalla mínima con una rueda que vibra.',
+  trekking: 'Un cerro con curvas de nivel y el recorrido guardado sin señal.',
+}
+---
+
+<section class="act seccion" id="actividades" data-seccion="actividades" data-tema="bici" data-cinta-seccion data-actividades>
+  <span class="act__cortina" data-act-cortina aria-hidden="true"></span>
+  <div class="envoltura">
+    <p class="etiqueta">{ACT.etiqueta}</p>
+    <h2 class="h2" data-titulo>{ACT.h2}</h2>
+
+    <div class="act__selector" role="radiogroup" aria-label={ACT.selector} data-solo-js>
+      {IDS_ACTIVIDAD.map((id) => (
+        <button type="button" role="radio" class="act__opcion" data-act-opcion={id} aria-checked={id === 'bici' ? 'true' : 'false'} tabindex={id === 'bici' ? 0 : -1}>
+          <Rueda r={13} muesca color="currentColor" fondo="var(--act-fondo)" class="act__rueda" data-ritmo={id} />
+          {ACTIVIDADES[id].nombre}
+        </button>
+      ))}
+    </div>
+
+    <div class="act__paneles">
+      {IDS_ACTIVIDAD.map((id) => {
+        const a = ACTIVIDADES[id]
+        return (
+          <article class="act__panel" id={id} data-act-panel={id} data-panel-tema={id} data-activo={id === 'bici' ? '' : undefined} aria-label={a.nombre}>
+            <div class="act__texto">
+              <p class="act__nombre mono">{a.nombre}</p>
+              <h3 class="act__frase">{ACT.frases[id].frase}</h3>
+              <p class="act__detalle">{ACT.frases[id].detalle}</p>
+              <dl class="act__datos">
+                <div><dt>{ACT.etiquetas.separacion}</dt><dd class="mono"><span data-contar={a.separacionM}>{miles.format(a.separacionM)}</span> m</dd></div>
+                <div><dt>{ACT.etiquetas.tolerancia}</dt><dd class="mono"><span data-contar={a.toleranciaMin}>{a.toleranciaMin}</span> min</dd></div>
+                <div><dt>{ACT.etiquetas.detencion}</dt><dd class="mono"><span data-contar={a.detencionMin}>{a.detencionMin}</span> min</dd></div>
+                <div><dt>{ACT.etiquetas.feedback}</dt><dd class="mono">{a.feedback}</dd></div>
+              </dl>
+              <p class="act__pie">{ACT.pie}</p>
+              <Rotulo />
+            </div>
+            <Telefono etiqueta={descripciones[id]} moto={id === 'moto'} class="act__tel">
+              {id === 'moto' && <ModoMoto />}
+              {id === 'bici' && <MapaVivo conAlerta={false} />}
+              {id === 'running' && <Minima variante="running" />}
+              {id === 'trekking' && <Minima variante="trekking" />}
+            </Telefono>
+          </article>
+        )
+      })}
+    </div>
+  </div>
+</section>
+
+<style is:global>
+  .act { --act-fondo: var(--noche); --act-texto: var(--hueso); --act-suave: var(--hueso-suave); --act-acento: var(--naranja); --act-acento-texto: var(--tinta); background: var(--act-fondo); color: var(--act-texto); overflow: clip; }
+  .act .etiqueta { color: var(--act-acento); }
+  .act .rotulo { color: var(--act-suave); }
+
+  .act[data-tema='bici'], [data-panel-tema='bici'] { --act-fondo: var(--noche); --act-texto: var(--hueso); --act-suave: var(--hueso-suave); --act-acento: var(--naranja); --act-acento-texto: var(--tinta); }
+  .act[data-tema='moto'], [data-panel-tema='moto'] { --act-fondo: var(--moto-fondo); --act-texto: #FFFFFF; --act-suave: #E8E8E8; --act-acento: var(--moto-acento); --act-acento-texto: #000; }
+  .act[data-tema='running'], [data-panel-tema='running'] { --act-fondo: var(--crema); --act-texto: var(--tinta); --act-suave: var(--tinta-suave); --act-acento: var(--naranja-texto); --act-acento-texto: #fff; }
+  .act[data-tema='trekking'], [data-panel-tema='trekking'] { --act-fondo: #3E4F3A; --act-texto: var(--crema); --act-suave: #E3E0D9; --act-acento: var(--crema); --act-acento-texto: #2A3627; }
+
+  .act__cortina { position: absolute !important; inset: 0; z-index: 1 !important; background: var(--act-fondo); clip-path: polygon(0 0, 0 0, 0 100%, 0 100%); pointer-events: none; }
+  .act__cortina.act__cortina--corre { clip-path: polygon(0 0, 130% 0, 100% 100%, 0 100%); transition: clip-path .5s var(--e-suave); }
+
+  .act__selector { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-block: 36px; }
+  .act__opcion { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 12px 18px; border-radius: 20px; border: 2px solid currentColor; font-family: var(--f-display); font-size: 1.375rem; font-weight: 700; color: var(--act-texto); transition: background-color var(--d-micro), color var(--d-micro); }
+  .act__opcion[aria-checked='true'] { background: var(--act-acento); color: var(--act-acento-texto); border-color: var(--act-acento); --act-fondo: var(--act-acento); }
+  .act__opcion:hover:not([aria-checked='true']) { background: color-mix(in srgb, currentColor 12%, transparent); }
+  .act__rueda { flex: none; }
+  @keyframes act-girar { to { transform: rotate(360deg); } }
+  @keyframes act-telefono { from { opacity: 0; transform: perspective(900px) rotateY(28deg); } to { opacity: 1; transform: none; } }
+  @keyframes act-panel { from { opacity: 0; } to { opacity: 1; } }
+  .act__rueda .rueda__giro { transform-box: fill-box; transform-origin: center; }
+  /* Moto va constante y tranquila: nunca a más ritmo que las demás. */
+  [data-act-opcion][aria-checked='true'] .rueda__giro { animation: act-girar var(--ritmo, 4s) linear infinite; }
+  [data-act-opcion='moto'] { --ritmo: 7s; }
+  [data-act-opcion='bici'] { --ritmo: 4s; }
+  [data-act-opcion='running'] { --ritmo: 3s; }
+  [data-act-opcion='trekking'] { --ritmo: 5s; }
+  .act__panel[data-entrando] { animation: act-panel var(--d-corta) var(--e-suave) .16s backwards; }
+  .act__panel[data-entrando] .act__tel { animation: act-telefono var(--d-media) var(--e-salida) .1s backwards; }
+  .act__panel[data-panel-tema='moto'][data-entrando], .act__panel[data-panel-tema='moto'][data-entrando] .act__tel { animation-duration: .12s; animation-delay: 0s; }
+
+  .act__paneles { display: grid; gap: 28px; margin-top: 36px; }
+  html.js .act__paneles { margin-top: 0; }
+  .act__panel { display: grid; gap: 28px; padding: 24px; border-radius: var(--r-tarjeta); background: var(--act-fondo); color: var(--act-texto); box-shadow: 0 0 0 1px color-mix(in srgb, var(--act-texto) 18%, transparent); scroll-margin-top: 96px; }
+  html.js .act__panel { padding: 0; box-shadow: none; background: none; }
+  html.js .act__panel:not([data-activo]) { display: none; }
+  .act__nombre { color: var(--act-acento); text-transform: uppercase; }
+  .act__frase { font-family: var(--f-display); font-weight: 800; font-size: clamp(2rem, 5vw, 4rem); line-height: 1; letter-spacing: -.03em; margin-block: 8px 12px; text-wrap: balance; }
+  .act__detalle { font-size: var(--t-lead); line-height: 1.35; max-width: 34ch; color: var(--act-suave); }
+  .act__datos { display: grid; margin-block: 24px 12px; max-width: 520px; border-top: 1px solid color-mix(in srgb, var(--act-texto) 25%, transparent); }
+  .act__datos > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 16px; padding-block: 10px; border-bottom: 1px solid color-mix(in srgb, var(--act-texto) 25%, transparent); }
+  .act__datos dd { font-weight: 700; letter-spacing: 0; font-size: 1.0625rem; }
+  .act__pie { font-style: italic; color: var(--act-suave); margin-bottom: 8px; }
+  .act__tel { --tel-ancho: 280px; justify-self: center; }
+
+  @media (min-width: 900px) {
+    .act__selector { grid-template-columns: repeat(4, 1fr); }
+    .act__panel { grid-template-columns: 1fr 320px; column-gap: 64px; align-items: center; }
+    .act__tel { --tel-ancho: 320px; }
+  }
+</style>

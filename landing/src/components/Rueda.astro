@@ -1,0 +1,38 @@
+---
+// La rueda del logo: anillo + punto, en las proporciones del original.
+// Con `g` se dibuja como grupo dentro de un SVG existente; si no, como SVG suelto.
+interface Props {
+  r?: number
+  x?: number
+  y?: number
+  color?: string
+  fondo?: string
+  /** Una muesca que hace visible el giro: dos círculos concéntricos, si no, no parecen girar. */
+  muesca?: boolean
+  g?: boolean
+  class?: string
+  [dato: `data-${string}`]: unknown
+}
+const { r = 20, x = 0, y = 0, color = 'var(--naranja)', fondo = 'var(--crema)', muesca = false, g = false, class: clase, ...resto } = Astro.props
+const lado = r * 2
+---
+
+{g ? (
+  <g class:list={['rueda', clase]} transform={`translate(${x.toFixed(1)} ${y.toFixed(1)})`} {...resto}>
+    <g class="rueda__giro">
+      <circle r={r} fill={color} />
+      <circle r={r * 0.45} fill={fondo} />
+      <circle r={r * 0.245} fill={color} />
+      {muesca && <rect x={-r * 0.09} y={-r * 0.92} width={r * 0.18} height={r * 0.34} rx={r * 0.09} fill={fondo} />}
+    </g>
+  </g>
+) : (
+  <svg class:list={['rueda', clase]} width={lado} height={lado} viewBox={`${-r} ${-r} ${lado} ${lado}`} aria-hidden="true" {...resto}>
+    <g class="rueda__giro">
+      <circle r={r} fill={color} />
+      <circle r={r * 0.45} fill={fondo} />
+      <circle r={r * 0.245} fill={color} />
+      {muesca && <rect x={-r * 0.09} y={-r * 0.92} width={r * 0.18} height={r * 0.34} rx={r * 0.09} fill={fondo} />}
+    </g>
+  </svg>
+)}

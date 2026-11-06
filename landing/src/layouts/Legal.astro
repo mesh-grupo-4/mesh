@@ -1,0 +1,31 @@
+---
+import Base from './Base.astro'
+import Logo from '../components/Logo.astro'
+import Footer from '../sections/Footer.astro'
+import { LEGAL } from '../content/copy'
+
+interface Props {
+  titulo: string
+  descripcion: string
+}
+const { titulo, descripcion } = Astro.props
+---
+
+<Base titulo={`${titulo} · Mesh`} descripcion={descripcion}>
+  <p class="legal__banner mono" role="note">{LEGAL.banner}</p>
+  <main id="contenido" class="legal envoltura">
+    <a class="legal__volver" href="/"><Logo ancho={40} /> {LEGAL.volver}</a>
+    <h1 class="h2">{titulo}</h1>
+    <div class="legal__cuerpo"><slot /></div>
+  </main>
+  <Footer />
+</Base>
+
+<style is:global>
+  .legal__banner { padding: 12px var(--borde-pagina); background: var(--tinta); color: var(--crema); text-align: center; font-weight: 700; }
+  .legal { padding-block: 32px 96px; max-width: 860px; }
+  .legal__volver { display: inline-flex; align-items: center; gap: 12px; min-height: 44px; margin-bottom: 40px; font-weight: 700; color: var(--naranja-texto); text-underline-offset: 4px; }
+  .legal__cuerpo { margin-top: 32px; display: grid; gap: 16px; }
+  .legal__cuerpo h2 { font-family: var(--f-display); font-size: var(--t-h3); font-weight: 800; line-height: 1.1; margin-top: 24px; }
+  .legal__cuerpo ul { display: grid; gap: 10px; padding-left: 20px; list-style: disc; }
+</style>

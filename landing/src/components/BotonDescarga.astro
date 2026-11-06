@@ -1,0 +1,103 @@
+---
+// Único punto que decide qué mostrar según los estados de descarga (plan, 8.13).
+import QRCode from 'qrcode'
+import { CTA } from '../content/copy'
+import { DESCARGA, DESTINO_DESCARGA, HAY_DESCARGA, URL_ANDROID, URL_IOS } from '../config/descarga'
+import Icono from './Icono.astro'
+
+interface Props {
+  seccion: string
+  /** `simple`: un solo CTA. `completo`: botones por plataforma, QR y compartir. */
+  modo?: 'simple' | 'completo'
+  clase?: string
+}
+const { seccion, modo = 'simple', clase = 'btn-primario' } = Astro.props
+const { android, ios, listaEspera } = DESCARGA
+
+const respaldo = listaEspera
+  ? { texto: CTA.avisame, href: listaEspera, estado: 'lista' }
+  : { texto: CTA.mirar, href: '#como-funciona', estado: 'sin_descarga' }
+
+const qr =
+  modo === 'completo' && DESTINO_DESCARGA
+    ? await QRCode.toString(DESTINO_DESCARGA, { type: 'svg', margin: 0, color: { dark: '#141210', light: '#0000' } })
+    : undefined
+---
+
+{modo === 'simple' && (
+  HAY_DESCARGA ? (
+    <a
+      class:list={['btn', clase]}
+      href={DESTINO_DESCARGA}
+      data-cta={seccion}
+      data-cta-simple
+      data-plataforma="auto"
+      data-estado="disponible"
+      data-url-android={URL_ANDROID}
+      data-url-ios={URL_IOS}
+    >
+      {CTA.principal}
+    </a>
+  ) : (
+    <a class:list={['btn', clase]} href={respaldo.href} data-cta={seccion} data-plataforma="ninguna" data-estado={respaldo.estado}>
+      {respaldo.texto}
+    </a>
+  )
+)}
+
+{modo === 'completo' && (
+  <div class="descarga" data-descarga>
+    <div class="descarga__botones" data-descarga-botones>
+      {android.estado === 'tienda' && (
+        <a class="btn btn-tinta" href={android.url} data-cta={seccion} data-plataforma="android" data-estado="tienda" data-insignia-tienda="google-play">{CTA.googlePlay}</a>
+      )}
+      {android.estado === 'apk' && (
+        <span class="descarga__apk" data-plataforma-caja="android">
+          <a class="btn btn-tinta" href={android.url} data-cta={seccion} data-plataforma="android" data-estado="apk">{CTA.apk}</a>
+          <small>{CTA.apkNota}</small>
+        </span>
+      )}
+      {android.estado === 'proximamente' && (
+        <button class="btn descarga__prox" type="button" disabled data-plataforma="android" data-estado="proximamente">{CTA.proxAndroid}</button>
+      )}
+      {ios.estado === 'tienda' && (
+        <a class="btn btn-tinta" href={ios.url} data-cta={seccion} data-plataforma="ios" data-estado="tienda" data-insignia-tienda="app-store">{CTA.appStore}</a>
+      )}
+      {ios.estado === 'proximamente' && (
+        <button class="btn descarga__prox" type="button" disabled data-plataforma="ios" data-estado="proximamente">{CTA.proxIos}</button>
+      )}
+      {!HAY_DESCARGA && (
+        <a class="btn btn-tinta" href={respaldo.href} data-cta={seccion} data-plataforma="ninguna" data-estado={respaldo.estado}>{respaldo.texto}</a>
+      )}
+      {HAY_DESCARGA && listaEspera && (android.estado === 'proximamente' || ios.estado === 'proximamente') && (
+        <a class="descarga__lista" href={listaEspera} data-cta={seccion} data-plataforma="ninguna" data-estado="lista">{CTA.avisame}</a>
+      )}
+      <button class="btn descarga__compartir" type="button" data-compartir data-solo-js>
+        <Icono nombre="share-2" />
+        <span data-compartir-texto>{CTA.compartir}</span>
+      </button>
+    </div>
+    {qr && (
+      <div class="descarga__qr" data-cta-qr>
+        <div set:html={qr} aria-hidden="true" />
+        <p>{CTA.qr}</p>
+      </div>
+    )}
+  </div>
+)}
+
+<style is:global>
+  .descarga { display: flex; align-items: center; gap: 32px; flex-wrap: wrap; }
+  .descarga__botones { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+  .descarga__prox { border: 2px dashed currentColor; }
+  .descarga__compartir { border: 2px solid currentColor; }
+  .descarga__compartir:hover { background: rgba(20, 18, 16, .1); }
+  .descarga__apk { display: flex; flex-direction: column; gap: 8px; max-width: 320px; }
+  .descarga__apk small { font-size: 15px; line-height: 1.35; }
+  .descarga__lista { text-underline-offset: 4px; font-weight: 700; min-height: 44px; display: inline-flex; align-items: center; }
+  .descarga__qr { display: none; width: 168px; }
+  .descarga__qr p { font-family: var(--f-mono); font-size: var(--t-mono); margin-top: 8px; }
+  @media (min-width: 900px) and (pointer: fine) {
+    .descarga__qr { display: block; }
+  }
+</style>

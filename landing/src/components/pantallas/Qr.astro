@@ -1,0 +1,17 @@
+---
+import QrEjemplo from '../QrEjemplo.astro'
+---
+
+<div class="app pant-qr">
+  <p class="app-titulo">Sumá al grupo</p>
+  <p class="app-sub">Escanean y se suman, sin aprobación manual.</p>
+  <div class="pant-qr__codigo"><QrEjemplo /></div>
+  <p class="pant-qr__cuenta mono"><span data-qr-contador>6/6</span></p>
+  <p class="app-sub pant-qr__nota">ya están en la salida</p>
+</div>
+
+<style is:global>
+  .pant-qr__codigo { padding: 14px; border-radius: 16px; background: #fff; width: 200px; align-self: center; }
+  .pant-qr__cuenta { font-size: 42px; letter-spacing: 0; font-weight: 700; color: #F2A79B; text-align: center; margin-top: auto; line-height: 1; }
+  .pant-qr__nota { text-align: center; }
+</style>

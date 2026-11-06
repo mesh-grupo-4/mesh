@@ -1,0 +1,130 @@
+---
+import BotonDescarga from '../components/BotonDescarga.astro'
+import Rueda from '../components/Rueda.astro'
+import Rotulo from '../components/Rotulo.astro'
+import Icono from '../components/Icono.astro'
+import { HERO } from '../content/copy'
+import { crearRuta } from '../lib/ruta'
+import { RUTA_HERO, GRUPO_HERO, MALLA_HERO } from '../motion/hero-datos'
+
+const ruta = crearRuta(RUTA_HERO)
+const grupo = GRUPO_HERO.map((g) => ({ ...g, ...ruta.punto(g.t) }))
+---
+
+<section class="hero seccion topo tema-crema" id="inicio" data-seccion="hero" data-cinta-seccion>
+  <div class="hero__escena" data-hero-escena aria-hidden="true">
+    <svg viewBox="0 0 900 1000" preserveAspectRatio="xMidYMid meet" data-hero-svg>
+      <path class="hero__cinta" d={RUTA_HERO} pathLength="1" fill="none" stroke="var(--naranja)" stroke-width="58" stroke-linecap="round" />
+      <g data-hero-malla>
+        {MALLA_HERO.map(([a, b]) => (
+          <line data-a={a} data-b={b} x1={grupo[a]!.x} y1={grupo[a]!.y} x2={grupo[b]!.x} y2={grupo[b]!.y} stroke="var(--tinta)" stroke-width="3" stroke-linecap="round" />
+        ))}
+      </g>
+      {grupo.map((g, i) => (
+        <Rueda g r={26} x={g.x} y={g.y} muesca fondo="var(--crema)" color="var(--tinta)" data-hero-rueda={i} data-nombre={g.nombre} class="hero__rueda" />
+      ))}
+      <g class="hero__nombre" data-hero-nombre opacity="0">
+        <rect x="-44" y="-20" width="88" height="34" rx="17" fill="var(--tinta)" />
+        <text y="3" text-anchor="middle" fill="var(--crema)" font-size="19" font-weight="700"></text>
+      </g>
+    </svg>
+    <p class="hero__alerta" data-hero-alerta>
+      <span class="hero__alerta-icono"><Icono nombre="bell" tam={18} /></span>
+      {HERO.alerta}
+    </p>
+  </div>
+
+  <div class="envoltura hero__contenido">
+    <p class="etiqueta">{HERO.etiqueta}</p>
+    <h1 class="hero__h1" data-hero-h1>
+      {HERO.h1.map((p, i) => (
+        <><span class="hero__mascara"><span class="hero__palabra" style={`animation-delay:${200 + i * 40}ms`}>{p}</span></span>{' '}</>
+      ))}
+    </h1>
+    <div class="hero__bajada">
+      <p class="lead hero__sub">{HERO.sub}</p>
+      <div class="hero__ctas">
+        <BotonDescarga seccion="hero" />
+        <a class="btn btn-secundario" href="#simulador" data-cta="hero_probar" data-plataforma="ninguna" data-estado="ancla">{HERO.cta2}</a>
+      </div>
+      <p class="hero__pie mono">{HERO.pie}</p>
+      <Rotulo class="hero__rotulo" />
+    </div>
+  </div>
+</section>
+
+<style is:global>
+  .hero {
+    display: flex;
+    flex-direction: column;
+    min-height: 100svh;
+    padding-block: 84px 0;
+    overflow: clip;
+  }
+  .hero__contenido { order: 1; }
+  .hero__h1 {
+    font-family: var(--f-display);
+    font-weight: 800;
+    font-size: var(--t-hero);
+    line-height: .9;
+    letter-spacing: -.04em;
+    margin-bottom: 20px;
+  }
+  .hero__mascara { display: inline-block; overflow: hidden; padding: .06em .06em .1em 0; margin: -.06em 0 -.1em; vertical-align: bottom; }
+  .hero__palabra { display: inline-block; }
+  .hero__sub { color: var(--tinta); }
+  .hero__ctas { display: flex; flex-wrap: wrap; gap: 10px; margin-block: 18px 14px; }
+  .hero__ctas .btn { flex: 1 1 auto; }
+  .hero__pie { color: var(--tinta-suave); font-weight: 700; }
+  .hero__rotulo { margin-top: 2px; }
+
+  .hero__escena { order: 2; position: relative; flex: 1; min-height: 200px; margin-top: 8px; }
+  .hero__escena svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .hero__rueda { cursor: default; }
+  .hero__alerta {
+    position: absolute;
+    left: var(--borde-pagina);
+    bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px 10px 10px;
+    border-radius: 999px;
+    background: var(--tinta);
+    color: var(--crema);
+    font-weight: 700;
+    line-height: 1.2;
+    box-shadow: var(--sombra);
+  }
+  .hero__alerta-icono { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--naranja); color: var(--tinta); flex: none; }
+
+  @media (min-width: 900px) {
+    .hero { justify-content: center; padding-block: 100px 48px; }
+    .hero__contenido { position: relative; z-index: 3; }
+    .hero__h1 { max-width: 66%; }
+    .hero__bajada { max-width: 560px; }
+    .hero__ctas .btn { flex: 0 0 auto; }
+    .hero__escena { position: absolute !important; z-index: 1 !important; inset: 40px -2% 0 auto; width: 56%; margin: 0; }
+    .hero__alerta { left: auto; right: 12%; bottom: 14%; }
+  }
+
+  /* Entrada: CSS puro para que el H1 sea visible y mida LCP sin esperar al JS. */
+  @media (prefers-reduced-motion: no-preference) {
+    html:not([data-motion='off']) .hero__palabra { animation: subir var(--d-media) var(--e-salida) both; }
+    html:not([data-motion='off']) .hero__sub,
+    html:not([data-motion='off']) .hero__ctas,
+    html:not([data-motion='off']) .hero__pie,
+    html:not([data-motion='off']) .hero__rotulo { animation: aparecer var(--d-corta) var(--e-salida) 1.1s both; }
+    html:not([data-motion='off']) .hero__cinta { stroke-dasharray: 1; animation: trazar .9s var(--e-suave) .5s both; }
+    html:not([data-motion='off']) .hero__rueda > .rueda__giro { animation: pop var(--d-corta) var(--e-rebote) backwards; transform-box: fill-box; transform-origin: center; }
+    html:not([data-motion='off']) [data-hero-rueda='0'] > .rueda__giro { animation-delay: .7s; }
+    html:not([data-motion='off']) [data-hero-rueda='1'] > .rueda__giro { animation-delay: .76s; }
+    html:not([data-motion='off']) [data-hero-rueda='2'] > .rueda__giro { animation-delay: .82s; }
+    html:not([data-motion='off']) [data-hero-rueda='3'] > .rueda__giro { animation-delay: .88s; }
+    html:not([data-motion='off']) [data-hero-rueda='4'] > .rueda__giro { animation-delay: .94s; }
+    html:not([data-motion='off']) [data-hero-rueda='5'] > .rueda__giro { animation-delay: 1s; }
+    html:not([data-motion='off']) [data-hero-malla] { animation: aparecer var(--d-corta) var(--e-salida) .9s both; }
+    html:not([data-motion='off']) .nav__logo .logo-rueda-izq,
+    html:not([data-motion='off']) .nav__logo .logo-rueda-der { animation: caer var(--d-corta) var(--e-rebote) .15s both; }
+  }
+</style>

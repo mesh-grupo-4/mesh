@@ -1,0 +1,10 @@
+---
+import Icono from './Icono.astro'
+import { AVISO_SEGURIDAD } from '../content/copy'
+const { class: clase } = Astro.props
+---
+
+<p class:list={['aviso-seguridad', clase]} data-aviso-seguridad>
+  <Icono nombre="shield" tam={20} />
+  <span>{AVISO_SEGURIDAD}</span>
+</p>

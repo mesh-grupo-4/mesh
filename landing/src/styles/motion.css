@@ -1,0 +1,31 @@
+/* Movimiento resuelto con CSS. La entrada del hero vive acá para que el contenido nunca espere al JS. */
+@keyframes subir { from { transform: translateY(105%); } to { transform: none; } }
+@keyframes aparecer { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes pop { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: none; } }
+@keyframes caer { from { opacity: 0; transform: translateY(-46%); } to { opacity: 1; transform: none; } }
+@keyframes trazar { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes pulso { from { transform: scale(.7); opacity: .85; } to { transform: scale(2.4); opacity: 0; } }
+
+.pop { animation: pop var(--d-corta) var(--e-rebote) both; }
+
+html.lenis, html.lenis body { height: auto; scroll-behavior: auto !important; }
+.lenis.lenis-stopped { overflow: hidden; }
+
+@media (prefers-reduced-motion: no-preference) {
+  html:not(.lenis):not([data-motion='off']) { scroll-behavior: smooth; }
+}
+
+/* Sin movimiento: lo que cambia, cambia con un fundido corto o de golpe. */
+html[data-motion='off'] *, html[data-motion='off'] *::before, html[data-motion='off'] *::after {
+  animation: none !important;
+  transition-duration: 150ms !important;
+  transition-property: opacity, background-color, color !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition-duration: 150ms !important;
+    transition-property: opacity, background-color, color !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,0 +1,51 @@
+---
+// Versión por defecto (plan, 13 #8): Sin Mesh / Con Mesh. La comparación por categorías espera validación del PO.
+import { DIFERENCIA } from '../content/copy'
+const [col0, col1, col2] = DIFERENCIA.columnas
+---
+
+<section class="dif seccion topo tema-crema" id="diferencia" data-seccion="diferencia" data-cinta-seccion>
+  <div class="envoltura">
+    <p class="etiqueta">{DIFERENCIA.etiqueta}</p>
+    <h2 class="h2 dif__h2" data-titulo>{DIFERENCIA.h2}</h2>
+    <table class="dif__tabla">
+      <thead>
+        <tr><th scope="col">{col0}</th><th scope="col">{col1}</th><th scope="col" class="dif__mesh">{col2}</th></tr>
+      </thead>
+      <tbody>
+        {DIFERENCIA.filas.map(([cuando, sin, con]) => (
+          <tr data-dif-fila>
+            <th scope="row">{cuando}</th>
+            <td data-col={col1}>{sin}</td>
+            <td data-col={col2} class="dif__mesh"><span data-dif-mesh>{con}</span></td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<style is:global>
+  .dif__h2 { max-width: 22ch; }
+  .dif__tabla { display: block; margin-top: 44px; }
+  .dif__tabla thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .dif__tabla tbody { display: grid; gap: 12px; }
+  .dif__tabla tr { display: grid; gap: 8px; padding: 20px; border-radius: var(--r-tarjeta); background: var(--blanco); border: 1px solid var(--linea); }
+  .dif__tabla th[scope='row'] { text-align: left; font-family: var(--f-display); font-size: 1.375rem; line-height: 1.15; }
+  .dif__tabla td { display: block; }
+  .dif__tabla td::before { content: attr(data-col) ': '; font-family: var(--f-mono); font-size: var(--t-mono); color: var(--tinta-suave); }
+  .dif__tabla td.dif__mesh { font-weight: 800; color: var(--naranja-texto); }
+  .dif__tabla td.dif__mesh::before { color: var(--naranja-texto); }
+
+  @media (min-width: 900px) {
+    .dif__tabla { display: table; width: 100%; border-collapse: collapse; }
+    .dif__tabla thead { position: static; width: auto; height: auto; overflow: visible; clip-path: none; display: table-header-group; }
+    .dif__tabla thead th { text-align: left; padding: 12px 20px; font-family: var(--f-mono); font-size: var(--t-mono); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .dif__tabla thead th.dif__mesh { color: var(--tinta); background: var(--naranja); border-radius: 18px 18px 0 0; }
+    .dif__tabla tbody { display: table-row-group; }
+    .dif__tabla tr { display: table-row; padding: 0; background: none; border: 0; border-radius: 0; }
+    .dif__tabla tbody th, .dif__tabla td { display: table-cell; padding: 20px; border-top: 1px solid var(--linea); vertical-align: middle; }
+    .dif__tabla td::before { content: none; }
+    .dif__tabla td.dif__mesh { background: var(--blanco); font-size: 1.125rem; }
+  }
+</style>
