@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ActivityIndicator,
-  ScrollView,
   RefreshControl,
 } from 'react-native';
 import { Pressable } from '@/components/Pressable';
@@ -19,6 +18,7 @@ import {
 import { useCopilot } from 'react-native-copilot';
 import { Btn, TopBar, Badge, useTheme } from '@/components/MeshUI';
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda';
+import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda'
 import { AYUDA_GRUPO_DETALLE } from '@/components/ayuda/contenidoAyuda';
 import { Feather } from '@expo/vector-icons';
 import { abrirNuevoViaje } from '@/lib/nuevoViaje';
@@ -104,7 +104,7 @@ export default function GrupoDetalleScreen() {
         onAyuda={() => start()}
       />
 
-      <ScrollView
+      <ScrollViewAyuda
         contentContainerStyle={styles.content}
         refreshControl={
           <RefreshControl
@@ -245,7 +245,7 @@ export default function GrupoDetalleScreen() {
             </View>
           </>
         ) : null}
-      </ScrollView>
+      </ScrollViewAyuda>
     </View>
   );
 }

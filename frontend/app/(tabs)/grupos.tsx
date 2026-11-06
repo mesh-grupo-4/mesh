@@ -6,7 +6,6 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  ScrollView,
   RefreshControl,
 } from 'react-native';
 import { Pressable } from '@/components/Pressable';
@@ -26,6 +25,7 @@ import {
 import { Btn, Field, TopBar, useTheme } from '@/components/MeshUI';
 import { useCopilot } from 'react-native-copilot';
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda';
+import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda'
 import { AYUDA_GRUPOS } from '@/components/ayuda/contenidoAyuda';
 import { SelectableCard } from '@/components/SelectableCard';
 import { SelectionActionBar } from '@/components/SelectionActionBar';
@@ -299,7 +299,7 @@ export default function GruposScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
 
-      <ScrollView
+      <ScrollViewAyuda
         contentContainerStyle={styles.inner}
         keyboardShouldPersistTaps="handled"
         refreshControl={
@@ -501,7 +501,7 @@ export default function GruposScreen() {
             </View>
           </>
         )}
-      </ScrollView>
+      </ScrollViewAyuda>
 
       {/* Botón flotante FAB para crear grupo (solo visible si no se muestra el formulario) */}
       {!mostrarFormulario && seccion === 'grupos' && (

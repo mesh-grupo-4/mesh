@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -12,6 +11,7 @@ import { Feather } from '@expo/vector-icons'
 import { Btn, useTheme } from '@/components/MeshUI'
 import { BotonAyuda } from '@/components/ayuda/BotonAyuda'
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
+import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda'
 import { AYUDA_RUTA_COMPARTIDA } from '@/components/ayuda/contenidoAyuda'
 import { RouteMapView } from '@/components/route-config/RouteMapView'
 import type { RouteWaypoint } from '@/components/route-config/routeTypes'
@@ -184,7 +184,7 @@ export default function RutaCompartidaPreviewScreen() {
               />
             </View>
           </PasoAyuda>
-          <ScrollView contentContainerStyle={styles.info}>
+          <ScrollViewAyuda contentContainerStyle={styles.info}>
             <Text style={[styles.title, { color: theme.text }]}>
               {preview.origen.nombre || 'Origen'} → {preview.destino.nombre || 'Destino'}
             </Text>
@@ -215,7 +215,7 @@ export default function RutaCompartidaPreviewScreen() {
                 Guardar en mis rutas
               </Btn>
             </PasoAyuda>
-          </ScrollView>
+          </ScrollViewAyuda>
         </>
       ) : null}
     </View>

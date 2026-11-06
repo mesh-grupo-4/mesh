@@ -2,7 +2,6 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -20,6 +19,7 @@ import Svg, {
 import { useCopilot } from 'react-native-copilot'
 import { ActivityTile, Badge, Btn, TopBar, useTheme } from '@/components/MeshUI'
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
+import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda'
 import { AYUDA_VIAJE_METRICAS } from '@/components/ayuda/contenidoAyuda'
 import { StatCard, StatCardRow } from '@/components/StatCard'
 import { DEV_USER_ID } from '@/constants/Config'
@@ -130,7 +130,7 @@ export default function MetricasScreen() {
           </Btn>
         </View>
       ) : (
-        <ScrollView
+        <ScrollViewAyuda
           contentContainerStyle={[
             styles.content,
             { paddingBottom: Math.max(insets.bottom, 16) + 16 },
@@ -330,7 +330,7 @@ export default function MetricasScreen() {
               </View>
             </>
           ) : null}
-        </ScrollView>
+        </ScrollViewAyuda>
       )}
     </View>
   )

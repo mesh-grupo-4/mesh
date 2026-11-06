@@ -5,7 +5,6 @@ import {
   TextInput,
   StyleSheet,
   ActivityIndicator,
-  ScrollView,
   Platform,
 } from 'react-native'
 import { Pressable } from '@/components/Pressable'
@@ -38,6 +37,7 @@ import {
 import { Btn, ActivityTile, Field, useTheme } from '@/components/MeshUI'
 import { BotonAyuda } from '@/components/ayuda/BotonAyuda'
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
+import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda'
 import { AYUDA_VIAJE_CREAR } from '@/components/ayuda/contenidoAyuda'
 import { Collapsible } from '@/components/Collapsible'
 
@@ -311,7 +311,7 @@ export default function CrearViajeScreen() {
   }
 
   return (
-    <ScrollView
+    <ScrollViewAyuda
       style={[styles.container, { backgroundColor: theme.background }]}
       contentContainerStyle={styles.content}
       automaticallyAdjustKeyboardInsets
@@ -734,7 +734,7 @@ export default function CrearViajeScreen() {
       >
         Crear viaje planificado
       </Btn>
-    </ScrollView>
+    </ScrollViewAyuda>
   )
 }
 

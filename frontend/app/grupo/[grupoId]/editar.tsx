@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ActivityIndicator, 
-  ScrollView,
 } from 'react-native';
 import { meshAlert } from '@/lib/meshAlert';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
@@ -13,6 +12,7 @@ import { resolveBackendUserId } from '@/lib/apiClient';
 import { useCopilot } from 'react-native-copilot';
 import { TransferirLiderazgoModal } from '@/components/TransferirLiderazgoModal';
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda';
+import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda'
 import { AYUDA_GRUPO_EDITAR } from '@/components/ayuda/contenidoAyuda';
 import {
   abandonarGrupo,
@@ -184,7 +184,7 @@ export default function EditarGrupoScreen() {
         onAyuda={() => start()}
       />
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollViewAyuda contentContainerStyle={styles.content}>
         {loading ? (
           <ActivityIndicator color={theme.accent} size="large" style={{ marginTop: 48 }} />
         ) : error ? (
@@ -244,7 +244,7 @@ export default function EditarGrupoScreen() {
             </PasoAyuda>
           </>
         ) : null}
-      </ScrollView>
+      </ScrollViewAyuda>
 
       <TransferirLiderazgoModal
         visible={modalTransferir}

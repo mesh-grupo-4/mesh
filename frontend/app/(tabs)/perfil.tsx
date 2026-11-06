@@ -19,6 +19,7 @@ import { obtenerMiRacha, type RachaApi } from '@/lib/rachasApi';
 import { formatKmCompact } from '@/lib/format';
 import { Btn, Field, Chip, ChipRow, Avatar, TopBar, useTheme } from '@/components/MeshUI';
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda';
+import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda'
 import { AYUDA_PERFIL } from '@/components/ayuda/contenidoAyuda';
 import { Feather } from '@expo/vector-icons';
 
@@ -211,7 +212,7 @@ export default function PerfilScreen() {
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <TopBar title="Perfil" raiz bordered={false} onAyuda={() => start()} />
 
-      <ScrollView
+      <ScrollViewAyuda
         contentContainerStyle={styles.inner}
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
@@ -554,7 +555,7 @@ export default function PerfilScreen() {
         <Text style={[styles.footerText, { color: theme.textMute }]}>
           Mesh · v1.0 — Córdoba, AR
         </Text>
-      </ScrollView>
+      </ScrollViewAyuda>
     </View>
   );
 }

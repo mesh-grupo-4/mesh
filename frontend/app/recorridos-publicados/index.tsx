@@ -4,7 +4,6 @@ import { useCallback, useState } from 'react'
 import {
   ActivityIndicator,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -16,6 +15,7 @@ import { Feather } from '@expo/vector-icons'
 
 import { Chip, ChipRow, TopBar, useTheme, ActivityTile } from '@/components/MeshUI'
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
+import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda'
 import { AYUDA_RECORRIDOS_PUBLICADOS } from '@/components/ayuda/contenidoAyuda'
 import { formatDurationHm, formatKm } from '@/lib/format'
 import { meshError } from '@/lib/meshAlert'
@@ -149,7 +149,7 @@ export default function RecorridosPublicadosScreen() {
         onAyuda={() => start()}
       />
 
-      <ScrollView
+      <ScrollViewAyuda
         contentContainerStyle={styles.inner}
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
@@ -319,7 +319,7 @@ export default function RecorridosPublicadosScreen() {
             )}
           </View>
         </PasoAyuda>
-      </ScrollView>
+      </ScrollViewAyuda>
     </View>
   )
 }

@@ -19,6 +19,7 @@ import { useTripRealtime } from '@/context/TripRealtimeContext'
 import { resolveBackendUserId } from '@/lib/apiClient'
 import { Btn, TopBar, useTheme, Badge, ActivityTile } from '@/components/MeshUI'
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
+import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda'
 import { AYUDA_VIAJES } from '@/components/ayuda/contenidoAyuda'
 import { SelectableCard } from '@/components/SelectableCard'
 import { SelectionActionBar } from '@/components/SelectionActionBar'
@@ -729,7 +730,7 @@ export default function ViajesScreen() {
           <ActivityIndicator color={theme.accent} size="large" />
         </View>
       ) : (
-        <ScrollView
+        <ScrollViewAyuda
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
           automaticallyAdjustKeyboardInsets
@@ -890,7 +891,7 @@ export default function ViajesScreen() {
               )}
             </>
           )}
-        </ScrollView>
+        </ScrollViewAyuda>
       )}
 
       {/* Modal de invitaciones */}

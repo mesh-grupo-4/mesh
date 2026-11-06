@@ -5,7 +5,6 @@ import {
   StyleSheet,
   Share,
   Platform, 
-  ScrollView,
 } from 'react-native'
 import { meshAlert } from '@/lib/meshAlert';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
@@ -18,6 +17,7 @@ import { useCopilot } from 'react-native-copilot'
 import { buildInviteUrl } from '@/lib/inviteLinks'
 import { TopBar, Btn, Badge, useTheme } from '@/components/MeshUI'
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
+import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda'
 import { AYUDA_VIAJE_QR } from '@/components/ayuda/contenidoAyuda'
 
 export default function ViajeQrScreen() {
@@ -82,7 +82,7 @@ export default function ViajeQrScreen() {
         onAyuda={() => start()}
       />
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollViewAyuda contentContainerStyle={styles.scrollContent}>
         {/* Success Icon */}
         <View style={[styles.iconContainer, { backgroundColor: theme.accentWeak }]}>
           <Feather name="check" size={30} color={theme.accent} />
@@ -123,7 +123,7 @@ export default function ViajeQrScreen() {
             </Btn>
           </View>
         </PasoAyuda>
-      </ScrollView>
+      </ScrollViewAyuda>
     </View>
   )
 }

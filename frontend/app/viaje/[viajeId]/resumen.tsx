@@ -2,7 +2,6 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -14,6 +13,7 @@ import { AvatarFallback } from '@/components/AvatarFallback'
 import { RecorridoMapView } from '@/components/RecorridoMapView'
 import { ActivityTile, Badge, Btn, TopBar, useTheme } from '@/components/MeshUI'
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
+import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda'
 import { AYUDA_VIAJE_RESUMEN } from '@/components/ayuda/contenidoAyuda'
 import { StatCard, StatCardRow } from '@/components/StatCard'
 import { DEV_USER_ID } from '@/constants/Config'
@@ -215,7 +215,7 @@ export default function ViajeResumenScreen() {
           <ActivityIndicator color={theme.accent} size="large" />
         </View>
       ) : (
-        <ScrollView
+        <ScrollViewAyuda
           contentContainerStyle={[
             styles.content,
             { paddingBottom: Math.max(insets.bottom, 16) + 16 },
@@ -465,7 +465,7 @@ export default function ViajeResumenScreen() {
           <Btn variant="primary" block icon="home" onPress={volverAlInicio}>
             Volver al inicio
           </Btn>
-        </ScrollView>
+        </ScrollViewAyuda>
       )}
     </View>
   )

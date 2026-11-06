@@ -6,7 +6,6 @@ import {
   Linking,
   Modal,
   Platform,
-  ScrollView,
   Share,
   StyleSheet,
   Text,
@@ -20,6 +19,7 @@ import { useCopilot } from 'react-native-copilot'
 
 import { AvisoUbicacion, textoPermisoSistema } from '@/components/AvisoUbicacion'
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
+import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda'
 import { AYUDA_VIAJE_DETALLE } from '@/components/ayuda/contenidoAyuda'
 import { DEV_USER_ID } from '@/constants/Config'
 import { useAuth } from '@/context/AuthContext'
@@ -779,7 +779,7 @@ export default function ViajeDetalleScreen() {
         </View>
       ) : viaje ? (
         <>
-          <ScrollView contentContainerStyle={styles.scrollContent}>
+          <ScrollViewAyuda contentContainerStyle={styles.scrollContent}>
             <View style={styles.headerInfo}>
               <View style={styles.badgeRow}>
                 <Badge tone={viaje.estado === 'en_curso' ? 'live' : viaje.estado === 'planificado' ? 'accent' : 'mute'} pulse={viaje.estado === 'en_curso'}>
@@ -1328,7 +1328,7 @@ export default function ViajeDetalleScreen() {
               </View>
             )}
 
-          </ScrollView>
+          </ScrollViewAyuda>
 
           {/* Sticky Bottom Actions (un viaje finalizado no tiene acciones fijas) */}
           {viaje.estado !== 'finalizado' && (
