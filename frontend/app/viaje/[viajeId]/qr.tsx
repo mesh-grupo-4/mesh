@@ -10,7 +10,7 @@ import {
 import { meshAlert } from '@/lib/meshAlert';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import QRCode from 'react-native-qrcode-svg'
-import ViewShot from 'react-native-view-shot'
+import ViewShot, { type ViewShotRef } from 'react-native-view-shot'
 import * as Sharing from 'expo-sharing'
 import { Feather } from '@expo/vector-icons'
 
@@ -25,7 +25,7 @@ export default function ViajeQrScreen() {
   const router = useRouter()
   const theme = useTheme()
   const { start } = useCopilot()
-  const shotRef = useRef<ViewShot>(null)
+  const shotRef = useRef<ViewShotRef>(null)
 
   if (!viajeId) {
     return (

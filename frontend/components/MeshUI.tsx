@@ -29,9 +29,10 @@ import { ICONO_VOLVER, TITULO_CENTRADO } from '@/lib/plataforma';
 // Hook auxiliar para acceder al tema activo.
 // `altoContraste` fuerza la paleta de alto contraste (RN-052, modo moto) sin importar light/dark.
 export function useTheme(altoContraste = false) {
-  const scheme = useColorScheme() ?? 'dark';
+  // RN 0.86: useColorScheme() devuelve 'unspecified' (no null) cuando el sistema no informa tema.
+  const scheme = useColorScheme();
   if (altoContraste) return Colors.highContrast;
-  return Colors[scheme];
+  return Colors[scheme === 'light' ? 'light' : 'dark'];
 }
 
 // ----------------------------------------------------
@@ -227,7 +228,7 @@ export function Btn({
 // ENTRADA DE DATOS (Field)
 // ----------------------------------------------------
 
-interface FieldProps extends TextInputProps {
+interface FieldProps extends Omit<TextInputProps, 'style'> {
   label: string;
   leading?: keyof typeof Feather.glyphMap;
   error?: string;
