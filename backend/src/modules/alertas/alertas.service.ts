@@ -2,6 +2,7 @@ import type { PrismaClient } from '@prisma/client'
 import { nombreVisible } from '../../lib/nombres'
 import { HttpError } from '../../lib/httpError'
 import { getIo } from '../../realtime/ioRegistry'
+import { ParadasService, afectadoPorIncidente } from '../paradas/paradas.service'
 import type {
   CambiarEstadoAlertaInput,
   CrearAlertaInput,
@@ -169,6 +170,17 @@ export class AlertasService {
 
     const mapeada = this.mapAlerta(alerta)
     this.emitirActualizacion(viajeId, mapeada.id, mapeada.estado, alerta.resolved_at)
+
+    // Cerrar la alerta de un posible incidente cierra el incidente: si no, el
+    // integrante seguía marcado como "posible incidente" en el mapa.
+    const afectadoId = cerrada ? afectadoPorIncidente(alerta) : null
+    if (afectadoId) {
+      await new ParadasService(this.prisma).cerrarIncidentePorAlerta(
+        viajeId,
+        afectadoId,
+        input.estado as 'resuelta' | 'cancelada'
+      )
+    }
     return mapeada
   }
 

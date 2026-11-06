@@ -42,6 +42,11 @@ export function prefijoAlertaAfectado(usuarioId: string): string {
   return `[afectado:${usuarioId}]`
 }
 
+/** Inverso de `prefijoAlertaAfectado`: a quién afecta una alerta, o null. */
+export function usuarioAfectadoDesdeMensaje(mensaje: string | null): string | null {
+  return mensaje?.match(/^\[afectado:([0-9a-f-]+)\]/i)?.[1] ?? null
+}
+
 export function mensajeVisible(raw: string): string {
   return raw.replace(/^\[afectado:[0-9a-f-]+\]\s*/i, '')
 }

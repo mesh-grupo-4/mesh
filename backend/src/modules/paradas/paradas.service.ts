@@ -7,7 +7,11 @@ import type {
   ResponderSolicitudInput,
   SolicitarParadaInput,
 } from './paradas.schemas'
-import { prefijoAlertaAfectado } from '../motor-eventos/motorEventos.config'
+import {
+  prefijoAlertaAfectado,
+  usuarioAfectadoDesdeMensaje,
+} from '../motor-eventos/motorEventos.config'
+import { obtenerMotorEventos } from '../motor-eventos/motorEventos.service'
 
 /** Etiquetas de categoría para el texto de las notificaciones (RN-022). */
 const ETIQUETA_CATEGORIA: Record<string, string> = {
@@ -22,6 +26,23 @@ const ETIQUETA_CATEGORIA: Record<string, string> = {
 
 /** Distingue la alerta de "estoy mal" de las demás alertas del integrante. */
 const MARCA_PEDIDO_AYUDA = 'Necesita ayuda — '
+
+/**
+ * Si la alerta pertenece a un posible incidente (la del motor de eventos o el
+ * pedido de ayuda "Estoy mal"), devuelve a quién afecta; si no, null.
+ */
+export function afectadoPorIncidente(alerta: {
+  tipo: string
+  origen: string
+  mensaje: string | null
+}): string | null {
+  if (alerta.tipo !== 'peligro') return null
+  const afectado = usuarioAfectadoDesdeMensaje(alerta.mensaje)
+  if (!afectado) return null
+  const esDelMotor = alerta.origen === 'sistema'
+  const esPedidoAyuda = alerta.mensaje!.startsWith(`${prefijoAlertaAfectado(afectado)}${MARCA_PEDIDO_AYUDA}`)
+  return esDelMotor || esPedidoAyuda ? afectado : null
+}
 
 function nombreDe(u: { nombre: string; apellido: string | null }): string {
   return nombreVisible(u.nombre, u.apellido) || 'Un integrante'
@@ -191,37 +212,125 @@ export class ParadasService {
       },
       select: { id: true },
     })
-    if (alertasAbiertas.length > 0) {
-      await this.prisma.alerta.updateMany({
-        where: { id: { in: alertasAbiertas.map((a) => a.id) } },
-        data: { estado: 'resuelta', resolved_at: fin },
-      })
-      for (const a of alertasAbiertas) {
-        this.emitir(viajeId, 'viaje:alerta_actualizada', {
-          viajeId,
-          alertaId: a.id,
-          estado: 'resuelta' as const,
-          resolvedAt: fin.toISOString(),
-        })
-      }
-    }
+    await this.cerrarAlertas(
+      viajeId,
+      alertasAbiertas.map((a) => a.id),
+      'resuelta',
+      fin
+    )
     // RN-036: si había pedido ayuda ("Estoy mal"), esa alerta también queda resuelta.
     if (abierta.confirmado_bien === false) {
       await this.cerrarAlertaAyuda(viajeId, usuarioId, 'resuelta', fin)
     }
 
+    this.emitirIncidenteCerrado(viajeId, parada, fin)
+    return this.mapParada(parada)
+  }
+
+  /**
+   * RN-042: el líder resolvió o canceló la alerta de un posible incidente (o el
+   * pedido de ayuda). El incidente se cierra con ella: antes la parada quedaba
+   * abierta y el integrante seguía marcado como "posible incidente" en el mapa.
+   * El rol de líder lo valida quien llama (`AlertasService.cambiarEstado`).
+   */
+  async cerrarIncidentePorAlerta(
+    viajeId: string,
+    usuarioId: string,
+    estado: 'resuelta' | 'cancelada'
+  ): Promise<void> {
+    const fin = new Date()
+    const prefijo = prefijoAlertaAfectado(usuarioId)
+
+    // Lo que siga abierto del mismo incidente (la alerta del motor o el pedido
+    // de ayuda, según cuál haya cerrado el líder) se cierra igual.
+    const pendientes = await this.prisma.alerta.findMany({
+      where: {
+        viaje_id: viajeId,
+        estado: 'activa',
+        tipo: 'peligro',
+        OR: [
+          { origen: 'sistema', mensaje: { startsWith: prefijo } },
+          { mensaje: { startsWith: `${prefijo}${MARCA_PEDIDO_AYUDA}` } },
+        ],
+      },
+      select: { id: true },
+    })
+    await this.cerrarAlertas(
+      viajeId,
+      pendientes.map((a) => a.id),
+      estado,
+      fin
+    )
+
+    const abierta = await this.prisma.parada.findFirst({
+      where: { viaje_id: viajeId, usuario_id: usuarioId, fin: null, tipo: 'incidente_detectado' },
+      orderBy: { inicio: 'desc' },
+      select: { id: true },
+    })
+    if (!abierta) return
+
+    const parada = await this.prisma.parada.update({
+      where: { id: abierta.id },
+      data: { fin },
+      include: { usuario: { select: { id: true, nombre: true, apellido: true } } },
+    })
+    this.emitirIncidenteCerrado(viajeId, parada, fin)
+  }
+
+  /** Pasa las alertas a un estado de cierre y avisa a la sala (mapa e historial). */
+  private async cerrarAlertas(
+    viajeId: string,
+    ids: string[],
+    estado: 'resuelta' | 'cancelada',
+    cuando: Date
+  ): Promise<void> {
+    if (ids.length === 0) return
+    await this.prisma.alerta.updateMany({
+      where: { id: { in: ids } },
+      data: { estado, resolved_at: cuando },
+    })
+    for (const id of ids) {
+      this.emitir(viajeId, 'viaje:alerta_actualizada', {
+        viajeId,
+        alertaId: id,
+        estado,
+        resolvedAt: cuando.toISOString(),
+      })
+    }
+  }
+
+  /**
+   * Avisa que el integrante vuelve a `en_movimiento` y evita que el motor dispare
+   * otro posible incidente en el mismo punto mientras siga ahí (RN-036).
+   */
+  private emitirIncidenteCerrado(
+    viajeId: string,
+    parada: {
+      id: string
+      usuario_id: string
+      lat: number
+      lng: number
+      inicio: Date
+      usuario: { nombre: string; apellido: string | null }
+    },
+    fin: Date
+  ): void {
+    obtenerMotorEventos(this.prisma).silenciarDeteccionEnPunto(
+      viajeId,
+      parada.usuario_id,
+      parada.lat,
+      parada.lng
+    )
     this.emitir(viajeId, 'viaje:parada_finalizada', {
       viajeId,
       paradaId: parada.id,
-      usuarioId,
+      usuarioId: parada.usuario_id,
       nombre: nombreDe(parada.usuario),
       inicio: parada.inicio.toISOString(),
       fin: fin.toISOString(),
       duracionSegundos: duracionSeg(parada.inicio, fin),
       estado: 'en_movimiento' as const,
     })
-
-    return this.mapParada(parada)
   }
 
   /**

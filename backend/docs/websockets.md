@@ -286,7 +286,10 @@ mismo tipo para él. Una parada voluntaria fuera del trazado no cuenta como desv
 Cambio de estado de una alerta ya emitida. Lo disparan:
 
 - `PATCH /api/viajes/{viajeId}/alertas/{alertaId}` (RN-042): el líder pausa, reactiva,
-  cancela o resuelve una alerta.
+  cancela o resuelve una alerta. Si cancela o resuelve la de un posible incidente (o el
+  pedido de ayuda), se cierra el incidente entero: se cierra también la otra alerta
+  asociada (misma transición), la parada `incidente_detectado` y se emite
+  `viaje:parada_finalizada`.
 - `MotorEventosService`: resolución automática de `desvio` cuando el integrante vuelve a
   menos de la **mitad** del umbral de separación, y de `atraso` cuando su atraso baja de la
   mitad de la tolerancia (histéresis para no oscilar en el borde).
@@ -336,7 +339,7 @@ descarga la traza histórica por REST y la anima localmente.
 | Evento | Cuándo |
 |---|---|
 | `viaje:parada_iniciada` | Parada voluntaria (US1) o incidente detectado por el motor (RN-036) |
-| `viaje:parada_finalizada` | Retomar viaje (US3) o confirmar "Estoy bien" (RN-036) |
+| `viaje:parada_finalizada` | Retomar viaje (US3), confirmar "Estoy bien" (RN-036) o el líder cancela/resuelve la alerta del incidente (RN-042) |
 | `viaje:solicitud_parada` | Solicitud de parada al líder (US2) |
 | `viaje:solicitud_parada_resuelta` | El líder aprueba o rechaza la solicitud |
 

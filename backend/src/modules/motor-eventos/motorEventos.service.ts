@@ -46,6 +46,11 @@ type EstadoDetencion = {
   anchorLat: number
   anchorLng: number
   quietoDesde: Date
+  /**
+   * RN-036: ya se cerró un posible incidente en este punto ("estoy bien" o el
+   * líder lo resolvió). No se dispara otro hasta que la persona se aleje.
+   */
+  silenciado?: boolean
 }
 
 type ProgresoCacheado = {
@@ -170,6 +175,23 @@ export class MotorEventosService {
   }
 
   /**
+   * RN-036: se cerró el posible incidente de un integrante. Si sigue quieto en el
+   * mismo lugar no se le vuelve a generar otro incidente ahí mismo cada N minutos:
+   * la detección se rearma recién cuando se aleja del punto.
+   */
+  silenciarDeteccionEnPunto(viajeId: string, usuarioId: string, lat: number, lng: number): void {
+    this.detencionPorClave.set(this.clave(viajeId, usuarioId), {
+      anchorLat: lat,
+      anchorLng: lng,
+      // Sin fecha real: el reloj del servidor puede ir adelantado respecto del
+      // dispositivo y entonces se descartarían como "viejos" los pings que
+      // muestran que la persona ya se alejó.
+      quietoDesde: new Date(0),
+      silenciado: true,
+    })
+  }
+
+  /**
    * Marca como resueltas las alertas del sistema abiertas de un integrante y avisa
    * a la sala. Lo usa el propio motor (volvió a la ruta / alcanzó al grupo) y los
    * flujos que cierran la situación desde afuera (confirmar "estoy bien", salir).
@@ -264,10 +286,15 @@ export class MotorEventosService {
     const prev = this.detencionPorClave.get(key)
 
     if (!prev) {
+      // El conteo arranca cuando el integrante entra al viaje (primera posición que
+      // recibe el servidor), no en el timestamp del punto: la primera lectura del
+      // GPS suele ser una ubicación cacheada de minutos atrás, o un punto encolado
+      // antes de iniciar el viaje, y con eso el incidente saltaba al instante.
+      const ahora = Date.now()
       this.detencionPorClave.set(key, {
         anchorLat: input.lat,
         anchorLng: input.lng,
-        quietoDesde: input.timestamp,
+        quietoDesde: new Date(Math.max(input.timestamp.getTime(), ahora)),
       })
       return
     }
@@ -284,6 +311,9 @@ export class MotorEventosService {
       })
       return
     }
+
+    // Sigue en el punto de un incidente ya cerrado: no se repite la alerta.
+    if (prev.silenciado) return
 
     const quietoMs = input.timestamp.getTime() - prev.quietoDesde.getTime()
     const umbralMs = detencionMinutos * 60 * 1000
