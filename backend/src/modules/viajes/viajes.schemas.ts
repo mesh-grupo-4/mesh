@@ -131,6 +131,23 @@ export const responderInvitacionViajeSchema = z.object({
 
 export type ResponderInvitacionViajeInput = z.infer<typeof responderInvitacionViajeSchema>
 
+/** RN-029b: "Me sumo". `check_in_at` = cuándo lo tocó (puede llegar tarde desde la cola offline). */
+export const checkInSchema = z.object({
+  check_in_at: z.coerce.date().optional(),
+})
+
+/** RN-029d: el líder que se baja tiene que elegir sucesor. Body opcional. */
+export const salirViajeSchema = z
+  .object({
+    nuevo_lider_id: z.string().uuid('nuevo_lider_id debe ser un UUID válido').optional(),
+  })
+  .optional()
+  .default({})
+
+export const cederLiderazgoSchema = z.object({
+  nuevo_lider_id: z.string().uuid('nuevo_lider_id debe ser un UUID válido'),
+})
+
 export const actualizarViajeSchema = z
   .object({
     fechaProgramada: fechaProgramadaFuturaSchema.optional(),

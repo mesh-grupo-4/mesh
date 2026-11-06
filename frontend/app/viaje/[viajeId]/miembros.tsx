@@ -34,6 +34,9 @@ function badgeEstado(estado: ViajeParticipanteApi['estado']): {
       return { texto: 'Salió', tone: 'mute' };
     case 'rechazado':
       return { texto: 'Rechazó', tone: 'live' };
+    // RN-029c: confirmó pero no fue.
+    case 'ausente':
+      return { texto: 'No fue', tone: 'mute' };
   }
 }
 
@@ -128,10 +131,11 @@ export default function MiembrosViajeScreen() {
 
           <View style={styles.badgesRow}>
             <Badge tone={badgeEstado(item.estado).tone}>{badgeEstado(item.estado).texto}</Badge>
-            {item.union_efectiva && (
+            {/* RN-029b: tocó "Me sumo" (o, en viajes anteriores al check-in, mandó GPS). */}
+            {(item.check_in_at != null || item.union_efectiva) && (
               <Badge tone="good">
                 <Feather name="check" size={10} color={theme.good} style={{ marginRight: 3 }} />
-                Se unió al viaje
+                Se sumó al viaje
               </Badge>
             )}
           </View>

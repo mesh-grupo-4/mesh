@@ -388,3 +388,91 @@ describe('compartir ubicación apagado (RN-111)', () => {
     expect(emit).not.toHaveBeenCalled()
   })
 })
+
+/**
+ * RN-029b: confirmó pero no se sumó (p. ej. se quedó en casa). Ninguna de las tres
+ * entradas de GPS acepta su posición: no se guarda, no se publica ni llega al motor.
+ */
+describe('RN-029b: sin check-in no se acepta GPS', () => {
+  const liderId = '99999999-9999-9999-9999-999999999999'
+
+  function armarParticipante(integrante: unknown) {
+    const m = armarPrisma('bici')
+    const prisma = m.prisma as unknown as {
+      viaje: { findUnique: ReturnType<typeof vi.fn> }
+      viajeIntegrante: { findUnique: ReturnType<typeof vi.fn> }
+    }
+    prisma.viaje.findUnique.mockResolvedValue({
+      id: viajeId,
+      creador_id: liderId,
+      estado: 'en_curso',
+      tipo_actividad: 'bici',
+    })
+    prisma.viajeIntegrante.findUnique.mockResolvedValue(integrante)
+    return m
+  }
+
+  const ping = {
+    viajeId,
+    lat: -31.42,
+    lng: -64.18,
+    accuracy: 5,
+    recordedAt: '2026-08-31T12:00:00.000Z',
+    source: 'live' as const,
+  }
+
+  it('registrarPingUbicacion responde NOT_CHECKED_IN y no guarda nada', async () => {
+    const m = armarParticipante({ estado: 'confirmado', check_in_at: null })
+
+    await expect(
+      new ViajesService(m.prisma).registrarPingUbicacion(usuarioId, ping)
+    ).rejects.toMatchObject({ status: 403, code: 'NOT_CHECKED_IN' })
+    expect(m.registroGpsCreate).not.toHaveBeenCalled()
+    expect(procesarPing).not.toHaveBeenCalled()
+  })
+
+  it('ingresarPosiciones (lote offline) responde NOT_CHECKED_IN', async () => {
+    const m = armarParticipante({ estado: 'confirmado', check_in_at: null })
+
+    await expect(
+      new ViajesService(m.prisma).ingresarPosiciones(usuarioId, viajeId, {
+        source: 'offline_sync',
+        posiciones: [
+          { lat: -31.43, lng: -64.19, precision: 8, timestamp: new Date('2026-08-31T12:00:10.000Z') },
+        ],
+      })
+    ).rejects.toMatchObject({ code: 'NOT_CHECKED_IN' })
+    expect(m.registroGpsCreateMany).not.toHaveBeenCalled()
+  })
+
+  it('upsertUbicacionViva responde NOT_CHECKED_IN', async () => {
+    const m = armarParticipante({ estado: 'confirmado', check_in_at: null })
+
+    await expect(
+      new ViajesService(m.prisma).upsertUbicacionViva(usuarioId, viajeId, {
+        lat: -31.42,
+        lng: -64.18,
+        precision: 5,
+        recordedAt: new Date('2026-08-31T12:00:00.000Z'),
+      })
+    ).rejects.toMatchObject({ code: 'NOT_CHECKED_IN' })
+    expect(m.ubicacionVivaUpsert).not.toHaveBeenCalled()
+  })
+
+  it('con check-in sí se acepta', async () => {
+    const m = armarParticipante({ estado: 'confirmado', check_in_at: new Date('2026-08-31T11:00:00.000Z') })
+
+    await new ViajesService(m.prisma).registrarPingUbicacion(usuarioId, ping)
+
+    expect(m.registroGpsCreate).toHaveBeenCalledTimes(1)
+  })
+
+  it('un ausente sigue sin acceso (FORBIDDEN)', async () => {
+    const m = armarParticipante({ estado: 'ausente', check_in_at: null })
+
+    await expect(
+      new ViajesService(m.prisma).registrarPingUbicacion(usuarioId, ping)
+    ).rejects.toMatchObject({ status: 403, code: 'FORBIDDEN' })
+  })
+})
+

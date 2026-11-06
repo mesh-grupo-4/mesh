@@ -4,7 +4,8 @@ import { DeviceEventEmitter, Platform } from 'react-native'
 
 import { filtrosGpsPorActividad, velocidadImplicitaKmh } from '@/lib/gpsFilters'
 import { registrarConsentimientoUbicacion } from '@/lib/privacidadApi'
-import { enqueueGpsSample } from '@/lib/tracking/gpsQueue'
+import { enqueueGpsSample, sumarseAlViaje, tieneCheckInPendiente } from '@/lib/tracking/gpsQueue'
+import { checkInViaje } from '@/lib/viajesApi'
 import { TICK_TARGET_MS, trackingConfigPorActividad } from '@/lib/tracking/trackingConfig'
 import {
   clearTrackingContext,
@@ -144,6 +145,28 @@ export async function solicitarPermisosUbicacion(): Promise<PermisoResultado> {
   }
   const bg = await Location.requestBackgroundPermissionsAsync()
   return { foreground: true, background: bg.status === 'granted' }
+}
+
+/**
+ * RN-029b: "Me sumo". En el dispositivo va por la cola offline (se manda antes que el
+ * GPS, aunque se toque sin señal); en web, que no trackea, es una llamada directa.
+ */
+export async function registrarCheckIn(viajeId: string, userId: string): Promise<void> {
+  if (Platform.OS === 'web') {
+    await checkInViaje(viajeId)
+    return
+  }
+  await sumarseAlViaje(viajeId, userId)
+}
+
+/** "Me sumo" tocado pero todavía sin confirmar por el backend (sin señal). */
+export function checkInPendienteLocal(viajeId: string, userId: string): boolean {
+  if (Platform.OS === 'web') return false
+  try {
+    return tieneCheckInPendiente(viajeId, userId)
+  } catch {
+    return false
+  }
 }
 
 export async function iniciarTrackingViaje(

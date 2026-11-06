@@ -41,7 +41,10 @@ function armarPrisma(
     estado: estadoViaje,
     alertas_solo_lider: alertasSoloLider,
   })
-  const integranteFindUnique = vi.fn().mockResolvedValue({ estado: 'confirmado' })
+  const integranteFindUnique = vi.fn().mockResolvedValue({
+    estado: 'confirmado',
+    check_in_at: new Date('2026-08-21T13:00:00.000Z'),
+  })
   const integranteFindMany = vi.fn().mockResolvedValue([
     { usuario: { id: integranteId, push_token: 'ExponentPushToken[ana]' } },
     { usuario: { id: liderId, push_token: 'ExponentPushToken[juan]' } },

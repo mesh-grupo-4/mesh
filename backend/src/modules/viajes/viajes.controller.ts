@@ -6,6 +6,9 @@ import {
   postPosicionesSchema,
   putRutaSchema,
   responderInvitacionViajeSchema,
+  salirViajeSchema,
+  checkInSchema,
+  cederLiderazgoSchema,
   upsertUbicacionVivaSchema,
   viajeIdParamSchema,
 } from './viajes.schemas'
@@ -147,7 +150,22 @@ export function crearViajesController(service: ViajesService) {
 
     salir: asyncHandler(async (req, res) => {
       const { viajeId } = viajeIdParamSchema.parse(req.params)
-      const result = await service.salirViaje(req.userId!, viajeId)
+      const body = salirViajeSchema.parse(req.body ?? undefined)
+      const result = await service.salirViaje(req.userId!, viajeId, body)
+      res.json(result)
+    }),
+
+    checkIn: asyncHandler(async (req, res) => {
+      const { viajeId } = viajeIdParamSchema.parse(req.params)
+      const body = checkInSchema.parse(req.body ?? {})
+      const result = await service.checkIn(req.userId!, viajeId, body)
+      res.json(result)
+    }),
+
+    cederLiderazgo: asyncHandler(async (req, res) => {
+      const { viajeId } = viajeIdParamSchema.parse(req.params)
+      const { nuevo_lider_id } = cederLiderazgoSchema.parse(req.body)
+      const result = await service.cederLiderazgo(req.userId!, viajeId, nuevo_lider_id)
       res.json(result)
     }),
 

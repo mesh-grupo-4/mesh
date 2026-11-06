@@ -39,6 +39,7 @@ ErrorCode:
     - FORBIDDEN
     - LEADER_CANNOT_LEAVE
     - CREATOR_MUST_DELETE
+    - NOT_CHECKED_IN
     - NOT_SUPERADMIN
     - VALORACION_PROPIA
     # Recursos inexistentes
@@ -90,6 +91,7 @@ ErrorCode:
     - SELF_INVITE
     - INVALID_LEADER
     - LEADER_MUST_TRANSFER
+    - LEADER_LAST_MEMBER
     - CANNOT_CHANGE_OWN_ROLE
     - CANNOT_DEMOTE_LEADER
     - SAME_GROUP_ORIGIN
@@ -330,8 +332,16 @@ RolMiembro:
 
 EstadoViajeIntegrante:
   type: string
-  description: Estado de una persona respecto de un viaje al que fue invitada.
-  enum: [pendiente, confirmado, rechazado, salido]
+  description: |
+    Estado de una persona respecto de un viaje al que fue invitada.
+
+    - `confirmado`: dijo que va. La presencia real se marca aparte con `check_in_at`
+      (RN-029b): sin check-in no se le acepta GPS ni recibe alertas en vivo.
+    - `salido`: se sumó y abandonó el viaje en curso; figura en el resumen.
+    - `ausente` (RN-029c): confirmó pero nunca se sumó. Se asigna al decir "No voy a
+      ir" con el viaje en curso, o al finalizar. No cuenta en historial ni métricas.
+    - `rechazado`: rechazó la invitación o se bajó antes de que el viaje empezara.
+  enum: [pendiente, confirmado, rechazado, salido, ausente]
   example: confirmado
 
 OrigenViajeIntegrante:
@@ -1745,8 +1755,8 @@ ViajeDetalle:
           type: object
           nullable: true
           description: |
-            Participación del usuario autenticado. Para el creador siempre es
-            `{ estado: confirmado, origen: creador }`, aunque no tenga fila propia.
+            Participación del usuario autenticado. Para el líder actual siempre es
+            `estado: confirmado`, aunque no tenga fila propia (viajes legacy).
           required:
             - estado
             - origen
@@ -1755,6 +1765,15 @@ ViajeDetalle:
               $ref: '#/EstadoViajeIntegrante'
             origen:
               $ref: '#/OrigenViajeIntegrante'
+            check_in_at:
+              type: string
+              format: date-time
+              nullable: true
+              description: |
+                RN-029b: cuándo se sumó al viaje en curso ("Me sumo"). `null` = todavía
+                no se sumó: la app no arranca el GPS hasta que lo haga. El líder hace
+                check-in implícito al iniciar.
+              example: '2026-08-21T14:05:00.000Z'
           additionalProperties: false
 
 CrearViajeRequest:
@@ -1965,7 +1984,82 @@ SalidaDeViaje:
       format: uuid
     accion:
       type: string
-      enum: [salido]
+      description: |
+        Estado en que quedó la persona (RN-029c): `rechazado` si se bajó antes del
+        inicio, `ausente` si el viaje estaba en curso y nunca se sumó, `salido` si
+        se había sumado.
+      enum: [salido, ausente, rechazado]
+      example: salido
+  additionalProperties: false
+
+SalirViajeRequest:
+  type: object
+  description: |
+    Body opcional. Solo el líder necesita enviarlo: para bajarse tiene que ceder
+    antes el liderazgo (RN-029d).
+  properties:
+    nuevo_lider_id:
+      type: string
+      format: uuid
+      description: |
+        Sucesor. Tiene que ser integrante `confirmado`; si el viaje está en curso,
+        además tiene que haberse sumado (`check_in_at` no nulo).
+      example: 44444444-4444-4444-4444-444444444444
+  additionalProperties: false
+
+CheckInRequest:
+  type: object
+  description: Body opcional del check-in (RN-029b).
+  properties:
+    check_in_at:
+      type: string
+      format: date-time
+      description: |
+        Momento en que la persona tocó "Me sumo". Sirve cuando el check-in llega
+        tarde desde la cola offline. Se acota entre el inicio real del viaje y ahora;
+        si se omite, se usa la hora del servidor.
+      example: '2026-08-21T14:05:00.000Z'
+  additionalProperties: false
+
+CheckInViaje:
+  type: object
+  required:
+    - viaje_id
+    - check_in_at
+  properties:
+    viaje_id:
+      type: string
+      format: uuid
+    check_in_at:
+      type: string
+      format: date-time
+      example: '2026-08-21T14:05:00.000Z'
+  additionalProperties: false
+
+CederLiderazgoRequest:
+  type: object
+  required:
+    - nuevo_lider_id
+  properties:
+    nuevo_lider_id:
+      type: string
+      format: uuid
+      example: 44444444-4444-4444-4444-444444444444
+  additionalProperties: false
+
+LiderazgoCedido:
+  type: object
+  required:
+    - viaje_id
+    - lider_id
+  properties:
+    viaje_id:
+      type: string
+      format: uuid
+    lider_id:
+      type: string
+      format: uuid
+      description: Nuevo líder del viaje.
   additionalProperties: false
 
 ViajeOcultado:
@@ -2103,6 +2197,13 @@ ParticipanteViaje:
         Tiene al menos un registro GPS posterior al inicio real del viaje.
         Es `false` para todos mientras el viaje no haya arrancado
         (`fecha_inicio_real` nula), incluso si ya `estado = confirmado`.
+    check_in_at:
+      type: string
+      format: date-time
+      nullable: true
+      description: >-
+        RN-029b: cuándo se sumó al viaje en curso. `null` si no se sumó (todavía,
+        o nunca). Solo quien tiene check-in es trackeado y recibe alertas en vivo.
     grupo_origen:
       type: object
       nullable: true

@@ -133,6 +133,8 @@ enum EstadoViajeIntegrante {
   rechazado
   /// Abandonó el viaje en curso. Salida blanda: conserva su histórico y figura en el resumen.
   salido
+  /// RN-029c: confirmó pero no hizo check-in (no fue). No cuenta en historial ni métricas.
+  ausente
 }
 
 enum OrigenViajeIntegrante {
@@ -388,6 +390,9 @@ model ViajeIntegrante {
   fecha_salida    DateTime?             @map("fecha_salida")
   /// El participante quitó el viaje finalizado de su historial. Solo afecta su lista.
   oculto_en_historial Boolean           @default(false) @map("oculto_en_historial")
+  /// RN-029b: momento en que se sumó al viaje en curso ("Me sumo"). Sin check-in no hay
+  /// tracking, motor de eventos ni alertas en vivo para esta persona.
+  check_in_at     DateTime?             @map("check_in_at")
 
   viaje        Viaje   @relation(fields: [viaje_id], references: [id], onDelete: Cascade)
   usuario      Usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade)

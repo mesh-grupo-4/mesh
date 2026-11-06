@@ -12,6 +12,7 @@ import {
   usuarioAfectadoDesdeMensaje,
 } from '../motor-eventos/motorEventos.config'
 import { obtenerMotorEventos } from '../motor-eventos/motorEventos.service'
+import { esIntegranteActivo, WHERE_INTEGRANTE_ACTIVO } from '../viajes/viajes.membership'
 
 /** Etiquetas de categoría para el texto de las notificaciones (RN-022). */
 const ETIQUETA_CATEGORIA: Record<string, string> = {
@@ -79,10 +80,14 @@ export class ParadasService {
 
     const integrante = await this.prisma.viajeIntegrante.findUnique({
       where: { viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId } },
-      select: { estado: true },
+      select: { estado: true, check_in_at: true },
     })
     if (integrante?.estado !== 'confirmado') {
       throw new HttpError(403, 'Sin acceso a este viaje', 'FORBIDDEN')
+    }
+    // RN-029b: paradas y solicitudes son acciones en vivo; requieren haberse sumado.
+    if (!esIntegranteActivo(integrante)) {
+      throw new HttpError(403, 'Tenés que sumarte al viaje primero', 'NOT_CHECKED_IN')
     }
     return { creadorId: viaje.creador_id, esLider: false }
   }
@@ -727,7 +732,7 @@ export class ParadasService {
       this.emitir(viajeId, 'viaje:alerta', { viajeId, alerta: this.mapAlerta(alerta, nombre) })
 
       const integrantes = await this.prisma.viajeIntegrante.findMany({
-        where: { viaje_id: viajeId, estado: 'confirmado' },
+        where: { viaje_id: viajeId, ...WHERE_INTEGRANTE_ACTIVO },
         select: { usuario: { select: { id: true, push_token: true } } },
       })
       const viaje = await this.prisma.viaje.findUnique({
@@ -760,7 +765,7 @@ export class ParadasService {
     }
   }
 
-  /** Push a líder e integrantes confirmados, menos el autor. */
+  /** Push a líder e integrantes activos (sumados al viaje, RN-029b), menos el autor. */
   private async notificarGrupo(
     viajeId: string,
     autorId: string,
@@ -773,7 +778,7 @@ export class ParadasService {
         select: { creador_id: true, creador: { select: { push_token: true } } },
       })
       const integrantes = await this.prisma.viajeIntegrante.findMany({
-        where: { viaje_id: viajeId, estado: 'confirmado' },
+        where: { viaje_id: viajeId, ...WHERE_INTEGRANTE_ACTIVO },
         select: { usuario: { select: { id: true, push_token: true } } },
       })
       const destinos = new Map<string, string>()
@@ -815,7 +820,7 @@ export class ParadasService {
         select: { creador_id: true, creador: { select: { push_token: true } } },
       })
       const integrantes = await this.prisma.viajeIntegrante.findMany({
-        where: { viaje_id: viajeId, estado: 'confirmado' },
+        where: { viaje_id: viajeId, ...WHERE_INTEGRANTE_ACTIVO },
         select: { usuario: { select: { id: true, push_token: true } } },
       })
 

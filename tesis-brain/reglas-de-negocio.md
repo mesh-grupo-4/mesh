@@ -63,7 +63,7 @@ A diferencia de soluciones existentes (Strava, Garmin, Google Maps, Life360) que
 
 **Contrato API MVP (SCRUM-11 / SCRUM-13 / SCRUM-14 / SCRUM-17 / SCRUM-18):** OpenAPI en `backend/openapi/paths/grupos.yaml` y `backend/openapi/paths/amistades.yaml` (spec modular, ver [[adr-documentacion-api]]). Endpoints destacados: `GET /api/usuarios/me` (lee el perfil desde la BD), `POST /api/usuarios/sync` (alta/actualización; persiste `nombre`, `apellido`, `telefono` y `actividad_preferida`), `POST /api/grupos`, `GET /api/grupos/:grupoId`, `GET /api/grupos/:grupoId/amigos-para-invitar`, `GET /api/grupos/:grupoId/buscar-usuarios`, `POST /api/grupos/:grupoId/invitar-usuarios`, `GET /api/grupos/invitaciones/pendientes`, `POST /api/grupos/invitaciones/:invitacionId/responder` (`GET /api/grupos/:grupoId` devuelve además `cantidad_miembros` y `cantidad_viajes`), `GET /api/amistades`, `GET /api/amistades/buscar`, `DELETE /api/amistades/:usuarioId`, `POST /api/amistades/solicitar`, `POST /api/amistades/solicitudes/:id/responder`. Auth: Bearer Firebase ID token.
 
-**Contrato API viajes (RN-015–029):** OpenAPI en `backend/openapi/paths/viajes.yaml` (spec modular, ver [[adr-documentacion-api]]). Endpoints destacados: `POST /api/viajes` (body: `nombre` obligatorio, `tipoActividad`, `fechaProgramada` futura, `esGrupal`, y en grupales `grupoIds` + `amigoIds`), `GET /api/viajes/planificados`, `GET /api/viajes/invitaciones/pendientes` (ambos devuelven `nombre` del viaje como identificador principal), `POST /api/viajes/:viajeId/invitacion/responder`, `POST /api/viajes/:viajeId/invitaciones` (invitar después de crear, RN-028), `GET /api/viajes/:viajeId/participantes`, `POST /api/viajes/:viajeId/unirse-qr`. `POST /api/viajes` acepta `inmediato: true` en lugar de `fechaProgramada` ("Viaje YA", RN-107).
+**Contrato API viajes (RN-015–029):** OpenAPI en `backend/openapi/paths/viajes.yaml` (spec modular, ver [[adr-documentacion-api]]). Endpoints destacados: `POST /api/viajes` (body: `nombre` obligatorio, `tipoActividad`, `fechaProgramada` futura, `esGrupal`, y en grupales `grupoIds` + `amigoIds`), `GET /api/viajes/planificados`, `GET /api/viajes/invitaciones/pendientes` (ambos devuelven `nombre` del viaje como identificador principal), `POST /api/viajes/:viajeId/invitacion/responder`, `POST /api/viajes/:viajeId/invitaciones` (invitar después de crear, RN-028), `GET /api/viajes/:viajeId/participantes`, `POST /api/viajes/:viajeId/unirse-qr`, `POST /api/viajes/:viajeId/check-in` ("Me sumo", RN-029b), `POST /api/viajes/:viajeId/liderazgo` (ceder el viaje, RN-029d), `POST /api/viajes/:viajeId/salir` (body opcional `nuevo_lider_id`; responde `accion: salido | ausente | rechazado`, RN-029c). `POST /api/viajes` acepta `inmediato: true` en lugar de `fechaProgramada` ("Viaje YA", RN-107).
 
 ### 2.3 Reglas de Viajes y Rutas
 
@@ -74,6 +74,9 @@ A diferencia de soluciones existentes (Strava, Garmin, Google Maps, Life360) que
 | RN-020 | Un viaje puede ser **individual** (sin invitados iniciales) o **grupal** (con uno o más participantes). |
 | RN-028 | Al crear un viaje grupal, el creador puede invitar por dos vías (UI: dos `Collapsible`, Grupos y Amigos): **(a) grupos** de los que es **miembro**, invitando en bloque a sus integrantes (`origen: grupo`); y **(b) amigos** individuales con amistad **aceptada** (`origen: amigo`, validado en backend con 403 `NOT_FRIEND` si no son amigos). Ambos `grupoIds` y `amigoIds` solo se aceptan en viajes grupales. Si un usuario llega por varios caminos (varios grupos, o grupo + amigo) recibe **una sola invitación** (se prioriza `origen: grupo`). El campo `invitaciones_enviadas` cuenta el total sin duplicar. El viaje se crea con `nombre` obligatorio (1–100) y `fecha_programada` futura definida por el creador. Los `grupoIds` invitados se **persisten** en `viaje_grupo` (RN-027) para trazabilidad y conteo de viajes por grupo. **Después de crear:** el líder puede sumar grupos/amigos con `POST /api/viajes/:viajeId/invitaciones` mientras el viaje esté `planificado` (mismas validaciones; 403 `NOT_CREATOR` si no es el líder, 409 `INVALID_STATE` si ya arrancó, 409 `INDIVIDUAL_TRIP` si es individual). Quien ya figura en el viaje, en cualquier estado, no se vuelve a invitar. |
 | RN-029 | Las invitaciones al viaje (originadas por grupos o por amigos) requieren **confirmación** del invitado (aceptar/rechazar asistencia). El creador del viaje ve la lista de confirmados y rechazados. Distinto de RN-016 (QR al viaje) y de RN-018 (membresía de grupo). |
+| RN-029b | **Presencia en el viaje (check-in).** `confirmado` solo significa "dije que voy". Cuando el viaje arranca, cada confirmado elige **"Me sumo"** (`POST /api/viajes/:viajeId/check-in`, guarda `viaje_integrante.check_in_at`) o **"No voy a ir"**. Sin check-in el backend **rechaza su GPS** (`403 NOT_CHECKED_IN` en las tres entradas: socket, lote offline y ubicación viva), el motor de eventos no lo evalúa, no recibe push de alertas en vivo y no puede crear alertas ni paradas. Así, quien confirmó y se quedó en casa no dispara desvíos, atrasos ni "posible incidente" al grupo, ni expone su domicilio en el mapa. Puede **ver** el mapa (la sala admite a cualquier confirmado). El líder hace check-in implícito al iniciar. El check-in es idempotente y viaja en la **cola offline** del dispositivo, que lo manda **antes** que las posiciones (RN-038: si se toca sin señal, nada se pierde). **Red de seguridad del motor:** aunque alguien se sume desde lejos, el motor no lo evalúa hasta que su primer ping cae a menos de `distancia_max_separacion` de la ruta. |
+| RN-029c | **No asistió y baja previa.** Quien confirmó pero nunca se sumó queda **`ausente`**: al tocar "No voy a ir" con el viaje en curso, o automáticamente al finalizar. Un `ausente` no cuenta como integrante del resumen ni le aparece el viaje en su historial, estadísticas o reportes de actividad (que filtran `confirmado`/`salido`); sí cuenta como invitación aceptada. Bajarse **antes del inicio** deja a la persona **`rechazado`** (no `salido`): nunca fue. `salido` queda solo para quien se sumó y abandonó en curso. |
+| RN-029d | **Liderazgo del viaje cedible.** El líder puede cederle el viaje a otro integrante (`POST /api/viajes/:viajeId/liderazgo`): antes del inicio, a un `confirmado`; en curso, a alguien que ya hizo check-in. El líder anterior sigue como participante. Para **bajarse**, el líder tiene que ceder primero (`POST /salir` con `nuevo_lider_id`, igual que RN-013 en grupos; la UI preselecciona al más antiguo): sin sucesor responde `LEADER_MUST_TRANSFER`, y si no hay a quién cederlo `LEADER_LAST_MEMBER` (hay que eliminar el viaje si no empezó, o finalizarlo si está en curso). No crea roles nuevos (RN-011): cambia `viaje.creador_id`, así que todos los permisos de líder (RN-030) pasan al sucesor. Se emite `viaje:lider_cambiado` y se notifica por push al nuevo líder. |
 | RN-021 | Los tipos de actividad disponibles son: **moto**, **auto**, **bici**, **running**, **trekking**, **otro**. Cada uno tiene parámetros por defecto diferentes. |
 | RN-022 | Las categorías de parada son: **accidente**, **combustible**, **descanso**, **gastronomía**, **punto de control**, **sanitario**, **otro**. `accidente` solo aplica a paradas voluntarias del viaje en vivo (se muestra destacada en el selector "¿por qué parás?") y además genera una alerta de peligro para todo el grupo. Las paradas planificadas de la ruta no usan `accidente`. |
 | RN-023 | La estimación de tiempos depende del tipo de actividad seleccionado y la distancia, más el tiempo configurable de cada parada. |
@@ -308,7 +311,7 @@ Si el PO prefiere un criterio más conservador, la alternativa es devolver
 | Viajes finalizados | En el panel: total histórico de viajes en estado `finalizado`, único contador de viajes (el desglose por estado se retiró porque casi todos terminan finalizados). En los reportes: viajes con `fecha_fin_real` en el período. |
 | Tasa de realización | De los viajes con `fecha_programada` en el período y ya vencida, cuántos se iniciaron. Los que siguen `planificado` cuentan como "no realizados". |
 | Falsas alarmas | Posibles incidentes del motor de eventos (`parada.tipo = incidente_detectado`) en los que la persona confirmó "estoy bien". Una tasa alta en una actividad indica que conviene subir su umbral de detección. |
-| Aceptación de invitaciones | Aceptadas / (aceptadas + rechazadas); las pendientes no cuentan. En viajes, `confirmado` y `salido` cuentan como aceptadas. |
+| Aceptación de invitaciones | Aceptadas / (aceptadas + rechazadas); las pendientes no cuentan. En viajes, `confirmado`, `salido` y `ausente` cuentan como aceptadas (`ausente` aceptó aunque después no fue, RN-029c). |
 | Canal de incorporación | `viaje_integrante.origen` de quienes se sumaron en el período, sin contar al creador (QR, link, grupo, amigo). |
 | Ubicación apagada | Participaciones en las que la persona tenía el compartir apagado: preferencia del viaje o, si no eligió, su default del perfil (RN-111). |
 | Gastos | Montos tal como se cargaron: la app no registra moneda. Promedio por persona = monto / personas que participaron en esos viajes. |
@@ -639,7 +642,9 @@ ParadaIntermedia
 ViajeIntegrante
 ├── viaje_id (FK)
 ├── usuario_id (FK)
-├── estado (enum: pendiente, confirmado, rechazado) — RN-029; QR usa confirmado directo (RN-016)
+├── estado (enum: pendiente, confirmado, rechazado, salido, ausente) — RN-029 / RN-029c; QR usa confirmado directo (RN-016)
+├── check_in_at (nullable) — RN-029b: se sumó al viaje en curso; sin esto no hay tracking ni alertas en vivo
+├── fecha_salida (nullable) — cuándo abandonó en curso (`salido`)
 └── origen (enum: creador, qr, link, grupo, amigo) — trazabilidad del modo de invitación (amigo = invitado individualmente por amistad, RN-028)
 
 RegistroGPS
@@ -805,13 +810,19 @@ RachaActividad
    └── [resuelta]
 ```
 
-### 5.4 Estados de Confirmación de Asistencia
+### 5.4 Estados de Confirmación de Asistencia y Presencia (RN-029, RN-029b, RN-029c)
 
 ```
-[pendiente] ──► [confirmado]
-      │
+                 (planificado)                       (en_curso)
+[pendiente] ──► [confirmado] ──"Me sumo"──► [confirmado + check_in_at] ──salir──► [salido]
+      │              │   │                                (trackeado, evaluado,
+      │              │   └──"No voy a ir" / al finalizar sin check-in──► [ausente]
+      │              └──"Ya no voy" antes del inicio──► [rechazado]
       └──► [rechazado]
 ```
+
+- Solo `confirmado + check_in_at` (o el líder) envía GPS, lo evalúa el motor y recibe alertas en vivo.
+- El líder hace check-in implícito al iniciar; puede ceder el viaje (RN-029d) y, para bajarse, tiene que cederlo.
 
 ---
 

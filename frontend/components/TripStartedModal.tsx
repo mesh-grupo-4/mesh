@@ -9,9 +9,19 @@ type Props = {
   trip: TripStartedPayload | null
   joining: boolean
   onJoin: () => void
+  /** RN-029b/c: confirmó pero no va. Queda `ausente` y no se le trackea ni alerta. */
+  onDecline: () => void
+  declining?: boolean
 }
 
-export function TripStartedModal({ visible, trip, joining, onJoin }: Props) {
+export function TripStartedModal({
+  visible,
+  trip,
+  joining,
+  onJoin,
+  onDecline,
+  declining = false,
+}: Props) {
   const theme = useTheme()
   const nombreViaje = trip?.nombre?.trim() || 'el viaje'
 
@@ -26,7 +36,8 @@ export function TripStartedModal({ visible, trip, joining, onJoin }: Props) {
           <Text style={[styles.titulo, { color: theme.text }]}>¡El viaje ha comenzado!</Text>
 
           <Text style={[styles.descripcion, { color: theme.textDim }]}>
-            ¡El viaje {nombreViaje} ha comenzado! El líder ha iniciado la ruta. ¿Estás listo para unirte?
+            ¡El viaje {nombreViaje} ha comenzado! El líder ha iniciado la ruta. ¿Te sumás?
+            Tu ubicación se comparte recién cuando confirmes que estás en el viaje.
           </Text>
 
           {/* RN-110: unirse enciende el tracking, así que este también es un punto
@@ -35,8 +46,23 @@ export function TripStartedModal({ visible, trip, joining, onJoin }: Props) {
             <AvisoUbicacion />
           </ScrollView>
 
-          <Btn variant="primary" block onPress={onJoin} loading={joining} disabled={joining}>
-            Acepto y me uno al recorrido
+          <Btn
+            variant="primary"
+            block
+            onPress={onJoin}
+            loading={joining}
+            disabled={joining || declining}
+          >
+            Acepto y me sumo al recorrido
+          </Btn>
+          <Btn
+            variant="secondary"
+            block
+            onPress={onDecline}
+            loading={declining}
+            disabled={joining || declining}
+          >
+            No voy a ir
           </Btn>
         </View>
       </View>

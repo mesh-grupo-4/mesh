@@ -18,7 +18,7 @@ import {
   computeTrazaRecorrido,
 } from '../../lib/postgis'
 import { filtrosGpsPorActividad } from '../../lib/gpsFilters'
-import { unirUsuarioAlViaje } from './viajes.membership'
+import { esIntegranteActivo, unirUsuarioAlViaje, WHERE_INTEGRANTE_ACTIVO } from './viajes.membership'
 import type {
   ActualizarViajeInput,
   CreateViajeInput,
@@ -55,7 +55,8 @@ const ORDEN_ESTADO_INTEGRANTE: Record<EstadoViajeIntegrante, number> = {
   confirmado: 0,
   pendiente: 1,
   salido: 2,
-  rechazado: 3,
+  ausente: 3,
+  rechazado: 4,
 }
 
 export class ViajesService {
@@ -469,6 +470,8 @@ export class ViajesService {
           : (i.grupo_origen_id && rolPorGrupoUsuario.get(`${i.grupo_origen_id}:${i.usuario_id}`)) ||
             ('participante' as const),
       union_efectiva: unidosTrasInicio.has(i.usuario_id),
+      // RN-029b: se sumó al viaje en curso. El creador hace check-in al iniciar.
+      check_in_at: i.check_in_at ?? null,
       grupo_origen: i.grupo_origen_id
         ? { id: i.grupo_origen_id, nombre: nombrePorGrupo.get(i.grupo_origen_id) ?? '' }
         : null,
@@ -926,12 +929,29 @@ export class ViajesService {
       throw new HttpError(409, 'El viaje no está en estado planificado', 'INVALID_STATE')
     }
 
-    const actualizado = await this.prisma.viaje.update({
-      where: { id: viajeId },
-      data: {
-        estado: 'en_curso',
-        fecha_inicio_real: new Date(),
-      },
+    const inicio = new Date()
+    const actualizado = await this.prisma.$transaction(async (tx) => {
+      const v = await tx.viaje.update({
+        where: { id: viajeId },
+        data: {
+          estado: 'en_curso',
+          fecha_inicio_real: inicio,
+        },
+      })
+      // RN-029b: el líder hace check-in implícito al iniciar. Upsert por los viajes
+      // legacy en los que el creador no tiene fila propia en viaje_integrante.
+      await tx.viajeIntegrante.upsert({
+        where: { viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: creadorId } },
+        create: {
+          viaje_id: viajeId,
+          usuario_id: creadorId,
+          estado: 'confirmado',
+          origen: 'creador',
+          check_in_at: inicio,
+        },
+        update: { estado: 'confirmado', check_in_at: inicio },
+      })
+      return v
     })
 
     getIo().to(`viaje:${viajeId}`).emit('viaje:iniciado', {
@@ -946,47 +966,270 @@ export class ViajesService {
   }
 
   /**
-   * Salida blanda: el integrante deja de compartir ubicación pero conserva su fila,
-   * para seguir figurando en el resumen del viaje con lo que recorrió.
-   * El viaje NO se cierra para los demás; eso solo lo hace `finalizar()`.
+   * Bajarse del viaje. El estado resultante depende de cuándo y de si se sumó:
+   * - `planificado` → `rechazado` (RN-029c): nunca fue, no le figura en el historial.
+   * - `en_curso` sin check-in ("No voy a ir") → `ausente`.
+   * - `en_curso` con check-in → `salido` (salida blanda: conserva su fila y figura
+   *   en el resumen con lo que recorrió). El viaje NO se cierra para los demás.
+   *
+   * El líder también puede bajarse (RN-029d), pero antes tiene que ceder el liderazgo
+   * con `nuevo_lider_id`, igual que en grupos (RN-013).
    */
-  async salirViaje(usuarioId: string, viajeId: string) {
+  async salirViaje(usuarioId: string, viajeId: string, input: { nuevo_lider_id?: string } = {}) {
     const viaje = await this.prisma.viaje.findUnique({
       where: { id: viajeId },
-      select: { id: true, creador_id: true, estado: true, es_grupal: true },
+      select: {
+        id: true,
+        creador_id: true,
+        estado: true,
+        es_grupal: true,
+        nombre: true,
+        fecha_inicio_real: true,
+      },
     })
     if (!viaje) throw new HttpError(404, 'Viaje no encontrado', 'VIAJE_NOT_FOUND')
     if (!viaje.es_grupal) {
       throw new HttpError(409, 'Un viaje individual no se abandona, se finaliza', 'INDIVIDUAL_TRIP')
     }
-    if (viaje.creador_id === usuarioId) {
-      throw new HttpError(403, 'El líder no puede salir del viaje, debe finalizarlo', 'LEADER_CANNOT_LEAVE')
+
+    const esLider = viaje.creador_id === usuarioId
+    if (esLider && viaje.estado === 'finalizado') {
+      throw new HttpError(403, 'El líder no puede salir de un viaje finalizado', 'LEADER_CANNOT_LEAVE')
     }
 
     const integrante = await this.prisma.viajeIntegrante.findUnique({
       where: { viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId } },
-      select: { estado: true },
+      select: { estado: true, check_in_at: true },
     })
-    if (!integrante || integrante.estado !== 'confirmado') {
+    if (!esLider && (!integrante || integrante.estado !== 'confirmado')) {
       throw new HttpError(403, 'No sos participante confirmado de este viaje', 'NOT_PARTICIPANT')
     }
+
+    if (esLider) {
+      if (!input.nuevo_lider_id) {
+        const candidatos = await this.prisma.viajeIntegrante.count({
+          where: this.whereSucesoresPosibles(viajeId, usuarioId, viaje.estado),
+        })
+        if (candidatos === 0) {
+          throw new HttpError(
+            409,
+            viaje.estado === 'en_curso'
+              ? 'No hay otro integrante sumado al viaje: finalizalo en lugar de salir'
+              : 'No hay otro integrante confirmado: eliminá el viaje en lugar de salir',
+            'LEADER_LAST_MEMBER'
+          )
+        }
+        throw new HttpError(400, 'Elegí a quién cederle el liderazgo antes de salir', 'LEADER_MUST_TRANSFER')
+      }
+      await this.transferirLiderazgoViaje(viaje, input.nuevo_lider_id)
+    }
+
+    // El líder está presente desde que inicia (check-in implícito al iniciar).
+    const sumado = esLider || esIntegranteActivo(integrante)
+    const nuevoEstado =
+      viaje.estado === 'planificado'
+        ? ('rechazado' as const)
+        : viaje.estado === 'en_curso' && !sumado
+          ? ('ausente' as const)
+          : ('salido' as const)
 
     const ahora = new Date()
     await this.prisma.viajeIntegrante.update({
       where: { viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId } },
-      data: { estado: 'salido', fecha_salida: ahora },
+      data: {
+        estado: nuevoEstado,
+        fecha_salida: nuevoEstado === 'salido' ? ahora : null,
+        ...(nuevoEstado === 'rechazado' ? { check_in_at: null } : {}),
+      },
     })
 
     if (viaje.estado === 'en_curso') {
-      // Quien se va deja de figurar en el mapa: sin esto su última posición seguía
-      // apareciendo en cada refresco por REST, y su parada abierta o su alerta de
-      // desvío/atraso quedaban "vivas" sin nadie que pudiera cerrarlas.
-      await this.cerrarSituacionEnVivo(viajeId, ahora, usuarioId)
-      this.motor.limpiarIntegrante(viajeId, usuarioId)
-      getIo().to(`viaje:${viajeId}`).emit('viaje:participante_salio', { viajeId, usuarioId })
+      if (nuevoEstado === 'salido') {
+        // Quien se va deja de figurar en el mapa: sin esto su última posición seguía
+        // apareciendo en cada refresco por REST, y su parada abierta o su alerta de
+        // desvío/atraso quedaban "vivas" sin nadie que pudiera cerrarlas.
+        await this.cerrarSituacionEnVivo(viajeId, ahora, usuarioId)
+        this.motor.limpiarIntegrante(viajeId, usuarioId)
+      }
+      getIo()
+        .to(`viaje:${viajeId}`)
+        .emit('viaje:participante_salio', { viajeId, usuarioId, estado: nuevoEstado })
     }
 
-    return { viaje_id: viajeId, accion: 'salido' as const }
+    return { viaje_id: viajeId, accion: nuevoEstado }
+  }
+
+  /**
+   * RN-029d: el líder cede el viaje a otro integrante. Se puede antes de iniciar
+   * (a un confirmado) o en curso (a alguien que ya se sumó). No crea roles nuevos
+   * (RN-011): solo cambia quién es el líder.
+   */
+  async cederLiderazgo(usuarioId: string, viajeId: string, nuevoLiderId: string) {
+    const viaje = await this.prisma.viaje.findUnique({
+      where: { id: viajeId },
+      select: {
+        id: true,
+        creador_id: true,
+        estado: true,
+        es_grupal: true,
+        nombre: true,
+        fecha_inicio_real: true,
+      },
+    })
+    if (!viaje) throw new HttpError(404, 'Viaje no encontrado', 'VIAJE_NOT_FOUND')
+    if (viaje.creador_id !== usuarioId) {
+      throw new HttpError(403, 'Solo el líder puede ceder el liderazgo', 'NOT_CREATOR')
+    }
+    if (!viaje.es_grupal) {
+      throw new HttpError(409, 'Un viaje individual no tiene a quién ceder el liderazgo', 'INDIVIDUAL_TRIP')
+    }
+    if (viaje.estado === 'finalizado') {
+      throw new HttpError(409, 'El viaje ya finalizó', 'INVALID_STATE')
+    }
+
+    await this.transferirLiderazgoViaje(viaje, nuevoLiderId)
+    return { viaje_id: viajeId, lider_id: nuevoLiderId }
+  }
+
+  /** Quiénes pueden recibir el liderazgo: confirmados; en curso, además sumados. */
+  private whereSucesoresPosibles(
+    viajeId: string,
+    liderId: string,
+    estadoViaje: EstadoViaje
+  ): Prisma.ViajeIntegranteWhereInput {
+    return {
+      viaje_id: viajeId,
+      usuario_id: { not: liderId },
+      ...(estadoViaje === 'en_curso' ? WHERE_INTEGRANTE_ACTIVO : { estado: 'confirmado' as const }),
+    }
+  }
+
+  /**
+   * Pasa el liderazgo a `nuevoLiderId`. Cambiar `creador_id` alcanza para que todos
+   * los controles de permisos (RN-030) sigan funcionando sin tocarlos, igual que la
+   * reasignación del backoffice (RN-123).
+   */
+  private async transferirLiderazgoViaje(
+    viaje: {
+      id: string
+      creador_id: string
+      estado: EstadoViaje
+      nombre: string | null
+      fecha_inicio_real: Date | null
+    },
+    nuevoLiderId: string
+  ) {
+    if (nuevoLiderId === viaje.creador_id) {
+      throw new HttpError(400, 'No podés cederte el liderazgo a vos mismo', 'INVALID_LEADER')
+    }
+    const sucesor = await this.prisma.viajeIntegrante.findUnique({
+      where: { viaje_id_usuario_id: { viaje_id: viaje.id, usuario_id: nuevoLiderId } },
+      select: { estado: true, check_in_at: true },
+    })
+    if (!sucesor || sucesor.estado !== 'confirmado') {
+      throw new HttpError(404, 'El nuevo líder no es integrante confirmado del viaje', 'MEMBER_NOT_FOUND')
+    }
+    if (viaje.estado === 'en_curso' && !esIntegranteActivo(sucesor)) {
+      throw new HttpError(409, 'El nuevo líder todavía no se sumó al viaje', 'NOT_CHECKED_IN')
+    }
+
+    const liderAnteriorId = viaje.creador_id
+    await this.prisma.$transaction(async (tx) => {
+      await tx.viaje.update({ where: { id: viaje.id }, data: { creador_id: nuevoLiderId } })
+      // El líder saliente sigue en el viaje como participante: en los viajes legacy
+      // no tenía fila propia y sin esto desaparecería de la lista.
+      await tx.viajeIntegrante.upsert({
+        where: { viaje_id_usuario_id: { viaje_id: viaje.id, usuario_id: liderAnteriorId } },
+        create: {
+          viaje_id: viaje.id,
+          usuario_id: liderAnteriorId,
+          estado: 'confirmado',
+          origen: 'creador',
+          check_in_at: viaje.estado === 'en_curso' ? (viaje.fecha_inicio_real ?? new Date()) : null,
+        },
+        update: {},
+      })
+    })
+
+    getIo().to(`viaje:${viaje.id}`).emit('viaje:lider_cambiado', {
+      viajeId: viaje.id,
+      liderAnteriorId,
+      liderNuevoId: nuevoLiderId,
+    })
+    void this.notificarNuevoLider(viaje.id, viaje.nombre, nuevoLiderId)
+  }
+
+  private async notificarNuevoLider(viajeId: string, nombre: string | null, liderId: string) {
+    try {
+      const usuario = await this.prisma.usuario.findUnique({
+        where: { id: liderId },
+        select: { push_token: true },
+      })
+      if (!usuario?.push_token) return
+      const { sendExpoPush } = await import('../../lib/expoPush')
+      await sendExpoPush([
+        {
+          to: usuario.push_token,
+          title: 'Ahora sos el líder',
+          body: nombre ? `Te cedieron el liderazgo de "${nombre}".` : 'Te cedieron el liderazgo del viaje.',
+          data: { viajeId, tipo: 'lider_cambiado' },
+          sound: 'default' as const,
+        },
+      ])
+    } catch (e) {
+      console.warn('[viajes] notificarNuevoLider falló:', e)
+    }
+  }
+
+  /**
+   * RN-029b: el integrante confirmado se suma al viaje en curso ("Me sumo"). Recién
+   * desde acá se acepta su GPS, lo evalúa el motor y recibe las alertas en vivo.
+   * Idempotente: el check-in puede llegar repetido desde la cola offline.
+   */
+  async checkIn(usuarioId: string, viajeId: string, input: { check_in_at?: Date } = {}) {
+    const viaje = await this.prisma.viaje.findUnique({
+      where: { id: viajeId },
+      select: { estado: true, creador_id: true, fecha_inicio_real: true },
+    })
+    if (!viaje) throw new HttpError(404, 'Viaje no encontrado', 'VIAJE_NOT_FOUND')
+    if (viaje.estado !== 'en_curso') {
+      throw new HttpError(409, 'El viaje no está en curso', 'INVALID_STATE')
+    }
+
+    const integrante = await this.prisma.viajeIntegrante.findUnique({
+      where: { viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId } },
+      select: { estado: true, check_in_at: true },
+    })
+    // El líder ya está sumado desde que inició; en viajes legacy puede no tener fila.
+    if (!integrante && viaje.creador_id === usuarioId) {
+      return { viaje_id: viajeId, check_in_at: viaje.fecha_inicio_real ?? new Date() }
+    }
+    if (!integrante || integrante.estado !== 'confirmado') {
+      throw new HttpError(403, 'No sos participante confirmado de este viaje', 'NOT_PARTICIPANT')
+    }
+    if (integrante.check_in_at) {
+      return { viaje_id: viajeId, check_in_at: integrante.check_in_at }
+    }
+
+    // Se respeta el momento en que tocó "Me sumo" (puede llegar tarde por estar sin
+    // red), acotado entre el inicio real del viaje y ahora.
+    const ahora = Date.now()
+    const inicio = viaje.fecha_inicio_real?.getTime() ?? ahora
+    const pedido = input.check_in_at?.getTime() ?? ahora
+    const checkInAt = new Date(Math.min(Math.max(pedido, inicio), ahora))
+
+    await this.prisma.viajeIntegrante.update({
+      where: { viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId } },
+      data: { check_in_at: checkInAt },
+    })
+
+    getIo().to(`viaje:${viajeId}`).emit('viaje:participante_sumado', {
+      viajeId,
+      usuarioId,
+      checkInAt: checkInAt.toISOString(),
+    })
+
+    return { viaje_id: viajeId, check_in_at: checkInAt }
   }
 
   /**
@@ -1132,6 +1375,17 @@ export class ViajesService {
       console.error('[finalizar] No se pudo cerrar la situación en vivo:', err)
     }
     this.motor.limpiarViaje(viajeId)
+
+    // RN-029c: quien confirmó pero nunca se sumó no fue al viaje. Queda `ausente` antes
+    // de armar el resumen, así no cuenta como integrante ni le aparece en el historial.
+    try {
+      await this.prisma.viajeIntegrante.updateMany({
+        where: { viaje_id: viajeId, estado: 'confirmado', check_in_at: null },
+        data: { estado: 'ausente' },
+      })
+    } catch (err) {
+      console.error('[finalizar] No se pudo marcar a los ausentes:', err)
+    }
 
     // Agregar cientos de miles de filas GPS puede tardar; si falla, el viaje ya
     // quedó cerrado igual y el GET /resumen lo recalcula (backfill perezoso).
@@ -1756,10 +2010,15 @@ export class ViajesService {
         where: {
           viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId },
         },
-        select: { estado: true },
+        select: { estado: true, check_in_at: true },
       })
       if (integrante?.estado !== 'confirmado') {
         throw new HttpError(403, 'Sin acceso a este viaje', 'FORBIDDEN')
+      }
+      // RN-029b: confirmó pero no se sumó al viaje en curso (p. ej. se quedó en casa).
+      // Sin esto el motor lo evaluaba lejos de la ruta y disparaba alertas falsas.
+      if (!esIntegranteActivo(integrante)) {
+        throw new HttpError(403, 'Tenés que sumarte al viaje antes de compartir tu ubicación', 'NOT_CHECKED_IN')
       }
     }
 
@@ -1820,7 +2079,8 @@ export class ViajesService {
         velocidad_esperada: true,
         creador_id: true,
         ruta: { select: { linestring_geojson: true } },
-        integrantes: { where: { estado: 'confirmado' }, select: { usuario_id: true } },
+        // RN-029b: solo quienes se sumaron al viaje en curso.
+        integrantes: { where: WHERE_INTEGRANTE_ACTIVO, select: { usuario_id: true } },
       },
     })
     if (!viaje) throw new HttpError(404, 'Viaje no encontrado', 'VIAJE_NOT_FOUND')
@@ -1873,7 +2133,7 @@ export class ViajesService {
         ruta: { select: { id: true, distancia_planeada_m: true } },
         integrantes: {
           where: { usuario_id: usuarioId },
-          select: { estado: true, origen: true },
+          select: { estado: true, origen: true, check_in_at: true },
         },
       },
     })
@@ -1882,9 +2142,15 @@ export class ViajesService {
     }
 
     const { integrantes, ...resto } = viaje
+    // El creador (líder actual) está siempre presente desde que inicia: si es un viaje
+    // legacy sin fila propia, su check-in es el inicio real.
     const miParticipacion =
       resto.creador_id === usuarioId
-        ? { estado: 'confirmado' as const, origen: 'creador' as const }
+        ? {
+            estado: 'confirmado' as const,
+            origen: integrantes[0]?.origen ?? ('creador' as const),
+            check_in_at: integrantes[0]?.check_in_at ?? resto.fecha_inicio_real ?? null,
+          }
         : (integrantes[0] ?? null)
 
     return {
@@ -2008,13 +2274,13 @@ export class ViajesService {
         where: { id: viajeId },
         select: {
           creador_id: true,
-          integrantes: { where: { estado: 'confirmado' }, select: { usuario_id: true } },
+          integrantes: { where: WHERE_INTEGRANTE_ACTIVO, select: { usuario_id: true } },
         },
       }),
     ])
 
-    // Solo quienes siguen en el viaje: el creador y los confirmados. Quien salió
-    // ya no comparte ubicación y no tiene que reaparecer en el mapa del grupo.
+    // Solo quienes siguen en el viaje: el creador y los integrantes activos (RN-029b).
+    // Quien salió o nunca se sumó no tiene que aparecer en el mapa del grupo.
     const activos = new Set(viaje?.integrantes.map((i) => i.usuario_id) ?? [])
     if (viaje) activos.add(viaje.creador_id)
     const enViaje = viaje ? filas.filter((r) => activos.has(r.usuario_id)) : filas

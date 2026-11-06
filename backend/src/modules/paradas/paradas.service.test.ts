@@ -29,7 +29,10 @@ function armarPrisma(overrides: Record<string, unknown> = {}) {
     estado: 'en_curso',
     creador: { push_token: null },
   })
-  const integranteFindUnique = vi.fn().mockResolvedValue({ estado: 'confirmado' })
+  const integranteFindUnique = vi.fn().mockResolvedValue({
+    estado: 'confirmado',
+    check_in_at: new Date('2026-08-21T13:00:00.000Z'),
+  })
   const paradaFindFirst = vi.fn().mockResolvedValue(null)
   const paradaCreate = vi.fn().mockResolvedValue({
     id: paradaId,

@@ -12,6 +12,7 @@ import type { GeoJsonLineString } from '../../lib/geo'
 import { computeDistanciaPuntoARutaM, computeProgresoEnRutaM } from '../../lib/postgis'
 import { getIo } from '../../realtime/ioRegistry'
 import { armarLeaderboard, type IntegranteEnRuta } from '../viajes/leaderboard'
+import { WHERE_INTEGRANTE_ACTIVO } from '../viajes/viajes.membership'
 import {
   minutosIncidenteEfectivo,
   prefijoAlertaAfectado,
@@ -99,6 +100,12 @@ export class MotorEventosService {
   /** Nombres ya resueltos, para no consultar `usuario` en cada emisión del leaderboard. */
   private readonly nombrePorUsuario = new Map<string, string>()
   private readonly ultimoLeaderboardAt = new Map<string, number>()
+  /**
+   * RN-029b: integrantes cuyo GPS ya pasó cerca de la ruta. Hasta entonces el motor no
+   * los evalúa. En memoria como el resto del estado: tras un reinicio del servidor se
+   * re-arma con el próximo ping en ruta.
+   */
+  private readonly armados = new Set<string>()
 
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -148,9 +155,21 @@ export class MotorEventosService {
       }),
     ])
     const linestring = (ruta?.linestring_geojson as unknown as GeoJsonLineString | null) ?? null
+    const distM = linestring
+      ? await computeDistanciaPuntoARutaM(this.prisma, input.lat, input.lng, linestring)
+      : null
+
+    // RN-029b (red de seguridad): el motor no evalúa a nadie hasta que su primer ping
+    // cae cerca de la ruta. Aunque alguien toque "Me sumo" desde su casa, no salta un
+    // desvío, un atraso ni un posible incidente hasta que llega al recorrido.
+    const key = this.clave(input.viajeId, input.usuarioId)
+    if (!this.armados.has(key)) {
+      if (distM != null && distM > viaje.distancia_max_separacion) return
+      this.armados.add(key)
+    }
 
     await Promise.all([
-      this.evaluarDesvio(input, viaje, linestring, tieneParadaVoluntaria, activas),
+      this.evaluarDesvio(input, viaje, distM, tieneParadaVoluntaria, activas),
       this.evaluarDetencionSospechosa(input, viaje, tieneParadaVoluntaria),
       this.evaluarAtraso(input, viaje, linestring, tieneParadaVoluntaria, activas),
     ])
@@ -165,6 +184,9 @@ export class MotorEventosService {
     for (const key of this.progresoPorClave.keys()) {
       if (key.startsWith(prefijo)) this.progresoPorClave.delete(key)
     }
+    for (const key of this.armados) {
+      if (key.startsWith(prefijo)) this.armados.delete(key)
+    }
   }
 
   /** Olvida el estado en memoria de un integrante (cuando sale del viaje). */
@@ -172,6 +194,7 @@ export class MotorEventosService {
     const key = this.clave(viajeId, usuarioId)
     this.detencionPorClave.delete(key)
     this.progresoPorClave.delete(key)
+    this.armados.delete(key)
   }
 
   /**
@@ -225,15 +248,14 @@ export class MotorEventosService {
   private async evaluarDesvio(
     input: PingInput,
     viaje: ViajeMotor,
-    linestring: GeoJsonLineString | null,
+    /** Distancia a la ruta ya calculada en `procesarPing`; null = sin ruta o sin dato. */
+    distM: number | null,
     tieneParadaVoluntaria: boolean,
     activas: AlertaSistemaActiva[]
   ): Promise<void> {
-    if (!linestring) return
+    if (distM == null) return
 
     const umbralDesvioM = viaje.distancia_max_separacion
-    const distM = await computeDistanciaPuntoARutaM(this.prisma, input.lat, input.lng, linestring)
-    if (distM == null) return
 
     const activa = activas.find((a) => a.tipo === 'desvio')
     if (activa) {
@@ -583,7 +605,8 @@ export class MotorEventosService {
       }
       if (!soloLider) {
         const integrantes = await this.prisma.viajeIntegrante.findMany({
-          where: { viaje_id: viajeId, estado: 'confirmado' },
+          // RN-029b: quien no se sumó al viaje no recibe las alertas en vivo.
+          where: { viaje_id: viajeId, ...WHERE_INTEGRANTE_ACTIVO },
           select: { usuario: { select: { id: true, push_token: true } } },
         })
         for (const i of integrantes) {

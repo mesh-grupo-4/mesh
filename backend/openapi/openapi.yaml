@@ -338,6 +338,10 @@ paths:
     $ref: './paths/viajes.yaml#/SalirViaje'
   /api/viajes/{viajeId}/ocultar:
     $ref: './paths/viajes.yaml#/OcultarViaje'
+  /api/viajes/{viajeId}/check-in:
+    $ref: './paths/viajes.yaml#/CheckInViaje'
+  /api/viajes/{viajeId}/liderazgo:
+    $ref: './paths/viajes.yaml#/CederLiderazgoViaje'
 
   # ── Rutas compartidas y plantillas ─────────────────────────────────────────
   /api/viajes/{viajeId}/ruta/compartir:

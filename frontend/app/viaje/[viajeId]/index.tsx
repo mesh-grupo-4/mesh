@@ -26,11 +26,17 @@ import { useAuth } from '@/context/AuthContext'
 import { useTripRealtime } from '@/context/TripRealtimeContext'
 import { isSupabaseConfigured } from '@/lib/supabase'
 import { emitTripStartedWithRetry } from '@/lib/tripBroadcast'
-import { detenerTrackingViaje, solicitarPermisosUbicacion } from '@/lib/tracking/trackingControl'
+import {
+  detenerTrackingViaje,
+  registrarCheckIn,
+  solicitarPermisosUbicacion,
+} from '@/lib/tracking/trackingControl'
+import { SelectorSucesorModal, type CandidatoSucesor } from '@/components/SelectorSucesorModal'
 import {
   iniciarViajeEnBackend,
   finalizarViaje,
   salirViaje,
+  cederLiderazgo,
   eliminarViaje,
   obtenerViaje,
   obtenerRuta,
@@ -90,6 +96,9 @@ function badgeParticipante(estado: ViajeParticipanteApi['estado']): {
       return { texto: 'Salió', tone: 'mute' }
     case 'rechazado':
       return { texto: 'Rechazó', tone: 'live' }
+    // RN-029c: confirmó pero no fue.
+    case 'ausente':
+      return { texto: 'No fue', tone: 'mute' }
   }
 }
 
@@ -163,6 +172,24 @@ export default function ViajeDetalleScreen() {
   const [participantesAbierto, setParticipantesAbierto] = useState(false)
 
   const esLider = viaje != null && userId === viaje.creador_id
+  /** RN-029b: con el viaje en curso, si ya tocó "Me sumo" (el líder siempre está sumado). */
+  const sumado = esLider || !!viaje?.mi_participacion?.check_in_at
+  /** RN-029d: abierto para "ceder" el liderazgo o para "salir" (el líder tiene que cederlo antes). */
+  const [selectorSucesor, setSelectorSucesor] = useState<null | 'ceder' | 'salir'>(null)
+  /** Quiénes pueden recibir el liderazgo: confirmados; en curso, además sumados. Más antiguo primero. */
+  const candidatosSucesor = useMemo<CandidatoSucesor[]>(
+    () =>
+      participantes
+        .filter(
+          (p) =>
+            p.usuario.id !== userId &&
+            p.estado === 'confirmado' &&
+            (viaje?.estado !== 'en_curso' || p.check_in_at != null)
+        )
+        .sort((a, b) => a.created_at.localeCompare(b.created_at))
+        .map((p) => ({ id: p.usuario.id, nombre: nombreCompleto(p.usuario.nombre, p.usuario.apellido) })),
+    [participantes, userId, viaje?.estado]
+  )
   /** Invitado (por grupo o amigo) que todavía no confirmó ni rechazó (RN-028). */
   const invitacionPendiente =
     !esLider && viaje?.estado === 'planificado' && viaje.mi_participacion?.estado === 'pendiente'
@@ -537,14 +564,43 @@ export default function ViajeDetalleScreen() {
     }
   }
 
+  /** RN-029d: el líder no se va sin dejar a alguien a cargo. */
+  const avisarSinSucesor = () => {
+    if (viaje?.estado === 'en_curso') {
+      meshAlert(
+        'No hay a quién cederle el viaje',
+        'Nadie más se sumó al viaje todavía. Si te vas, finalizalo para todos.'
+      )
+    } else {
+      meshAlert(
+        'No hay a quién cederle el viaje',
+        'Ningún otro integrante confirmó. Si no vas a ir, podés cancelar el viaje.',
+        [
+          { text: 'Volver', style: 'cancel' },
+          { text: 'Cancelar viaje', style: 'destructive', onPress: () => void ejecutarEliminar() },
+        ]
+      )
+    }
+  }
+
   const confirmarSalir = () => {
+    if (esLider) {
+      if (candidatosSucesor.length === 0) avisarSinSucesor()
+      else setSelectorSucesor('salir')
+      return
+    }
+    // RN-029c: antes del inicio o sin haberse sumado no hay ubicación que dejar de
+    // compartir: la persona simplemente avisa que no va.
+    const noVa = viaje?.estado === 'planificado' || !sumado
     meshAlert(
-      'Salir del viaje',
-      '¿Estás seguro? Dejarás de compartir tu ubicación con el grupo.',
+      noVa ? 'No voy a ir' : 'Salir del viaje',
+      noVa
+        ? '¿Seguro? El grupo va a ver que no vas a participar de este viaje.'
+        : '¿Estás seguro? Dejarás de compartir tu ubicación con el grupo.',
       [
         { text: 'Cancelar', style: 'cancel' },
         {
-          text: 'Salir',
+          text: noVa ? 'No voy' : 'Salir',
           style: 'destructive',
           onPress: () => void ejecutarSalir(),
         },
@@ -552,15 +608,62 @@ export default function ViajeDetalleScreen() {
     )
   }
 
-  const ejecutarSalir = async () => {
+  const ejecutarSalir = async (nuevoLiderId?: string) => {
     if (!viajeId || !userId) return
     setAccion(true)
     try {
-      await salirViaje(viajeId, userId)
+      await salirViaje(viajeId, userId, nuevoLiderId)
       await detenerTrackingViaje()
+      setSelectorSucesor(null)
       router.replace('/(tabs)')
     } catch (e) {
+      setAccion(false)
+      if (e instanceof MeshApiError && e.code === 'LEADER_LAST_MEMBER') {
+        setSelectorSucesor(null)
+        avisarSinSucesor()
+        return
+      }
       meshAlert('Error', e instanceof Error ? e.message : 'No se pudo salir del viaje')
+    }
+  }
+
+  const ejecutarCeder = async (nuevoLiderId: string) => {
+    if (!viajeId) return
+    setAccion(true)
+    try {
+      await cederLiderazgo(viajeId, nuevoLiderId)
+      setSelectorSucesor(null)
+      await cargar()
+    } catch (e) {
+      meshAlert('Error', e instanceof Error ? e.message : 'No se pudo ceder el liderazgo')
+    } finally {
+      setAccion(false)
+    }
+  }
+
+  const abrirCederLiderazgo = () => {
+    if (candidatosSucesor.length === 0) {
+      meshAlert(
+        'No hay a quién cederle el viaje',
+        viaje?.estado === 'en_curso'
+          ? 'Solo se le puede ceder a alguien que ya se sumó al viaje.'
+          : 'Solo se le puede ceder a alguien que haya confirmado.'
+      )
+      return
+    }
+    setSelectorSucesor('ceder')
+  }
+
+  /** RN-029b: "Me sumo" desde el detalle; encolado si no hay señal. */
+  const sumarme = async () => {
+    if (!viajeId || !userId) return
+    setAccion(true)
+    try {
+      await registrarCheckIn(viajeId, userId)
+      router.push({ pathname: '/viaje/[viajeId]/live', params: { viajeId } })
+    } catch (e) {
+      meshAlert('Error', e instanceof Error ? e.message : 'No se pudo sumarte al viaje')
+    } finally {
       setAccion(false)
     }
   }
@@ -1237,6 +1340,22 @@ export default function ViajeDetalleScreen() {
               </Btn>
             )}
 
+            {/* RN-029d: el líder puede ceder el viaje, o bajarse dejando a alguien a cargo. */}
+            {esLider && viaje.es_grupal && (
+              <View style={styles.accionesLider}>
+                <View style={{ flex: 1 }}>
+                  <Btn variant="ghost" block icon="users" onPress={abrirCederLiderazgo} disabled={accion}>
+                    Ceder liderazgo
+                  </Btn>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Btn variant="ghost" block icon="log-out" onPress={confirmarSalir} disabled={accion}>
+                    {viaje.estado === 'planificado' ? 'No voy a ir' : 'Salir del viaje'}
+                  </Btn>
+                </View>
+              </View>
+            )}
+
             {invitacionPendiente && (
               <View style={{ gap: 10 }}>
                 <Text style={[styles.invitacionTexto, { color: theme.textDim }]}>
@@ -1260,22 +1379,34 @@ export default function ViajeDetalleScreen() {
 
             {viaje.estado === 'planificado' && !esLider && !invitacionPendiente && (
               <Btn variant="ghost" block icon="log-out" onPress={confirmarSalir} disabled={accion} loading={accion}>
-                Salir del viaje
+                Ya no voy a ir
               </Btn>
             )}
 
             {viaje.estado === 'en_curso' && (
               <View style={{ gap: 10 }}>
-                <Btn variant="primary" block icon="navigation" onPress={irLive}>
-                  Ver mapa en vivo
-                </Btn>
+                {/* RN-029b: confirmó pero todavía no se sumó: su GPS no se comparte hasta acá. */}
+                {!sumado && viaje.mi_participacion?.estado === 'confirmado' ? (
+                  <>
+                    <Btn variant="primary" block icon="check" onPress={() => void sumarme()} disabled={accion} loading={accion}>
+                      Me sumo al viaje
+                    </Btn>
+                    <Btn variant="ghost" block icon="navigation" onPress={irLive}>
+                      Ver el mapa sin sumarme
+                    </Btn>
+                  </>
+                ) : (
+                  <Btn variant="primary" block icon="navigation" onPress={irLive}>
+                    Ver mapa en vivo
+                  </Btn>
+                )}
                 {esLider ? (
                   <Btn variant="danger" block icon="stop-circle" onPress={confirmarFinalizar} disabled={accion} loading={accion}>
                     Finalizar viaje
                   </Btn>
                 ) : (
                   <Btn variant="ghost" block icon="log-out" onPress={confirmarSalir} disabled={accion} loading={accion}>
-                    Salir del viaje
+                    {sumado ? 'Salir del viaje' : 'No voy a ir'}
                   </Btn>
                 )}
               </View>
@@ -1289,6 +1420,23 @@ export default function ViajeDetalleScreen() {
           <Text style={{ color: theme.textDim }}>No se pudo encontrar el viaje especificado.</Text>
         </View>
       )}
+
+      <SelectorSucesorModal
+        visible={selectorSucesor != null}
+        titulo={selectorSucesor === 'salir' ? '¿Quién queda a cargo?' : 'Ceder liderazgo'}
+        descripcion={
+          selectorSucesor === 'salir'
+            ? 'Para irte del viaje tenés que dejar a alguien como líder. Va a poder iniciarlo, finalizarlo y aprobar paradas.'
+            : 'El nuevo líder va a poder iniciar y finalizar el viaje y aprobar paradas. Vos seguís en el viaje como participante.'
+        }
+        candidatos={candidatosSucesor}
+        confirmLabel={selectorSucesor === 'salir' ? 'Ceder y salir' : 'Ceder liderazgo'}
+        loading={accion}
+        onConfirm={(id) =>
+          void (selectorSucesor === 'salir' ? ejecutarSalir(id) : ejecutarCeder(id))
+        }
+        onCancel={() => setSelectorSucesor(null)}
+      />
 
       {/* GPS Permissions Modal */}
       <Modal
@@ -1572,6 +1720,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderTopWidth: 1.2,
+  },
+  accionesLider: {
+    flexDirection: 'row',
+    gap: 10,
   },
   modalBg: {
     flex: 1,
