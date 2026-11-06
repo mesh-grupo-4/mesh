@@ -1,5 +1,6 @@
 import { Feather } from '@expo/vector-icons'
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native'
+import { Modal, StyleSheet, Text, View } from 'react-native'
+import { Pressable } from '@/components/Pressable'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 

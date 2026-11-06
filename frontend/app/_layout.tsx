@@ -65,7 +65,7 @@ export default function RootLayout() {
 
 function AppStack() {
   return (
-    <Stack>
+    <Stack screenOptions={{ headerBackTitle: 'Volver' }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
       <Stack.Screen name="configurar-ruta" options={{ headerShown: false }} />

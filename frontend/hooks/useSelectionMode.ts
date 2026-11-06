@@ -1,5 +1,7 @@
 import { useCallback, useState } from 'react'
 
+import { useAtrasAndroid } from '@/hooks/useVolver'
+
 export function useSelectionMode() {
   const [active, setActive] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -13,6 +15,9 @@ export function useSelectionMode() {
     setActive(false)
     setSelectedIds(new Set())
   }, [])
+
+  // En Android, el atrás sale del modo selección antes de salir de la pantalla.
+  useAtrasAndroid(active, exit)
 
   const toggle = useCallback((id: string) => {
     setSelectedIds((prev) => {

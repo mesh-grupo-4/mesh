@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
+import { Pressable } from '@/components/Pressable'
 
 /** US2: el líder resuelve la solicitud sin salir del mapa. */
 type Props = {

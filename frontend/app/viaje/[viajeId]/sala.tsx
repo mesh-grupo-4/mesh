@@ -22,6 +22,7 @@ import { InvitarGruposAmigosModal } from '@/components/viaje-rapido/InvitarGrupo
 import { useAuth } from '@/context/AuthContext'
 import { useTripRealtime } from '@/context/TripRealtimeContext'
 import { useUbicacionActual } from '@/hooks/useUbicacionActual'
+import { useVolverInterno } from '@/hooks/useVolver'
 import { etiquetaActividad } from '@/lib/activityDefaults'
 import { resolveBackendUserId } from '@/lib/apiClient'
 import { arrancarViaje } from '@/lib/arrancarViaje'
@@ -73,6 +74,10 @@ export default function SalaEsperaScreen() {
   const [modalPermisos, setModalPermisos] = useState(false)
   const [arrancando, setArrancando] = useState(false)
   const { ubicacion } = useUbicacionActual({ activo: eligiendoDestino })
+
+  useVolverInterno(eligiendoDestino, () => {
+    if (!guardandoDestino) setEligiendoDestino(false)
+  })
 
   const { syncKnownTripIds } = useTripRealtime()
   useEffect(() => {

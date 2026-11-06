@@ -1,5 +1,6 @@
 import { Feather } from '@expo/vector-icons'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
+import { Pressable } from '@/components/Pressable'
 
 import { useTheme } from '@/components/MeshUI'
 import { tamanoOutdoor } from '@/constants/Typography'

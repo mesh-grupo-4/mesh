@@ -320,5 +320,108 @@ describe('viajes', () => {
     })
     expect(viajesFake.finalizarComoAdmin).toHaveBeenCalledWith(viajeId)
     expect(acciones(prisma)).toEqual(['viaje.finalizar'])
+    // RN-126: la auditoría no guarda ni el nombre del viaje ni quién lo creó.
+    const { data } = prisma.auditoriaAdmin.create.mock.calls[0][0] as { data: { detalle?: unknown } }
+    expect(data.detalle).toBeUndefined()
+  })
+})
+
+describe('privacidad de los viajes (RN-126)', () => {
+  const horasAtras = (h: number) => new Date(Date.now() - h * 3_600_000)
+  const fila = (over: Record<string, unknown> = {}) => ({
+    id: viajeId,
+    tipo_actividad: 'bici',
+    es_grupal: true,
+    estado: 'en_curso',
+    fecha_inicio_real: horasAtras(1),
+    _count: { integrantes: 8 },
+    ...over,
+  })
+  const CAMPOS_ANONIMOS = [
+    'cantidad_integrantes',
+    'es_grupal',
+    'estado',
+    'id',
+    'posiblemente_colgado',
+    'tipo_actividad',
+  ]
+  const PROHIBIDOS = ['nombre', 'creador', 'integrantes', 'grupos', 'ruta', 'fecha_programada', 'created_at']
+
+  it('el listado no lee ni devuelve datos identificatorios ni fechas', async () => {
+    const { service, prisma } = armar()
+    prisma.viaje.findMany.mockResolvedValueOnce([fila()])
+    ;(prisma.viaje as unknown as { count: unknown }).count = vi.fn().mockResolvedValue(1)
+
+    const r = await service.listarViajes({ pagina: 1, limite: 20 })
+
+    expect(Object.keys(r.items[0]).sort()).toEqual(CAMPOS_ANONIMOS)
+    const { select } = prisma.viaje.findMany.mock.calls[0][0] as { select: Record<string, unknown> }
+    for (const campo of PROHIBIDOS) expect(select).not.toHaveProperty(campo)
+  })
+
+  it('el detalle expone lo mismo que el listado', async () => {
+    const { service, prisma } = armar()
+    prisma.viaje.findUnique.mockResolvedValueOnce(fila())
+
+    const r = await service.detalleViaje(viajeId)
+
+    expect(Object.keys(r).sort()).toEqual(CAMPOS_ANONIMOS)
+    const { select } = prisma.viaje.findUnique.mock.calls[0][0] as { select: Record<string, unknown> }
+    for (const campo of PROHIBIDOS) expect(select).not.toHaveProperty(campo)
+  })
+
+  it.each([
+    ['en curso hace más de 24 h', { fecha_inicio_real: horasAtras(25) }, true],
+    ['en curso hace menos de 24 h', { fecha_inicio_real: horasAtras(23) }, false],
+    ['finalizado hace mucho', { estado: 'finalizado', fecha_inicio_real: horasAtras(500) }, false],
+    ['planificado', { estado: 'planificado', fecha_inicio_real: null }, false],
+  ])('aviso de viaje colgado: %s', async (_caso, over, esperado) => {
+    const { service, prisma } = armar()
+    prisma.viaje.findUnique.mockResolvedValueOnce(fila(over))
+
+    const r = await service.detalleViaje(viajeId)
+
+    expect(r.posiblemente_colgado).toBe(esperado)
+  })
+
+  it('la auditoría oculta nombre y creador de los viajes, incluso en filas viejas', async () => {
+    const entrada = (entidad: string, detalle: unknown) => ({ id: entidad, entidad, detalle })
+    const { service, prisma } = armar({
+      auditoriaAdmin: {
+        findMany: vi.fn().mockResolvedValue([
+          entrada('viaje', { nombre: 'Cumple de Ana', estado: 'finalizado', creador_id: otroId }),
+          entrada('viaje', { nombre: 'Cumple de Ana', creador_id: otroId }),
+          entrada('usuario', { email: 'objetivo@mesh.test', motivo: 'Abuso' }),
+        ]),
+        count: vi.fn().mockResolvedValue(3),
+      },
+    })
+
+    const r = await service.listarAuditoria({ pagina: 1, limite: 20 })
+
+    expect(r.items.map((i) => i.detalle)).toEqual([
+      { estado: 'finalizado' },
+      null,
+      { email: 'objetivo@mesh.test', motivo: 'Abuso' },
+    ])
+    expect(prisma.auditoriaAdmin.findMany).toHaveBeenCalledOnce()
+  })
+})
+
+describe('estadisticas', () => {
+  it('cuenta los viajes finalizados, sin desglose por estado', async () => {
+    const count = vi.fn().mockResolvedValue(7)
+    const { service, prisma } = armar({
+      usuario: { count: vi.fn().mockResolvedValue(3) },
+      grupo: { count: vi.fn().mockResolvedValue(2) },
+      viaje: { count },
+    })
+
+    await expect(service.estadisticas()).resolves.toEqual({
+      usuarios: { total: 3, superadmins: 3, suspendidos: 3 },
+      grupos: { total: 2 },
+      viajes: { finalizados: 7 },
+    })
+    expect(prisma.viaje.count).toHaveBeenCalledWith({ where: { estado: 'finalizado' } })
   })
 })

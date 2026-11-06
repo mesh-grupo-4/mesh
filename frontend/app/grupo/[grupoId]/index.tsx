@@ -3,11 +3,11 @@ import {
   View,
   Text,
   StyleSheet,
-  ActivityIndicator, 
-  Pressable,
+  ActivityIndicator,
   ScrollView,
   RefreshControl,
 } from 'react-native';
+import { Pressable } from '@/components/Pressable';
 import { meshAlert } from '@/lib/meshAlert';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';

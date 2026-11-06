@@ -34,6 +34,7 @@ export function RutasExplorarPanel() {
     <ScrollView
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
+      automaticallyAdjustKeyboardInsets
     >
       <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <View style={styles.cardHeader}>

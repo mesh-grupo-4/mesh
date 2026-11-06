@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons'
 import { useCallback, useEffect, useState } from 'react'
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Pressable } from '@/components/Pressable'
 
 import { useTheme } from '@/components/MeshUI'
 import { iconoClima, obtenerClimaViaje, type ClimaViajeApi } from '@/lib/climaApi'

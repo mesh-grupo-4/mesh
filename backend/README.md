@@ -345,8 +345,8 @@ Una cuenta suspendida recibe `403 ACCOUNT_SUSPENDED` en cualquier endpoint (RN-1
 Además de los roles de grupo (`lider` / `participante`, RN-011) existe un rol de
 **plataforma**, `usuario.rol_sistema = superadmin`, que habilita `/api/admin`:
 gestión de cuentas (editar, suspender, reactivar, eliminar, otorgar/quitar el rol),
-grupos (reasignar líder, quitar integrantes, eliminar), viajes (forzar finalización,
-eliminar) y la auditoría de cada acción (`auditoria_admin`). Módulo:
+grupos (reasignar líder, quitar integrantes, eliminar), viajes (siempre anónimos, RN-126:
+forzar finalización, eliminar) y la auditoría de cada acción (`auditoria_admin`). Módulo:
 `src/modules/admin/`; guard: `src/middleware/requireSuperadmin.ts`.
 
 El primer superadmin se nombra desde la terminal (la persona tiene que haber iniciado

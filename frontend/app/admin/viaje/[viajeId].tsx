@@ -1,6 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useState } from 'react'
-import { Text } from 'react-native'
 import { useCopilot } from 'react-native-copilot'
 
 import {
@@ -9,29 +8,26 @@ import {
   ETIQUETA_ESTADO_VIAJE,
   Fila,
   Seccion,
-  fechaAdmin,
+  codigoViaje,
   mensajeError,
-  nombreCompleto,
 } from '@/components/admin/AdminUI'
-import { Btn, useTheme } from '@/components/MeshUI'
+import { Btn } from '@/components/MeshUI'
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
 import { AYUDA_ADMIN_VIAJE } from '@/components/ayuda/contenidoAyuda'
 import {
   eliminarViajeAdmin,
   finalizarViajeAdmin,
   obtenerViajeAdmin,
-  type ViajeAdminDetalle,
+  type ViajeAdminAnonimo,
 } from '@/lib/adminApi'
-import { formatKmCompact } from '@/lib/format'
 import { meshAlert, meshConfirmDestructive, meshSuccess } from '@/lib/meshAlert'
 
-/** Sin posiciones ni velocidades: el backoffice gestiona, no vigila (RN-126, RN-070). */
+/** Anónimo: el backoffice gestiona, no vigila (RN-126, RN-070). */
 export default function AdminViajeScreen() {
   const { viajeId } = useLocalSearchParams<{ viajeId: string }>()
   const router = useRouter()
-  const theme = useTheme()
   const { start } = useCopilot()
-  const [viaje, setViaje] = useState<ViajeAdminDetalle | null>(null)
+  const [viaje, setViaje] = useState<ViajeAdminAnonimo | null>(null)
   const [ocupado, setOcupado] = useState(false)
 
   const cargar = useCallback(async () => {
@@ -85,60 +81,51 @@ export default function AdminViajeScreen() {
         }),
     })
 
+  const enCurso = viaje.estado === 'en_curso'
+
   return (
     <AdminScreen
-      title={viaje.nombre || 'Viaje sin nombre'}
+      title={codigoViaje(viaje.id)}
       sub={`${ETIQUETA_ACTIVIDAD[viaje.tipo_actividad] ?? viaje.tipo_actividad} · ${ETIQUETA_ESTADO_VIAJE[viaje.estado]}`}
       onRefresh={() => void cargar()}
       onAyuda={() => start()}
     >
       <PasoAyuda {...AYUDA_ADMIN_VIAJE[0]!}>
-        <Seccion titulo="Datos">
+        <Seccion
+          titulo="Datos del viaje"
+          descripcion="Por privacidad no se muestran nombre, personas, horarios ni ruta."
+        >
+          <Fila titulo="Actividad" detalle={ETIQUETA_ACTIVIDAD[viaje.tipo_actividad] ?? viaje.tipo_actividad} />
+          <Fila titulo="Tipo de viaje" detalle={viaje.es_grupal ? 'Grupal' : 'Individual'} />
+          <Fila titulo="Integrantes registrados" detalle={String(viaje.cantidad_integrantes)} />
           <Fila
-            titulo="Creador"
-            detalle={`${nombreCompleto(viaje.creador)} · ${viaje.creador.email}`}
-            onPress={() =>
-              router.push({ pathname: '/admin/usuario/[usuarioId]', params: { usuarioId: viaje.creador.id } })
-            }
-          />
-          <Fila titulo="Programado" detalle={fechaAdmin(viaje.fecha_programada)} />
-          {viaje.fecha_inicio_real ? <Fila titulo="Inicio" detalle={fechaAdmin(viaje.fecha_inicio_real)} /> : null}
-          {viaje.fecha_fin_real ? <Fila titulo="Fin" detalle={fechaAdmin(viaje.fecha_fin_real)} /> : null}
-          {viaje.ruta ? (
-            <Fila
-              titulo="Ruta"
-              detalle={`${viaje.ruta.origen_nombre ?? 'Origen'} → ${viaje.ruta.destino_nombre ?? 'Destino'}${
-                viaje.ruta.distancia_planeada_m ? ` · ${formatKmCompact(viaje.ruta.distancia_planeada_m)} km` : ''
-              }`}
-            />
-          ) : null}
-          <Fila
-            titulo="Actividad registrada"
-            detalle={`${viaje.totales.alertas} alertas · ${viaje.totales.paradas} paradas · ${viaje.totales.gastos} gastos`}
+            titulo="Estado"
+            detalle={viaje.posiblemente_colgado ? 'Lleva más de 24 horas en curso: puede haber quedado colgado.' : undefined}
+            etiqueta={viaje.posiblemente_colgado ? 'Posible colgado' : ETIQUETA_ESTADO_VIAJE[viaje.estado]}
+            tonoEtiqueta={viaje.posiblemente_colgado ? 'danger' : enCurso ? 'good' : 'mute'}
           />
         </Seccion>
       </PasoAyuda>
 
-      <Seccion titulo={`Integrantes (${viaje.integrantes.length})`}>
-        {viaje.integrantes.length === 0 ? (
-          <Text style={{ color: theme.textMute }}>Sin integrantes registrados.</Text>
-        ) : (
-          viaje.integrantes.map((i) => (
-            <Fila key={i.id} titulo={nombreCompleto(i)} detalle={i.email} etiqueta={i.estado} />
-          ))
-        )}
-      </Seccion>
-
       <PasoAyuda {...AYUDA_ADMIN_VIAJE[1]!}>
-        {viaje.estado === 'en_curso' ? (
-          <Btn variant="danger-outline" block icon="flag" disabled={ocupado} onPress={finalizar}>
-            Forzar finalización
-          </Btn>
-        ) : (
-          <Btn variant="danger" block icon="trash-2" disabled={ocupado} onPress={eliminar}>
-            Eliminar viaje
-          </Btn>
-        )}
+        <Seccion
+          titulo="Acción"
+          descripcion={
+            enCurso
+              ? 'Usala solo si el viaje quedó colgado. Queda registrada en la auditoría.'
+              : 'Eliminar es definitivo. Queda registrado en la auditoría.'
+          }
+        >
+          {enCurso ? (
+            <Btn variant="danger-outline" block icon="flag" disabled={ocupado} onPress={finalizar}>
+              Forzar finalización
+            </Btn>
+          ) : (
+            <Btn variant="danger" block icon="trash-2" disabled={ocupado} onPress={eliminar}>
+              Eliminar viaje
+            </Btn>
+          )}
+        </Seccion>
       </PasoAyuda>
     </AdminScreen>
   )

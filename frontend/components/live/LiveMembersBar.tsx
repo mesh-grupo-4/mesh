@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons'
 import { useState } from 'react'
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Pressable } from '@/components/Pressable'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { AvatarFallback } from '@/components/AvatarFallback'
@@ -89,8 +90,9 @@ export function LiveMembersBar({ members, currentUserId }: Props) {
       </Pressable>
 
       <Modal visible={modalOpen} transparent animationType="fade" onRequestClose={() => setModalOpen(false)}>
-        <Pressable style={[styles.modalBg, { backgroundColor: theme.scrim }]} onPress={() => setModalOpen(false)}>
+        <Pressable feedback={false} style={[styles.modalBg, { backgroundColor: theme.scrim }]} onPress={() => setModalOpen(false)}>
           <Pressable
+            feedback={false}
             style={[
               styles.modalCard,
               {

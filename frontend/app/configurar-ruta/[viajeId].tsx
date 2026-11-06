@@ -14,6 +14,7 @@ import { RouteBottomSheet } from '@/components/route-config/RouteBottomSheet'
 import { MapStylePicker } from '@/components/route-config/MapStylePicker'
 import type { MapStyleId } from '@/components/route-config/mapStyles'
 import { RouteMapView } from '@/components/route-config/RouteMapView'
+import { useVolverInterno } from '@/hooks/useVolver'
 import {
   useRoutePlanner,
   type RouteBottomSheetHandle,
@@ -132,6 +133,9 @@ export default function ConfigurarRutaScreen() {
     onSaved,
     sheetRef,
   })
+
+  // Volver mientras se elige un punto en el mapa cancela esa selección, no la pantalla.
+  useVolverInterno(Boolean(modoSeleccionMapa), cancelarSeleccionMapa)
 
   const onCameraTargetApplied = useCallback(() => {
     setCameraTarget(null)

@@ -1,11 +1,13 @@
 import { useState } from 'react'
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Pressable } from '@/components/Pressable'
 import { router, Stack, useLocalSearchParams } from 'expo-router'
 
 import { useAuth } from '@/context/AuthContext'
 import { ActivityTile, Btn, TopBar, useTheme } from '@/components/MeshUI'
 import { DestinoPicker } from '@/components/viaje-rapido/DestinoPicker'
 import { useUbicacionActual } from '@/hooks/useUbicacionActual'
+import { useVolverInterno } from '@/hooks/useVolver'
 import { ACTIVIDADES, etiquetaActividad } from '@/lib/activityDefaults'
 import { resolveBackendUserId } from '@/lib/apiClient'
 import { meshAlert } from '@/lib/meshAlert'
@@ -40,6 +42,11 @@ export default function ViajeRapidoScreen() {
   const [paso, setPaso] = useState<Paso>(plantillaId ? 'plantilla' : 'actividad')
   const [actividad, setActividad] = useState<TipoActividadApi>(actividadPlantilla ?? 'otro')
   const { ubicacion } = useUbicacionActual()
+
+  // Volver desde el destino regresa a elegir actividad; mientras se crea el viaje no se sale.
+  useVolverInterno(paso === 'destino' || paso === 'creando', () => {
+    if (paso === 'destino') setPaso('actividad')
+  })
 
   const crear = async (tipo: TipoActividadApi, destino: PuntoDestino | null) => {
     const pasoAnterior = paso

@@ -15,6 +15,7 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
+      "bundleIdentifier": "com.frangiorda1.frontend",
       "supportsTablet": true,
       "infoPlist": {
         "UIBackgroundModes": [

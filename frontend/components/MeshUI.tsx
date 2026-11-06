@@ -3,7 +3,6 @@ import {
   View,
   Text,
   TextInput,
-  Pressable,
   StyleSheet,
   useColorScheme,
   ViewStyle,
@@ -11,6 +10,7 @@ import {
   StyleProp,
   TextInputProps,
 } from 'react-native';
+import { Pressable } from '@/components/Pressable';
 import { Feather, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import Animated, {
   useSharedValue,
@@ -24,6 +24,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Colors from '@/constants/Colors';
 import { BotonAyuda } from '@/components/ayuda/BotonAyuda';
+import { ICONO_VOLVER, TITULO_CENTRADO } from '@/lib/plataforma';
 
 // Hook auxiliar para acceder al tema activo.
 // `altoContraste` fuerza la paleta de alto contraste (RN-052, modo moto) sin importar light/dark.
@@ -585,12 +586,17 @@ interface TopBarProps {
   /** Arranca el tour de ayuda ("?") de esta pantalla. No acopla TopBar a react-native-copilot:
    * la pantalla que sí conoce el tour pasa el callback (ej. `() => start('rutas')`). */
   onAyuda?: () => void;
+  /** Pantalla raíz de una pestaña: nunca lleva botón de volver, aunque haya historial de pestañas. */
+  raiz?: boolean;
 }
 
-export function TopBar({ title, sub, onBack, bordered = true, right, onAyuda }: TopBarProps) {
+export function TopBar({ title, sub, onBack, bordered = true, right, onAyuda, raiz = false }: TopBarProps) {
   const theme = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+
+  const conVolver = !raiz && (onBack !== undefined || router.canGoBack());
+  const centrado = conVolver && TITULO_CENTRADO;
 
   const handleBack = () => {
     if (onBack) {
@@ -613,7 +619,7 @@ export function TopBar({ title, sub, onBack, bordered = true, right, onAyuda }: 
       ]}
     >
       <View style={styles.topBarLeft}>
-        {onBack !== undefined || router.canGoBack() ? (
+        {conVolver ? (
           <Pressable
             onPress={handleBack}
             style={({ pressed }) => [
@@ -621,10 +627,10 @@ export function TopBar({ title, sub, onBack, bordered = true, right, onAyuda }: 
               { backgroundColor: pressed ? theme.surface2 : theme.surface, borderColor: theme.border },
             ]}
           >
-            <Feather name="arrow-left" size={20} color={theme.text} />
+            <Feather name={ICONO_VOLVER} size={20} color={theme.text} />
           </Pressable>
         ) : null}
-        <View style={styles.titleWrapper}>
+        <View style={[styles.titleWrapper, centrado && styles.titleWrapperCentrado]}>
           <Text style={[styles.topBarTitle, { color: theme.text }]} numberOfLines={1}>
             {title}
           </Text>
@@ -637,12 +643,15 @@ export function TopBar({ title, sub, onBack, bordered = true, right, onAyuda }: 
           )}
         </View>
       </View>
-      {(right || onAyuda) && (
+      {right || onAyuda ? (
         <View style={styles.topBarRight}>
           {right}
           {onAyuda && <BotonAyuda onPress={onAyuda} />}
         </View>
-      )}
+      ) : centrado ? (
+        // Equilibra el botón de volver para que el título quede en el centro real.
+        <View style={styles.topBarEquilibrio} />
+      ) : null}
     </View>
   );
 }
@@ -840,6 +849,12 @@ const styles = StyleSheet.create({
   },
   titleWrapper: {
     flex: 1,
+  },
+  titleWrapperCentrado: {
+    alignItems: 'center',
+  },
+  topBarEquilibrio: {
+    width: 52,
   },
   topBarTitle: {
     fontSize: 19,

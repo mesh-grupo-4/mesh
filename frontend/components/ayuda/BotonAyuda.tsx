@@ -1,4 +1,5 @@
-import { Pressable, StyleProp, StyleSheet, ViewStyle, useColorScheme } from 'react-native'
+import { StyleProp, StyleSheet, ViewStyle, useColorScheme } from 'react-native'
+import { Pressable } from '@/components/Pressable'
 import { Feather } from '@expo/vector-icons'
 import { useCopilot } from 'react-native-copilot'
 import Colors from '@/constants/Colors'

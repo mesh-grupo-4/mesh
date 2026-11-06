@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons'
 import { useState } from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
+import { Pressable } from '@/components/Pressable'
 
 import { useTheme } from '@/components/MeshUI'
 import { RANGO_PARAMETROS, textoSeparacion } from '@/lib/activityDefaults'

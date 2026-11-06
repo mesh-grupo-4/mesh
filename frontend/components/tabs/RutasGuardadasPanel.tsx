@@ -2,11 +2,11 @@ import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { Pressable } from '@/components/Pressable';
 import { useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 

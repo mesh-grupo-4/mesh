@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
+import { Pressable } from '@/components/Pressable'
 import { Feather } from '@expo/vector-icons'
 import { router, useLocalSearchParams } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -36,6 +37,7 @@ export default function NuevoViajeScreen() {
   return (
     <View style={styles.root}>
       <Pressable
+        feedback={false}
         style={[StyleSheet.absoluteFill, { backgroundColor: theme.scrim }]}
         onPress={() => router.back()}
         accessibilityLabel="Cerrar"

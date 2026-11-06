@@ -7,7 +7,7 @@ EstadisticasAdmin:
     operationId: adminEstadisticas
     summary: Totales de la plataforma para el panel
     description: |
-      Contadores para el panel del backoffice: usuarios (totales, superadmins, suspendidos), grupos y viajes por estado.
+      Contadores para el panel del backoffice: usuarios (totales, superadmins, suspendidos), grupos y viajes finalizados.
     tags:
       - Admin
     responses:
@@ -17,7 +17,7 @@ EstadisticasAdmin:
           application/json:
             schema:
               $ref: '../components/schemas.yaml#/EstadisticasAdmin'
-            example: {"usuarios": {"total": 184, "superadmins": 2, "suspendidos": 1}, "grupos": {"total": 23}, "viajes": {"planificado": 12, "en_curso": 1, "finalizado": 87, "total": 100}}
+            example: {"usuarios": {"total": 184, "superadmins": 2, "suspendidos": 1}, "grupos": {"total": 23}, "viajes": {"finalizados": 87}}
       '401':
         $ref: '../components/responses.yaml#/Unauthorized'
       '403':
@@ -498,13 +498,12 @@ MiembroGrupoAdmin:
 ViajesAdmin:
   get:
     operationId: adminListarViajes
-    summary: Listar y buscar viajes
+    summary: Listar viajes de forma anónima
     description: |
-      Listado paginado de todos los viajes, del más nuevo al más viejo. `q` busca por nombre; `estado` filtra.
+      Listado paginado de todos los viajes, del más nuevo al más viejo; con `estado=en_curso`, del que lleva más tiempo en curso al que menos. **Sin nombre, creador, integrantes, grupos, ruta ni fechas** (RN-126): sirve para gestionar viajes colgados. Las estadísticas están en `/api/admin/reportes` (RN-127).
     tags:
       - Admin
     parameters:
-      - $ref: '../components/parameters.yaml#/BusquedaAdmin'
       - $ref: '../components/parameters.yaml#/Pagina'
       - $ref: '../components/parameters.yaml#/Limite'
       - name: estado
@@ -519,7 +518,7 @@ ViajesAdmin:
           application/json:
             schema:
               $ref: '../components/schemas.yaml#/PaginaViajesAdmin'
-            example: {"items": [{"id": "3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d", "nombre": "Altas Cumbres", "tipo_actividad": "bici", "es_grupal": true, "estado": "en_curso", "fecha_programada": "2026-10-16T11:00:00.000Z", "created_at": "2026-10-01T18:00:00.000Z", "creador": {"id": "9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d", "nombre": "Martina", "apellido": "Gómez", "email": "martina@example.com"}, "cantidad_integrantes": 8}], "total": 1, "pagina": 1, "limite": 20}
+            example: {"items": [{"id": "3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d", "tipo_actividad": "bici", "es_grupal": true, "estado": "en_curso", "cantidad_integrantes": 8, "posiblemente_colgado": true}], "total": 1, "pagina": 1, "limite": 20}
       '400':
         $ref: '../components/responses.yaml#/BadRequest'
       '401':
@@ -534,9 +533,9 @@ ViajeAdmin:
     - $ref: '../components/parameters.yaml#/ViajeId'
   get:
     operationId: adminDetalleViaje
-    summary: Detalle administrativo de un viaje
+    summary: Detalle anónimo de un viaje
     description: |
-      Estado, fechas, creador, integrantes, grupos y totales de alertas, paradas y gastos. **Sin posiciones GPS, ubicaciones vivas ni velocidades** (RN-126, RN-070).
+      Lo justo para decidir una acción: actividad, tipo, estado, cantidad de integrantes y si puede haber quedado colgado. **Sin nombre, creador, integrantes, grupos, ruta, fechas, posiciones GPS, ubicaciones vivas ni velocidades** (RN-126, RN-070).
     tags:
       - Admin
     responses:
@@ -545,8 +544,8 @@ ViajeAdmin:
         content:
           application/json:
             schema:
-              $ref: '../components/schemas.yaml#/ViajeAdminDetalle'
-            example: {"id": "3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d", "nombre": "Altas Cumbres", "tipo_actividad": "bici", "modo": "recreativo", "es_grupal": true, "estado": "en_curso", "fecha_programada": "2026-10-16T11:00:00.000Z", "fecha_inicio_real": "2026-10-16T11:05:00.000Z", "fecha_fin_real": null, "created_at": "2026-10-01T18:00:00.000Z", "creador": {"id": "9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d", "nombre": "Martina", "apellido": "Gómez", "email": "martina@example.com"}, "ruta": {"origen_nombre": "Villa Carlos Paz", "destino_nombre": "Mina Clavero", "distancia_planeada_m": 98500}, "integrantes": [{"id": "9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d", "nombre": "Martina", "apellido": "Gómez", "email": "martina@example.com", "estado": "confirmado", "origen": "creador", "fecha_union": "2026-10-01T18:00:00.000Z"}], "grupos": [{"id": "7a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d", "nombre": "Rodadores de las Sierras"}], "totales": {"alertas": 2, "paradas": 5, "gastos": 3}}
+              $ref: '../components/schemas.yaml#/ViajeAdminAnonimo'
+            example: {"id": "3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d", "tipo_actividad": "bici", "es_grupal": true, "estado": "en_curso", "cantidad_integrantes": 8, "posiblemente_colgado": true}
       '400':
         $ref: '../components/responses.yaml#/BadRequest'
       '401':
@@ -647,7 +646,7 @@ AuditoriaAdmin:
     operationId: adminListarAuditoria
     summary: Consultar la auditoría del backoffice
     description: |
-      Bitácora de cada acción de un superadmin (RN-121), de la más reciente a la más vieja. Se puede filtrar por acción, tipo de entidad o una entidad puntual (aunque ya no exista).
+      Bitácora de cada acción de un superadmin (RN-121), de la más reciente a la más vieja. Se puede filtrar por acción, tipo de entidad o una entidad puntual (aunque ya no exista). En las acciones sobre viajes, `detalle` solo trae el estado: nunca nombre ni creador (RN-126).
     tags:
       - Admin
     parameters:

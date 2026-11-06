@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons'
 import { useEffect, useState } from 'react'
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Pressable } from '@/components/Pressable'
 import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
@@ -8,6 +9,7 @@ import { AvatarFallback } from '@/components/AvatarFallback'
 import { useTheme } from '@/components/MeshUI'
 import { tamanoOutdoor } from '@/constants/Typography'
 import { uiConfigPorActividad } from '@/lib/activityUi'
+import { ICONO_VOLVER } from '@/lib/plataforma'
 import { formatDistanceShort, formatEtaLabel, type NextStopInfo } from '@/lib/geo/nextStop'
 import type { TipoActividadApi } from '@/lib/viajesApi'
 
@@ -109,7 +111,7 @@ export function LiveTripHeader({
             ]}
             accessibilityLabel="Volver"
           >
-            <Feather name="arrow-left" size={Math.round(20 * escalaBotones)} color={theme.text} />
+            <Feather name={ICONO_VOLVER} size={Math.round(20 * escalaBotones)} color={theme.text} />
           </Pressable>
 
           <View style={styles.titleCenter}>

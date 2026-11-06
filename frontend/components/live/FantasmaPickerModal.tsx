@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, Modal, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Pressable } from '@/components/Pressable'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { ActivityTile, useTheme } from '@/components/MeshUI'
@@ -41,8 +42,9 @@ export function FantasmaPickerModal({ visible, viajeId, ocupado, onElegir, onCer
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCerrar}>
-      <Pressable style={[styles.bg, { backgroundColor: theme.scrim }]} onPress={onCerrar}>
+      <Pressable feedback={false} style={[styles.bg, { backgroundColor: theme.scrim }]} onPress={onCerrar}>
         <Pressable
+          feedback={false}
           style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border, paddingBottom: Math.max(insets.bottom, 16) }]}
           onPress={(e) => e.stopPropagation()}
         >

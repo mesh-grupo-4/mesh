@@ -84,6 +84,41 @@ const usuarioResumenSelect = {
 
 const personaSelect = { id: true, nombre: true, apellido: true, email: true } as const
 
+/**
+ * RN-126: un viaje se ve siempre anónimo. Nombre, creador, integrantes, grupos, ruta y
+ * fechas no salen de acá: las estadísticas de viajes están en la reportería (RN-127).
+ * `fecha_inicio_real` se lee solo para calcular el aviso de viaje colgado.
+ */
+const viajeAnonimoSelect = {
+  id: true,
+  tipo_actividad: true,
+  es_grupal: true,
+  estado: true,
+  fecha_inicio_real: true,
+  _count: { select: { integrantes: true } },
+} as const
+
+/** RN-125: pasado este tiempo en curso, se avisa que el viaje puede haber quedado colgado. */
+const HORAS_VIAJE_POSIBLEMENTE_COLGADO = 24
+
+function viajeAnonimo(viaje: Prisma.ViajeGetPayload<{ select: typeof viajeAnonimoSelect }>) {
+  const { fecha_inicio_real, _count, ...datos } = viaje
+  const limite = Date.now() - HORAS_VIAJE_POSIBLEMENTE_COLGADO * 3_600_000
+  return {
+    ...datos,
+    cantidad_integrantes: _count.integrantes,
+    posiblemente_colgado:
+      datos.estado === 'en_curso' && !!fecha_inicio_real && fecha_inicio_real.getTime() < limite,
+  }
+}
+
+/** Auditoría de viajes: las filas viejas guardaban nombre y creador, que ya no se exponen. */
+function detalleAuditoriaVisible(entidad: string, detalle: Prisma.JsonValue) {
+  if (entidad !== 'viaje') return detalle
+  const estado = (detalle as { estado?: unknown } | null)?.estado
+  return typeof estado === 'string' ? { estado } : null
+}
+
 function paginar(pagina: number, limite: number) {
   return { skip: (pagina - 1) * limite, take: limite }
 }
@@ -130,19 +165,18 @@ export class AdminService {
   // ── Panel ────────────────────────────────────────────────────────────────
 
   async estadisticas() {
-    const [usuarios, superadmins, suspendidos, grupos, porEstado] = await Promise.all([
+    const [usuarios, superadmins, suspendidos, grupos, viajesFinalizados] = await Promise.all([
       this.prisma.usuario.count(),
       this.prisma.usuario.count({ where: { rol_sistema: 'superadmin' } }),
       this.prisma.usuario.count({ where: { suspendido_at: { not: null } } }),
       this.prisma.grupo.count(),
-      this.prisma.viaje.groupBy({ by: ['estado'], _count: { _all: true } }),
+      this.prisma.viaje.count({ where: { estado: 'finalizado' } }),
     ])
-    const viajes = { planificado: 0, en_curso: 0, finalizado: 0, total: 0 }
-    for (const fila of porEstado) {
-      viajes[fila.estado] = fila._count._all
-      viajes.total += fila._count._all
+    return {
+      usuarios: { total: usuarios, superadmins, suspendidos },
+      grupos: { total: grupos },
+      viajes: { finalizados: viajesFinalizados },
     }
-    return { usuarios: { total: usuarios, superadmins, suspendidos }, grupos: { total: grupos }, viajes }
   }
 
   // ── Usuarios ─────────────────────────────────────────────────────────────
@@ -568,80 +602,34 @@ export class AdminService {
 
   // ── Viajes ───────────────────────────────────────────────────────────────
 
+  /** Con el filtro `en_curso` salen primero los más viejos: los posibles colgados. */
   async listarViajes(query: ListarViajesQuery) {
-    const where: Prisma.ViajeWhereInput = {
-      ...filtroTexto(query.q, ['nombre']),
-      ...(query.estado ? { estado: query.estado } : {}),
-    }
+    const where: Prisma.ViajeWhereInput = query.estado ? { estado: query.estado } : {}
     const [filas, total] = await Promise.all([
       this.prisma.viaje.findMany({
         where,
-        select: {
-          id: true,
-          nombre: true,
-          tipo_actividad: true,
-          es_grupal: true,
-          estado: true,
-          fecha_programada: true,
-          created_at: true,
-          creador: { select: personaSelect },
-          _count: { select: { integrantes: true } },
-        },
-        orderBy: { created_at: 'desc' },
+        select: viajeAnonimoSelect,
+        orderBy: query.estado === 'en_curso' ? { fecha_inicio_real: 'asc' } : { created_at: 'desc' },
         ...paginar(query.pagina, query.limite),
       }),
       this.prisma.viaje.count({ where }),
     ])
-    const items = filas.map(({ _count, ...v }) => ({ ...v, cantidad_integrantes: _count.integrantes }))
-    return { items, total, pagina: query.pagina, limite: query.limite }
+    return { items: filas.map(viajeAnonimo), total, pagina: query.pagina, limite: query.limite }
   }
 
-  /** Sin posiciones ni velocidades: RN-126 (privacidad) y RN-070 (moto). */
+  /** Lo justo para decidir una acción: sin datos de quién, cuándo ni por dónde (RN-126). */
   async detalleViaje(viajeId: string) {
     const viaje = await this.prisma.viaje.findUnique({
       where: { id: viajeId },
-      select: {
-        id: true,
-        nombre: true,
-        tipo_actividad: true,
-        modo: true,
-        es_grupal: true,
-        estado: true,
-        fecha_programada: true,
-        fecha_inicio_real: true,
-        fecha_fin_real: true,
-        created_at: true,
-        creador: { select: personaSelect },
-        ruta: { select: { origen_nombre: true, destino_nombre: true, distancia_planeada_m: true } },
-        integrantes: {
-          select: { estado: true, origen: true, created_at: true, usuario: { select: personaSelect } },
-          orderBy: { created_at: 'asc' },
-        },
-        grupos: { select: { grupo: { select: { id: true, nombre: true } } } },
-        _count: { select: { alertas: true, paradas: true, gastos: true } },
-      },
+      select: viajeAnonimoSelect,
     })
     if (!viaje) throw new HttpError(404, 'Viaje no encontrado', 'VIAJE_NOT_FOUND')
-    const { integrantes, grupos, _count, ...datos } = viaje
-    return {
-      ...datos,
-      integrantes: integrantes.map((i) => ({
-        ...i.usuario,
-        estado: i.estado,
-        origen: i.origen,
-        fecha_union: i.created_at,
-      })),
-      grupos: grupos.map((g) => g.grupo),
-      totales: { alertas: _count.alertas, paradas: _count.paradas, gastos: _count.gastos },
-    }
+    return viajeAnonimo(viaje)
   }
 
   async finalizarViaje(actorId: string, viajeId: string) {
     const actualizado = await this.viajes.finalizarComoAdmin(viajeId)
-    await this.auditar(this.prisma, actorId, 'viaje.finalizar', 'viaje', viajeId, {
-      nombre: actualizado.nombre,
-      creador_id: actualizado.creador_id,
-    })
+    await this.auditar(this.prisma, actorId, 'viaje.finalizar', 'viaje', viajeId)
     return {
       viaje_id: viajeId,
       estado: actualizado.estado,
@@ -653,7 +641,7 @@ export class AdminService {
   async eliminarViaje(actorId: string, viajeId: string) {
     const viaje = await this.prisma.viaje.findUnique({
       where: { id: viajeId },
-      select: { nombre: true, estado: true, creador_id: true },
+      select: { estado: true },
     })
     if (!viaje) throw new HttpError(404, 'Viaje no encontrado', 'VIAJE_NOT_FOUND')
     if (viaje.estado === 'en_curso') {
@@ -664,11 +652,7 @@ export class AdminService {
       )
     }
     await this.prisma.$transaction(async (tx) => {
-      await this.auditar(tx, actorId, 'viaje.eliminar', 'viaje', viajeId, {
-        nombre: viaje.nombre,
-        estado: viaje.estado,
-        creador_id: viaje.creador_id,
-      })
+      await this.auditar(tx, actorId, 'viaje.eliminar', 'viaje', viajeId, { estado: viaje.estado })
       await tx.viaje.delete({ where: { id: viajeId } })
     })
     return { viaje_id: viajeId, accion: 'eliminado' as const }
@@ -682,7 +666,7 @@ export class AdminService {
       ...(query.entidad ? { entidad: query.entidad } : {}),
       ...(query.entidad_id ? { entidad_id: query.entidad_id } : {}),
     }
-    const [items, total] = await Promise.all([
+    const [filas, total] = await Promise.all([
       this.prisma.auditoriaAdmin.findMany({
         where,
         select: {
@@ -699,6 +683,7 @@ export class AdminService {
       }),
       this.prisma.auditoriaAdmin.count({ where }),
     ])
+    const items = filas.map((f) => ({ ...f, detalle: detalleAuditoriaVisible(f.entidad, f.detalle) }))
     return { items, total, pagina: query.pagina, limite: query.limite }
   }
 }

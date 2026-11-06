@@ -4,8 +4,8 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Pressable,
 } from 'react-native';
+import { Pressable } from '@/components/Pressable';
 import { meshAlert } from '@/lib/meshAlert';
 import { useAuth, ActividadPreferida } from '@/context/AuthContext';
 import { router, useFocusEffect } from 'expo-router';
@@ -208,9 +208,13 @@ export default function PerfilScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <TopBar title="Perfil" bordered={false} onAyuda={() => start()} />
+      <TopBar title="Perfil" raiz bordered={false} onAyuda={() => start()} />
 
-      <ScrollView contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={styles.inner}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
+      >
         {/* Cabecera del perfil */}
         <View style={styles.profileHeader}>
           <Avatar person={meDummy} size="lg" ring />

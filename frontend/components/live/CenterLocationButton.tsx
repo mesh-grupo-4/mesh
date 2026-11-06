@@ -1,5 +1,6 @@
 import { Feather } from '@expo/vector-icons'
-import { Pressable, StyleSheet } from 'react-native'
+import { StyleSheet } from 'react-native'
+import { Pressable } from '@/components/Pressable'
 
 import { uiConfigPorActividad } from '@/lib/activityUi'
 import type { TipoActividadApi } from '@/lib/viajesApi'

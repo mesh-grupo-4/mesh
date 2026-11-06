@@ -1,7 +1,6 @@
 import { Feather } from '@expo/vector-icons'
 import { useMemo, useState, type ReactNode } from 'react'
 import {
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,6 +9,7 @@ import {
   type GestureResponderEvent,
   type LayoutChangeEvent,
 } from 'react-native'
+import { Pressable } from '@/components/Pressable'
 import Svg, { Circle, Line, Path, Rect } from 'react-native-svg'
 
 import { useTheme } from '@/components/MeshUI'

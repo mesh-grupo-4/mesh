@@ -170,6 +170,11 @@ export function SeccionViajes({ r }: { r: ReporteViajes }) {
     <>
       <FilaIndicadores>
         <Indicador
+          label="Viajes finalizados"
+          valor={fmtNum(r.serie.reduce((total, f) => total + f.finalizados, 0))}
+          pie="Terminaron en el período"
+        />
+        <Indicador
           label="Tasa de realización"
           valor={fmtPct(r.embudo.tasa_realizacion)}
           pie={`${fmtNum(r.embudo.no_realizados)} viajes programados no arrancaron`}

@@ -2,17 +2,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useFocusEffect, useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  ActivityIndicator, 
+  ActivityIndicator,
   Linking,
   Modal,
   Platform,
-  Pressable,
   ScrollView,
   Share,
   StyleSheet,
   Text,
   View,
 } from 'react-native'
+import { Pressable } from '@/components/Pressable'
 import { meshAlert } from '@/lib/meshAlert';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { Feather } from '@expo/vector-icons'
@@ -1291,7 +1291,12 @@ export default function ViajeDetalleScreen() {
       )}
 
       {/* GPS Permissions Modal */}
-      <Modal visible={modalPermisos} transparent animationType="fade">
+      <Modal
+        visible={modalPermisos}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setModalPermisos(false)}
+      >
         <View style={[styles.modalBg, { backgroundColor: theme.scrim }]}>
           <View style={[styles.modalCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <Text style={[styles.modalTitle, { color: theme.text }]}>Cómo usa Mesh tu ubicación</Text>

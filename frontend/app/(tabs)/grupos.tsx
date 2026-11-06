@@ -8,8 +8,8 @@ import {
   Platform,
   ScrollView,
   RefreshControl,
-  Pressable,
 } from 'react-native';
+import { Pressable } from '@/components/Pressable';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { resolveBackendUserId } from '@/lib/apiClient';
@@ -29,8 +29,9 @@ import { PasoAyuda } from '@/components/ayuda/PasoAyuda';
 import { AYUDA_GRUPOS } from '@/components/ayuda/contenidoAyuda';
 import { SelectableCard } from '@/components/SelectableCard';
 import { SelectionActionBar } from '@/components/SelectionActionBar';
-import { SelectionHeader } from '@/components/SelectionHeader';
+import { BotonSeleccionar, SelectionHeader } from '@/components/SelectionHeader';
 import { useSelectionMode } from '@/hooks/useSelectionMode';
+import { useAtrasAndroid } from '@/hooks/useVolver';
 import {
   bulkDeleteSummary,
   formatItemList,
@@ -78,6 +79,12 @@ export default function GruposScreen() {
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [nombre, setNombre] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useAtrasAndroid(mostrarFormulario, () => {
+    if (loading) return;
+    setMostrarFormulario(false);
+    setNombre('');
+  });
   const [respondiendoId, setRespondiendoId] = useState<string | null>(null);
   const [eliminandoBulk, setEliminandoBulk] = useState(false);
 
@@ -266,7 +273,7 @@ export default function GruposScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <TopBar title="Grupos y amigos" bordered={false} onAyuda={() => start()} />
+      <TopBar title="Grupos y amigos" raiz bordered={false} onAyuda={() => start()} />
       <PasoAyuda {...AYUDA_GRUPOS[0]!}>
         <View style={styles.segmentWrap}>
           <SegmentTabs
@@ -412,6 +419,10 @@ export default function GruposScreen() {
                 <Text style={[styles.seccionEyebrow, { color: theme.textDim }]}>
                   TUS GRUPOS ({grupos.length})
                 </Text>
+                <BotonSeleccionar
+                  visible={!selection.active && gruposEliminables.length > 0}
+                  onPress={() => selection.enter()}
+                />
               </View>
 
               <SelectionHeader

@@ -7,6 +7,7 @@ import {
   AdminScreen,
   Fila,
   Seccion,
+  diaAdmin,
   fechaAdmin,
   mensajeError,
   nombreCompleto,
@@ -124,7 +125,7 @@ export default function AdminUsuarioScreen() {
       onAyuda={() => start()}
     >
       <PasoAyuda {...AYUDA_ADMIN_USUARIO[0]!}>
-        <Seccion titulo="Cuenta">
+        <Seccion titulo="Cuenta" descripcion="Datos de la cuenta y si puede usar Mesh.">
           <Fila titulo="Rol de plataforma" etiqueta={esSuperadmin ? 'Superadmin' : 'Usuario'} tonoEtiqueta="accent" />
           <Fila
             titulo="Estado"
@@ -132,16 +133,21 @@ export default function AdminUsuarioScreen() {
             etiqueta={suspendida ? 'Suspendida' : 'Activa'}
             tonoEtiqueta={suspendida ? 'danger' : 'good'}
           />
-          <Fila titulo="Alta" detalle={fechaAdmin(usuario.created_at)} />
+          <Fila titulo="Fecha de alta" detalle={diaAdmin(usuario.created_at)} />
           <Fila titulo="Teléfono" detalle={usuario.telefono ?? 'Sin cargar'} />
-          <Fila
-            titulo="Actividad"
-            detalle={`${usuario.totales.viajes_creados} viajes creados · ${usuario.totales.participaciones_viaje} participaciones · lidera ${usuario.totales.grupos_liderados} grupos`}
-          />
         </Seccion>
       </PasoAyuda>
 
-      <Seccion titulo="Grupos">
+      <Seccion
+        titulo="Actividad en Mesh"
+        descripcion="Solo totales: el backoffice no muestra los viajes de una persona (RN-126)."
+      >
+        <Fila titulo="Viajes creados" etiqueta={String(usuario.totales.viajes_creados)} />
+        <Fila titulo="Participaciones en viajes" etiqueta={String(usuario.totales.participaciones_viaje)} />
+        <Fila titulo="Grupos que lidera" etiqueta={String(usuario.totales.grupos_liderados)} />
+      </Seccion>
+
+      <Seccion titulo="Grupos" descripcion="Grupos a los que pertenece y su rol en cada uno.">
         {usuario.grupos.length === 0 ? (
           <Text style={{ color: theme.textMute }}>No pertenece a ningún grupo.</Text>
         ) : (
@@ -162,7 +168,7 @@ export default function AdminUsuarioScreen() {
         </Text>
       ) : (
         <PasoAyuda {...AYUDA_ADMIN_USUARIO[1]!}>
-          <Seccion titulo="Acciones">
+          <Seccion titulo="Acciones" descripcion="Cada acción queda registrada en la auditoría.">
             <View style={styles.acciones}>
               {suspendida ? (
                 <Btn

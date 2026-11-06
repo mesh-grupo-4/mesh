@@ -92,7 +92,7 @@
 "CP-GRUP-014","Alta","Eliminación explícita de grupo por el líder con confirmación (RN-014, RN-027b)","Usuario con rol líder en el grupo.","1. Ingresar a la pantalla de edición del grupo.
 2. Presionar el botón destructivo 'Eliminar grupo'.
 3. En el diálogo de alerta presionar 'Eliminar'.","Se envía DELETE /api/grupos/:grupoId. El grupo se borra en cascada (membresías e invitaciones asociadas) y el usuario vuelve a la lista general.","Ejecutado 16/10/2026 por API contra backend de producción. DELETE /api/grupos/{grupoId} por el líder → 200 'grupo_eliminado'. La invitación pendiente de Bautista a ese grupo desapareció de su bandeja y en BD quedaron 0 miembros y 0 invitaciones (cascada). Un no líder → 403 NOT_GROUP_LEADER.","Aprobado parcialmente","No se probó en la app el botón 'Eliminar grupo' ni su diálogo."
-"CP-GRUP-015","Media","Eliminación masiva (Bulk Delete) de grupos seleccionados","Usuario es líder de múltiples grupos que desea eliminar.","1. En la pestaña Grupos mantener presionado un grupo para activar el modo selección.
+"CP-GRUP-015","Media","Eliminación masiva (Bulk Delete) de grupos seleccionados","Usuario es líder de múltiples grupos que desea eliminar.","1. En la pestaña Grupos activar el modo selección: en Android, mantener presionado un grupo; en iOS, tocar 'Seleccionar'.
 2. Seleccionar 2 o más grupos donde el usuario sea líder.
 3. Presionar el botón de eliminar de la barra de acciones inferior.
 4. Confirmar el borrado masivo.","Se procesa la eliminación masiva. Se muestra un resumen indicando la cantidad de grupos eliminados con éxito.","Ejecutado 16/10/2026 en iOS Simulator (Expo Go SDK 57) + backend de producción. Franco creó 'Prueba 1' y 'Prueba 2' desde la app, activó el modo selección con pulsación larga, marcó los dos y los eliminó desde la barra de acciones. La app mostró un resumen indicando que los 2 grupos se borraron correctamente. En BD ya no existen.","Aprobado",""
@@ -264,7 +264,7 @@
 2. Filtrar por chip de actividad 'Trekking'.","La lista filtra dinámicamente mostrando solo los viajes que coinciden con el texto ingresado y el tipo de actividad seleccionado.","","",""
 "CP-HIST-004","Alta","Eliminación individual de un viaje finalizado del historial","Viaje finalizado visible en el listado.","1. Presionar el ícono de opciones / eliminar en la tarjeta del viaje.
 2. Confirmar la eliminación.","Se remueve el viaje del listado del usuario (o se elimina si es creador). La lista se refresca inmediatamente.","","",""
-"CP-HIST-005","Media","Eliminación masiva (Bulk Delete) de viajes en la pestaña Viajes","Múltiples viajes en la pestaña Viajes.","1. Mantener presionada una tarjeta de viaje para entrar en modo selección.
+"CP-HIST-005","Media","Eliminación masiva (Bulk Delete) de viajes en la pestaña Viajes","Múltiples viajes en la pestaña Viajes.","1. Entrar en modo selección: en Android, mantener presionada una tarjeta de viaje; en iOS, tocar 'Seleccionar'.
 2. Tildar 3 viajes.
 3. Presionar el botón de papelera en la barra inferior de selección.
 4. Confirmar la eliminación.","Se ejecuta runBulkDelete eliminando los viajes seleccionados y mostrando el resumen de elementos eliminados con éxito.","","",""
@@ -429,11 +429,11 @@
 "CP-ADMN-007","Alta","Gestión de grupos ajenos: reasignar líder, quitar integrante y eliminar (RN-125)","Superadmin. Grupo con líder y al menos 2 participantes.","1. En 'Administración > Grupos', abrir el grupo y tocar 'Reasignar líder' sobre un participante.
 2. Tocar 'Quitar del grupo' sobre otro integrante.
 3. Tocar 'Eliminar grupo' y confirmar.","Queda un único líder nuevo, el integrante quitado sale del grupo y al eliminarlo desaparece con sus invitaciones, sin borrar los viajes.","","",""
-"CP-ADMN-008","Alta","Forzar la finalización de un viaje en curso colgado (RN-125)","Viaje 'en_curso' cuyo creador ya no está activo.","1. En 'Administración > Viajes', abrir el viaje y tocar 'Forzar finalización'.
+"CP-ADMN-008","Alta","Forzar la finalización de un viaje en curso colgado (RN-125)","Viaje 'en_curso' cuyo creador ya no está activo.","1. En 'Administración > Viajes', filtrar por 'En curso', abrir un viaje marcado 'Posible colgado' (más de 24 horas en curso) y tocar 'Forzar finalización'.
 2. Revisar el viaje con un integrante.","El viaje pasa a 'finalizado' con el mismo cierre que hace el creador (resumen y métricas) y los integrantes confirmados reciben el aviso.","","",""
 "CP-ADMN-009","Alta","Toda acción del backoffice queda en la auditoría (RN-121)","Superadmin que realizó varias acciones de los casos anteriores.","1. Abrir 'Administración > Auditoría'.","Cada acción figura con quién la hizo, qué acción, sobre qué entidad y cuándo, incluso las de entidades ya eliminadas.","","",""
-"CP-ADMN-010","Crítica","El backoffice gestiona, no vigila: sin posiciones ni velocidades (RN-126, RN-070)","Superadmin. Viaje en curso con integrantes compartiendo ubicación.","1. Abrir el detalle del viaje en el backoffice.
-2. (API) Revisar las respuestas de /api/admin/viajes/{id} y /api/admin/usuarios/{id}.","No se muestran ni se devuelven posiciones, ubicaciones vivas, recorridos ni velocidades. Tampoco hay forma de cambiar el consentimiento ni el compartir de otra persona.","","",""
+"CP-ADMN-010","Crítica","El backoffice gestiona, no vigila: viajes anónimos, sin posiciones ni velocidades (RN-126, RN-070)","Superadmin. Viaje en curso con integrantes compartiendo ubicación.","1. Abrir el detalle del viaje en el backoffice.
+2. (API) Revisar las respuestas de /api/admin/viajes/{id} y /api/admin/usuarios/{id}.","No se muestran ni se devuelven posiciones, ubicaciones vivas, recorridos ni velocidades. Del viaje tampoco nombre, creador, integrantes, grupos, ruta ni fechas, y en la auditoría no figuran su nombre ni su creador. No hay forma de cambiar el consentimiento ni el compartir de otra persona.","","",""
 "CP-REPO-001","Alta","Reportes agregados por sección sin datos personales (RN-127)","Superadmin con datos de uso en la plataforma.","1. Abrir 'Administración > Reportes'.
 2. Recorrer las secciones: resumen, crecimiento, retención, uso, comunidad, seguridad, destinos y gastos.","Cada sección muestra indicadores y gráficos agregados. Ninguna muestra nombres, emails, ids ni datos que identifiquen a una persona.","","",""
 "CP-REPO-002","Media","Rango de fechas en hora argentina, con default y máximo (RN-128)","Superadmin en 'Reportes'.","1. Abrir un reporte sin elegir fechas.

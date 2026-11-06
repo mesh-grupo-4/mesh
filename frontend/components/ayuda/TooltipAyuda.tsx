@@ -1,4 +1,5 @@
-import { Pressable, Text, View, StyleSheet } from 'react-native'
+import { Text, View, StyleSheet } from 'react-native'
+import { Pressable } from '@/components/Pressable'
 import { useCopilot, type TooltipProps } from 'react-native-copilot'
 import { useTheme } from '@/components/MeshUI'
 import { tamanoOutdoor } from '@/constants/Typography'

@@ -4694,42 +4694,36 @@ GrupoEliminadoAdmin:
       type: string
       enum: [grupo_eliminado]
 
-ViajeAdminResumen:
+ViajeAdminAnonimo:
   type: object
+  description: |
+    Viaje visto desde el backoffice, siempre anónimo (RN-126): **sin nombre, creador,
+    integrantes, grupos, ruta, fechas, posiciones GPS, ubicaciones vivas ni velocidades**.
   required:
     - id
-    - nombre
     - tipo_actividad
     - es_grupal
     - estado
-    - fecha_programada
-    - created_at
-    - creador
     - cantidad_integrantes
+    - posiblemente_colgado
   properties:
     id:
       type: string
       format: uuid
-    nombre:
-      type: string
-      nullable: true
-      example: Altas Cumbres
     tipo_actividad:
       $ref: '#/TipoActividad'
     es_grupal:
       type: boolean
     estado:
       $ref: '#/EstadoViaje'
-    fecha_programada:
-      type: string
-      format: date-time
-    created_at:
-      type: string
-      format: date-time
-    creador:
-      $ref: '#/PersonaAdmin'
     cantidad_integrantes:
       type: integer
+      description: Personas registradas en el viaje, incluidas las invitaciones sin responder o rechazadas.
+    posiblemente_colgado:
+      type: boolean
+      description: |
+        `true` si lleva más de 24 horas en curso (RN-125). Es un aviso para quien
+        administra: no cierra el viaje ni bloquea el cierre forzado.
 
 PaginaViajesAdmin:
   type: object
@@ -4738,116 +4732,13 @@ PaginaViajesAdmin:
     items:
       type: array
       items:
-        $ref: '#/ViajeAdminResumen'
+        $ref: '#/ViajeAdminAnonimo'
     total:
       type: integer
     pagina:
       type: integer
     limite:
       type: integer
-
-ViajeAdminDetalle:
-  type: object
-  description: |
-    Detalle administrativo de un viaje. **No incluye posiciones GPS, ubicaciones
-    vivas ni velocidades** (RN-126 y RN-070): el backoffice gestiona, no vigila.
-  required:
-    - id
-    - nombre
-    - tipo_actividad
-    - modo
-    - es_grupal
-    - estado
-    - fecha_programada
-    - fecha_inicio_real
-    - fecha_fin_real
-    - created_at
-    - creador
-    - ruta
-    - integrantes
-    - grupos
-    - totales
-  properties:
-    id:
-      type: string
-      format: uuid
-    nombre:
-      type: string
-      nullable: true
-    tipo_actividad:
-      $ref: '#/TipoActividad'
-    modo:
-      $ref: '#/ModoViaje'
-    es_grupal:
-      type: boolean
-    estado:
-      $ref: '#/EstadoViaje'
-    fecha_programada:
-      type: string
-      format: date-time
-    fecha_inicio_real:
-      type: string
-      format: date-time
-      nullable: true
-    fecha_fin_real:
-      type: string
-      format: date-time
-      nullable: true
-    created_at:
-      type: string
-      format: date-time
-    creador:
-      $ref: '#/PersonaAdmin'
-    ruta:
-      type: object
-      nullable: true
-      required: [origen_nombre, destino_nombre, distancia_planeada_m]
-      properties:
-        origen_nombre:
-          type: string
-          nullable: true
-        destino_nombre:
-          type: string
-          nullable: true
-        distancia_planeada_m:
-          type: number
-          nullable: true
-    integrantes:
-      type: array
-      items:
-        allOf:
-          - $ref: '#/PersonaAdmin'
-          - type: object
-            required: [estado, origen, fecha_union]
-            properties:
-              estado:
-                $ref: '#/EstadoViajeIntegrante'
-              origen:
-                $ref: '#/OrigenViajeIntegrante'
-              fecha_union:
-                type: string
-                format: date-time
-    grupos:
-      type: array
-      items:
-        type: object
-        required: [id, nombre]
-        properties:
-          id:
-            type: string
-            format: uuid
-          nombre:
-            type: string
-    totales:
-      type: object
-      required: [alertas, paradas, gastos]
-      properties:
-        alertas:
-          type: integer
-        paradas:
-          type: integer
-        gastos:
-          type: integer
 
 ViajeFinalizadoAdmin:
   type: object
@@ -4896,16 +4787,11 @@ EstadisticasAdmin:
           type: integer
     viajes:
       type: object
-      required: [planificado, en_curso, finalizado, total]
+      required: [finalizados]
       properties:
-        planificado:
+        finalizados:
           type: integer
-        en_curso:
-          type: integer
-        finalizado:
-          type: integer
-        total:
-          type: integer
+          description: Viajes en estado `finalizado` en toda la plataforma.
 
 AccionAdmin:
   type: string
@@ -4943,7 +4829,9 @@ EntradaAuditoriaAdmin:
       type: object
       nullable: true
       additionalProperties: true
-      description: Foto mínima de lo afectado (email, nombre, motivo, resultado).
+      description: |
+        Foto mínima de lo afectado (email, nombre, motivo, resultado). En las acciones
+        sobre viajes solo trae `estado`: nunca nombre ni creador (RN-126).
     created_at:
       type: string
       format: date-time

@@ -49,24 +49,27 @@ export default function AdminPanelScreen() {
     >
       {error ? <Text style={{ color: theme.danger }}>{error}</Text> : null}
       {stats ? (
-        <PasoAyuda {...AYUDA_ADMIN_PANEL[0]!}>
-          <Seccion titulo="Plataforma">
-            <View style={styles.datos}>
-              <Dato valor={stats.usuarios.total} etiqueta="Usuarios" />
-              <Dato valor={stats.usuarios.suspendidos} etiqueta="Suspendidos" />
-              <Dato valor={stats.grupos.total} etiqueta="Grupos" />
-            </View>
-            <View style={styles.datos}>
-              <Dato valor={stats.viajes.planificado} etiqueta="Planificados" />
-              <Dato valor={stats.viajes.en_curso} etiqueta="En curso" />
-              <Dato valor={stats.viajes.finalizado} etiqueta="Finalizados" />
-            </View>
-          </Seccion>
+        <PasoAyuda {...AYUDA_ADMIN_PANEL[0]!} estilo={styles.totales}>
+          <>
+            <Seccion titulo="Usuarios" descripcion="Cuentas registradas en Mesh.">
+              <View style={styles.datos}>
+                <Dato valor={stats.usuarios.total} etiqueta="Registrados" />
+                <Dato valor={stats.usuarios.suspendidos} etiqueta="Suspendidos" />
+                <Dato valor={stats.usuarios.superadmins} etiqueta="Superadmins" />
+              </View>
+            </Seccion>
+            <Seccion titulo="Grupos y viajes" descripcion="Totales de toda la plataforma.">
+              <View style={styles.datos}>
+                <Dato valor={stats.grupos.total} etiqueta="Grupos" />
+                <Dato valor={stats.viajes.finalizados} etiqueta="Viajes finalizados" />
+              </View>
+            </Seccion>
+          </>
         </PasoAyuda>
       ) : null}
 
       <PasoAyuda {...AYUDA_ADMIN_PANEL[1]!}>
-        <Seccion titulo="Gestión">
+        <Seccion titulo="Gestión" descripcion="Cada acción queda registrada en la auditoría.">
           <Fila
             icono="bar-chart-2"
             titulo="Reportes"
@@ -88,7 +91,7 @@ export default function AdminPanelScreen() {
           <Fila
             icono="navigation"
             titulo="Viajes"
-            detalle="Forzar la finalización de viajes colgados y eliminar viajes"
+            detalle="Forzar la finalización de viajes colgados y eliminar viajes, sin ver datos personales"
             onPress={() => router.push('/admin/viajes')}
           />
           <Fila
@@ -104,6 +107,7 @@ export default function AdminPanelScreen() {
 }
 
 const styles = StyleSheet.create({
+  totales: { gap: 12 },
   datos: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
   dato: { flex: 1, alignItems: 'center', paddingVertical: 8 },
   datoValor: { fontSize: 24, fontWeight: '800' },

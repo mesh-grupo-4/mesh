@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, Text } from 'react-native'
+import { StyleSheet, Text } from 'react-native'
+import { Pressable } from '@/components/Pressable'
 
 import { uiConfigPorActividad } from '@/lib/activityUi'
 import type { TipoActividadApi } from '@/lib/viajesApi'

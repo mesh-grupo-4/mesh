@@ -4,10 +4,10 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  ActivityIndicator, 
+  ActivityIndicator,
   RefreshControl,
-  Pressable,
 } from 'react-native';
+import { Pressable } from '@/components/Pressable';
 import { meshAlert } from '@/lib/meshAlert';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';

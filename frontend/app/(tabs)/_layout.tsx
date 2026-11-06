@@ -25,6 +25,10 @@ export default function TabLayout() {
   const pendientes = usePendientesBadge(backendUserId);
   return (
     <Tabs
+      // Atrás de Android: desde cualquier pestaña vuelve a Inicio y recién ahí sale de la app.
+      // Sin esto volvía a la primera de la barra (Viajes) y Inicio quedaba salteada.
+      initialRouteName="index"
+      backBehavior="initialRoute"
       tabBar={(props) => <MeshTabBar {...props} />}
       screenOptions={{
         headerShown: false,

@@ -1,6 +1,7 @@
 import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { LayoutChangeEvent, Pressable, StyleSheet, Text, View } from 'react-native'
+import { LayoutChangeEvent, StyleSheet, Text, View } from 'react-native'
+import { Pressable } from '@/components/Pressable'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useTheme } from '@/components/MeshUI'

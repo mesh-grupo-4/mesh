@@ -3,7 +3,6 @@ import * as Location from 'expo-location'
 import { useCallback, useState } from 'react'
 import {
   ActivityIndicator,
-  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -11,6 +10,7 @@ import {
   TextInput,
   View,
 } from 'react-native'
+import { Pressable } from '@/components/Pressable'
 import { useCopilot } from 'react-native-copilot'
 import { Feather } from '@expo/vector-icons'
 
@@ -151,6 +151,7 @@ export default function RecorridosPublicadosScreen() {
       <ScrollView
         contentContainerStyle={styles.inner}
         keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

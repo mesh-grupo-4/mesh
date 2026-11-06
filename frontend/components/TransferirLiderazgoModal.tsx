@@ -6,8 +6,8 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
 } from 'react-native';
+import { Pressable } from '@/components/Pressable';
 import { AvatarFallback } from '@/components/AvatarFallback';
 import { Btn, useTheme } from '@/components/MeshUI';
 import type { GrupoMiembroApi } from '@/lib/gruposApi';

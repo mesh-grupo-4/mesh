@@ -3,8 +3,8 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Modal,
-  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -12,6 +12,7 @@ import {
   TextInput,
   View,
 } from 'react-native'
+import { Pressable } from '@/components/Pressable'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useCopilot } from 'react-native-copilot'
@@ -171,8 +172,14 @@ export default function ChecklistViajeScreen() {
     )
   }
 
+  // `padding` en ambas plataformas: con edge-to-edge Android tampoco achica la ventana. El
+  // offset negativo deja la zona segura del pie detrás del teclado, sin un hueco de más.
   return (
-    <View style={[styles.root, { backgroundColor: theme.background }]}>
+    <KeyboardAvoidingView
+      style={[styles.root, { backgroundColor: theme.background }]}
+      behavior="padding"
+      keyboardVerticalOffset={-insets.bottom}
+    >
       <Stack.Screen options={{ headerShown: false }} />
       <TopBar
         title="Checklist de preparativos"
@@ -205,6 +212,7 @@ export default function ChecklistViajeScreen() {
         contentContainerStyle={[styles.lista, { paddingBottom: insets.bottom + 32 }]}
         refreshControl={<RefreshControl refreshing={cargando} onRefresh={() => void cargar()} />}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
       >
         {cargando && total === 0 ? (
           <ActivityIndicator style={styles.spinner} color={theme.accent} />
@@ -290,7 +298,7 @@ export default function ChecklistViajeScreen() {
         onCerrar={() => setImportVisible(false)}
         onImportado={alImportar}
       />
-    </View>
+    </KeyboardAvoidingView>
   )
 }
 

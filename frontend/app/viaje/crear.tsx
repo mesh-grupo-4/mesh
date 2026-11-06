@@ -4,11 +4,11 @@ import {
   Text,
   TextInput,
   StyleSheet,
-  ActivityIndicator, 
+  ActivityIndicator,
   ScrollView,
-  Pressable,
   Platform,
 } from 'react-native'
+import { Pressable } from '@/components/Pressable'
 import { meshAlert } from '@/lib/meshAlert';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { Feather } from '@expo/vector-icons'
@@ -312,6 +312,8 @@ export default function CrearViajeScreen() {
     <ScrollView
       style={[styles.container, { backgroundColor: theme.background }]}
       contentContainerStyle={styles.content}
+      automaticallyAdjustKeyboardInsets
+      keyboardShouldPersistTaps="handled"
     >
       {/* Sin este título el header del Stack muestra el nombre de la ruta ("crear").
           No lo ocultamos como en `live.tsx` porque esta pantalla no tiene botón de volver propio. */}
@@ -535,10 +537,11 @@ export default function CrearViajeScreen() {
 
       {/* RN-065 (SCRUM-48): modo del viaje. Competitivo llega con E07. */}
       <Text style={[styles.seccion, { color: theme.text }]}>Modo</Text>
-      <View style={styles.filaModalidad}>
+      <View style={styles.listaModos}>
         <Pressable
           style={[
             styles.opcionModalidad,
+            styles.opcionModo,
             { backgroundColor: theme.surface, borderColor: theme.border },
             modo === 'recreativo' && { borderColor: theme.accentLine, backgroundColor: theme.accentWeak },
           ]}
@@ -552,6 +555,7 @@ export default function CrearViajeScreen() {
         <Pressable
           style={[
             styles.opcionModalidad,
+            styles.opcionModo,
             { backgroundColor: theme.surface, borderColor: theme.border },
             modo === 'entrenamiento' && { borderColor: theme.accentLine, backgroundColor: theme.accentWeak },
           ]}
@@ -568,6 +572,7 @@ export default function CrearViajeScreen() {
           <Pressable
             style={[
               styles.opcionModalidad,
+              styles.opcionModo,
               { backgroundColor: theme.surface, borderColor: theme.border },
               modo === 'competitivo' && { borderColor: theme.accentLine, backgroundColor: theme.accentWeak },
             ]}
@@ -776,6 +781,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: 4,
   },
+  // Tres tarjetas en una fila no alcanzan para "Entrenamiento": se apilan a todo el ancho.
+  listaModos: { gap: 8, marginTop: 8 },
+  opcionModo: { flex: 0 },
   opcionTitulo: { fontSize: 15, fontWeight: '600' },
   opcionHint: { fontSize: 12 },
   fechaBtn: {

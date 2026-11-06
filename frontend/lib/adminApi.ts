@@ -16,7 +16,7 @@ export type PersonaAdmin = { id: string; nombre: string; apellido: string | null
 export type EstadisticasAdmin = {
   usuarios: { total: number; superadmins: number; suspendidos: number }
   grupos: { total: number }
-  viajes: Record<EstadoViajeApi | 'total', number>
+  viajes: { finalizados: number }
 }
 
 export type UsuarioAdminResumen = PersonaAdmin & {
@@ -57,30 +57,14 @@ export type GrupoAdminDetalle = {
   miembros: (PersonaAdmin & { rol: 'lider' | 'participante'; fecha_union: string })[]
 }
 
-export type ViajeAdminResumen = {
+/** Siempre anónimo: sin nombre, creador, integrantes, ruta ni fechas (RN-126). */
+export type ViajeAdminAnonimo = {
   id: string
-  nombre: string | null
   tipo_actividad: ActividadPreferidaApi
   es_grupal: boolean
   estado: EstadoViajeApi
-  fecha_programada: string
-  created_at: string
-  creador: PersonaAdmin
   cantidad_integrantes: number
-}
-
-export type ViajeAdminDetalle = Omit<ViajeAdminResumen, 'cantidad_integrantes'> & {
-  modo: string
-  fecha_inicio_real: string | null
-  fecha_fin_real: string | null
-  ruta: {
-    origen_nombre: string | null
-    destino_nombre: string | null
-    distancia_planeada_m: number | null
-  } | null
-  integrantes: (PersonaAdmin & { estado: string; origen: string; fecha_union: string })[]
-  grupos: { id: string; nombre: string }[]
-  totales: { alertas: number; paradas: number; gastos: number }
+  posiblemente_colgado: boolean
 }
 
 export type EntradaAuditoria = {
@@ -159,10 +143,10 @@ export const quitarMiembroAdmin = (grupoId: string, usuarioId: string) =>
 export const eliminarGrupoAdmin = (id: string) => enviar('DELETE', `/api/admin/grupos/${id}`)
 
 // ── Viajes ──
-export const listarViajesAdmin = (p: { q?: string; estado?: EstadoViajeApi; pagina?: number }) =>
-  get<Pagina<ViajeAdminResumen>>(`/api/admin/viajes${query(p)}`)
+export const listarViajesAdmin = (p: { estado?: EstadoViajeApi; pagina?: number }) =>
+  get<Pagina<ViajeAdminAnonimo>>(`/api/admin/viajes${query(p)}`)
 
-export const obtenerViajeAdmin = (id: string) => get<ViajeAdminDetalle>(`/api/admin/viajes/${id}`)
+export const obtenerViajeAdmin = (id: string) => get<ViajeAdminAnonimo>(`/api/admin/viajes/${id}`)
 
 export const finalizarViajeAdmin = (id: string) =>
   enviar('POST', `/api/admin/viajes/${id}/finalizar`)

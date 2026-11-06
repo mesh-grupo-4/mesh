@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
+import { Pressable } from '@/components/Pressable'
 
 /** RN-036: confirmación visible cuando el motor detecta posible incidente.
  *  Vive fuera del panel desplegable para que siempre esté al alcance.

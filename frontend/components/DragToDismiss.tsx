@@ -16,6 +16,11 @@ type Props = {
   style?: StyleProp<ViewStyle>
   /** Distancia mínima arrastrada para que al soltar se cierre (default 110). */
   umbral?: number
+  /**
+   * Si se pasa, solo esta parte responde al arrastre. Para hojas con scroll: si el gesto
+   * cubre toda la hoja, deslizar el contenido hacia abajo la cerraría.
+   */
+  cabecera?: ReactNode
 }
 
 /**
@@ -23,7 +28,7 @@ type Props = {
  * hacia abajo. Debe usarse dentro de un `GestureHandlerRootView` (los `Modal`
  * de RN quedan fuera del root global, así que hay que ponerlo en cada sheet).
  */
-export function DragToDismiss({ onDismiss, children, style, umbral = 110 }: Props) {
+export function DragToDismiss({ onDismiss, children, style, umbral = 110, cabecera }: Props) {
   const ty = useSharedValue(0)
 
   const pan = Gesture.Pan()
@@ -44,6 +49,17 @@ export function DragToDismiss({ onDismiss, children, style, umbral = 110 }: Prop
   const animStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: ty.value }],
   }))
+
+  if (cabecera) {
+    return (
+      <Animated.View style={[style, animStyle]}>
+        <GestureDetector gesture={pan}>
+          <Animated.View>{cabecera}</Animated.View>
+        </GestureDetector>
+        {children}
+      </Animated.View>
+    )
+  }
 
   return (
     <GestureDetector gesture={pan}>

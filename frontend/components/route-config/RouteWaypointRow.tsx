@@ -4,13 +4,13 @@ import {
   ActivityIndicator,
   Keyboard,
   Platform,
-  Pressable,
   StyleSheet,
   Text,
   TextInput,
   type TextInputProps,
   View,
 } from 'react-native'
+import { Pressable } from '@/components/Pressable'
 
 import { useTheme } from '@/components/MeshUI'
 import { MeshApiError } from '@/lib/apiClient'

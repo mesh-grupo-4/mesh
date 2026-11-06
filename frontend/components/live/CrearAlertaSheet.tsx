@@ -4,15 +4,16 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   Modal,
-  Platform,
-  Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native'
+import { Pressable } from '@/components/Pressable'
 
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { DragToDismiss } from '@/components/DragToDismiss'
 import { useTheme } from '@/components/MeshUI'
@@ -60,6 +61,9 @@ export function CrearAlertaSheet({
   const [errorBusqueda, setErrorBusqueda] = useState<string | null>(null)
   const tipoAnterior = useRef(tipo)
   const theme = useTheme()
+  const insets = useSafeAreaInsets()
+  const scrollRef = useRef<ScrollView>(null)
+  const yBusqueda = useRef(0)
   const styles = useMemo(() => crearEstilos(theme), [theme])
 
   const limpiarBusqueda = () => {
@@ -143,6 +147,11 @@ export function CrearAlertaSheet({
     tipoAnterior.current = nuevo
   }
 
+  /** Se espera a que suba el teclado: antes de eso el scroll todavía no tiene su altura final. */
+  const mostrarBusqueda = () => {
+    setTimeout(() => scrollRef.current?.scrollTo({ y: yBusqueda.current, animated: true }), 300)
+  }
+
   const publicar = () => {
     onPublicar(tipo, mensaje.trim(), ubicacion ?? undefined)
     setMensaje(MENSAJE_PREDETERMINADO.informacion)
@@ -157,139 +166,160 @@ export function CrearAlertaSheet({
       <Modal visible={visible && !eligiendoMapa} transparent animationType="slide" onRequestClose={cerrar}>
         <GestureHandlerRootView style={styles.root}>
         <KeyboardAvoidingView
-          style={styles.fondo}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={[styles.fondo, { paddingTop: insets.top }]}
+          behavior="padding"
         >
           <Pressable style={styles.fondoTap} onPress={cerrar} />
-          <DragToDismiss onDismiss={cerrar} style={styles.hoja}>
-            <View style={styles.asa} />
-            <Text style={styles.titulo}>Nueva alerta para el grupo</Text>
+          <DragToDismiss
+            onDismiss={cerrar}
+            style={styles.hoja}
+            cabecera={
+              <>
+                <View style={styles.asa} />
+                <Text style={styles.titulo}>Nueva alerta para el grupo</Text>
+              </>
+            }
+          >
+            <ScrollView
+              ref={scrollRef}
+              bounces={false}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+            >
+              <Text style={styles.label}>Tipo</Text>
+              <View style={styles.tipos}>
+                {TIPOS_ALERTA.map((t) => {
+                  const activo = t.id === tipo
+                  return (
+                    <Pressable
+                      key={t.id}
+                      style={[
+                        styles.tipo,
+                        activo && { borderColor: t.color, backgroundColor: `${t.color}1a` },
+                      ]}
+                      onPress={() => elegirTipo(t.id)}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: activo }}
+                      accessibilityLabel={`Tipo ${t.label}`}
+                    >
+                      <Text style={styles.tipoEmoji}>{t.emoji}</Text>
+                      <Text style={[styles.tipoTxt, activo && { color: t.color }]}>{t.label}</Text>
+                    </Pressable>
+                  )
+                })}
+              </View>
 
-            <Text style={styles.label}>Tipo</Text>
-            <View style={styles.tipos}>
-              {TIPOS_ALERTA.map((t) => {
-                const activo = t.id === tipo
-                return (
-                  <Pressable
-                    key={t.id}
-                    style={[
-                      styles.tipo,
-                      activo && { borderColor: t.color, backgroundColor: `${t.color}1a` },
-                    ]}
-                    onPress={() => elegirTipo(t.id)}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: activo }}
-                    accessibilityLabel={`Tipo ${t.label}`}
-                  >
-                    <Text style={styles.tipoEmoji}>{t.emoji}</Text>
-                    <Text style={[styles.tipoTxt, activo && { color: t.color }]}>{t.label}</Text>
+              <Text style={styles.label}>Mensaje</Text>
+              <TextInput
+                style={styles.input}
+                value={mensaje}
+                onChangeText={(t) => {
+                  setMensaje(t.slice(0, MAX_MENSAJE))
+                  setMensajeEditado(true)
+                }}
+                placeholder="Podés editar el mensaje predeterminado"
+                placeholderTextColor={theme.textMute}
+                multiline
+                numberOfLines={3}
+                maxLength={MAX_MENSAJE}
+              />
+              <Text style={styles.contador}>
+                {mensaje.length}/{MAX_MENSAJE}
+              </Text>
+
+              <Text
+                style={styles.label}
+                onLayout={(e) => {
+                  yBusqueda.current = e.nativeEvent.layout.y
+                }}
+              >
+                Dónde paran (opcional)
+              </Text>
+              {ubicacion ? (
+                <View style={styles.ubicacionRow}>
+                  <Text style={styles.ubicacionTxt} numberOfLines={2}>
+                    {nombreUbicacion ?? `${ubicacion.lat.toFixed(5)}, ${ubicacion.lng.toFixed(5)}`}
+                  </Text>
+                  <Pressable onPress={quitarUbicacion} hitSlop={8}>
+                    <Text style={styles.quitarUbicacion}>Quitar</Text>
                   </Pressable>
-                )
-              })}
-            </View>
+                </View>
+              ) : (
+                <>
+                  <TextInput
+                    style={styles.inputBusqueda}
+                    value={busqueda}
+                    onChangeText={setBusqueda}
+                    onFocus={mostrarBusqueda}
+                    placeholder="Buscar lugar (ej. YPF Ruta 20)"
+                    placeholderTextColor={theme.textMute}
+                    autoCorrect={false}
+                    autoCapitalize="none"
+                    returnKeyType="search"
+                    accessibilityLabel="Buscar el lugar donde van a parar"
+                  />
+                  {busquedaDebounced.length >= 3 ? (
+                    <View style={styles.sugerencias}>
+                      {buscando ? (
+                        <ActivityIndicator size="small" color={theme.accent} style={styles.sugerenciaInfo} />
+                      ) : errorBusqueda ? (
+                        <Text style={[styles.sugerenciaInfo, styles.sugerenciaError]}>{errorBusqueda}</Text>
+                      ) : hits.length === 0 ? (
+                        <Text style={styles.sugerenciaInfo}>Sin resultados. Probá otro texto o el mapa.</Text>
+                      ) : (
+                        hits.map((hit, i) => (
+                          <Pressable
+                            key={`${hit.lat},${hit.lng}-${i}`}
+                            style={({ pressed }) => [styles.sugerencia, pressed && styles.presionado]}
+                            onPress={() => elegirHit(hit)}
+                          >
+                            <Text style={styles.sugerenciaTxt} numberOfLines={2}>
+                              {hit.nombre}
+                            </Text>
+                          </Pressable>
+                        ))
+                      )}
+                    </View>
+                  ) : null}
+                  <Pressable
+                    style={({ pressed }) => [styles.marcarMapa, pressed && styles.presionado]}
+                    onPress={() => setEligiendoMapa(true)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Marcar en el mapa dónde van a parar"
+                  >
+                    <Text style={styles.marcarMapaTxt}>📍 Marcar en el mapa</Text>
+                  </Pressable>
+                </>
+              )}
 
-            <Text style={styles.label}>Mensaje</Text>
-            <TextInput
-              style={styles.input}
-              value={mensaje}
-              onChangeText={(t) => {
-                setMensaje(t.slice(0, MAX_MENSAJE))
-                setMensajeEditado(true)
-              }}
-              placeholder="Podés editar el mensaje predeterminado"
-              placeholderTextColor={theme.textMute}
-              multiline
-              numberOfLines={3}
-              maxLength={MAX_MENSAJE}
-            />
-            <Text style={styles.contador}>
-              {mensaje.length}/{MAX_MENSAJE}
-            </Text>
-
-            <Text style={styles.label}>Dónde paran (opcional)</Text>
-            {ubicacion ? (
-              <View style={styles.ubicacionRow}>
-                <Text style={styles.ubicacionTxt} numberOfLines={2}>
-                  {nombreUbicacion ?? `${ubicacion.lat.toFixed(5)}, ${ubicacion.lng.toFixed(5)}`}
-                </Text>
-                <Pressable onPress={quitarUbicacion} hitSlop={8}>
-                  <Text style={styles.quitarUbicacion}>Quitar</Text>
+              <View style={styles.acciones}>
+                <Pressable
+                  style={({ pressed }) => [styles.boton, styles.cancelar, pressed && styles.presionado]}
+                  onPress={cerrar}
+                  disabled={enviando}
+                >
+                  <Text style={styles.cancelarTxt}>Cancelar</Text>
+                </Pressable>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.boton,
+                    styles.enviar,
+                    pressed && styles.presionado,
+                    enviando && styles.deshabilitado,
+                  ]}
+                  onPress={publicar}
+                  disabled={enviando}
+                  accessibilityRole="button"
+                  accessibilityLabel="Enviar alerta a todos los integrantes"
+                >
+                  {enviando ? (
+                    <ActivityIndicator color={theme.onAccent} />
+                  ) : (
+                    <Text style={styles.enviarTxt}>Enviar a todos</Text>
+                  )}
                 </Pressable>
               </View>
-            ) : (
-              <>
-                <TextInput
-                  style={styles.inputBusqueda}
-                  value={busqueda}
-                  onChangeText={setBusqueda}
-                  placeholder="Buscar lugar (ej. YPF Ruta 20)"
-                  placeholderTextColor={theme.textMute}
-                  autoCorrect={false}
-                  autoCapitalize="none"
-                  returnKeyType="search"
-                  accessibilityLabel="Buscar el lugar donde van a parar"
-                />
-                {busquedaDebounced.length >= 3 ? (
-                  <View style={styles.sugerencias}>
-                    {buscando ? (
-                      <ActivityIndicator size="small" color={theme.accent} style={styles.sugerenciaInfo} />
-                    ) : errorBusqueda ? (
-                      <Text style={[styles.sugerenciaInfo, styles.sugerenciaError]}>{errorBusqueda}</Text>
-                    ) : hits.length === 0 ? (
-                      <Text style={styles.sugerenciaInfo}>Sin resultados. Probá otro texto o el mapa.</Text>
-                    ) : (
-                      hits.map((hit, i) => (
-                        <Pressable
-                          key={`${hit.lat},${hit.lng}-${i}`}
-                          style={({ pressed }) => [styles.sugerencia, pressed && styles.presionado]}
-                          onPress={() => elegirHit(hit)}
-                        >
-                          <Text style={styles.sugerenciaTxt} numberOfLines={2}>
-                            {hit.nombre}
-                          </Text>
-                        </Pressable>
-                      ))
-                    )}
-                  </View>
-                ) : null}
-                <Pressable
-                  style={({ pressed }) => [styles.marcarMapa, pressed && styles.presionado]}
-                  onPress={() => setEligiendoMapa(true)}
-                  accessibilityRole="button"
-                  accessibilityLabel="Marcar en el mapa dónde van a parar"
-                >
-                  <Text style={styles.marcarMapaTxt}>📍 Marcar en el mapa</Text>
-                </Pressable>
-              </>
-            )}
-
-            <View style={styles.acciones}>
-              <Pressable
-                style={({ pressed }) => [styles.boton, styles.cancelar, pressed && styles.presionado]}
-                onPress={cerrar}
-                disabled={enviando}
-              >
-                <Text style={styles.cancelarTxt}>Cancelar</Text>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.boton,
-                  styles.enviar,
-                  pressed && styles.presionado,
-                  enviando && styles.deshabilitado,
-                ]}
-                onPress={publicar}
-                disabled={enviando}
-                accessibilityRole="button"
-                accessibilityLabel="Enviar alerta a todos los integrantes"
-              >
-                {enviando ? (
-                  <ActivityIndicator color={theme.onAccent} />
-                ) : (
-                  <Text style={styles.enviarTxt}>Enviar a todos</Text>
-                )}
-              </Pressable>
-            </View>
+            </ScrollView>
           </DragToDismiss>
         </KeyboardAvoidingView>
         </GestureHandlerRootView>
@@ -326,6 +356,7 @@ const crearEstilos = (theme: Tema) =>
     flex: 1,
   },
   hoja: {
+    flexShrink: 1,
     backgroundColor: theme.surface,
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,

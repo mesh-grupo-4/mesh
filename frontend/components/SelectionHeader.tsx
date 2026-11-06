@@ -1,12 +1,35 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
+import { Pressable } from '@/components/Pressable'
 
 import { useTheme } from '@/components/MeshUI'
+import { SELECCION_CON_PULSACION_LARGA } from '@/lib/plataforma'
 
 type Props = {
   visible: boolean
   allSelected: boolean
   onToggleAll: () => void
   onCancel: () => void
+}
+
+/**
+ * Entrada al modo selección en iOS, donde la pulsación larga no selecciona.
+ * En Android no se dibuja: ahí se entra manteniendo apretado un elemento.
+ */
+export function BotonSeleccionar({ visible, onPress }: { visible: boolean; onPress: () => void }) {
+  const theme = useTheme()
+
+  if (!visible || SELECCION_CON_PULSACION_LARGA) return null
+
+  return (
+    <Pressable
+      onPress={onPress}
+      hitSlop={8}
+      style={styles.seleccionar}
+      accessibilityRole="button"
+    >
+      <Text style={[styles.seleccionarTexto, { color: theme.accent }]}>Seleccionar</Text>
+    </Pressable>
+  )
 }
 
 export function SelectionHeader({ visible, allSelected, onToggleAll, onCancel }: Props) {
@@ -46,5 +69,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     minWidth: 72,
+  },
+  seleccionar: {
+    alignSelf: 'flex-end',
+    paddingVertical: 6,
+  },
+  seleccionarTexto: {
+    fontSize: 15,
+    fontWeight: '600',
   },
 })

@@ -4,6 +4,7 @@ export default function AmigosLayout() {
   return (
     <Stack
       screenOptions={{
+        headerBackTitle: 'Volver',
         headerStyle: { backgroundColor: '#0f0f0f' },
         headerTintColor: '#fff',
         headerShadowVisible: false,

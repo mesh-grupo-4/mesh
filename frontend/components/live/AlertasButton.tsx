@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { StyleSheet, Text, View } from 'react-native'
+import { Pressable } from '@/components/Pressable'
 
 import { uiConfigPorActividad } from '@/lib/activityUi'
 import type { TipoActividadApi } from '@/lib/viajesApi'
@@ -34,9 +35,11 @@ export function AlertasButton({
       <Pressable
         style={({ pressed }) => [
           styles.boton,
-          { top: topOffset, width: tam, height: tam, borderRadius: tam / 2 },
+          // El contador sobresale del círculo: no se recorta y el ripple va circular.
+          { top: topOffset, width: tam, height: tam, borderRadius: tam / 2, overflow: 'visible' },
           pressed && styles.presionado,
         ]}
+        android_ripple={{ color: 'rgba(128, 128, 128, 0.28)', borderless: true, radius: tam / 2 }}
         onPress={onPress}
         accessibilityRole="button"
         accessibilityLabel={

@@ -3,17 +3,18 @@ import {
   View,
   Text,
   TextInput,
-  TouchableOpacity,
   StyleSheet,
   FlatList,
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
+import { Pressable } from '@/components/Pressable';
+import { SELECCION_CON_PULSACION_LARGA } from '@/lib/plataforma';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { AvatarFallback } from '@/components/AvatarFallback';
 import { SelectableCard } from '@/components/SelectableCard';
 import { SelectionActionBar } from '@/components/SelectionActionBar';
-import { SelectionHeader } from '@/components/SelectionHeader';
+import { BotonSeleccionar, SelectionHeader } from '@/components/SelectionHeader';
 import { useAuth } from '@/context/AuthContext';
 import { resolveBackendUserId } from '@/lib/apiClient';
 import { useTheme } from '@/components/MeshUI';
@@ -236,7 +237,7 @@ export function AmigosTabPanel() {
     const enviada = relacion === 'solicitud_enviada';
 
     return (
-      <TouchableOpacity
+      <Pressable
         style={[
           styles.botonAgregar,
           { borderColor: theme.accentLine },
@@ -252,7 +253,7 @@ export function AmigosTabPanel() {
             {enviada ? 'Solicitud enviada' : 'Agregar'}
           </Text>
         )}
-      </TouchableOpacity>
+      </Pressable>
     );
   };
 
@@ -279,10 +280,9 @@ export function AmigosTabPanel() {
   );
 
   const renderFilaBusqueda = ({ item }: { item: UsuarioBusquedaAmistadApi }) => (
-    <TouchableOpacity
+    <Pressable
       style={[styles.fila, { backgroundColor: theme.surface, borderColor: theme.border }]}
       onPress={() => verPerfil(item.id)}
-      activeOpacity={0.75}
     >
       <AvatarFallback nombre={item.nombre} />
       <View style={styles.filaContenido}>
@@ -290,7 +290,7 @@ export function AmigosTabPanel() {
         <Text style={[styles.email, { color: theme.textDim }]}>{item.email}</Text>
       </View>
       {renderBotonAgregar(item)}
-    </TouchableOpacity>
+    </Pressable>
   );
 
   const renderSolicitud = ({ item }: { item: SolicitudAmistadPendienteApi }) => {
@@ -298,10 +298,9 @@ export function AmigosTabPanel() {
 
     return (
       <View style={[styles.tarjetaSolicitud, { backgroundColor: theme.surface, borderColor: theme.accentLine }]}>
-        <TouchableOpacity
+        <Pressable
           style={styles.filaSolicitud}
           onPress={() => verPerfil(item.solicitante.id)}
-          activeOpacity={0.75}
         >
           <AvatarFallback nombre={item.solicitante.nombre} />
           <View style={styles.filaContenido}>
@@ -309,9 +308,9 @@ export function AmigosTabPanel() {
             <Text style={[styles.email, { color: theme.textDim }]}>{item.solicitante.email}</Text>
             <Text style={[styles.hintRelacion, { color: theme.textDim }]}>Quiere agregarte como amigo</Text>
           </View>
-        </TouchableOpacity>
+        </Pressable>
         <View style={styles.accionesSolicitud}>
-          <TouchableOpacity
+          <Pressable
             style={[styles.botonAceptar, { backgroundColor: theme.accent }, procesando && styles.botonDeshabilitado]}
             onPress={() => void ejecutarRespuesta(item.id, 'aceptar')}
             disabled={procesando}
@@ -321,14 +320,14 @@ export function AmigosTabPanel() {
             ) : (
               <Text style={[styles.botonAceptarTexto, { color: theme.onAccent }]}>Aceptar</Text>
             )}
-          </TouchableOpacity>
-          <TouchableOpacity
+          </Pressable>
+          <Pressable
             style={[styles.botonRechazar, { borderColor: theme.borderStrong }, procesando && styles.botonDeshabilitado]}
             onPress={() => void ejecutarRespuesta(item.id, 'rechazar')}
             disabled={procesando}
           >
             <Text style={[styles.botonRechazarTexto, { color: theme.textDim }]}>Rechazar</Text>
-          </TouchableOpacity>
+          </Pressable>
         </View>
       </View>
     );
@@ -339,7 +338,7 @@ export function AmigosTabPanel() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
         <View style={[styles.tabs, { borderColor: theme.border }]}>
-          <TouchableOpacity
+          <Pressable
             style={[
               styles.tab,
               { backgroundColor: theme.surface },
@@ -353,8 +352,8 @@ export function AmigosTabPanel() {
             <Text style={[styles.tabTexto, { color: tab === 'amigos' ? theme.accent : theme.textDim }]}>
               Mis Amigos
             </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
+          </Pressable>
+          <Pressable
             style={[
               styles.tab,
               { backgroundColor: theme.surface },
@@ -368,8 +367,15 @@ export function AmigosTabPanel() {
             <Text style={[styles.tabTexto, { color: tab === 'solicitudes' ? theme.accent : theme.textDim }]}>
               Solicitudes{solicitudes.length > 0 ? ` (${solicitudes.length})` : ''}
             </Text>
-          </TouchableOpacity>
+          </Pressable>
         </View>
+
+        {tab === 'amigos' && !enModoBusqueda ? (
+          <BotonSeleccionar
+            visible={!selection.active && amigos.length > 0}
+            onPress={() => selection.enter()}
+          />
+        ) : null}
 
         {tab === 'amigos' && !enModoBusqueda ? (
           <SelectionHeader
@@ -405,6 +411,8 @@ export function AmigosTabPanel() {
                 data={resultadosBusqueda}
                 keyExtractor={(item) => item.id}
                 renderItem={renderFilaBusqueda}
+                keyboardShouldPersistTaps="handled"
+                automaticallyAdjustKeyboardInsets
                 contentContainerStyle={
                   resultadosBusqueda.length === 0 ? styles.listaVacia : undefined
                 }
@@ -424,6 +432,8 @@ export function AmigosTabPanel() {
                 data={amigos}
                 keyExtractor={(item) => item.id}
                 renderItem={renderFilaAmigo}
+                keyboardShouldPersistTaps="handled"
+                automaticallyAdjustKeyboardInsets
                 contentContainerStyle={[
                   amigos.length === 0 ? styles.listaVacia : undefined,
                   selection.active && styles.listaConBarra,
@@ -431,7 +441,9 @@ export function AmigosTabPanel() {
                 ListEmptyComponent={
                   <Text style={[styles.vacio, { color: theme.textMute }]}>
                     No tenés amigos todavía. Buscá usuarios y enviá solicitudes de amistad.
-                    {'\n\n'}Mantené apretado un contacto para seleccionar y eliminar.
+                    {SELECCION_CON_PULSACION_LARGA
+                      ? '\n\nMantené apretado un contacto para seleccionar y eliminar.'
+                      : ''}
                   </Text>
                 }
                 refreshControl={

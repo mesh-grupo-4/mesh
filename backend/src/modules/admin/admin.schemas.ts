@@ -19,9 +19,9 @@ export const listarGruposQuery = z.object({
   ...paginacion,
 })
 
+/** Sin búsqueda por nombre: los viajes se listan anónimos (RN-126). */
 export const listarViajesQuery = z.object({
-  q: busqueda,
-  estado: z.enum(['planificado', 'en_curso', 'finalizado']).optional(),
+  estado:z.enum(['planificado', 'en_curso', 'finalizado']).optional(),
   ...paginacion,
 })
 

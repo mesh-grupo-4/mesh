@@ -240,6 +240,8 @@ export default function AgregarIntegranteScreen() {
             data={listaActual}
             keyExtractor={(item) => item.id}
             style={styles.lista}
+            keyboardShouldPersistTaps="handled"
+            automaticallyAdjustKeyboardInsets
             contentContainerStyle={[
               styles.listaContent,
               listaActual.length === 0 ? styles.listaVacia : undefined,

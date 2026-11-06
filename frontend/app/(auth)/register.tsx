@@ -4,13 +4,14 @@ import {
   Text,
   StyleSheet,
   KeyboardAvoidingView,
-  Platform, 
+  Platform,
   ScrollView,
-  Pressable,
 } from 'react-native';
+import { Pressable } from '@/components/Pressable';
 import { meshAlert } from '@/lib/meshAlert';
 import { router } from 'expo-router';
 import { useAuth, ActividadPreferida } from '@/context/AuthContext';
+import { useVolverInterno } from '@/hooks/useVolver';
 import { Btn, Field, TopBar, ActivityTile, useTheme } from '@/components/MeshUI';
 import { Feather } from '@expo/vector-icons';
 
@@ -35,6 +36,7 @@ export default function RegisterScreen() {
   const theme = useTheme();
 
   const [step, setStep] = useState(0);
+  useVolverInterno(step === 1, () => setStep(0));
   const [nombre, setNombre] = useState('');
   const [apellido, setApellido] = useState('');
   const [telefono, setTelefono] = useState('');

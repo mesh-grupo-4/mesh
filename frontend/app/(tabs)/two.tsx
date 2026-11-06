@@ -3,7 +3,6 @@ import {
   View,
   Text,
   TextInput,
-  Pressable,
   StyleSheet,
   ActivityIndicator,
   ScrollView,
@@ -11,6 +10,7 @@ import {
   Modal,
   SafeAreaView,
 } from 'react-native'
+import { Pressable } from '@/components/Pressable'
 import { router, useFocusEffect } from 'expo-router'
 import { Feather } from '@expo/vector-icons'
 import { useCopilot } from 'react-native-copilot'
@@ -22,7 +22,7 @@ import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
 import { AYUDA_VIAJES } from '@/components/ayuda/contenidoAyuda'
 import { SelectableCard } from '@/components/SelectableCard'
 import { SelectionActionBar } from '@/components/SelectionActionBar'
-import { SelectionHeader } from '@/components/SelectionHeader'
+import { BotonSeleccionar, SelectionHeader } from '@/components/SelectionHeader'
 import { useSelectionMode } from '@/hooks/useSelectionMode'
 import { etiquetaActividad } from '@/lib/activityDefaults'
 import { formatDurationHm, formatKm } from '@/lib/format'
@@ -574,6 +574,7 @@ export default function ViajesScreen() {
     <View style={[styles.root, { backgroundColor: theme.background }]}>
       <TopBar
         title="Viajes"
+        raiz
         bordered={false}
         onAyuda={() => start()}
         right={
@@ -710,6 +711,8 @@ export default function ViajesScreen() {
       ) : (
         <ScrollView
           contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -727,6 +730,10 @@ export default function ViajesScreen() {
                 </Btn>
               </PasoAyuda>
 
+              <BotonSeleccionar
+                visible={!selection.active && viajesEliminables.length > 0}
+                onPress={() => selection.enter()}
+              />
               <SelectionHeader
                 visible={selection.active}
                 allSelected={todosSeleccionados}
@@ -797,6 +804,10 @@ export default function ViajesScreen() {
                 </View>
               ) : (
                 <>
+                  <BotonSeleccionar
+                    visible={!selection.active && pasadosGestionables.length > 0}
+                    onPress={() => selection.enter()}
+                  />
                   <SelectionHeader
                     visible={selection.active && tab === 'pasados'}
                     allSelected={todosPasadosSeleccionados}

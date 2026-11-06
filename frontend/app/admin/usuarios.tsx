@@ -9,6 +9,7 @@ import {
   Paginador,
   Seccion,
   Vacio,
+  diaAdmin,
   nombreCompleto,
   useListadoAdmin,
 } from '@/components/admin/AdminUI'
@@ -73,13 +74,13 @@ export default function AdminUsuariosScreen() {
       </PasoAyuda>
       {error ? <Text style={{ color: theme.danger }}>{error}</Text> : null}
       <PasoAyuda {...AYUDA_ADMIN_USUARIOS[1]!}>
-        <Seccion>
+        <Seccion titulo="Cuentas" descripcion="Tocá una cuenta para ver sus datos y gestionarla.">
           {datos?.items.length === 0 ? <Vacio texto="No hay usuarios con ese filtro." /> : null}
           {datos?.items.map((u) => (
             <Fila
               key={u.id}
               titulo={nombreCompleto(u)}
-              detalle={u.email}
+              detalle={`Email: ${u.email}\nAlta: ${diaAdmin(u.created_at)}`}
               etiqueta={u.suspendido_at ? 'Suspendida' : u.rol_sistema === 'superadmin' ? 'Superadmin' : undefined}
               tonoEtiqueta={u.suspendido_at ? 'danger' : 'accent'}
               onPress={() => router.push({ pathname: '/admin/usuario/[usuarioId]', params: { usuarioId: u.id } })}

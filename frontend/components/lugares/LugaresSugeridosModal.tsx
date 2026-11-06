@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ActivityIndicator, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, FlatList, Modal, StyleSheet, Text, View } from 'react-native'
+import { Pressable } from '@/components/Pressable'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { Btn, useTheme } from '@/components/MeshUI'
@@ -72,7 +73,7 @@ export function LugaresSugeridosModal({
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onCerrar}>
-      <Pressable style={styles.fondo} onPress={onCerrar} accessibilityLabel="Cerrar" />
+      <Pressable feedback={false} style={styles.fondo} onPress={onCerrar} accessibilityLabel="Cerrar" />
       <View
         style={[
           styles.hoja,

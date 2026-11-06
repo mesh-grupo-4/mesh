@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { Pressable } from '@/components/Pressable';
 import Colors from '@/constants/Colors';
 
 type Theme = (typeof Colors)[keyof typeof Colors];

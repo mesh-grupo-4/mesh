@@ -3,7 +3,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
-  Pressable,
+  KeyboardAvoidingView,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -11,6 +11,7 @@ import {
   TextInput,
   View,
 } from 'react-native'
+import { Pressable } from '@/components/Pressable'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useCopilot } from 'react-native-copilot'
@@ -230,8 +231,14 @@ export default function GastosViajeScreen() {
     )
   }
 
+  // `padding` en ambas plataformas: con edge-to-edge Android tampoco achica la ventana. El
+  // offset negativo deja la zona segura del pie detrás del teclado, sin un hueco de más.
   return (
-    <View style={[styles.root, { backgroundColor: theme.background }]}>
+    <KeyboardAvoidingView
+      style={[styles.root, { backgroundColor: theme.background }]}
+      behavior="padding"
+      keyboardVerticalOffset={-insets.bottom}
+    >
       <Stack.Screen options={{ headerShown: false }} />
       <TopBar
         title="Gastos compartidos"
@@ -245,6 +252,7 @@ export default function GastosViajeScreen() {
         contentContainerStyle={[styles.lista, { paddingBottom: insets.bottom + 32 }]}
         refreshControl={<RefreshControl refreshing={cargando} onRefresh={() => void cargar()} />}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
       >
         {cargando && gastos.length === 0 ? (
           <ActivityIndicator style={styles.spinner} color={theme.accent} />
@@ -322,7 +330,13 @@ export default function GastosViajeScreen() {
           </View>
 
           {candidatos.length > 0 ? (
-            <View style={styles.chips}>
+            // Con mucha gente el pie no puede crecer: con el teclado arriba taparía los campos.
+            <ScrollView
+              style={styles.chipsScroll}
+              contentContainerStyle={styles.chips}
+              keyboardShouldPersistTaps="handled"
+              nestedScrollEnabled
+            >
               {candidatos.map((c) => {
                 const activo = seleccionados.has(c.id)
                 return (
@@ -347,7 +361,7 @@ export default function GastosViajeScreen() {
                   </Pressable>
                 )
               })}
-            </View>
+            </ScrollView>
           ) : null}
 
           <Btn
@@ -362,7 +376,7 @@ export default function GastosViajeScreen() {
         </View>
         </PasoAyuda>
       ) : null}
-    </View>
+    </KeyboardAvoidingView>
   )
 }
 
@@ -518,6 +532,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 15,
   },
+  chipsScroll: { flexGrow: 0, maxHeight: 92 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {
     flexDirection: 'row',

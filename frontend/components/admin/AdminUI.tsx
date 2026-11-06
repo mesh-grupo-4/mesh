@@ -3,13 +3,13 @@ import { Stack, useRouter } from 'expo-router'
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import {
   ActivityIndicator,
-  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native'
+import { Pressable } from '@/components/Pressable'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { Btn, TopBar, useTheme } from '@/components/MeshUI'
@@ -28,6 +28,11 @@ export function fechaAdmin(iso: string | null | undefined): string {
   })
 }
 
+/** Solo el día: para datos donde la hora no aporta. */
+export function diaAdmin(iso: string | null | undefined): string {
+  return formatearEnArg(iso, { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
 export function nombreCompleto(p: { nombre: string; apellido: string | null }): string {
   return [p.nombre, p.apellido].filter(Boolean).join(' ')
 }
@@ -44,6 +49,11 @@ export const ETIQUETA_ACTIVIDAD: Record<string, string> = {
   running: 'Running',
   trekking: 'Trekking',
   otro: 'Otro',
+}
+
+/** Los viajes no muestran su nombre (RN-126): se distinguen por este código. */
+export function codigoViaje(id: string): string {
+  return `Viaje ${id.slice(0, 8)}`
 }
 
 export function mensajeError(e: unknown): string {
@@ -94,6 +104,7 @@ export function AdminScreen({
         <ScrollView
           contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 24 }]}
           keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
           refreshControl={
             onRefresh ? (
               <RefreshControl refreshing={false} onRefresh={onRefresh} tintColor={theme.accent} />
@@ -107,11 +118,23 @@ export function AdminScreen({
   )
 }
 
-export function Seccion({ titulo, children }: { titulo?: string; children: ReactNode }) {
+export function Seccion({
+  titulo,
+  descripcion,
+  children,
+}: {
+  titulo?: string
+  /** Subtítulo: qué se está viendo o para qué sirve esta sección. */
+  descripcion?: string
+  children: ReactNode
+}) {
   const theme = useTheme()
   return (
     <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
       {titulo ? <Text style={[styles.tituloSeccion, { color: theme.text }]}>{titulo}</Text> : null}
+      {descripcion ? (
+        <Text style={[styles.descripcionSeccion, { color: theme.textDim }]}>{descripcion}</Text>
+      ) : null}
       {children}
     </View>
   )
@@ -259,6 +282,7 @@ const styles = StyleSheet.create({
   scroll: { padding: 16, gap: 12 },
   card: { borderRadius: 14, borderWidth: 1, padding: 16 },
   tituloSeccion: { fontSize: 16, fontWeight: '700', marginBottom: 6 },
+  descripcionSeccion: { fontSize: 13, lineHeight: 18, marginBottom: 8 },
   fila: {
     flexDirection: 'row',
     alignItems: 'center',

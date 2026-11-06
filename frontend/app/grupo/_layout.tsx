@@ -4,6 +4,7 @@ export default function GrupoLayout() {
   return (
     <Stack
       screenOptions={{
+        headerBackTitle: 'Volver',
         headerStyle: { backgroundColor: '#0f0f0f' },
         headerTintColor: '#fff',
         headerShadowVisible: false,

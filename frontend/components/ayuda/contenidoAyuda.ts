@@ -417,7 +417,7 @@ export const AYUDA_ADMIN_PANEL: PasoDefinicion[] = [
   {
     nombre: 'adminPanel.plataforma',
     orden: ORDEN_PANTALLA.adminPanel,
-    texto: 'Totales agregados de la plataforma: usuarios, grupos y viajes por estado. Sin posiciones ni velocidades (RN-126, RN-070).',
+    texto: 'Totales agregados de la plataforma: usuarios, grupos y viajes finalizados. Sin posiciones ni velocidades (RN-126, RN-070).',
   },
   {
     nombre: 'adminPanel.gestion',
@@ -443,7 +443,7 @@ export const AYUDA_ADMIN_USUARIO: PasoDefinicion[] = [
   {
     nombre: 'adminUsuario.cuenta',
     orden: ORDEN_PANTALLA.adminUsuario,
-    texto: 'Estado de la cuenta y su actividad: viajes creados, participaciones y grupos que lidera.',
+    texto: 'Estado de la cuenta. Más abajo, sus totales de actividad, sin detalle de cada viaje (RN-126).',
   },
   {
     nombre: 'adminUsuario.acciones',
@@ -482,12 +482,12 @@ export const AYUDA_ADMIN_VIAJES: PasoDefinicion[] = [
   {
     nombre: 'adminViajes.filtros',
     orden: ORDEN_PANTALLA.adminViajes,
-    texto: 'Buscá por nombre o filtrá por estado del viaje.',
+    texto: 'Filtrá por estado. Con "En curso" salen primero los que llevan más tiempo: los posibles viajes colgados.',
   },
   {
     nombre: 'adminViajes.lista',
     orden: ORDEN_PANTALLA.adminViajes + 1,
-    texto: 'Tocá un viaje para forzar su finalización o eliminarlo.',
+    texto: 'Los viajes se muestran anónimos, sin nombre, personas, horarios ni ruta (RN-126). Tocá uno para forzar su finalización o eliminarlo.',
   },
 ]
 
@@ -495,7 +495,7 @@ export const AYUDA_ADMIN_VIAJE: PasoDefinicion[] = [
   {
     nombre: 'adminViaje.datos',
     orden: ORDEN_PANTALLA.adminViaje,
-    texto: 'Quién lo creó, cuándo, su ruta y cuánta actividad (alertas, paradas, gastos) registró.',
+    texto: 'Solo lo necesario para gestionarlo: actividad, tipo, integrantes y estado. Quién, cuándo y por dónde no se muestran (RN-126).',
   },
   {
     nombre: 'adminViaje.accion',

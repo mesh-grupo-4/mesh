@@ -25,7 +25,7 @@ export default function RutasScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <TopBar title="Rutas" bordered={false} onAyuda={() => start()} />
+      <TopBar title="Rutas" raiz bordered={false} onAyuda={() => start()} />
       <PasoAyuda {...AYUDA_RUTAS[0]!}>
         <View style={styles.segmentWrap}>
           <SegmentTabs

@@ -1,7 +1,10 @@
 import { Feather } from '@expo/vector-icons'
-import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native'
+import * as Haptics from 'expo-haptics'
+import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native'
+import { Pressable } from '@/components/Pressable'
 
 import { useTheme } from '@/components/MeshUI'
+import { SELECCION_CON_PULSACION_LARGA } from '@/lib/plataforma'
 
 type Props = {
   itemId: string
@@ -47,13 +50,16 @@ export function SelectableCard({
       onDisabledPress?.()
       return
     }
-    onEnterSelection(itemId)
+    void Haptics.performAndroidHapticsAsync(Haptics.AndroidHaptics.Long_Press)
+    // Ya seleccionando, la pulsación larga suma el ítem en vez de reiniciar la selección.
+    if (selectionActive) onToggle(itemId)
+    else onEnterSelection(itemId)
   }
 
   return (
     <Pressable
       onPress={handlePress}
-      onLongPress={handleLongPress}
+      onLongPress={SELECCION_CON_PULSACION_LARGA ? handleLongPress : undefined}
       delayLongPress={400}
       style={({ pressed }) => [
         styles.wrap,

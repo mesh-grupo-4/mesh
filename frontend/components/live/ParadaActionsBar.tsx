@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons'
 import { useEffect, useState } from 'react'
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
+import { Pressable } from '@/components/Pressable'
 
 import { useTheme } from '@/components/MeshUI'
 import { uiConfigPorActividad } from '@/lib/activityUi'

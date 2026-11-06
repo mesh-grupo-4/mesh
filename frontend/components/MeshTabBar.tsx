@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { BottomTabBar, type BottomTabBarProps } from 'expo-router/js-tabs'
-import { Platform, StyleSheet, useWindowDimensions, View } from 'react-native'
+import { StyleSheet, useWindowDimensions, View } from 'react-native'
 import Svg, { Path } from 'react-native-svg'
 import { useTheme } from '@/components/MeshUI'
 
@@ -15,8 +15,8 @@ const NOTCH_RADIUS = 32
  * más alta (3 botones, skins de fabricante), el contenido de la tab bar
  * quedaba tapado por esos botones.
  */
-const BASE_HEIGHT = Platform.OS === 'ios' ? 88 : 64
-const BASE_PADDING_BOTTOM = Platform.OS === 'ios' ? 24 : 8
+const BASE_HEIGHT = 64
+const BASE_PADDING_BOTTOM = 8
 
 export function MeshTabBar(props: BottomTabBarProps) {
   const { width } = useWindowDimensions()
