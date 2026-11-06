@@ -150,7 +150,7 @@ Toda fecha y hora que ve el usuario se expresa en **hora de Argentina (UTC-3)**,
 - Se **almacena y transporta en UTC** (ISO 8601 / `timestamptz`). La conversión ocurre solo en los bordes (RN-106).
 - Frontend: usar siempre `frontend/lib/tiempoArg.ts` (`formatearEnArg`, `aCamposArg`, `desdeCamposArg`). **No** llamar a `toLocaleString` / `toLocaleDateString` directamente en componentes.
 - Los date pickers nativos trabajan en la zona del dispositivo: convertir con `aCamposArg` al pasarles un valor y con `desdeCamposArg` al leer lo que devuelven.
-- La fecha programada de un viaje debe ser **futura**, validada en frontend y backend (`FECHA_PASADA`, RN-107).
+- La fecha programada de un viaje debe ser **futura**, validada en frontend y backend (`FECHA_PASADA`, RN-107). Excepción: el "Viaje YA" (`inmediato: true`) no manda fecha y el backend usa la hora actual (ver `tesis-brain/us-viaje-ya.md`).
 
 ### Estados del integrante durante el viaje
 ```

@@ -340,6 +340,42 @@ OrigenViajeIntegrante:
 
 # ── Acciones compartidas ─────────────────────────────────────────────────────
 
+InvitarViajeRequest:
+  type: object
+  description: |
+    Grupos y/o amigos a invitar a un viaje ya creado. Al menos uno de los dos
+    arrays tiene que traer elementos.
+  properties:
+    grupoIds:
+      type: array
+      description: Grupos cuyos integrantes quedan invitados. El líder debe pertenecer a cada uno.
+      default: []
+      items:
+        type: string
+        format: uuid
+    amigoIds:
+      type: array
+      description: Amigos a invitar individualmente. Debe existir amistad aceptada con cada uno.
+      default: []
+      items:
+        type: string
+        format: uuid
+  additionalProperties: false
+
+InvitacionesViajeEnviadas:
+  type: object
+  required:
+    - viaje_id
+    - invitaciones_enviadas
+  properties:
+    viaje_id:
+      type: string
+      format: uuid
+    invitaciones_enviadas:
+      type: integer
+      description: Invitaciones nuevas; quien ya figuraba en el viaje no se cuenta.
+      example: 5
+
 AccionInvitacion:
   type: object
   description: Respuesta a una invitación o solicitud pendiente.
@@ -1733,7 +1769,6 @@ CrearViajeRequest:
     - nombre
     - esGrupal
     - tipoActividad
-    - fechaProgramada
   properties:
     nombre:
       type: string
@@ -1775,7 +1810,16 @@ CrearViajeRequest:
       description: |
         Fecha y hora de salida, en UTC (RN-106). Debe ser **estrictamente futura**:
         una fecha pasada devuelve 400 con `code: FECHA_PASADA` (RN-107).
+        Obligatoria salvo con `inmediato: true`, donde no se envía.
       example: '2026-09-01T13:00:00.000Z'
+    inmediato:
+      type: boolean
+      default: false
+      description: |
+        "Viaje YA" (RN-107): el backend usa la hora actual como fecha programada.
+        El viaje nace `planificado` igual, para que el QR siga vigente (RN-015)
+        hasta que el líder lo inicia. No se combina con `fechaProgramada`.
+      example: false
     rutaPlantillaId:
       type: string
       format: uuid

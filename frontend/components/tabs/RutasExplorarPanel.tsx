@@ -6,6 +6,7 @@ import { Feather } from '@expo/vector-icons';
 import { Btn, useTheme } from '@/components/MeshUI';
 import { parseRouteShareToken } from '@/lib/inviteLinks';
 import { meshAlert } from '@/lib/meshAlert';
+import { abrirNuevoViaje } from '@/lib/nuevoViaje';
 
 export function RutasExplorarPanel() {
   const theme = useTheme();
@@ -26,7 +27,7 @@ export function RutasExplorarPanel() {
   };
 
   const crearViajeConRuta = () => {
-    router.push('/viaje/crear');
+    abrirNuevoViaje();
   };
 
   return (

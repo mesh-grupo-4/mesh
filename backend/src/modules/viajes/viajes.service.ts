@@ -15,6 +15,7 @@ import { unirUsuarioAlViaje } from './viajes.membership'
 import type {
   ActualizarViajeInput,
   CreateViajeInput,
+  InvitarViajeInput,
   PostPosicionesInput,
   PutRutaInput,
   ResponderInvitacionViajeInput,
@@ -56,17 +57,18 @@ export class ViajesService {
     this.rachas = new RachasService(prisma)
   }
 
-  async crearViaje(creadorId: string, input: CreateViajeInput) {
-    const existe = await this.prisma.usuario.findUnique({ where: { id: creadorId } })
-    if (!existe) {
-      throw new HttpError(404, 'Usuario no encontrado', 'USER_NOT_FOUND')
-    }
-
-    if (input.fechaProgramada.getTime() <= Date.now()) {
-      throw new HttpError(400, 'La fecha programada debe ser futura', 'FECHA_PASADA')
-    }
-
-    const grupoIds = [...new Set(input.grupoIds ?? [])]
+  /**
+   * Valida que el creador pueda invitar esos grupos (es miembro) y amigos (amistad
+   * aceptada) y resuelve a quién invitar. `origen` prioriza 'grupo' sobre 'amigo'
+   * cuando una persona viene por ambos caminos; `grupo_origen_id` guarda el primer
+   * grupo (según el orden de `grupoIds`) que la incluye.
+   */
+  private async resolverInvitados(
+    creadorId: string,
+    grupoIdsInput: string[] | undefined,
+    amigoIdsInput: string[] | undefined
+  ) {
+    const grupoIds = [...new Set(grupoIdsInput ?? [])]
 
     if (grupoIds.length > 0) {
       const membresias = await this.prisma.grupoMiembro.findMany({
@@ -87,7 +89,7 @@ export class ViajesService {
       }
     }
 
-    const amigoIds = [...new Set(input.amigoIds ?? [])].filter((id) => id !== creadorId)
+    const amigoIds = [...new Set(amigoIdsInput ?? [])].filter((id) => id !== creadorId)
 
     if (amigoIds.length > 0) {
       const amistades = await this.prisma.amistad.findMany({
@@ -109,9 +111,6 @@ export class ViajesService {
       }
     }
 
-    // origen prioriza 'grupo' sobre 'amigo' cuando una persona viene por ambos caminos.
-    // grupo_origen_id guarda el primer grupo (según el orden de grupoIds) que incluye
-    // a cada invitado, para poder mostrar de qué grupo vino y heredar su rol ahí.
     const invitadosPorGrupoMap = new Map<string, string>()
     if (grupoIds.length > 0) {
       const miembros = await this.prisma.grupoMiembro.findMany({
@@ -127,10 +126,50 @@ export class ViajesService {
         }
       }
     }
-    const invitadosPorGrupo = new Set(invitadosPorGrupoMap.keys())
 
-    const invitadosPorAmigo = new Set(amigoIds.filter((id) => !invitadosPorGrupo.has(id)))
-    const totalInvitados = invitadosPorGrupo.size + invitadosPorAmigo.size
+    const invitadosPorAmigo = amigoIds.filter((id) => !invitadosPorGrupoMap.has(id))
+
+    /** Filas `viaje_integrante` en estado `pendiente` para ese viaje. */
+    const filasPendientes = (viajeId: string) => [
+      ...[...invitadosPorGrupoMap].map(([usuarioId, grupoOrigenId]) => ({
+        viaje_id: viajeId,
+        usuario_id: usuarioId,
+        estado: 'pendiente' as const,
+        origen: 'grupo' as const,
+        grupo_origen_id: grupoOrigenId,
+      })),
+      ...invitadosPorAmigo.map((usuarioId) => ({
+        viaje_id: viajeId,
+        usuario_id: usuarioId,
+        estado: 'pendiente' as const,
+        origen: 'amigo' as const,
+      })),
+    ]
+
+    return {
+      grupoIds,
+      totalInvitados: invitadosPorGrupoMap.size + invitadosPorAmigo.length,
+      filasPendientes,
+    }
+  }
+
+  async crearViaje(creadorId: string, input: CreateViajeInput) {
+    const existe = await this.prisma.usuario.findUnique({ where: { id: creadorId } })
+    if (!existe) {
+      throw new HttpError(404, 'Usuario no encontrado', 'USER_NOT_FOUND')
+    }
+
+    // RN-107: un viaje inmediato ("Viaje YA") sale ahora; el resto necesita fecha futura.
+    const fechaProgramada = input.inmediato ? new Date() : input.fechaProgramada
+    if (!input.inmediato && (!fechaProgramada || fechaProgramada.getTime() <= Date.now())) {
+      throw new HttpError(400, 'La fecha programada debe ser futura', 'FECHA_PASADA')
+    }
+
+    const { grupoIds, totalInvitados, filasPendientes } = await this.resolverInvitados(
+      creadorId,
+      input.grupoIds,
+      input.amigoIds
+    )
 
     let tipoActividad = input.tipoActividad
     if (input.rutaPlantillaId) {
@@ -172,7 +211,7 @@ export class ViajesService {
           velocidad_esperada: input.velocidadEsperada ?? params.velocidadEsperada,
           distancia_max_separacion: input.distanciaMaxSeparacion ?? params.distanciaMaxSeparacion,
           tolerancia_atraso_min: input.toleranciaAtrasoMin ?? null,
-          fecha_programada: input.fechaProgramada,
+          fecha_programada: fechaProgramada!,
           alerta_incidente_habilitada: input.esGrupal,
         },
       })
@@ -186,21 +225,7 @@ export class ViajesService {
         },
       })
 
-      const invitados = [
-        ...[...invitadosPorGrupo].map((usuarioId) => ({
-          viaje_id: viaje.id,
-          usuario_id: usuarioId,
-          estado: 'pendiente' as const,
-          origen: 'grupo' as const,
-          grupo_origen_id: invitadosPorGrupoMap.get(usuarioId)!,
-        })),
-        ...[...invitadosPorAmigo].map((usuarioId) => ({
-          viaje_id: viaje.id,
-          usuario_id: usuarioId,
-          estado: 'pendiente' as const,
-          origen: 'amigo' as const,
-        })),
-      ]
+      const invitados = filasPendientes(viaje.id)
 
       if (invitados.length > 0) {
         await tx.viajeIntegrante.createMany({
@@ -819,6 +844,54 @@ export class ViajesService {
     await this.prisma.viaje.delete({ where: { id: viajeId } })
 
     return { viaje_id: viajeId, accion: 'eliminado' as const }
+  }
+
+  /**
+   * Invita grupos y/o amigos a un viaje ya creado (sala de espera del "Viaje YA").
+   * Solo el líder (creador) y solo mientras el viaje está `planificado` (RN-030):
+   * las invitaciones se responden antes de iniciar (RN-015). Quien ya figura en el
+   * viaje —en cualquier estado— no se vuelve a invitar.
+   */
+  async invitar(creadorId: string, viajeId: string, input: InvitarViajeInput) {
+    const viaje = await this.prisma.viaje.findUnique({
+      where: { id: viajeId },
+      select: { id: true, creador_id: true, estado: true, es_grupal: true },
+    })
+    if (!viaje) {
+      throw new HttpError(404, 'Viaje no encontrado', 'VIAJE_NOT_FOUND')
+    }
+    if (viaje.creador_id !== creadorId) {
+      throw new HttpError(403, 'Solo el líder puede invitar al viaje', 'NOT_CREATOR')
+    }
+    if (!viaje.es_grupal) {
+      throw new HttpError(409, 'Un viaje individual no admite invitaciones', 'INDIVIDUAL_TRIP')
+    }
+    if (viaje.estado !== 'planificado') {
+      throw new HttpError(409, 'El viaje no está en estado planificado', 'INVALID_STATE')
+    }
+
+    const { grupoIds, filasPendientes } = await this.resolverInvitados(
+      creadorId,
+      input.grupoIds,
+      input.amigoIds
+    )
+
+    return this.prisma.$transaction(async (tx) => {
+      const filas = filasPendientes(viajeId)
+      const creados =
+        filas.length > 0
+          ? await tx.viajeIntegrante.createMany({ data: filas, skipDuplicates: true })
+          : { count: 0 }
+
+      if (grupoIds.length > 0) {
+        await tx.viajeGrupo.createMany({
+          data: grupoIds.map((grupoId) => ({ viaje_id: viajeId, grupo_id: grupoId })),
+          skipDuplicates: true,
+        })
+      }
+
+      return { viaje_id: viajeId, invitaciones_enviadas: creados.count }
+    })
   }
 
   async iniciar(creadorId: string, viajeId: string) {

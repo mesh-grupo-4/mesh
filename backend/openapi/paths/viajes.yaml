@@ -22,7 +22,10 @@ ViajesColeccion:
 
       - **RN-021:** la actividad determina `velocidad_esperada` y
         `distancia_max_separacion`; las asigna el backend, no el cliente.
-      - **RN-107:** `fechaProgramada` debe ser estrictamente futura.
+      - **RN-107:** `fechaProgramada` debe ser estrictamente futura. Excepción:
+        con `inmediato: true` ("Viaje YA") no se envía fecha y el backend usa la hora
+        actual. El viaje igual nace `planificado`, así el QR sigue vigente (RN-015)
+        hasta que el líder lo inicia.
       - **RN-028/029:** los integrantes de `grupoIds` y las personas de `amigoIds`
         quedan invitados en estado `pendiente`. Quien llega por ambas vías se registra
         una sola vez, con origen `grupo`.
@@ -36,14 +39,24 @@ ViajesColeccion:
         application/json:
           schema:
             $ref: '../components/schemas.yaml#/CrearViajeRequest'
-          example:
-            nombre: Ruta de las Altas Cumbres
-            esGrupal: true
-            tipoActividad: bici
-            fechaProgramada: '2026-09-01T13:00:00.000Z'
-            grupoIds:
-              - 7a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d
-            amigoIds: []
+          examples:
+            programado:
+              summary: Viaje planificado con fecha
+              value:
+                nombre: Ruta de las Altas Cumbres
+                esGrupal: true
+                tipoActividad: bici
+                fechaProgramada: '2026-09-01T13:00:00.000Z'
+                grupoIds:
+                  - 7a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d
+                amigoIds: []
+            inmediato:
+              summary: Viaje YA (sale ahora)
+              value:
+                nombre: Viaje rápido · Bicicleta · 14:30
+                esGrupal: true
+                tipoActividad: bici
+                inmediato: true
     responses:
       '201':
         description: Viaje creado.
@@ -53,7 +66,9 @@ ViajesColeccion:
               $ref: '../components/schemas.yaml#/ViajeCreado'
       '400':
         description: |
-          Validación fallida, o fecha programada en el pasado (`FECHA_PASADA`, RN-107).
+          Validación fallida (por ejemplo, falta `fechaProgramada` sin `inmediato`, o
+          viene junto con `inmediato: true`), o fecha programada en el pasado
+          (`FECHA_PASADA`, RN-107).
         content:
           application/json:
             schema:
@@ -420,6 +435,106 @@ ResponderInvitacionViaje:
             example:
               error: El viaje ya no acepta respuestas
               code: TRIP_NOT_PLANNED
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+InvitarAViaje:
+  post:
+    operationId: invitarAViaje
+    summary: Invitar grupos o amigos a un viaje ya creado
+    description: |
+      Suma invitaciones `pendiente` a un viaje existente. Se usa desde la sala de
+      espera del "Viaje YA", donde el viaje ya está creado y el líder va invitando.
+
+      - **RN-030:** solo el creador (líder) puede invitar.
+      - **RN-015:** solo mientras el viaje está `planificado`; un viaje individual no
+        admite invitaciones.
+      - **RN-028/029:** mismas reglas que al crear: el líder debe ser miembro de cada
+        grupo y tener amistad aceptada con cada amigo. Quien llega por ambas vías se
+        registra una sola vez, con origen `grupo`.
+      - Quien ya figura en el viaje (en cualquier estado) no se vuelve a invitar.
+    tags:
+      - Viajes
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/InvitarViajeRequest'
+          example:
+            grupoIds:
+              - 7a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d
+            amigoIds:
+              - 2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e
+    responses:
+      '201':
+        description: Invitaciones registradas.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/InvitacionesViajeEnviadas'
+            example:
+              viaje_id: 0b7e2c1a-9f3d-4c8e-a1b2-3c4d5e6f7a8b
+              invitaciones_enviadas: 5
+      '400':
+        description: Body inválido o sin grupos ni amigos (`VALIDATION_ERROR`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Indicá al menos un grupo o un amigo para invitar
+              code: VALIDATION_ERROR
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: |
+          Quien invita no es el líder (`NOT_CREATOR`), no es miembro de un grupo
+          indicado (`NOT_GROUP_MEMBER`) o una persona no es su amiga (`NOT_FRIEND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            examples:
+              noEsLider:
+                value:
+                  error: Solo el líder puede invitar al viaje
+                  code: NOT_CREATOR
+              noEsMiembro:
+                value:
+                  error: Solo podés invitar grupos de los que sos miembro
+                  code: NOT_GROUP_MEMBER
+              noEsAmigo:
+                value:
+                  error: Solo podés invitar a tus amigos
+                  code: NOT_FRIEND
+      '404':
+        description: El viaje no existe (`VIAJE_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Viaje no encontrado
+              code: VIAJE_NOT_FOUND
+      '409':
+        description: |
+          El viaje ya no está planificado (`INVALID_STATE`) o es individual (`INDIVIDUAL_TRIP`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            examples:
+              yaArranco:
+                value:
+                  error: El viaje no está en estado planificado
+                  code: INVALID_STATE
+              individual:
+                value:
+                  error: Un viaje individual no admite invitaciones
+                  code: INDIVIDUAL_TRIP
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'
 

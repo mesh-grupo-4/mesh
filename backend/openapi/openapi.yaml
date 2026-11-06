@@ -306,6 +306,8 @@ paths:
     $ref: './paths/viajes.yaml#/UnirseQr'
   /api/viajes/{viajeId}/invitacion/responder:
     $ref: './paths/viajes.yaml#/ResponderInvitacionViaje'
+  /api/viajes/{viajeId}/invitaciones:
+    $ref: './paths/viajes.yaml#/InvitarAViaje'
   /api/viajes/{viajeId}/participantes:
     $ref: './paths/viajes.yaml#/ParticipantesViaje'
   /api/viajes/{viajeId}/resumen:

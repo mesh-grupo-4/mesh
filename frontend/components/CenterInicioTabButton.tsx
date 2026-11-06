@@ -14,6 +14,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useTheme } from '@/components/MeshUI';
+import { abrirNuevoViaje } from '@/lib/nuevoViaje';
 
 const HOLD_MS = 280;
 const SLIDE_DISTANCE = 64;
@@ -21,7 +22,12 @@ const SELECT_THRESHOLD = 0.6;
 const UP_DEADZONE = 6;
 const X_DEADZONE = 8;
 
-export function CenterViajesTabButton({
+/**
+ * Botón central de la tab bar: Inicio (mapa). Tap → Inicio. Mantener y deslizar
+ * a la izquierda → "Nuevo viaje" (pregunta Viaje YA / Planificar); a la derecha
+ * → escanear un QR para unirse.
+ */
+export function CenterInicioTabButton({
   onPress,
   accessibilityState,
   accessibilityLabel,
@@ -59,14 +65,14 @@ export function CenterViajesTabButton({
   React.useEffect(() => clearHoldTimer, []);
 
   const navigateCrear = () => {
-    router.push('/viaje/crear');
+    abrirNuevoViaje();
   };
 
   const navigateEscanear = () => {
     router.push('/escanear-qr');
   };
 
-  const tapViajes = () => {
+  const tapInicio = () => {
     onPress?.(undefined as unknown as Parameters<NonNullable<typeof onPress>>[0]);
   };
 
@@ -110,7 +116,7 @@ export function CenterViajesTabButton({
           runOnJS(navigateEscanear)();
         }
       } else if (!wasHold && totalMovement.value < 14) {
-        runOnJS(tapViajes)();
+        runOnJS(tapInicio)();
       }
 
       menuOpen.value = withTiming(0, { duration: 160 });
@@ -205,7 +211,7 @@ export function CenterViajesTabButton({
         style={styles.wrapper}
         accessibilityRole="button"
         accessibilityState={accessibilityState}
-        accessibilityLabel={accessibilityLabel ?? 'Viajes'}
+        accessibilityLabel={accessibilityLabel ?? 'Inicio'}
         accessibilityHint="Mantené apretado y deslizá a la izquierda para crear un viaje nuevo, o a la derecha para escanear un QR y unirte"
         testID={testID}
       >
@@ -258,8 +264,8 @@ export function CenterViajesTabButton({
           ]}
         >
           <FontAwesome
-            name="map"
-            size={24}
+            name="home"
+            size={26}
             color={focused ? theme.onAccent : theme.accent}
           />
         </Animated.View>
@@ -270,7 +276,7 @@ export function CenterViajesTabButton({
             { color: focused ? theme.accent : theme.tabIconDefault },
           ]}
         >
-          Viajes
+          Inicio
         </Text>
       </View>
     </GestureDetector>

@@ -33,6 +33,7 @@ import {
   runBulkDelete,
 } from '@/lib/bulkDelete'
 import { meshAlert, meshConfirmDestructive, meshError, meshWarning } from '@/lib/meshAlert'
+import { abrirNuevoViaje } from '@/lib/nuevoViaje'
 import {
   eliminarViaje,
   salirViaje,
@@ -721,7 +722,7 @@ export default function ViajesScreen() {
           {tab === 'mis_viajes' && (
             <>
               <PasoAyuda {...AYUDA_VIAJES[3]!}>
-                <Btn block size="lg" icon="plus" onPress={() => router.push('/viaje/crear')}>
+                <Btn block size="lg" icon="plus" onPress={() => abrirNuevoViaje()}>
                   Nuevo viaje
                 </Btn>
               </PasoAyuda>

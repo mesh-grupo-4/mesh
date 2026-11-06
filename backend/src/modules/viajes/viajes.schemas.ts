@@ -56,7 +56,14 @@ export const createViajeSchema = z
     tipoActividad: z.nativeEnum(TipoActividad),
     /** RN-065 / RN-071: `competitivo` exige viaje grupal y no moto (RN-070); lo valida el servicio. */
     modo: z.enum(['recreativo', 'entrenamiento', 'competitivo']).optional().default('recreativo'),
-    fechaProgramada: fechaProgramadaFuturaSchema,
+    /** Obligatoria salvo en un viaje inmediato (`inmediato: true`), donde la fija el backend. */
+    fechaProgramada: fechaProgramadaFuturaSchema.optional(),
+    /**
+     * RN-107: "Viaje YA". El backend toma la hora actual como `fecha_programada`
+     * y no se envía `fechaProgramada`. El viaje igual nace `planificado` para que
+     * el QR siga vigente mientras se suma la gente (RN-015).
+     */
+    inmediato: z.boolean().optional().default(false),
     /** Opcional: precarga la ruta desde una plantilla propia del creador. */
     rutaPlantillaId: z.string().uuid().optional().nullable(),
     /** RN-025: si no vienen, el backend aplica los defaults de la actividad (RN-021). */
@@ -81,9 +88,40 @@ export const createViajeSchema = z
         path: ['amigoIds'],
       })
     }
+    if (data.inmediato && data.fechaProgramada != null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Un viaje inmediato no lleva fechaProgramada',
+        path: ['fechaProgramada'],
+      })
+    }
+    if (!data.inmediato && data.fechaProgramada == null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'La fecha programada es obligatoria',
+        path: ['fechaProgramada'],
+      })
+    }
   })
 
 export type CreateViajeInput = z.infer<typeof createViajeSchema>
+
+/** Invitar grupos y/o amigos a un viaje ya creado (sala de espera del "Viaje YA"). */
+export const invitarViajeSchema = z
+  .object({
+    grupoIds: z.array(z.string().uuid()).optional().default([]),
+    amigoIds: z.array(z.string().uuid()).optional().default([]),
+  })
+  .superRefine((data, ctx) => {
+    if (data.grupoIds.length === 0 && data.amigoIds.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Indicá al menos un grupo o un amigo para invitar',
+      })
+    }
+  })
+
+export type InvitarViajeInput = z.infer<typeof invitarViajeSchema>
 
 export const responderInvitacionViajeSchema = z.object({
   accion: z.enum(['aceptar', 'rechazar'], {

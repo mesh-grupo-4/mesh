@@ -20,6 +20,7 @@ import {
   type RecorridoPublicadoDetalleApi,
 } from '@/lib/recorridosPublicadosApi'
 import { formatearEnArg } from '@/lib/tiempoArg'
+import { abrirNuevoViaje } from '@/lib/nuevoViaje'
 
 const NOMBRE_ACTIVIDAD = {
   moto: 'Moto',
@@ -124,10 +125,7 @@ export default function RecorridoPublicadoScreen() {
     setImportando(true)
     try {
       const { plantilla } = await importarRecorridoPublicado(recorrido.id)
-      router.push({
-        pathname: '/viaje/crear',
-        params: { plantillaId: plantilla.id, tipoActividad: plantilla.tipo_actividad },
-      })
+      abrirNuevoViaje({ plantillaId: plantilla.id, tipoActividad: plantilla.tipo_actividad })
     } catch (e) {
       meshError('No se pudo usar el recorrido', e instanceof Error ? e.message : undefined)
     } finally {

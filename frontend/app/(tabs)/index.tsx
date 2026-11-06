@@ -1,143 +1,116 @@
-import { useCallback, useState } from 'react'
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  RefreshControl,
-  Pressable,
-  ActivityIndicator,
-} from 'react-native'
-import { router, useFocusEffect } from 'expo-router'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { router, useFocusEffect, useIsFocused } from 'expo-router'
 import { Feather } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+
 import { useAuth } from '@/context/AuthContext'
 import { useTripRealtime } from '@/context/TripRealtimeContext'
-import { resolveBackendUserId } from '@/lib/apiClient'
-import { Avatar, Badge, Btn, useTheme } from '@/components/MeshUI'
+import { Badge, Btn, useTheme } from '@/components/MeshUI'
 import { BotonAyuda } from '@/components/ayuda/BotonAyuda'
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
 import { AYUDA_INICIO } from '@/components/ayuda/contenidoAyuda'
+import { CenterLocationButton } from '@/components/live/CenterLocationButton'
+import { MeshMapView, type MeshMapViewHandle } from '@/components/maps/MeshMapView'
+import { getMapStyle } from '@/components/route-config/mapStyles'
+import { REGION_FALLBACK } from '@/components/route-config/routeTypes'
+import { useUbicacionActual } from '@/hooks/useUbicacionActual'
 import { etiquetaActividad } from '@/lib/activityDefaults'
+import { resolveBackendUserId } from '@/lib/apiClient'
 import { formatearEnArg } from '@/lib/tiempoArg'
-import {
-  obtenerEstadisticasUsuario,
-  obtenerViajeEnCurso,
-  type EstadisticasUsuarioApi,
-  type ViajeEnCursoApi,
-} from '@/lib/viajesApi'
+import { obtenerViajeEnCurso, type ViajeEnCursoApi } from '@/lib/viajesApi'
 
-function formatearKm(metros: number): string {
-  const km = metros / 1000
-  if (km === 0) return '0'
-  if (km < 10) return km.toFixed(1)
-  if (km < 1000) return Math.round(km).toString()
-  return `${(km / 1000).toFixed(1)}k`
-}
-
-function formatearDuracion(segundos: number): string {
-  if (segundos <= 0) return '0m'
-  const horas = Math.floor(segundos / 3600)
-  const minutos = Math.floor((segundos % 3600) / 60)
-  if (horas === 0) return `${minutos}m`
-  if (horas < 100) return `${horas}h ${minutos}m`
-  return `${horas}h`
-}
+const ESTILO_MAPA = getMapStyle('standard')
+const ZOOM_UBICACION = 16
 
 function horaInicio(iso: string | null): string {
   if (!iso) return 'En curso'
   return `Desde las ${formatearEnArg(iso, { hour: '2-digit', minute: '2-digit' })}`
 }
 
+/**
+ * Inicio: mapa con dónde estás parado y, arriba a la derecha, "Viaje YA".
+ * Si hay un viaje en curso aparece una tarjeta flotante para volver al mapa en vivo.
+ */
 export default function InicioScreen() {
   const theme = useTheme()
   const insets = useSafeAreaInsets()
-  const { profile, backendUserId, backendSyncing } = useAuth()
+  const enfocado = useIsFocused()
+  const { backendUserId, backendSyncing } = useAuth()
   const { syncKnownTripIds } = useTripRealtime()
   const [enCurso, setEnCurso] = useState<ViajeEnCursoApi | null>(null)
-  const [stats, setStats] = useState<EstadisticasUsuarioApi | null>(null)
-  const [cargando, setCargando] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
+  const mapRef = useRef<MeshMapViewHandle>(null)
+  const centradoRef = useRef(false)
+  // La ubicación solo se sigue mientras Inicio está a la vista.
+  const { ubicacion } = useUbicacionActual({ activo: enfocado, seguir: true })
 
-  const cargar = useCallback(
-    async (esRefresh = false) => {
-      if (backendSyncing) return
+  useEffect(() => {
+    if (ubicacion && !centradoRef.current) {
+      centradoRef.current = true
+      mapRef.current?.animateTo(ubicacion, ZOOM_UBICACION)
+    }
+  }, [ubicacion])
 
-      let userId: string
-      try {
-        userId = resolveBackendUserId(backendUserId)
-      } catch {
-        setEnCurso(null)
-        setStats(null)
-        setCargando(false)
-        setRefreshing(false)
-        return
-      }
-
-      if (esRefresh) setRefreshing(true)
-      else setCargando(true)
-
-      try {
-        const [viaje, estadisticas] = await Promise.all([
-          obtenerViajeEnCurso(userId),
-          obtenerEstadisticasUsuario(userId),
-        ])
-        setEnCurso(viaje)
-        setStats(estadisticas)
-        if (viaje?.id) syncKnownTripIds([viaje.id])
-      } catch {
-        // Inicio es informativo: ante un fallo de red dejamos el último estado conocido.
-      } finally {
-        setCargando(false)
-        setRefreshing(false)
-      }
-    },
-    [backendUserId, backendSyncing, syncKnownTripIds]
-  )
+  const cargarEnCurso = useCallback(async () => {
+    if (backendSyncing) return
+    let userId: string
+    try {
+      userId = resolveBackendUserId(backendUserId)
+    } catch {
+      setEnCurso(null)
+      return
+    }
+    try {
+      const viaje = await obtenerViajeEnCurso(userId)
+      setEnCurso(viaje)
+      if (viaje?.id) syncKnownTripIds([viaje.id])
+    } catch {
+      // Ante un fallo de red dejamos el último estado conocido.
+    }
+  }, [backendUserId, backendSyncing, syncKnownTripIds])
 
   useFocusEffect(
     useCallback(() => {
-      void cargar()
-    }, [cargar])
+      void cargarEnCurso()
+    }, [cargarEnCurso])
   )
 
-  const nombre = profile?.nombre?.trim() || 'viajero/a'
-  const meAvatar = {
-    nombre: profile?.nombre || 'U',
-    apellido: profile?.apellido || '',
-    color: theme.accent,
-  }
-
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: theme.background }]}
-      contentContainerStyle={[styles.content, { paddingTop: insets.top + 16 }]}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={() => void cargar(true)}
-          tintColor={theme.accent}
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <PasoAyuda {...AYUDA_INICIO[0]!} estilo={StyleSheet.absoluteFill}>
+        <MeshMapView
+          ref={mapRef}
+          style={StyleSheet.absoluteFill}
+          initialCenter={{ latitude: REGION_FALLBACK.latitude, longitude: REGION_FALLBACK.longitude }}
+          initialZoom={12}
+          mapStyle={ESTILO_MAPA}
+          userLocation={ubicacion}
         />
-      }
-    >
-      {/* Saludo */}
-      <View style={styles.header}>
-        <View style={styles.headerText}>
-          <Text style={[styles.saludo, { color: theme.textDim }]}>Bienvenido</Text>
-          <Text style={[styles.nombre, { color: theme.text }]} numberOfLines={1}>
-            {nombre}
-          </Text>
-        </View>
-        <Avatar person={meAvatar} size="lg" ring />
+      </PasoAyuda>
+
+      <View style={[styles.top, { top: insets.top + 10 }]} pointerEvents="box-none">
         <BotonAyuda />
+        <PasoAyuda {...AYUDA_INICIO[1]!}>
+          <Btn size="lg" icon="zap" onPress={() => router.push('/viaje/rapido')} style={styles.sombra}>
+            Viaje YA
+          </Btn>
+        </PasoAyuda>
       </View>
 
-      {/* Viaje en curso */}
+      {ubicacion && (
+        <CenterLocationButton
+          align="right"
+          bottomOffset={enCurso ? 150 : 40}
+          onPress={() => mapRef.current?.animateTo(ubicacion, ZOOM_UBICACION)}
+        />
+      )}
+
       {enCurso && (
-        <PasoAyuda {...AYUDA_INICIO[2]!}>
+        <PasoAyuda {...AYUDA_INICIO[2]!} estilo={styles.enCursoWrap} pointerEvents="box-none">
           <Pressable
             style={({ pressed }) => [
               styles.enCursoCard,
+              styles.sombra,
               {
                 backgroundColor: pressed ? theme.surface2 : theme.surface,
                 borderColor: theme.accentLine,
@@ -147,153 +120,55 @@ export default function InicioScreen() {
               router.push({ pathname: '/viaje/[viajeId]/live', params: { viajeId: enCurso.id } })
             }
           >
-            <View style={styles.enCursoTop}>
-              <Badge tone="live" pulse>
-                EN VIVO
-              </Badge>
-              <Text style={[styles.enCursoActividad, { color: theme.textDim }]}>
-                {etiquetaActividad(enCurso.tipo_actividad)}
+            <View style={styles.enCursoInfo}>
+              <View style={styles.enCursoTop}>
+                <Badge tone="live" pulse>
+                  EN VIVO
+                </Badge>
+                <Text style={[styles.enCursoMeta, { color: theme.textDim }]}>
+                  {horaInicio(enCurso.fecha_inicio_real)}
+                </Text>
+              </View>
+              <Text style={[styles.enCursoTitulo, { color: theme.text }]} numberOfLines={1}>
+                {enCurso.nombre || etiquetaActividad(enCurso.tipo_actividad)}
               </Text>
             </View>
-            <Text style={[styles.enCursoTitulo, { color: theme.text }]} numberOfLines={1}>
-              {enCurso.nombre || etiquetaActividad(enCurso.tipo_actividad)}
-            </Text>
-            <Text style={[styles.enCursoMeta, { color: theme.textMute }]}>
-              {horaInicio(enCurso.fecha_inicio_real)}
-            </Text>
-            <View style={styles.enCursoCta}>
-              <Text style={[styles.enCursoCtaText, { color: theme.accent }]}>
-                Abrir mapa en vivo
-              </Text>
-              <Feather name="arrow-right" size={18} color={theme.accent} />
-            </View>
+            <Feather name="arrow-right" size={22} color={theme.accent} />
           </Pressable>
         </PasoAyuda>
       )}
-
-      {/* Estadísticas personales */}
-      <Text style={[styles.eyebrow, { color: theme.textDim }]}>TU ACTIVIDAD</Text>
-      <PasoAyuda {...AYUDA_INICIO[0]!}>
-        <View style={[styles.statsCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <View style={styles.statBox}>
-            <Text style={[styles.statValue, { color: theme.text }]}>
-              {cargando && !stats ? '·' : formatearKm(stats?.distancia_total_m ?? 0)}
-            </Text>
-            <Text style={[styles.statLabel, { color: theme.textMute }]}>Km</Text>
-          </View>
-          <View style={[styles.statBox, styles.borderLeft, { borderLeftColor: theme.border }]}>
-            <Text style={[styles.statValue, { color: theme.text }]}>
-              {cargando && !stats ? '·' : (stats?.viajes_finalizados ?? 0)}
-            </Text>
-            <Text style={[styles.statLabel, { color: theme.textMute }]}>Viajes</Text>
-          </View>
-          <View style={[styles.statBox, styles.borderLeft, { borderLeftColor: theme.border }]}>
-            <Text style={[styles.statValue, { color: theme.text }]}>
-              {cargando && !stats ? '·' : formatearDuracion(stats?.tiempo_total_seg ?? 0)}
-            </Text>
-            <Text style={[styles.statLabel, { color: theme.textMute }]}>En ruta</Text>
-          </View>
-        </View>
-      </PasoAyuda>
-      {stats?.actividad_favorita && (
-        <Text style={[styles.favorita, { color: theme.textMute }]}>
-          Tu actividad favorita: {etiquetaActividad(stats.actividad_favorita)}
-        </Text>
-      )}
-
-      {/* Accesos rápidos */}
-      <Text style={[styles.eyebrow, { color: theme.textDim }]}>ACCESOS RÁPIDOS</Text>
-      <PasoAyuda {...AYUDA_INICIO[1]!}>
-        <View style={styles.acciones}>
-          <Btn block size="lg" icon="plus" onPress={() => router.push('/viaje/crear')}>
-            Nuevo viaje
-          </Btn>
-          <Btn
-            block
-            size="lg"
-            variant="secondary"
-            icon="maximize"
-            onPress={() => router.push('/escanear-qr')}
-          >
-            Escanear QR
-          </Btn>
-          <Btn
-            block
-            size="lg"
-            variant="ghost"
-            icon="map"
-            onPress={() => router.push('/(tabs)/two')}
-          >
-            Ver mis viajes
-          </Btn>
-        </View>
-      </PasoAyuda>
-
-      {cargando && !stats && (
-        <ActivityIndicator color={theme.accent} style={{ marginTop: 12 }} />
-      )}
-    </ScrollView>
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { padding: 20, paddingBottom: 48, gap: 16 },
-  header: {
+  top: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 16,
   },
-  headerText: { flex: 1 },
-  saludo: { fontSize: 15 },
-  nombre: { fontSize: 26, fontWeight: '700', letterSpacing: -0.5, marginTop: 2 },
-  eyebrow: {
-    fontSize: 11,
-    fontFamily: 'SpaceMono',
-    fontWeight: '700',
-    letterSpacing: 1.2,
-    marginTop: 4,
+  sombra: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 5,
   },
+  enCursoWrap: { position: 'absolute', left: 16, right: 16, bottom: 40 },
   enCursoCard: {
-    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 16,
+    borderRadius: 18,
     borderWidth: 1.5,
-    padding: 18,
-    gap: 6,
   },
-  enCursoTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  enCursoActividad: { fontSize: 13, fontWeight: '600' },
-  enCursoTitulo: { fontSize: 19, fontWeight: '700', marginTop: 4 },
-  enCursoMeta: { fontSize: 13 },
-  enCursoCta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 10,
-  },
-  enCursoCtaText: { fontSize: 15, fontWeight: '700' },
-  statsCard: {
-    flexDirection: 'row',
-    borderRadius: 16,
-    borderWidth: 1,
-    overflow: 'hidden',
-    paddingVertical: 16,
-  },
-  statBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  borderLeft: { borderLeftWidth: 1 },
-  statValue: { fontSize: 22, fontWeight: '700', fontFamily: 'SpaceMono' },
-  statLabel: {
-    fontSize: 11,
-    fontFamily: 'SpaceMono',
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-    marginTop: 4,
-  },
-  favorita: { fontSize: 12.5, marginTop: -6 },
-  acciones: { gap: 11 },
+  enCursoInfo: { flex: 1, gap: 6 },
+  enCursoTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  enCursoMeta: { fontSize: 14, fontWeight: '600' },
+  enCursoTitulo: { fontSize: 18, fontWeight: '800' },
 })

@@ -21,6 +21,7 @@ import { Btn, TopBar, Badge, useTheme } from '@/components/MeshUI';
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda';
 import { AYUDA_GRUPO_DETALLE } from '@/components/ayuda/contenidoAyuda';
 import { Feather } from '@expo/vector-icons';
+import { abrirNuevoViaje } from '@/lib/nuevoViaje';
 
 const MESES_ABREV = [
   'ene', 'feb', 'mar', 'abr', 'may', 'jun',
@@ -176,7 +177,7 @@ export default function GrupoDetalleScreen() {
                   variant="primary"
                   block
                   icon="plus"
-                  onPress={() => router.push({ pathname: '/viaje/crear', params: { grupo: grupo.id } })}
+                  onPress={() => abrirNuevoViaje({ grupo: grupo.id })}
                   style={styles.actionBtn}
                 >
                   Nuevo viaje

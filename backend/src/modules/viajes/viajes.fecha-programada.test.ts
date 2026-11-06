@@ -35,4 +35,23 @@ describe('fechaProgramada futura (RN-028)', () => {
     const r = actualizarViajeSchema.safeParse({ fechaProgramada: pasada })
     expect(r.success).toBe(false)
   })
+
+  it('acepta un viaje inmediato sin fechaProgramada (Viaje YA, RN-107)', () => {
+    const r = createViajeSchema.safeParse({ ...base, inmediato: true })
+    expect(r.success).toBe(true)
+  })
+
+  it('rechaza un viaje inmediato que además trae fechaProgramada', () => {
+    const futura = new Date(Date.now() + 60 * 60_000).toISOString()
+    const r = createViajeSchema.safeParse({ ...base, inmediato: true, fechaProgramada: futura })
+    expect(r.success).toBe(false)
+  })
+
+  it('exige fechaProgramada si el viaje no es inmediato', () => {
+    const r = createViajeSchema.safeParse(base)
+    expect(r.success).toBe(false)
+    if (!r.success) {
+      expect(r.error.issues.some((i) => i.path.includes('fechaProgramada'))).toBe(true)
+    }
+  })
 })

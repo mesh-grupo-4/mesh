@@ -2,6 +2,7 @@ import type { Request, RequestHandler, Response } from 'express'
 import {
   actualizarViajeSchema,
   createViajeSchema,
+  invitarViajeSchema,
   postPosicionesSchema,
   putRutaSchema,
   responderInvitacionViajeSchema,
@@ -123,6 +124,13 @@ export function crearViajesController(service: ViajesService) {
       const body = putRutaSchema.parse(req.body)
       const ruta = await service.guardarRuta(req.userId!, viajeId, body)
       res.json(ruta)
+    }),
+
+    invitar: asyncHandler(async (req, res) => {
+      const { viajeId } = viajeIdParamSchema.parse(req.params)
+      const body = invitarViajeSchema.parse(req.body)
+      const result = await service.invitar(req.userId!, viajeId, body)
+      res.status(201).json(result)
     }),
 
     iniciar: asyncHandler(async (req, res) => {

@@ -2,7 +2,7 @@ import React from 'react';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Tabs } from 'expo-router';
 import { useTheme } from '@/components/MeshUI';
-import { CenterViajesTabButton } from '@/components/CenterViajesTabButton';
+import { CenterInicioTabButton } from '@/components/CenterInicioTabButton';
 import { MeshTabBar } from '@/components/MeshTabBar';
 import { useAuth } from '@/context/AuthContext';
 import { usePendientesBadge } from '@/lib/pendientesStore';
@@ -13,6 +13,11 @@ function TabBarIcon(props: {
 }) {
   return <FontAwesome size={24} style={{ marginBottom: -3 }} {...props} />;
 }
+
+// Inicio queda al medio de la barra, pero sigue siendo la pestaña con la que arranca la app.
+export const unstable_settings = {
+  initialRouteName: 'index',
+};
 
 export default function TabLayout() {
   const theme = useTheme();
@@ -38,11 +43,12 @@ export default function TabLayout() {
         tabBarInactiveTintColor: theme.tabIconDefault,
       }}
     >
+      {/* Orden: Viajes · Grupos · [Inicio] · Rutas · Perfil. Inicio va al medio. */}
       <Tabs.Screen
-        name="index"
+        name="two"
         options={{
-          title: 'Inicio',
-          tabBarIcon: ({ color }) => <TabBarIcon name="home" color={color} />,
+          title: 'Viajes',
+          tabBarIcon: ({ color }) => <TabBarIcon name="map" color={color} />,
         }}
       />
       <Tabs.Screen
@@ -56,12 +62,12 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="two"
+        name="index"
         options={{
-          title: 'Viajes',
+          title: 'Inicio',
           tabBarIcon: () => null,
           tabBarLabel: () => null,
-          tabBarButton: (props) => <CenterViajesTabButton {...props} />,
+          tabBarButton: (props) => <CenterInicioTabButton {...props} />,
         }}
       />
       <Tabs.Screen

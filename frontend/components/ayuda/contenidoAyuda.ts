@@ -52,19 +52,19 @@ export type PasoDefinicion = {
 
 export const AYUDA_INICIO: PasoDefinicion[] = [
   {
-    nombre: 'inicio.estadisticas',
+    nombre: 'inicio.mapa',
     orden: ORDEN_PANTALLA.inicio,
-    texto: 'Acá vas viendo tu actividad: kilómetros, viajes y tiempo total en ruta.',
+    texto: 'Este es tu mapa: el punto marca dónde estás parado ahora.',
   },
   {
-    nombre: 'inicio.accesos',
+    nombre: 'inicio.viajeYa',
     orden: ORDEN_PANTALLA.inicio + 1,
-    texto: 'Armá un viaje nuevo, unite escaneando un QR, o revisá todos tus viajes.',
+    texto: 'Viaje YA: elegís la actividad, invitás por QR, grupos o amigos, y salen.',
   },
   {
     nombre: 'inicio.enCurso',
     orden: ORDEN_PANTALLA.inicio + 2,
-    texto: 'Si tenés un viaje en curso, lo vas a ver destacado acá arriba para entrar directo al mapa en vivo.',
+    texto: 'Si tenés un viaje en curso, tocá esta tarjeta para volver al mapa en vivo.',
   },
 ]
 

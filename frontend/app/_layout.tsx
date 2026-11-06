@@ -77,6 +77,10 @@ function AppStack() {
       <Stack.Screen name="privacidad" options={{ headerShown: false }} />
       <Stack.Screen name="admin" options={{ headerShown: false }} />
       <Stack.Screen name="unirse" options={{ headerShown: false }} />
+      <Stack.Screen
+        name="nuevo-viaje"
+        options={{ presentation: 'transparentModal', animation: 'fade', headerShown: false }}
+      />
       <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
     </Stack>
   );

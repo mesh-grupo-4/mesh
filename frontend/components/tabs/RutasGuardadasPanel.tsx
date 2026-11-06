@@ -7,7 +7,7 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 
 import { Btn, useTheme } from '@/components/MeshUI';
@@ -15,6 +15,7 @@ import { useAuth } from '@/context/AuthContext';
 import { resolveBackendUserId } from '@/lib/apiClient';
 import { formatDurationHm, formatKm } from '@/lib/format';
 import { meshAlert } from '@/lib/meshAlert';
+import { abrirNuevoViaje } from '@/lib/nuevoViaje';
 import {
   eliminarRutaPlantilla,
   listarRutasPlantilla,
@@ -23,7 +24,6 @@ import {
 
 export function RutasGuardadasPanel() {
   const theme = useTheme();
-  const router = useRouter();
   const { backendUserId } = useAuth();
   const [items, setItems] = useState<RutaPlantillaResumenApi[]>([]);
   const [loading, setLoading] = useState(true);
@@ -86,10 +86,7 @@ export function RutasGuardadasPanel() {
         <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <Pressable
             onPress={() =>
-              router.push({
-                pathname: '/viaje/crear',
-                params: { plantillaId: item.id, tipoActividad: item.tipo_actividad },
-              })
+              abrirNuevoViaje({ plantillaId: item.id, tipoActividad: item.tipo_actividad })
             }
           >
             <Text style={[styles.nombre, { color: theme.text }]} numberOfLines={2}>
@@ -107,10 +104,7 @@ export function RutasGuardadasPanel() {
               size="sm"
               icon="plus"
               onPress={() =>
-                router.push({
-                  pathname: '/viaje/crear',
-                  params: { plantillaId: item.id, tipoActividad: item.tipo_actividad },
-                })
+                abrirNuevoViaje({ plantillaId: item.id, tipoActividad: item.tipo_actividad })
               }
             >
               Usar en viaje

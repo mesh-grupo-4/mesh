@@ -96,7 +96,10 @@ export async function crearViaje(
     amigoIds?: string[]
     tipoActividad: TipoActividadApi
     modo?: 'recreativo' | 'entrenamiento' | 'competitivo'
-    fechaProgramada: Date
+    /** Obligatoria salvo en un "Viaje YA" (`inmediato`), donde la fija el backend. */
+    fechaProgramada?: Date
+    /** RN-107: "Viaje YA". El backend usa la hora actual como fecha programada. */
+    inmediato?: boolean
     rutaPlantillaId?: string | null
   } & ParametrosViajeInput,
   userId: string,
@@ -114,7 +117,8 @@ export async function crearViaje(
       amigoIds: input.amigoIds ?? [],
       tipoActividad: input.tipoActividad,
       modo: input.modo ?? 'recreativo',
-      fechaProgramada: input.fechaProgramada.toISOString(),
+      fechaProgramada: input.inmediato ? undefined : input.fechaProgramada?.toISOString(),
+      inmediato: input.inmediato ? true : undefined,
       rutaPlantillaId: input.rutaPlantillaId ?? undefined,
       // RN-025: solo viajan si el líder los tocó; si no, el backend aplica los defaults.
       velocidadEsperada: input.velocidadEsperada,
@@ -209,6 +213,20 @@ export async function listarParticipantesViaje(
   const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}/participantes`, baseUrl), {
   })
   return parseJson<ViajeParticipanteApi[]>(res)
+}
+
+/** Invita grupos y/o amigos a un viaje ya creado (solo el líder, viaje planificado). */
+export async function invitarAViaje(
+  viajeId: string,
+  input: { grupoIds?: string[]; amigoIds?: string[] },
+  baseUrl: string = API_BASE_URL
+): Promise<{ viaje_id: string; invitaciones_enviadas: number }> {
+  const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}/invitaciones`, baseUrl), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ grupoIds: input.grupoIds ?? [], amigoIds: input.amigoIds ?? [] }),
+  })
+  return parseJson<{ viaje_id: string; invitaciones_enviadas: number }>(res)
 }
 
 export async function unirseViajePorQr(
