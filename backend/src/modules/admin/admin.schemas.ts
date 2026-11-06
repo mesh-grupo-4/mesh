@@ -27,7 +27,7 @@ export const listarViajesQuery = z.object({
 
 export const listarAuditoriaQuery = z.object({
   accion: z.string().trim().min(1).max(60).optional(),
-  entidad: z.enum(['usuario', 'grupo', 'viaje']).optional(),
+  entidad: z.enum(['usuario', 'grupo', 'viaje', 'checklist']).optional(),
   entidad_id: z.string().uuid().optional(),
   ...paginacion,
 })
@@ -55,8 +55,29 @@ export const reasignarLiderSchema = z.object({
   usuario_id: z.string().uuid(),
 })
 
+export const tipoActividadParam = z.enum(['moto', 'bici', 'running', 'trekking', 'otro'])
+
+/**
+ * RN-132: la lista completa de sugeridos de una actividad, en orden. Mismo límite de
+ * texto que `checklist_item.texto` (120), y sin repetidos: la siembra los descartaría.
+ */
+export const definirChecklistActividadSchema = z.object({
+  items: z
+    .array(
+      z
+        .string()
+        .trim()
+        .min(1, 'El ítem no puede estar vacío')
+        .max(120, 'El ítem no puede superar los 120 caracteres')
+    )
+    .min(1, 'Dejá al menos un ítem sugerido')
+    .max(30, 'Hasta 30 ítems sugeridos por actividad')
+    .refine((items) => new Set(items).size === items.length, 'Hay ítems repetidos'),
+})
+
 export type ListarUsuariosQuery = z.infer<typeof listarUsuariosQuery>
 export type ListarGruposQuery = z.infer<typeof listarGruposQuery>
 export type ListarViajesQuery = z.infer<typeof listarViajesQuery>
 export type ListarAuditoriaQuery = z.infer<typeof listarAuditoriaQuery>
 export type ActualizarUsuarioAdminInput = z.infer<typeof actualizarUsuarioAdminSchema>
+export type TipoActividadParam = z.infer<typeof tipoActividadParam>

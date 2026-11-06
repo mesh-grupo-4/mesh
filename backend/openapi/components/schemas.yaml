@@ -4822,6 +4822,8 @@ AccionAdmin:
     - grupo.eliminar
     - viaje.finalizar
     - viaje.eliminar
+    - checklist.definir_sugeridos
+    - checklist.restaurar_sugeridos
   example: usuario.suspender
 
 EntradaAuditoriaAdmin:
@@ -4835,11 +4837,13 @@ EntradaAuditoriaAdmin:
       $ref: '#/AccionAdmin'
     entidad:
       type: string
-      enum: [usuario, grupo, viaje]
+      enum: [usuario, grupo, viaje, checklist]
     entidad_id:
       type: string
       format: uuid
-      description: Puede apuntar a una entidad ya eliminada; por eso no es FK.
+      description: |
+        Puede apuntar a una entidad ya eliminada; por eso no es FK. En `checklist` es la
+        fila de `checklist_actividad` de esa actividad (RN-132).
     detalle:
       type: object
       nullable: true
@@ -4871,6 +4875,54 @@ PaginaAuditoriaAdmin:
       type: integer
     limite:
       type: integer
+
+ChecklistActividadAdmin:
+  type: object
+  description: |
+    RN-132: ítems sugeridos vigentes del checklist de preparativos (RN-026) para un tipo
+    de actividad, en el orden en que se siembran.
+  required: [tipo_actividad, items, personalizado, updated_at]
+  properties:
+    tipo_actividad:
+      $ref: '#/TipoActividad'
+    items:
+      type: array
+      items:
+        type: string
+        maxLength: 120
+    personalizado:
+      type: boolean
+      description: '`false`: rige la lista por defecto del sistema.'
+    updated_at:
+      type: string
+      format: date-time
+      nullable: true
+      description: Última edición del superadmin (UTC). Null si rige la lista por defecto.
+
+ListaChecklistActividadesAdmin:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      description: Siempre las cinco actividades de RN-021.
+      items:
+        $ref: '#/ChecklistActividadAdmin'
+
+DefinirChecklistActividadRequest:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      description: Lista completa y ordenada. Reemplaza a la anterior. Sin repetidos.
+      minItems: 1
+      maxItems: 30
+      uniqueItems: true
+      items:
+        type: string
+        minLength: 1
+        maxLength: 120
 
 # ── Reportería del backoffice (RN-127 a RN-131) ─────────────────────────────
 

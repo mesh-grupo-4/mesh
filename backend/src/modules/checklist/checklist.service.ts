@@ -110,7 +110,7 @@ export class ChecklistService {
 
     // Primera vez: sugeridos según el tipo de actividad (RN-026).
     if (mios.length === 0) {
-      const sugeridos = itemsSugeridos(acceso.tipoActividad)
+      const sugeridos = await this.sugeridos(acceso.tipoActividad)
       await this.prisma.checklistItem.createMany({
         data: sugeridos.map((texto, i) => ({
           viaje_id: viajeId,
@@ -320,6 +320,15 @@ export class ChecklistService {
   }
 
   // ------------------------------------------------------------------ helpers
+
+  /** RN-132: la lista que definió el superadmin para la actividad; sin ella, la de código. */
+  private async sugeridos(tipo: TipoActividad): Promise<readonly string[]> {
+    const definidos = await this.prisma.checklistActividad.findUnique({
+      where: { tipo_actividad: tipo },
+      select: { items: true },
+    })
+    return definidos?.items ?? itemsSugeridos(tipo)
+  }
 
   private async buscarItemPropio(
     viajeId: string,

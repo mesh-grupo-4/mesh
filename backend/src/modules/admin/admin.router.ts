@@ -34,4 +34,8 @@ adminRouter.get('/viajes/:viajeId', c.detalleViaje)
 adminRouter.post('/viajes/:viajeId/finalizar', c.finalizarViaje)
 adminRouter.delete('/viajes/:viajeId', c.eliminarViaje)
 
+adminRouter.get('/checklist', c.listarChecklistActividades)
+adminRouter.put('/checklist/:tipoActividad', c.definirChecklistActividad)
+adminRouter.delete('/checklist/:tipoActividad', c.restaurarChecklistActividad)
+
 adminRouter.get('/auditoria', c.auditoria)

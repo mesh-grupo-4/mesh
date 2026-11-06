@@ -432,6 +432,10 @@ paths:
     $ref: './paths/admin.yaml#/ViajeAdmin'
   /api/admin/viajes/{viajeId}/finalizar:
     $ref: './paths/admin.yaml#/FinalizarViajeAdmin'
+  /api/admin/checklist:
+    $ref: './paths/admin.yaml#/ChecklistActividadesAdmin'
+  /api/admin/checklist/{tipoActividad}:
+    $ref: './paths/admin.yaml#/ChecklistActividadAdmin'
   /api/admin/auditoria:
     $ref: './paths/admin.yaml#/AuditoriaAdmin'
 

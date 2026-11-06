@@ -641,6 +641,92 @@ FinalizarViajeAdmin:
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'
 
+ChecklistActividadesAdmin:
+  get:
+    operationId: adminListarChecklistActividades
+    summary: Ítems sugeridos del checklist por actividad
+    description: |
+      RN-132: los ítems que el sistema sugiere al armar el checklist de preparativos (RN-026), para cada una de las cinco actividades. `personalizado: false` indica que rige la lista por defecto.
+    tags:
+      - Admin
+    responses:
+      '200':
+        description: Sugeridos vigentes de cada actividad.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ListaChecklistActividadesAdmin'
+            example: {"items": [{"tipo_actividad": "moto", "items": ["Casco", "Guantes", "Chaleco reflectivo"], "personalizado": true, "updated_at": "2026-11-06T15:00:00.000Z"}, {"tipo_actividad": "bici", "items": ["Casco", "Luces delantera y trasera", "Inflador"], "personalizado": false, "updated_at": null}]}
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/SuperadminRequerido'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+ChecklistActividadAdmin:
+  parameters:
+    - $ref: '../components/parameters.yaml#/TipoActividadPath'
+  put:
+    operationId: adminDefinirChecklistActividad
+    summary: Redefinir los ítems sugeridos de una actividad
+    description: |
+      RN-132: reemplaza la lista completa de sugeridos de la actividad, en el orden recibido. Solo afecta a los checklists que se armen desde ahora: los que ya existen son de cada persona y no cambian. Queda auditado (`checklist.definir_sugeridos`).
+    tags:
+      - Admin
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/DefinirChecklistActividadRequest'
+          example: {"items": ["Casco", "Guantes", "Chaleco reflectivo"]}
+    responses:
+      '200':
+        description: Lista guardada.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ChecklistActividadAdmin'
+            example: {"tipo_actividad": "moto", "items": ["Casco", "Guantes", "Chaleco reflectivo"], "personalizado": true, "updated_at": "2026-11-06T15:00:00.000Z"}
+      '400':
+        description: Actividad inexistente, lista vacía, ítems repetidos o de más de 120 caracteres (`VALIDATION_ERROR`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ValidationError'
+            example: {"error": "Validación fallida", "code": "VALIDATION_ERROR", "details": {"formErrors": [], "fieldErrors": {"items": ["Hay ítems repetidos"]}}}
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/SuperadminRequerido'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+  delete:
+    operationId: adminRestaurarChecklistActividad
+    summary: Volver a los ítems sugeridos por defecto
+    description: |
+      RN-132: descarta la lista que definió el superadmin y vuelve a regir la del sistema. Si la actividad no estaba personalizada no cambia nada y no se audita; si lo estaba, queda auditado (`checklist.restaurar_sugeridos`).
+    tags:
+      - Admin
+    responses:
+      '200':
+        description: Lista por defecto vigente.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ChecklistActividadAdmin'
+            example: {"tipo_actividad": "otro", "items": ["Agua", "Celular cargado", "Documento", "Botiquín", "Abrigo"], "personalizado": false, "updated_at": null}
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/SuperadminRequerido'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
 AuditoriaAdmin:
   get:
     operationId: adminListarAuditoria
@@ -661,7 +747,7 @@ AuditoriaAdmin:
         in: query
         required: false
         description: Filtra por tipo de entidad.
-        schema: {"type": "string", "enum": ["usuario", "grupo", "viaje"]}
+        schema: {"type": "string", "enum": ["usuario", "grupo", "viaje", "checklist"]}
       - name: entidad_id
         in: query
         required: false

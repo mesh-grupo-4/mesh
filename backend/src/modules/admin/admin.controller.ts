@@ -3,12 +3,14 @@ import { z } from 'zod'
 import {
   actualizarUsuarioAdminSchema,
   cambiarRolSistemaSchema,
+  definirChecklistActividadSchema,
   listarAuditoriaQuery,
   listarGruposQuery,
   listarUsuariosQuery,
   listarViajesQuery,
   reasignarLiderSchema,
   suspenderUsuarioSchema,
+  tipoActividadParam,
 } from './admin.schemas'
 import type { AdminService } from './admin.service'
 
@@ -89,6 +91,20 @@ export function crearAdminController(service: AdminService) {
     }),
     eliminarViaje: asyncHandler(async (req, res) => {
       res.json(await service.eliminarViaje(req.userId!, param(req, 'viajeId')))
+    }),
+
+    // ── Checklist de preparativos (RN-132) ──
+    listarChecklistActividades: asyncHandler(async (_req, res) => {
+      res.json(await service.listarChecklistActividades())
+    }),
+    definirChecklistActividad: asyncHandler(async (req, res) => {
+      const tipo = tipoActividadParam.parse(req.params.tipoActividad)
+      const { items } = definirChecklistActividadSchema.parse(req.body)
+      res.json(await service.definirChecklistActividad(req.userId!, tipo, items))
+    }),
+    restaurarChecklistActividad: asyncHandler(async (req, res) => {
+      const tipo = tipoActividadParam.parse(req.params.tipoActividad)
+      res.json(await service.restaurarChecklistActividad(req.userId!, tipo))
     }),
 
     // ── Auditoría ──

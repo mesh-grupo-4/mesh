@@ -57,7 +57,13 @@ const SUGERIDOS: Record<TipoActividad, readonly string[]> = {
   otro: ['Agua', 'Celular cargado', 'Documento', 'Botiquín', 'Abrigo'],
 }
 
-/** RN-026: ítems sugeridos para el tipo de actividad del viaje. */
+/** Los cinco tipos de actividad de RN-021, en el orden de la lista de arriba. */
+export const ACTIVIDADES_CHECKLIST = Object.keys(SUGERIDOS) as TipoActividad[]
+
+/**
+ * RN-026: ítems sugeridos por defecto para el tipo de actividad del viaje.
+ * Rigen mientras el superadmin no los redefina (RN-132, tabla `checklist_actividad`).
+ */
 export function itemsSugeridos(tipo: TipoActividad): readonly string[] {
   return SUGERIDOS[tipo]
 }

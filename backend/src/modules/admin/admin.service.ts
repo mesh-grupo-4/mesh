@@ -4,12 +4,14 @@ import { HttpError } from '../../lib/httpError'
 import { getIo } from '../../realtime/ioRegistry'
 import { transferirLiderazgo, type TransactionClient } from '../grupos/grupos.service'
 import { ViajesService } from '../viajes/viajes.service'
+import { ACTIVIDADES_CHECKLIST, itemsSugeridos } from '../checklist/checklistDefaults'
 import type {
   ActualizarUsuarioAdminInput,
   ListarAuditoriaQuery,
   ListarGruposQuery,
   ListarUsuariosQuery,
   ListarViajesQuery,
+  TipoActividadParam,
 } from './admin.schemas'
 
 /** Acciones que quedan en `auditoria_admin` (RN-121). */
@@ -24,8 +26,10 @@ export type AccionAdmin =
   | 'grupo.eliminar'
   | 'viaje.finalizar'
   | 'viaje.eliminar'
+  | 'checklist.definir_sugeridos'
+  | 'checklist.restaurar_sugeridos'
 
-type EntidadAdmin = 'usuario' | 'grupo' | 'viaje'
+type EntidadAdmin = 'usuario' | 'grupo' | 'viaje' | 'checklist'
 
 /**
  * Operaciones sobre la cuenta de Firebase. Se inyectan para poder testear el
@@ -656,6 +660,72 @@ export class AdminService {
       await tx.viaje.delete({ where: { id: viajeId } })
     })
     return { viaje_id: viajeId, accion: 'eliminado' as const }
+  }
+
+  // ── Checklist de preparativos ────────────────────────────────────────────
+
+  /**
+   * RN-132: los sugeridos vigentes de cada actividad. `personalizado: false` significa
+   * que rige la lista por defecto de `checklistDefaults.ts`.
+   */
+  async listarChecklistActividades() {
+    const definidas = await this.prisma.checklistActividad.findMany()
+    const porTipo = new Map(definidas.map((d) => [d.tipo_actividad, d]))
+    return {
+      items: ACTIVIDADES_CHECKLIST.map((tipo) => {
+        const definida = porTipo.get(tipo)
+        return {
+          tipo_actividad: tipo,
+          items: definida ? definida.items : [...itemsSugeridos(tipo)],
+          personalizado: !!definida,
+          updated_at: definida?.updated_at ?? null,
+        }
+      }),
+    }
+  }
+
+  /**
+   * Reemplaza la lista de sugeridos de una actividad. Solo afecta a los checklists que se
+   * siembren de acá en adelante: los ya armados son de cada persona y no se tocan.
+   */
+  async definirChecklistActividad(actorId: string, tipo: TipoActividadParam, items: string[]) {
+    return this.prisma.$transaction(async (tx) => {
+      const fila = await tx.checklistActividad.upsert({
+        where: { tipo_actividad: tipo },
+        create: { tipo_actividad: tipo, items },
+        update: { items },
+      })
+      await this.auditar(tx, actorId, 'checklist.definir_sugeridos', 'checklist', fila.id, {
+        tipo_actividad: tipo,
+        items,
+      })
+      return {
+        tipo_actividad: tipo,
+        items: fila.items,
+        personalizado: true,
+        updated_at: fila.updated_at,
+      }
+    })
+  }
+
+  /** Vuelve a la lista por defecto. Si la actividad no estaba personalizada, no hay nada que auditar. */
+  async restaurarChecklistActividad(actorId: string, tipo: TipoActividadParam) {
+    const predeterminada = {
+      tipo_actividad: tipo,
+      items: [...itemsSugeridos(tipo)],
+      personalizado: false,
+      updated_at: null,
+    }
+    const fila = await this.prisma.checklistActividad.findUnique({ where: { tipo_actividad: tipo } })
+    if (!fila) return predeterminada
+
+    await this.prisma.$transaction(async (tx) => {
+      await this.auditar(tx, actorId, 'checklist.restaurar_sugeridos', 'checklist', fila.id, {
+        tipo_actividad: tipo,
+      })
+      await tx.checklistActividad.delete({ where: { id: fila.id } })
+    })
+    return predeterminada
   }
 
   // ── Auditoría ────────────────────────────────────────────────────────────

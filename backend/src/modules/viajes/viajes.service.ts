@@ -1,4 +1,9 @@
-import type { EstadoViaje, Prisma, TipoActividad as TipoActividadEnum } from '@prisma/client'
+import type {
+  EstadoViaje,
+  EstadoViajeIntegrante,
+  Prisma,
+  TipoActividad as TipoActividadEnum,
+} from '@prisma/client'
 import type { PrismaClient } from '@prisma/client'
 import { getIo } from '../../realtime/ioRegistry'
 import { HttpError } from '../../lib/httpError'
@@ -42,6 +47,14 @@ import {
 } from '../privacidad/privacidad.acceso'
 import { InsigniasService } from '../insignias/insignias.service'
 import { RachasService } from '../rachas/rachas.service'
+
+/** Orden de la lista de participantes: quienes van al viaje primero, quienes rechazaron al final. */
+const ORDEN_ESTADO_INTEGRANTE: Record<EstadoViajeIntegrante, number> = {
+  confirmado: 0,
+  pendiente: 1,
+  salido: 2,
+  rechazado: 3,
+}
 
 export class ViajesService {
   private readonly rutasCompartidas: RutasCompartidasService
@@ -399,9 +412,13 @@ export class ViajesService {
         include: {
           usuario: { select: { id: true, nombre: true, apellido: true, email: true } },
         },
-        orderBy: [{ estado: 'asc' }, { created_at: 'asc' }],
+        orderBy: { created_at: 'asc' },
       }),
     ])
+    // Confirmados primero. No se ordena por `estado` en SQL porque el enum declara
+    // `pendiente` antes que `confirmado`. `sort` es estable: dentro de cada estado
+    // se mantiene el orden de llegada.
+    integrantes.sort((a, b) => ORDEN_ESTADO_INTEGRANTE[a.estado] - ORDEN_ESTADO_INTEGRANTE[b.estado])
 
     const grupoOrigenIds = [
       ...new Set(

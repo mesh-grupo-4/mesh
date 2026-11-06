@@ -171,4 +171,38 @@ describe('ViajesService.listarParticipantes', () => {
       expect.objectContaining({ usuario: usuario(usuarioC, 'Rocío'), union_efectiva: false }),
     ])
   })
+
+  it('lista primero a los confirmados y deja pendientes, salidos y rechazados después', async () => {
+    const mocks = createMockPrisma()
+    mocks.viajeFindUnique.mockResolvedValue({ creador_id: creadorId })
+    mocks.viajeFindUniqueOrThrow.mockResolvedValue({ creador_id: creadorId, fecha_inicio_real: null })
+
+    const integrante = (id: string, nombre: string, estado: string, minuto: number) => ({
+      usuario_id: id,
+      usuario: usuario(id, nombre),
+      estado,
+      origen: 'amigo',
+      created_at: new Date(`2026-08-20T14:${String(minuto).padStart(2, '0')}:00.000Z`),
+      grupo_origen_id: null,
+    })
+    // Llegan por orden de alta, como los devuelve la consulta.
+    mocks.viajeIntegranteFindMany.mockResolvedValue([
+      integrante(usuarioB, 'Marcos', 'rechazado', 1),
+      integrante(usuarioC, 'Rocío', 'pendiente', 2),
+      integrante(creadorId, 'Creador', 'confirmado', 3),
+      integrante(usuarioD, 'Nico', 'confirmado', 4),
+    ])
+    mocks.grupoFindMany.mockResolvedValue([])
+    mocks.grupoMiembroFindMany.mockResolvedValue([])
+
+    const service = new ViajesService(mocks.prisma)
+    const result = await service.listarParticipantes(creadorId, viajeId)
+
+    expect(result.map((p) => [p.usuario.nombre, p.estado])).toEqual([
+      ['Creador', 'confirmado'],
+      ['Nico', 'confirmado'],
+      ['Rocío', 'pendiente'],
+      ['Marcos', 'rechazado'],
+    ])
+  })
 })

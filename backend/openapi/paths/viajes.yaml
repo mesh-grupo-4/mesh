@@ -544,8 +544,9 @@ ParticipantesViaje:
     summary: Listar los integrantes del viaje
     description: |
       Todos los integrantes con el estado de su invitación, la vía por la que llegaron,
-      su rol y si se unieron de verdad una vez que el viaje arrancó, ordenados por
-      estado y luego por antigüedad.
+      su rol y si se unieron de verdad una vez que el viaje arrancó. Primero los
+      `confirmado`, después `pendiente`, `salido` y `rechazado`; dentro de cada estado,
+      por antigüedad.
 
       `rol` es `lider` para el creador del viaje, o el rol heredado del `grupo_origen`
       cuando la invitación vino de un grupo; `participante` en cualquier otro caso.

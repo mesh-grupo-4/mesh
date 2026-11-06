@@ -238,6 +238,15 @@ ReporteActividad:
   schema:
     $ref: './schemas.yaml#/TipoActividad'
 
+TipoActividadPath:
+  name: tipoActividad
+  in: path
+  required: true
+  description: Tipo de actividad (RN-021).
+  schema:
+    $ref: './schemas.yaml#/TipoActividad'
+  example: moto
+
 RankingTipoActividad:
   name: tipoActividad
   in: query

@@ -425,3 +425,65 @@ describe('estadisticas', () => {
     expect(prisma.viaje.count).toHaveBeenCalledWith({ where: { estado: 'finalizado' } })
   })
 })
+
+describe('checklist de preparativos (RN-132)', () => {
+  const filaMoto = {
+    id: '66666666-6666-6666-6666-666666666666',
+    tipo_actividad: 'moto',
+    items: ['Casco', 'Chaleco reflectivo'],
+    updated_at: new Date('2026-11-06T12:00:00.000Z'),
+  }
+
+  it('lista las cinco actividades y marca cuáles personalizó el superadmin', async () => {
+    const { service } = armar({
+      checklistActividad: { findMany: vi.fn().mockResolvedValue([filaMoto]) },
+    })
+
+    const { items } = await service.listarChecklistActividades()
+
+    expect(items.map((i) => i.tipo_actividad)).toEqual(['moto', 'bici', 'running', 'trekking', 'otro'])
+    expect(items[0]).toMatchObject({ items: filaMoto.items, personalizado: true })
+    expect(items[1]).toMatchObject({ personalizado: false, updated_at: null })
+    expect(items[1]!.items).toContain('Inflador')
+  })
+
+  it('definir los sugeridos los guarda y lo audita con la lista nueva', async () => {
+    const upsert = vi.fn().mockResolvedValue(filaMoto)
+    const { service, prisma } = armar({ checklistActividad: { upsert } })
+
+    const res = await service.definirChecklistActividad(adminId, 'moto', filaMoto.items)
+
+    expect(res).toMatchObject({ tipo_actividad: 'moto', items: filaMoto.items, personalizado: true })
+    expect(upsert).toHaveBeenCalledWith({
+      where: { tipo_actividad: 'moto' },
+      create: { tipo_actividad: 'moto', items: filaMoto.items },
+      update: { items: filaMoto.items },
+    })
+    expect(acciones(prisma)).toEqual(['checklist.definir_sugeridos'])
+  })
+
+  it('restaurar borra la personalización y vuelve a la lista por defecto', async () => {
+    const del = vi.fn().mockResolvedValue(filaMoto)
+    const { service, prisma } = armar({
+      checklistActividad: { findUnique: vi.fn().mockResolvedValue(filaMoto), delete: del },
+    })
+
+    const res = await service.restaurarChecklistActividad(adminId, 'moto')
+
+    expect(res).toMatchObject({ personalizado: false, updated_at: null })
+    expect(res.items).toContain('Licencia de conducir')
+    expect(del).toHaveBeenCalledWith({ where: { id: filaMoto.id } })
+    expect(acciones(prisma)).toEqual(['checklist.restaurar_sugeridos'])
+  })
+
+  it('restaurar una actividad sin personalizar no audita nada', async () => {
+    const { service, prisma } = armar({
+      checklistActividad: { findUnique: vi.fn().mockResolvedValue(null), delete: vi.fn() },
+    })
+
+    await service.restaurarChecklistActividad(adminId, 'bici')
+
+    expect(prisma.checklistActividad.delete).not.toHaveBeenCalled()
+    expect(acciones(prisma)).toEqual([])
+  })
+})

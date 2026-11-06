@@ -67,6 +67,8 @@ export type OpcionesFake = {
   integrantes?: string[]
   viajeId: string
   filasIniciales?: FilaChecklist[]
+  /** RN-132: sugeridos redefinidos por el superadmin, por tipo de actividad. */
+  sugeridosDefinidos?: Record<string, string[]>
 }
 
 export function crearPrismaFake(opts: OpcionesFake) {
@@ -109,6 +111,12 @@ export function crearPrismaFake(opts: OpcionesFake) {
   }
 
   const prisma = {
+    checklistActividad: {
+      findUnique: ({ where }: { where: { tipo_actividad: string } }) => {
+        const items = opts.sugeridosDefinidos?.[where.tipo_actividad]
+        return Promise.resolve(items ? { items } : null)
+      },
+    },
     viaje: {
       findUnique: ({ where }: { where: { id: string } }) =>
         Promise.resolve(viajes[where.id] ?? null),

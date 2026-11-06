@@ -712,6 +712,18 @@ model ChecklistItem {
   @@map("checklist_item")
 }
 
+/// RN-132: ítems sugeridos del checklist (RN-026) que el superadmin redefinió para
+/// un tipo de actividad. Sin fila, rigen los de `checklistDefaults.ts`.
+/// El orden del array es el orden en que se siembran.
+model ChecklistActividad {
+  id             String        @id @default(uuid()) @db.Uuid
+  tipo_actividad TipoActividad @unique @map("tipo_actividad")
+  items          String[]
+  updated_at     DateTime      @updatedAt @map("updated_at")
+
+  @@map("checklist_actividad")
+}
+
 /// Gasto compartido cargado por un integrante durante el viaje (US: liquidación
 /// grupal). Se prorratea entre quienes elige quien lo registra, no entre todo el
 /// viaje: por eso `GastoParticipante` guarda la lista por gasto, no un split fijo.

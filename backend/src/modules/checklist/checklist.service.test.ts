@@ -13,6 +13,7 @@ function armar(opts: {
   estado?: string
   tipoActividad?: string
   otrosViajes?: Record<string, { creador_id: string; estado: string; tipo_actividad: string }>
+  sugeridosDefinidos?: Record<string, string[]>
 } = {}) {
   const { prisma, filas } = crearPrismaFake({
     viajeId,
@@ -23,6 +24,7 @@ function armar(opts: {
     },
     otrosViajes: opts.otrosViajes,
     integrantes: [integranteId],
+    sugeridosDefinidos: opts.sugeridosDefinidos,
   })
   return { service: new ChecklistService(prisma), filas }
 }
@@ -67,6 +69,31 @@ describe('RN-026 — siembra de ítems sugeridos', () => {
 
     expect(delIntegrante[0]!.id).not.toBe(delCreador[0]!.id)
     expect(delIntegrante[0]!.completado).toBe(false)
+  })
+})
+
+describe('RN-132 — sugeridos definidos por el superadmin', () => {
+  it('siembra la lista que definió el superadmin en lugar de la de código', async () => {
+    const { service } = armar({
+      tipoActividad: 'moto',
+      sugeridosDefinidos: { moto: ['Casco', 'Chaleco reflectivo'] },
+    })
+
+    const items = await service.miChecklist(creadorId, viajeId)
+
+    expect(items.map((i) => i.texto)).toEqual(['Casco', 'Chaleco reflectivo'])
+    expect(items.every((i) => i.origen === 'sugerido')).toBe(true)
+  })
+
+  it('una actividad sin lista propia sigue usando la de código', async () => {
+    const { service } = armar({
+      tipoActividad: 'bici',
+      sugeridosDefinidos: { moto: ['Chaleco reflectivo'] },
+    })
+
+    const items = await service.miChecklist(creadorId, viajeId)
+
+    expect(items.map((i) => i.texto)).toEqual([...itemsSugeridos('bici')])
   })
 })
 
