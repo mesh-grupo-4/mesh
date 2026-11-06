@@ -26,7 +26,7 @@ import { BotonSeleccionar, SelectionHeader } from '@/components/SelectionHeader'
 import { useSelectionMode } from '@/hooks/useSelectionMode'
 import { etiquetaActividad } from '@/lib/activityDefaults'
 import { formatDurationHm, formatKm } from '@/lib/format'
-import { formatearEnArg } from '@/lib/tiempoArg'
+import { aCamposArg, desdeCamposArg, formatearEnArg } from '@/lib/tiempoArg'
 import {
   bulkDeleteSummary,
   formatItemList,
@@ -36,6 +36,7 @@ import { meshAlert, meshConfirmDestructive, meshError, meshWarning } from '@/lib
 import { abrirNuevoViaje } from '@/lib/nuevoViaje'
 import {
   eliminarViaje,
+  ocultarViaje,
   salirViaje,
   listarInvitacionesViajePendientes,
   listarViajesPlanificados,
@@ -67,6 +68,14 @@ function formatearFechaCorta(iso: string): string {
     month: 'short',
     year: 'numeric',
   })
+}
+
+// Fin del día programado en hora argentina (RN-105). Hasta ese momento un viaje planificado
+// sigue en "Mis viajes": el grupo puede estar esperando a que el líder lo inicie.
+function finDelDiaArg(iso: string): number {
+  const campos = aCamposArg(new Date(iso))
+  campos.setHours(23, 59, 59, 999)
+  return desdeCamposArg(campos).getTime()
 }
 
 function filtrar<T extends {
@@ -115,8 +124,14 @@ function puedeEliminarViaje(v: ViajePlanificadoApi): boolean {
   return v.mi_estado === 'creador' && v.estado === 'planificado'
 }
 
+// El creador lo elimina; el participante (aunque haya salido a mitad) lo quita solo de su historial.
 function puedeGestionarFinalizado(v: ViajeFinalizadoApi): boolean {
-  return v.mi_estado === 'creador' || v.mi_estado === 'confirmado'
+  return v.mi_estado === 'creador' || v.mi_estado === 'confirmado' || v.mi_estado === 'salido'
+}
+
+// Viaje vencido sin iniciar: el creador lo cancela; el participante se baja de él.
+function puedeQuitarNoRealizado(v: ViajePlanificadoApi): boolean {
+  return v.estado === 'planificado' && (v.mi_estado === 'creador' || v.mi_estado === 'confirmado')
 }
 
 function motivoNoEliminable(v: ViajePlanificadoApi): string {
@@ -394,6 +409,7 @@ export default function ViajesScreen() {
         ...finalizados.map((v) => [v.id, v.mi_estado] as const),
         ...viajesNoRealizados.map((v) => [v.id, v.mi_estado] as const),
       ])
+      const idsFinalizados = new Set(finalizados.map((v) => v.id))
 
       const items = pasadosGestionables
         .filter((v) => selection.isSelected(v.id))
@@ -406,6 +422,9 @@ export default function ViajesScreen() {
         const miEstado = miEstadoMap.get(item.id)
         if (miEstado === 'creador') {
           await eliminarViaje(item.id, userId)
+        } else if (idsFinalizados.has(item.id)) {
+          // Participante: se borra solo para él; el grupo conserva el viaje.
+          await ocultarViaje(item.id, userId)
         } else {
           await salirViaje(item.id, userId)
         }
@@ -447,7 +466,7 @@ export default function ViajesScreen() {
   const viajesFuturos = useMemo(
     () =>
       viajes
-        .filter((v) => new Date(v.fecha_programada).getTime() >= ahora || v.estado === 'en_curso')
+        .filter((v) => finDelDiaArg(v.fecha_programada) >= ahora || v.estado === 'en_curso')
         .sort((a, b) => new Date(a.fecha_programada).getTime() - new Date(b.fecha_programada).getTime()),
     [viajes, ahora]
   )
@@ -455,7 +474,7 @@ export default function ViajesScreen() {
   const viajesNoRealizados = useMemo(
     () =>
       viajes
-        .filter((v) => v.estado === 'planificado' && new Date(v.fecha_programada).getTime() < ahora)
+        .filter((v) => v.estado === 'planificado' && finDelDiaArg(v.fecha_programada) < ahora)
         .sort((a, b) => new Date(b.fecha_programada).getTime() - new Date(a.fecha_programada).getTime()),
     [viajes, ahora]
   )
@@ -463,7 +482,7 @@ export default function ViajesScreen() {
   const pasadosGestionables = useMemo(
     () => [
       ...finalizados.filter(puedeGestionarFinalizado),
-      ...viajesNoRealizados.filter(puedeEliminarViaje),
+      ...viajesNoRealizados.filter(puedeQuitarNoRealizado),
     ],
     [finalizados, viajesNoRealizados]
   )
@@ -854,11 +873,11 @@ export default function ViajesScreen() {
                               theme={theme}
                               selectionActive={selection.active}
                               selected={selection.isSelected(v.id)}
-                              selectable={puedeEliminarViaje(v)}
+                              selectable={puedeQuitarNoRealizado(v)}
                               onEnterSelection={selection.enter}
                               onToggle={selection.toggle}
                               onDisabledPress={() =>
-                                meshWarning('Sin permisos', 'Solo el organizador puede cancelar este viaje.')
+                                meshWarning('No se puede quitar', 'Este viaje no se puede quitar de tu lista.')
                               }
                             />
                           ))}

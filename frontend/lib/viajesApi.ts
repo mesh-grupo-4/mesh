@@ -414,6 +414,23 @@ export async function salirViaje(
   return parseJson<SalirViajeResponse>(res)
 }
 
+export type OcultarViajeResponse = {
+  viaje_id: string
+  accion: 'ocultado'
+}
+
+/** "Borrar para mí": quita un viaje finalizado del historial propio (solo participantes). */
+export async function ocultarViaje(
+  viajeId: string,
+  userId: string,
+  baseUrl: string = API_BASE_URL
+): Promise<OcultarViajeResponse> {
+  const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}/ocultar`, baseUrl), {
+    method: 'POST',
+  })
+  return parseJson<OcultarViajeResponse>(res)
+}
+
 /**
  * Resumen de un viaje finalizado. `mis_metricas` son solo del usuario que consulta:
  * el backend nunca devuelve métricas de terceros en este endpoint (RN-070).

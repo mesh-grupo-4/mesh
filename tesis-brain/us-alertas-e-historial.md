@@ -46,6 +46,7 @@
 | **Permiso configurable** | `Viaje.alertas_solo_lider` (default `true`) | El líder decide si solo él o todo el grupo puede crear alertas manuales |
 | **Métricas propias** | El historial muestra **tu** distancia y **tu** tiempo en movimiento | Coherente con "revisar mis actividades" y con RN-070: no compara integrantes |
 | **Traza GPS real** | El mapa del resumen dibuja `registro_gps`, no la ruta planificada | "Recorrido realizado" es por dónde pasaste. Los datos ya se guardaban y nadie los leía |
+| **Quitar del historial ("borrar para mí")** | El participante (`confirmado` o `salido`) oculta un viaje finalizado con `viaje_integrante.oculto_en_historial = true`. El creador no oculta: elimina el viaje para todos. Un viaje vencido sin iniciar el participante lo quita saliendo (`/salir`) | Antes el participante "quitaba" con `/salir`, que en un viaje finalizado lo marcaba `salido` y el viaje reaparecía en el historial. Ocultar no toca el resumen ni las métricas del resto |
 | **Simplificación en la base** | `ST_SimplifyPreserveTopology` antes de responder | Un viaje de 3 h a un ping cada 5 s son ~2160 puntos; la mayoría no cambia el dibujo. Cálculo espacial en PostGIS, no en Node |
 
 ---
@@ -69,7 +70,7 @@ Alerta
 └── resolved_at (nullable)
 ```
 
-Migraciones: `20260821170000_alertas`, `20260828190000_alertas_solo_lider`. La US2 no agrega tablas: usa `registro_gps` y `metrica_viaje`, que ya existían.
+Migraciones: `20260821170000_alertas`, `20260828190000_alertas_solo_lider`, `20261105120000_viaje_integrante_oculto_historial` (`viaje_integrante.oculto_en_historial`). La US2 no agrega tablas: usa `registro_gps` y `metrica_viaje`, que ya existían.
 
 ---
 
@@ -81,7 +82,8 @@ Migraciones: `20260821170000_alertas`, `20260828190000_alertas_solo_lider`. La U
 | `GET` | `/api/viajes/{viajeId}/alertas` | Cualquier integrante, incluido quien salió |
 | `PATCH` | `/api/viajes/{viajeId}` | Líder: `alertasSoloLider` entre otros campos |
 | `GET` | `/api/viajes/{viajeId}/recorrido` | Tu traza GPS del viaje, simplificada |
-| `GET` | `/api/viajes/finalizados` | Historial con `mi_distancia_m` y `mi_tiempo_movimiento_seg` |
+| `GET` | `/api/viajes/finalizados` | Historial con `mi_distancia_m` y `mi_tiempo_movimiento_seg`; excluye los que el participante ocultó |
+| `POST` | `/api/viajes/{viajeId}/ocultar` | Participante (`confirmado`/`salido`) de un viaje finalizado. 403 `CREATOR_MUST_DELETE` si es el creador |
 
 **Socket** (room `viaje:{id}`): `viaje:alerta` con `{ viajeId, alerta }`.
 

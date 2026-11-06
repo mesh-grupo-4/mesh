@@ -1411,6 +1411,67 @@ SalirViaje:
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'
 
+OcultarViaje:
+  post:
+    operationId: ocultarViaje
+    summary: Quitar un viaje finalizado del historial propio
+    description: |
+      "Borrar para mí": el viaje deja de aparecer en `GET /api/viajes/finalizados`
+      de quien lo pide. El viaje, su resumen y las métricas siguen intactos para el
+      resto del grupo.
+
+      Restricciones:
+
+      - El creador no oculta, elimina el viaje (`CREATOR_MUST_DELETE`).
+      - Solo viajes `finalizado` (`INVALID_STATE`).
+      - Hay que haber participado: integrante `confirmado` o `salido` (`NOT_PARTICIPANT`).
+    tags:
+      - Viajes
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '200':
+        description: El viaje se quitó del historial del usuario.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ViajeOcultado'
+            example:
+              viaje_id: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+              accion: ocultado
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: |
+          Quien pide es el creador (`CREATOR_MUST_DELETE`) o no participó del viaje
+          (`NOT_PARTICIPANT`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            examples:
+              creador:
+                value:
+                  error: El creador elimina el viaje, no lo oculta
+                  code: CREATOR_MUST_DELETE
+              noParticipo:
+                value:
+                  error: No participaste de este viaje
+                  code: NOT_PARTICIPANT
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '409':
+        description: El viaje no está finalizado (`INVALID_STATE`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Solo se puede quitar del historial un viaje finalizado
+              code: INVALID_STATE
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
 LeaderboardViaje:
   get:
     operationId: obtenerLeaderboard

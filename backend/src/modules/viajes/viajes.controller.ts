@@ -151,6 +151,12 @@ export function crearViajesController(service: ViajesService) {
       res.json(result)
     }),
 
+    ocultar: asyncHandler(async (req, res) => {
+      const { viajeId } = viajeIdParamSchema.parse(req.params)
+      const result = await service.ocultarDelHistorial(req.userId!, viajeId)
+      res.json(result)
+    }),
+
     resumen: asyncHandler(async (req, res) => {
       const { viajeId } = viajeIdParamSchema.parse(req.params)
       const resumen = await service.obtenerResumen(req.userId!, viajeId)

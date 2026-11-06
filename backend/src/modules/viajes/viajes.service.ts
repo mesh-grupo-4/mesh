@@ -679,6 +679,7 @@ export class ViajesService {
                 usuario_id: usuarioId,
                 // 'salido' incluido: si no, quien abandonó no llegaría nunca al resumen.
                 estado: { in: ['confirmado', 'salido'] },
+                oculto_en_historial: false,
               },
             },
           },
@@ -967,6 +968,40 @@ export class ViajesService {
     }
 
     return { viaje_id: viajeId, accion: 'salido' as const }
+  }
+
+  /**
+   * "Borrar para mí": el participante quita un viaje finalizado de su historial.
+   * El viaje, su resumen y sus métricas siguen intactos para el resto del grupo.
+   * El creador no oculta: elimina el viaje con `eliminarViaje`.
+   */
+  async ocultarDelHistorial(usuarioId: string, viajeId: string) {
+    const viaje = await this.prisma.viaje.findUnique({
+      where: { id: viajeId },
+      select: { id: true, creador_id: true, estado: true },
+    })
+    if (!viaje) throw new HttpError(404, 'Viaje no encontrado', 'VIAJE_NOT_FOUND')
+    if (viaje.creador_id === usuarioId) {
+      throw new HttpError(403, 'El creador elimina el viaje, no lo oculta', 'CREATOR_MUST_DELETE')
+    }
+    if (viaje.estado !== 'finalizado') {
+      throw new HttpError(409, 'Solo se puede quitar del historial un viaje finalizado', 'INVALID_STATE')
+    }
+
+    const integrante = await this.prisma.viajeIntegrante.findUnique({
+      where: { viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId } },
+      select: { estado: true },
+    })
+    if (!integrante || (integrante.estado !== 'confirmado' && integrante.estado !== 'salido')) {
+      throw new HttpError(403, 'No participaste de este viaje', 'NOT_PARTICIPANT')
+    }
+
+    await this.prisma.viajeIntegrante.update({
+      where: { viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId } },
+      data: { oculto_en_historial: true },
+    })
+
+    return { viaje_id: viajeId, accion: 'ocultado' as const }
   }
 
   /**

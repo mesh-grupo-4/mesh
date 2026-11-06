@@ -38,6 +38,7 @@ ErrorCode:
     - NOT_FRIEND
     - FORBIDDEN
     - LEADER_CANNOT_LEAVE
+    - CREATOR_MUST_DELETE
     - NOT_SUPERADMIN
     - VALORACION_PROPIA
     # Recursos inexistentes
@@ -1964,6 +1965,20 @@ SalidaDeViaje:
     accion:
       type: string
       enum: [salido]
+  additionalProperties: false
+
+ViajeOcultado:
+  type: object
+  required:
+    - viaje_id
+    - accion
+  properties:
+    viaje_id:
+      type: string
+      format: uuid
+    accion:
+      type: string
+      enum: [ocultado]
   additionalProperties: false
 
 UnionPorQr:

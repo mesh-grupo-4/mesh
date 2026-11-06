@@ -385,6 +385,8 @@ model ViajeIntegrante {
   grupo_origen_id String?               @map("grupo_origen_id") @db.Uuid
   created_at      DateTime              @default(now()) @map("created_at")
   fecha_salida    DateTime?             @map("fecha_salida")
+  /// El participante quitó el viaje finalizado de su historial. Solo afecta su lista.
+  oculto_en_historial Boolean           @default(false) @map("oculto_en_historial")
 
   viaje        Viaje   @relation(fields: [viaje_id], references: [id], onDelete: Cascade)
   usuario      Usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade)

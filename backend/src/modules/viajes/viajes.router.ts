@@ -60,6 +60,8 @@ viajesRouter.delete('/:viajeId/recorrido/publicar', requireUser, recorridoPublic
 viajesRouter.post('/:viajeId/iniciar', requireUser, c.iniciar)
 viajesRouter.post('/:viajeId/finalizar', requireUser, c.finalizar)
 viajesRouter.post('/:viajeId/salir', requireUser, c.salir)
+// "Borrar para mí": quita un viaje finalizado del historial propio.
+viajesRouter.post('/:viajeId/ocultar', requireUser, c.ocultar)
 
 // Paradas voluntarias y solicitudes de parada (US1–US3, RN-037 / RN-044).
 viajesRouter.get('/:viajeId/paradas/activa', ...paradasHandlers.activa)
