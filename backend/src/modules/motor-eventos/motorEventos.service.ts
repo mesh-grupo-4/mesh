@@ -1,4 +1,5 @@
 import type { PrismaClient, TipoActividad } from '@prisma/client'
+import { nombreVisible } from '../../lib/nombres'
 import {
   atrasoMetros,
   identificarBloquePrincipal,
@@ -70,7 +71,7 @@ const LEADERBOARD_MIN_INTERVALO_MS = 3_000
 const FACTOR_RESOLUCION = 0.5
 
 function nombreDe(u: { nombre: string; apellido: string | null }): string {
-  return [u.nombre, u.apellido].filter(Boolean).join(' ').trim() || 'Un integrante'
+  return nombreVisible(u.nombre, u.apellido) || 'Un integrante'
 }
 
 /**

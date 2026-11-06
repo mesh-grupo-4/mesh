@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client'
+import { nombreVisible } from '../../lib/nombres'
 import { HttpError } from '../../lib/httpError'
 import type { ActualizarGastoInput, CrearGastoInput } from './gastos.schemas'
 
@@ -16,7 +17,7 @@ type GastoConRelaciones = {
 }
 
 function nombreDe(u: { nombre: string; apellido: string | null }): string {
-  return [u.nombre, u.apellido].filter(Boolean).join(' ').trim() || 'Un integrante'
+  return nombreVisible(u.nombre, u.apellido) || 'Un integrante'
 }
 
 function round2(n: number): number {

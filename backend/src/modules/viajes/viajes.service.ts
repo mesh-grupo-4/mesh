@@ -4,6 +4,7 @@ import type {
   Prisma,
   TipoActividad as TipoActividadEnum,
 } from '@prisma/client'
+import { nombreVisible } from '../../lib/nombres'
 import type { PrismaClient } from '@prisma/client'
 import { getIo } from '../../realtime/ioRegistry'
 import { HttpError } from '../../lib/httpError'
@@ -1374,14 +1375,14 @@ export class ViajesService {
     for (const i of integrantes) {
       nombrePorId.set(
         i.usuario_id,
-        [i.usuario.nombre, i.usuario.apellido].filter(Boolean).join(' ')
+        nombreVisible(i.usuario.nombre, i.usuario.apellido)
       )
     }
     for (const m of metricas) {
       if (!nombrePorId.has(m.usuario_id)) {
         nombrePorId.set(
           m.usuario_id,
-          [m.usuario.nombre, m.usuario.apellido].filter(Boolean).join(' ')
+          nombreVisible(m.usuario.nombre, m.usuario.apellido)
         )
       }
     }
@@ -1393,7 +1394,7 @@ export class ViajesService {
       if (creador) {
         nombrePorId.set(
           viaje.creador_id,
-          [creador.nombre, creador.apellido].filter(Boolean).join(' ')
+          nombreVisible(creador.nombre, creador.apellido)
         )
       }
     }
@@ -1843,7 +1844,7 @@ export class ViajesService {
       if (progresoM == null) continue
       integrantes.push({
         usuarioId: p.usuario_id,
-        nombre: [p.usuario.nombre, p.usuario.apellido].filter(Boolean).join(' ').trim(),
+        nombre: nombreVisible(p.usuario.nombre, p.usuario.apellido),
         progresoM,
         lat: p.lat,
         lng: p.lng,
@@ -2048,7 +2049,7 @@ export class ViajesService {
         lng: r.lng,
         precision: r.precision_m,
         updatedAt: r.updated_at.toISOString(),
-        nombre: [r.usuario.nombre, r.usuario.apellido].filter(Boolean).join(' ').trim(),
+        nombre: nombreVisible(r.usuario.nombre, r.usuario.apellido),
         estado,
         paradaDesde: parada ? parada.inicio.toISOString() : null,
         paradaCategoria: parada?.categoria ?? null,

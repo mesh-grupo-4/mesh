@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client'
+import { nombreVisible } from '../../lib/nombres'
 import { distanciaMetros } from '../../lib/geo2d'
 import type { GeoJsonLineString } from '../../lib/geo'
 import { HttpError } from '../../lib/httpError'
@@ -39,7 +40,7 @@ export type Fantasma = {
 }
 
 function nombreDe(u: { nombre: string; apellido: string | null }): string {
-  return [u.nombre, u.apellido].filter(Boolean).join(' ').trim() || 'Integrante'
+  return nombreVisible(u.nombre, u.apellido) || 'Integrante'
 }
 
 /**

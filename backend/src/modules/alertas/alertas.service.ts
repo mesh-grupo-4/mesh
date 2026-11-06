@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client'
+import { nombreVisible } from '../../lib/nombres'
 import { HttpError } from '../../lib/httpError'
 import { getIo } from '../../realtime/ioRegistry'
 import type {
@@ -32,7 +33,7 @@ const TITULO_POR_TIPO: Record<TipoAlerta, string> = {
 
 function nombreDe(u: { nombre: string; apellido: string | null } | null): string | null {
   if (!u) return null
-  return [u.nombre, u.apellido].filter(Boolean).join(' ').trim() || null
+  return nombreVisible(u.nombre, u.apellido) || null
 }
 
 export class AlertasService {

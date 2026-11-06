@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client'
+import { nombreVisible } from '../../lib/nombres'
 import { HttpError } from '../../lib/httpError'
 import { getIo } from '../../realtime/ioRegistry'
 import type {
@@ -23,7 +24,7 @@ const ETIQUETA_CATEGORIA: Record<string, string> = {
 const MARCA_PEDIDO_AYUDA = 'Necesita ayuda — '
 
 function nombreDe(u: { nombre: string; apellido: string | null }): string {
-  return [u.nombre, u.apellido].filter(Boolean).join(' ').trim() || 'Un integrante'
+  return nombreVisible(u.nombre, u.apellido) || 'Un integrante'
 }
 
 function duracionSeg(inicio: Date, fin: Date): number {

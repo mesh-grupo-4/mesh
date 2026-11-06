@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Btn, TopBar, useTheme } from '@/components/MeshUI'
 import { useAuth } from '@/context/AuthContext'
 import type { Pagina } from '@/lib/adminApi'
+import { nombreCompleto as nombreCompletoDe } from '@/lib/nombres'
 import { formatearEnArg } from '@/lib/tiempoArg'
 
 /** RN-105: toda fecha visible va en hora argentina. */
@@ -34,7 +35,7 @@ export function diaAdmin(iso: string | null | undefined): string {
 }
 
 export function nombreCompleto(p: { nombre: string; apellido: string | null }): string {
-  return [p.nombre, p.apellido].filter(Boolean).join(' ')
+  return nombreCompletoDe(p.nombre, p.apellido)
 }
 
 export const ETIQUETA_ESTADO_VIAJE = {

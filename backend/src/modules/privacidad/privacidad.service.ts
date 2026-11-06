@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client'
+import { nombreVisible } from '../../lib/nombres'
 import { HttpError } from '../../lib/httpError'
 import { getIo } from '../../realtime/ioRegistry'
 import { obtenerMotorEventos } from '../motor-eventos/motorEventos.service'
@@ -222,5 +223,5 @@ export class PrivacidadService {
 }
 
 function nombreCompleto(u: { nombre: string; apellido: string | null }): string {
-  return [u.nombre, u.apellido].filter(Boolean).join(' ').trim()
+  return nombreVisible(u.nombre, u.apellido)
 }
