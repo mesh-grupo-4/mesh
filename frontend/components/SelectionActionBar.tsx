@@ -1,8 +1,8 @@
+import { useEspacioTabBar } from '@/hooks/useEspacioTabBar'
 import { Feather } from '@expo/vector-icons'
 import { StyleSheet, Text, View } from 'react-native'
 import { Pressable } from '@/components/Pressable'
 import Animated, { FadeInDown, FadeOutDown } from 'react-native-reanimated'
-import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useTheme } from '@/components/MeshUI'
 
@@ -21,8 +21,8 @@ export function SelectionActionBar({
   onCancel,
   deleting = false,
 }: Props) {
+  const espacioTabBar = useEspacioTabBar()
   const theme = useTheme()
-  const insets = useSafeAreaInsets()
 
   if (!visible) return null
 
@@ -34,8 +34,8 @@ export function SelectionActionBar({
         styles.bar,
         {
           backgroundColor: theme.surface,
-          borderTopColor: theme.border,
-          paddingBottom: Math.max(insets.bottom, 12),
+          borderColor: theme.border,
+          bottom: espacioTabBar,
         },
       ]}
     >
@@ -73,14 +73,14 @@ export function SelectionActionBar({
 const styles = StyleSheet.create({
   bar: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
+    left: 16,
+    right: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 12,
+    paddingVertical: 10,
     paddingHorizontal: 16,
-    borderTopWidth: 1,
+    borderRadius: 22,
+    borderWidth: 1,
     gap: 12,
   },
   cancelBtn: {

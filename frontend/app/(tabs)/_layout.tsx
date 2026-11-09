@@ -3,6 +3,7 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Tabs } from 'expo-router';
 import { useTheme } from '@/components/MeshUI';
 import { CenterInicioTabButton } from '@/components/CenterInicioTabButton';
+import { capaBlurTab } from '@/components/BlurTargetTab';
 import { MeshTabBar } from '@/components/MeshTabBar';
 import { useAuth } from '@/context/AuthContext';
 import { usePendientesBadge } from '@/lib/pendientesStore';
@@ -11,7 +12,7 @@ function TabBarIcon(props: {
   name: React.ComponentProps<typeof FontAwesome>['name'];
   color: React.ComponentProps<typeof FontAwesome>['color'];
 }) {
-  return <FontAwesome size={24} style={{ marginBottom: -3 }} {...props} />;
+  return <FontAwesome size={20} style={{ marginBottom: -3 }} {...props} />;
 }
 
 // Inicio queda al medio de la barra, pero sigue siendo la pestaña con la que arranca la app.
@@ -30,21 +31,11 @@ export default function TabLayout() {
       initialRouteName="index"
       backBehavior="initialRoute"
       tabBar={(props) => <MeshTabBar {...props} />}
+      screenLayout={capaBlurTab}
       screenOptions={{
         headerShown: false,
-        // `height`/`paddingBottom` NO van acá: `MeshTabBar` los calcula sumando
-        // el inset real del dispositivo (barra de navegación de Android, home
-        // indicator de iOS) — un valor fijo dejaba el contenido tapado por los
-        // botones del sistema en equipos con barra de navegación más alta.
-        tabBarStyle: {
-          backgroundColor: theme.background,
-          borderTopWidth: 0,
-          elevation: 0,
-          paddingTop: 8,
-          overflow: 'visible',
-        },
         tabBarActiveTintColor: theme.accent,
-        tabBarInactiveTintColor: theme.tabIconDefault,
+        tabBarInactiveTintColor: '#ffffff',
       }}
     >
       {/* Orden: Viajes · Grupos · [Inicio] · Rutas · Perfil. Inicio va al medio. */}

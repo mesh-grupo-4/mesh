@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import {
+  Image,
   View,
   Text,
   TextInput,
@@ -50,12 +51,33 @@ export function MeshMark({ size = 30, color }: { size?: number; color?: string }
   );
 }
 
+/** Medidas de `mesh-logo.png`: tiene mucho margen transparente y se recorta al dibujo. */
+const LOGO_PNG = { ancho: 1137, alto: 1103, x: 265, y: 228, anchoDibujo: 594, altoDibujo: 548 };
+
+function IsotipoMesh({ alto }: { alto: number }) {
+  const escala = alto / LOGO_PNG.altoDibujo;
+  return (
+    <View style={[styles.isotipo, { width: LOGO_PNG.anchoDibujo * escala, height: alto }]}>
+      <Image
+        source={require('../assets/images/mesh-logo.png')}
+        style={{
+          position: 'absolute',
+          left: -LOGO_PNG.x * escala,
+          top: -LOGO_PNG.y * escala,
+          width: LOGO_PNG.ancho * escala,
+          height: LOGO_PNG.alto * escala,
+        }}
+      />
+    </View>
+  );
+}
+
 export function MeshLogo({ size = 30, color }: { size?: number; color?: string }) {
   const theme = useTheme();
   const activeColor = color ?? theme.text;
   return (
     <View style={styles.logoRow}>
-      <MeshMark size={size} color={theme.accent} />
+      <IsotipoMesh alto={size * 1.25} />
       <Text style={[styles.logoText, { fontSize: size * 0.9, color: activeColor }]}>Mesh</Text>
     </View>
   );
@@ -676,6 +698,9 @@ const styles = StyleSheet.create({
   markRing: {
     position: 'absolute',
     borderRadius: 999,
+  },
+  isotipo: {
+    overflow: 'hidden',
   },
   logoRow: {
     flexDirection: 'row',

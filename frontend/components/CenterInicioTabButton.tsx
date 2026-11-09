@@ -14,6 +14,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useTheme } from '@/components/MeshUI';
+import { TAB_BAR_ALTO } from '@/hooks/useEspacioTabBar';
 import { abrirNuevoViaje } from '@/lib/nuevoViaje';
 
 const HOLD_MS = 280;
@@ -21,6 +22,8 @@ const SLIDE_DISTANCE = 64;
 const SELECT_THRESHOLD = 0.6;
 const UP_DEADZONE = 6;
 const X_DEADZONE = 8;
+/** El coral de la marca, un poco más oscuro, para indicar que Inicio está seleccionado. */
+const NARANJA_SELECCIONADO = '#a84f42';
 
 /**
  * Botón central de la tab bar: Inicio (mapa). Tap → Inicio. Mantener y deslizar
@@ -30,18 +33,21 @@ const X_DEADZONE = 8;
 export function CenterInicioTabButton({
   onPress,
   accessibilityState,
+  'aria-selected': ariaSelected,
   accessibilityLabel,
   testID,
 }: BottomTabBarButtonProps) {
   const router = useRouter();
   const theme = useTheme();
-  const focused = accessibilityState?.selected ?? false;
+  // La tab bar informa la pestaña activa con `aria-selected`.
+  const focused = ariaSelected ?? accessibilityState?.selected ?? false;
 
   const menuOpen = useSharedValue(0);
   const slideProgress = useSharedValue(0);
   // -1 = opción izquierda (nuevo viaje), 1 = opción derecha (escanear QR), 0 = ninguna.
   const activeSide = useSharedValue(0);
   const pressed = useSharedValue(0);
+  const activo = useSharedValue(focused ? 1 : 0);
   const holdStart = useSharedValue(0);
   const totalMovement = useSharedValue(0);
 
@@ -63,6 +69,10 @@ export function CenterInicioTabButton({
   };
 
   React.useEffect(() => clearHoldTimer, []);
+
+  React.useEffect(() => {
+    activo.value = withTiming(focused ? 1 : 0, { duration: 240 });
+  }, [focused, activo]);
 
   const navigateCrear = () => {
     abrirNuevoViaje();
@@ -197,10 +207,11 @@ export function CenterInicioTabButton({
     opacity: menuOpen.value * (1 - Math.min(1, slideProgress.value * 2.5)),
   }));
 
-  const circleStyle = useAnimatedStyle(() => ({
+  const capsulaStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(activo.value, [0, 1], [theme.accent, NARANJA_SELECCIONADO]),
     transform: [
       {
-        scale: interpolate(pressed.value, [0, 1], [1, 1.06]),
+        scale: interpolate(pressed.value, [0, 1], [1, 0.96]),
       },
     ],
   }));
@@ -253,31 +264,13 @@ export function CenterInicioTabButton({
           </Animated.Text>
         </Animated.View>
 
-        <Animated.View
-          style={[
-            styles.circle,
-            { shadowColor: theme.accent },
-            focused
-              ? { backgroundColor: theme.accent, borderWidth: 2, borderColor: 'rgba(255, 255, 255, 0.22)' }
-              : { backgroundColor: theme.accentWeak, borderWidth: 2, borderColor: theme.accentLine },
-            circleStyle,
-          ]}
-        >
-          <FontAwesome
-            name="home"
-            size={26}
-            color={focused ? theme.onAccent : theme.accent}
-          />
-        </Animated.View>
+        <Animated.View style={[styles.capsula, capsulaStyle]} />
 
-        <Text
-          style={[
-            styles.label,
-            { color: focused ? theme.accent : theme.tabIconDefault },
-          ]}
-        >
-          Inicio
-        </Text>
+        <View style={styles.icono}>
+          <FontAwesome name="home" size={20} color={theme.onAccent} />
+        </View>
+
+        <Text style={[styles.label, { color: theme.onAccent }]}>Inicio</Text>
       </View>
     </GestureDetector>
   );
@@ -287,14 +280,12 @@ const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'flex-end',
-    paddingBottom: Platform.OS === 'ios' ? 2 : 4,
-    top: -14,
+    justifyContent: 'flex-start',
     zIndex: 2,
   },
   menuStack: {
     position: 'absolute',
-    bottom: 78,
+    bottom: 64,
     alignItems: 'center',
     width: 260,
   },
@@ -342,29 +333,25 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
   },
-  circle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+  // Ocupa el mismo lugar que la cápsula del ítem activo. El relleno mantiene el
+  // naranja legible: un ícono coral suelto se perdería sobre el vidrio claro.
+  capsula: {
+    position: 'absolute',
+    top: -2,
+    left: 4,
+    right: 4,
+    height: TAB_BAR_ALTO - 8,
+    borderRadius: (TAB_BAR_ALTO - 8) / 2,
+  },
+  // Misma altura que el ícono de las otras pestañas.
+  icono: {
+    height: 22,
+    marginTop: 5,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 2,
-    // `shadowColor` (iOS) va inline junto al resto de colores del tema.
-    ...Platform.select({
-      ios: {
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.45,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 8,
-      },
-      default: {},
-    }),
   },
   label: {
     fontSize: 11,
     fontWeight: '600',
-    marginTop: 2,
   },
 });

@@ -316,6 +316,7 @@ Si el PO prefiere un criterio más conservador, la alternativa es devolver
 | RN-124 | **Eliminación de cuenta** (definitiva, solo superadmin). No se permite si la persona está en un viaje `en_curso` (como creadora o integrante confirmada): primero hay que finalizarlo. Los grupos que lideraba pasan al integrante más antiguo, o se eliminan si no queda nadie (RN-013); los viajes que creó pasan al integrante más antiguo que participó (`confirmado` o `salido`), o se eliminan si no hubo nadie más, para no borrar el historial ajeno. Todo lo demás de la persona (GPS, métricas, paradas, amistades, checklist, gastos) se borra en cascada. La cuenta de Firebase se elimina **antes** que la fila local: al revés, un login en el medio la recrearía vacía. Nadie puede eliminarse a sí mismo. |
 | RN-125 | **Gestión de grupos y viajes ajenos.** Un superadmin puede, sin ser líder ni creador: reasignar el líder de un grupo (sigue habiendo un único líder), quitar a un integrante (si es el líder aplica RN-013), eliminar un grupo, **forzar la finalización** de un viaje `en_curso` que quedó colgado (mismo cierre que hace el creador, con push a todos los confirmados) y eliminar un viaje `planificado` o `finalizado` (uno `en_curso` primero se finaliza). Como las fechas no se muestran (RN-126), el backend avisa con `posiblemente_colgado` los viajes que llevan más de **24 horas** en curso, y el filtro `en_curso` los ordena del más viejo al más nuevo. Es solo un aviso: no cierra el viaje ni bloquea el cierre forzado. |
 | RN-126 | **El backoffice gestiona, no vigila.** Ningún endpoint de `/api/admin` expone posiciones GPS, ubicaciones vivas, recorridos ni velocidades: el superadmin no se salta las reglas de privacidad (RN-110 a RN-114) ni la exclusión de moto de toda comparación de velocidades (RN-070). Tampoco puede cambiar el consentimiento ni el compartir ubicación de otra persona (RN-111). **Los viajes se ven siempre anónimos:** solo código, actividad, grupal o individual, estado, cantidad de integrantes y el aviso de colgado (RN-125). Nunca nombre, creador, integrantes, grupos, ruta ni fechas, ni se puede buscar un viaje por nombre: no se pueden ver los datos de un viaje de una persona. De una persona solo se ven totales (viajes creados, participaciones). Las estadísticas de viajes se consultan en la reportería, agregadas (RN-127). |
+| RN-132 | **Checklist sugerido editable.** El superadmin puede redefinir, para cada tipo de actividad, la lista de ítems que el sistema sugiere al armar el checklist de preparativos (RN-026): agregar, quitar y reordenar (entre 1 y 30 ítems de hasta 120 caracteres, sin repetidos), o volver a la lista por defecto del sistema. Mientras una actividad no se personalice rige la lista por defecto. El cambio **solo afecta a los checklists que se siembren después**: los ya armados son de cada persona y no se tocan. Guardar y restaurar se auditan (RN-121). |
 
 #### Implementación
 
@@ -329,8 +330,12 @@ Si el PO prefiere un criterio más conservador, la alternativa es devolver
   `usuario`, y la tabla `auditoria_admin` (migración `20261016120000_superadmin`).
 - **Contrato:** `backend/openapi/paths/admin.yaml` (tag `Admin`). `GET /api/usuarios/me` devuelve
   `rol_sistema`.
+- **Checklist sugerido (RN-132):** `GET /api/admin/checklist`, `PUT` y `DELETE
+  /api/admin/checklist/{tipoActividad}`. Tabla `checklist_actividad` (migración
+  `20261106120000_checklist_actividad`); sin fila, `ChecklistService` usa
+  `checklistDefaults.ts`.
 - **Frontend:** `frontend/lib/adminApi.ts`, pantallas en `frontend/app/admin/` (panel, usuarios,
-  grupos, viajes, auditoría) y componentes en `frontend/components/admin/AdminUI.tsx`.
+  grupos, viajes, checklist, auditoría) y componentes en `frontend/components/admin/AdminUI.tsx`.
   `AuthContext` expone `esSuperadmin` y cierra la sesión si el backend responde
   `ACCOUNT_SUSPENDED`.
 
@@ -601,8 +606,8 @@ Usuario
 AuditoriaAdmin                                              ← RN-121
 ├── id (PK)
 ├── actor_id (FK → Usuario, nullable, SET NULL)
-├── accion (p. ej. usuario.suspender, viaje.finalizar)
-├── entidad (usuario | grupo | viaje)
+├── accion (p. ej. usuario.suspender, viaje.finalizar, checklist.definir_sugeridos)
+├── entidad (usuario | grupo | viaje | checklist)
 ├── entidad_id (uuid, sin FK: sobrevive a la eliminación)
 ├── detalle (json)
 └── created_at
@@ -759,6 +764,12 @@ ChecklistItem
 
     UNIQUE (viaje_id, usuario_id, texto)   ← siembra e importación idempotentes
     FK origen_item_id ON DELETE CASCADE    ← el creador borra el ítem base y caen las copias
+
+ChecklistActividad                                          ← RN-132
+├── id (PK)
+├── tipo_actividad (enum, unique)   ← una fila por actividad personalizada
+├── items (text[])                  ← sugeridos en el orden de siembra
+└── updated_at
 
 RecorridoPublicado                                          ← RN-081
 ├── id (PK)

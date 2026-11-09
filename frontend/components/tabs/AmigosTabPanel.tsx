@@ -1,3 +1,4 @@
+import { useEspacioTabBar } from '@/hooks/useEspacioTabBar'
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
@@ -42,6 +43,7 @@ import { setSolicitudesPendientesCount } from '@/lib/pendientesStore';
 type TabAmigos = 'amigos' | 'solicitudes';
 
 export function AmigosTabPanel() {
+  const espacioTabBar = useEspacioTabBar()
   const theme = useTheme();
   const router = useRouter();
   const { backendUserId } = useAuth();
@@ -413,9 +415,10 @@ export function AmigosTabPanel() {
                 renderItem={renderFilaBusqueda}
                 keyboardShouldPersistTaps="handled"
                 automaticallyAdjustKeyboardInsets
-                contentContainerStyle={
-                  resultadosBusqueda.length === 0 ? styles.listaVacia : undefined
-                }
+                contentContainerStyle={[
+                  resultadosBusqueda.length === 0 ? styles.listaVacia : undefined,
+                  { paddingBottom: espacioTabBar },
+                ]}
                 ListEmptyComponent={
                   <Text style={[styles.vacio, { color: theme.textMute }]}>No se encontraron usuarios.</Text>
                 }
@@ -436,7 +439,7 @@ export function AmigosTabPanel() {
                 automaticallyAdjustKeyboardInsets
                 contentContainerStyle={[
                   amigos.length === 0 ? styles.listaVacia : undefined,
-                  selection.active && styles.listaConBarra,
+                  { paddingBottom: espacioTabBar + (selection.active ? 88 : 0) },
                 ]}
                 ListEmptyComponent={
                   <Text style={[styles.vacio, { color: theme.textMute }]}>
@@ -466,7 +469,10 @@ export function AmigosTabPanel() {
               data={solicitudes}
               keyExtractor={(item) => item.id}
               renderItem={renderSolicitud}
-              contentContainerStyle={solicitudes.length === 0 ? styles.listaVacia : undefined}
+              contentContainerStyle={[
+                solicitudes.length === 0 ? styles.listaVacia : undefined,
+                { paddingBottom: espacioTabBar },
+              ]}
               ListEmptyComponent={
                 <Text style={[styles.vacio, { color: theme.textMute }]}>No tenés solicitudes pendientes.</Text>
               }
@@ -493,7 +499,7 @@ export function AmigosTabPanel() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 20, paddingBottom: 16 },
+  container: { flex: 1, paddingHorizontal: 20 },
   tabs: {
     flexDirection: 'row',
     marginBottom: 16,
@@ -516,7 +522,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   listaVacia: { flexGrow: 1, justifyContent: 'center' },
-  listaConBarra: { paddingBottom: 88 },
   fila: {
     flexDirection: 'row',
     alignItems: 'center',

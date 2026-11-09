@@ -1,3 +1,4 @@
+import { useEspacioTabBar } from '@/hooks/useEspacioTabBar'
 import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -9,6 +10,7 @@ import { meshAlert } from '@/lib/meshAlert';
 import { abrirNuevoViaje } from '@/lib/nuevoViaje';
 
 export function RutasExplorarPanel() {
+  const espacioTabBar = useEspacioTabBar()
   const theme = useTheme();
   const router = useRouter();
   const [link, setLink] = useState('');
@@ -32,7 +34,7 @@ export function RutasExplorarPanel() {
 
   return (
     <ScrollView
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingBottom: espacioTabBar }]}
       keyboardShouldPersistTaps="handled"
       automaticallyAdjustKeyboardInsets
     >
@@ -93,7 +95,6 @@ export function RutasExplorarPanel() {
 const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 20,
-    paddingBottom: 32,
     gap: 16,
   },
   card: {

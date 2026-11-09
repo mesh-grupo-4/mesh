@@ -1,48 +1,76 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
+import { BlurView } from 'expo-blur'
 import { BottomTabBar, type BottomTabBarProps } from 'expo-router/js-tabs'
 import { StyleSheet, useWindowDimensions, View } from 'react-native'
-import Svg, { Path } from 'react-native-svg'
-import { useTheme } from '@/components/MeshUI'
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated'
 
-/** Radio del arco: un poco más grande que el círculo (28px) para abrazarlo. */
-const NOTCH_RADIUS = 32
+import { useBlurTargetTab } from '@/components/BlurTargetTab'
+import Colors from '@/constants/Colors'
+import { TAB_BAR_ALTO, TAB_BAR_MARGEN, useTabBarBottom } from '@/hooks/useEspacioTabBar'
 
-/** Alto/padding de diseño de la tab bar, SIN contar el inset del sistema
- * (barra de navegación de Android, home indicator de iOS) — ese se suma
- * aparte con `insets.bottom`, que ya viene en las props (no hace falta
- * `useSafeAreaInsets()`). Antes estos valores eran fijos en `_layout.tsx` y
- * no sumaban el inset real: en equipos con barra de navegación de Android
- * más alta (3 botones, skins de fabricante), el contenido de la tab bar
- * quedaba tapado por esos botones.
+const RADIO_CAPSULA = TAB_BAR_ALTO / 2
+const SEPARACION_ACTIVO = 3
+
+function FondoCapsula({
+  ruta,
+  indice,
+  total,
+  ancho,
+}: {
+  ruta: string
+  indice: number
+  total: number
+  ancho: number
+}) {
+  const objetivoBlur = useBlurTargetTab(ruta)
+  const anchoItem = ancho / total
+  const x = useSharedValue(indice * anchoItem)
+
+  useEffect(() => {
+    x.value = withTiming(indice * anchoItem, { duration: 240, easing: Easing.out(Easing.cubic) })
+  }, [indice, anchoItem, x])
+
+  const estiloActivo = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }))
+
+  return (
+    <View style={styles.capsula}>
+      <BlurView
+        // Cada pestaña tiene su propio objetivo: remontar evita arrastrar el anterior.
+        key={ruta}
+        tint="dark"
+        intensity={40}
+        blurMethod={objetivoBlur ? 'dimezisBlurViewSdk31Plus' : 'none'}
+        blurTarget={objetivoBlur}
+        style={StyleSheet.absoluteFill}
+      />
+      <View style={[StyleSheet.absoluteFill, styles.velo]} />
+      <Animated.View
+        style={[styles.activo, { width: anchoItem - (SEPARACION_ACTIVO + 1) * 2 }, estiloActivo]}
+      />
+    </View>
+  )
+}
+
+/**
+ * Tab bar flotante. Sigue usando `BottomTabBar` para no alterar la navegación,
+ * el contador de pendientes ni la accesibilidad: acá solo cambia lo visual.
+ * Es oscura en ambos temas para que los ítems blancos siempre se lean.
  */
-const BASE_HEIGHT = 64
-const BASE_PADDING_BOTTOM = 8
-
 export function MeshTabBar(props: BottomTabBarProps) {
   const { width } = useWindowDimensions()
-  const theme = useTheme()
-  const cx = width / 2
-  const borderColor = theme.border
-  const insetBottom = props.insets.bottom
+  const bottom = useTabBarBottom()
+  const ancho = width - TAB_BAR_MARGEN * 2
+  const { index } = props.state
+  const total = props.state.routes.length
 
-  const path = `
-    M 0 0
-    L ${cx - NOTCH_RADIUS} 0
-    A ${NOTCH_RADIUS} ${NOTCH_RADIUS} 0 0 0 ${cx + NOTCH_RADIUS} 0
-    L ${width} 0
-  `
-
-  const notchFill = `
-    M ${cx - NOTCH_RADIUS} 0
-    A ${NOTCH_RADIUS} ${NOTCH_RADIUS} 0 0 0 ${cx + NOTCH_RADIUS} 0
-    Z
-  `
-
-  // El estilo estático de `screenOptions.tabBarStyle` (en `_layout.tsx`) es
-  // el mismo para todas las rutas: acá lo completamos con el inset real del
-  // dispositivo antes de pasárselo a `BottomTabBar`, que internamente lee
-  // `tabBarStyle` desde `descriptors[rutaActiva].options`.
   const descriptors = useMemo(() => {
+    const ruta = props.state.routes[index]!.name
+    const fondo = <FondoCapsula ruta={ruta} indice={index} total={total} ancho={ancho} />
     const next: BottomTabBarProps['descriptors'] = {}
     for (const key of Object.keys(props.descriptors)) {
       const d = props.descriptors[key]!
@@ -50,49 +78,58 @@ export function MeshTabBar(props: BottomTabBarProps) {
         ...d,
         options: {
           ...d.options,
-          tabBarStyle: [
-            d.options.tabBarStyle,
-            {
-              height: BASE_HEIGHT + insetBottom,
-              paddingBottom: BASE_PADDING_BOTTOM + insetBottom,
-            },
-          ],
+          tabBarBackground: () => fondo,
+          tabBarIconStyle: styles.icono,
+          tabBarLabelStyle: styles.label,
+          tabBarStyle: [styles.barra, { bottom }],
         },
       }
     }
     return next
-  }, [props.descriptors, insetBottom])
+  }, [props.descriptors, props.state.routes, index, total, ancho, bottom])
 
-  return (
-    <View style={[styles.wrapper, { backgroundColor: theme.background }]}>
-      <View style={styles.borderLayer} pointerEvents="none">
-        <Svg
-          width={width}
-          height={NOTCH_RADIUS + 1}
-          style={styles.borderSvg}
-          viewBox={`0 ${-NOTCH_RADIUS} ${width} ${NOTCH_RADIUS + 1}`}
-        >
-          <Path d={notchFill} fill={theme.background} />
-          <Path d={path} stroke={borderColor} strokeWidth={1} fill="none" />
-        </Svg>
-      </View>
-      <BottomTabBar {...props} descriptors={descriptors} />
-    </View>
-  )
+  return <BottomTabBar {...props} descriptors={descriptors} />
 }
 
 const styles = StyleSheet.create({
-  wrapper: {
-    overflow: 'visible',
-  },
-  borderLayer: {
-    ...StyleSheet.absoluteFill,
-    overflow: 'visible',
-    zIndex: 0,
-  },
-  borderSvg: {
+  barra: {
     position: 'absolute',
-    top: 0,
-    left: 0,
+    // `start`/`end`, no `left`/`right`: BottomTabBar fija los primeros y en nativo tienen prioridad.
+    start: TAB_BAR_MARGEN,
+    end: TAB_BAR_MARGEN,
+    height: TAB_BAR_ALTO,
+    paddingTop: 6,
+    paddingBottom: 0,
+    borderTopWidth: 0,
+    borderRadius: RADIO_CAPSULA,
+    backgroundColor: 'transparent',
+    overflow: 'visible',
+    // La sombra va por boxShadow: la elevation que trae BottomTabBar se vería a través del vidrio.
+    elevation: 0,
+    boxShadow: '0px 8px 24px rgba(0, 0, 0, 0.32)',
   },
+  capsula: {
+    flex: 1,
+    borderRadius: RADIO_CAPSULA,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    // Borde superior más claro: da el brillo del vidrio.
+    borderTopColor: 'rgba(255, 255, 255, 0.36)',
+    overflow: 'hidden',
+  },
+  // 58 %: lo más transparente que deja legible el texto blanco sobre un fondo claro.
+  velo: { backgroundColor: `${Colors.dark.background}94` },
+  activo: {
+    position: 'absolute',
+    top: SEPARACION_ACTIVO,
+    bottom: SEPARACION_ACTIVO,
+    left: SEPARACION_ACTIVO,
+    borderRadius: RADIO_CAPSULA - SEPARACION_ACTIVO - 1,
+    // 82 %: translúcida, con contraste suficiente para el acento de la marca.
+    backgroundColor: `${Colors.dark.background}D1`,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  icono: { width: 26, height: 22 },
+  label: { fontSize: 11, fontWeight: '600' },
 })

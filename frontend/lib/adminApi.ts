@@ -67,10 +67,19 @@ export type ViajeAdminAnonimo = {
   posiblemente_colgado: boolean
 }
 
+/** RN-132: ítems sugeridos del checklist de preparativos para una actividad. */
+export type ChecklistActividadAdmin = {
+  tipo_actividad: ActividadPreferidaApi
+  items: string[]
+  /** `false`: rige la lista por defecto del sistema. */
+  personalizado: boolean
+  updated_at: string | null
+}
+
 export type EntradaAuditoria = {
   id: string
   accion: string
-  entidad: 'usuario' | 'grupo' | 'viaje'
+  entidad: 'usuario' | 'grupo' | 'viaje' | 'checklist'
   entidad_id: string
   detalle: Record<string, unknown> | null
   created_at: string
@@ -152,6 +161,16 @@ export const finalizarViajeAdmin = (id: string) =>
   enviar('POST', `/api/admin/viajes/${id}/finalizar`)
 
 export const eliminarViajeAdmin = (id: string) => enviar('DELETE', `/api/admin/viajes/${id}`)
+
+// ── Checklist de preparativos (RN-132) ──
+export const listarChecklistActividadesAdmin = () =>
+  get<{ items: ChecklistActividadAdmin[] }>('/api/admin/checklist')
+
+export const definirChecklistActividadAdmin = (tipo: ActividadPreferidaApi, items: string[]) =>
+  enviar<ChecklistActividadAdmin>('PUT', `/api/admin/checklist/${tipo}`, { items })
+
+export const restaurarChecklistActividadAdmin = (tipo: ActividadPreferidaApi) =>
+  enviar<ChecklistActividadAdmin>('DELETE', `/api/admin/checklist/${tipo}`)
 
 // ── Auditoría ──
 export const listarAuditoriaAdmin = (p: { pagina?: number }) =>

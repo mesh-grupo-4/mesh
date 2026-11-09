@@ -217,7 +217,21 @@ export async function listarParticipantesViaje(
 ): Promise<ViajeParticipanteApi[]> {
   const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}/participantes`, baseUrl), {
   })
-  return parseJson<ViajeParticipanteApi[]>(res)
+  const participantes = await parseJson<ViajeParticipanteApi[]>(res)
+  // El backend ya los manda en este orden; se repite acá para no depender de que el
+  // servidor desplegado esté actualizado. `sort` es estable: respeta la antigüedad.
+  return participantes.sort(
+    (a, b) => ORDEN_ESTADO_PARTICIPANTE[a.estado] - ORDEN_ESTADO_PARTICIPANTE[b.estado]
+  )
+}
+
+/** Mismo orden que `GET /participantes`: confirmados primero, rechazados al final. */
+const ORDEN_ESTADO_PARTICIPANTE: Record<ViajeParticipanteApi['estado'], number> = {
+  confirmado: 0,
+  pendiente: 1,
+  salido: 2,
+  ausente: 3,
+  rechazado: 4,
 }
 
 /** Invita grupos y/o amigos a un viaje ya creado (solo el líder, viaje planificado). */

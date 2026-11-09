@@ -1103,7 +1103,7 @@ export default function ViajeDetalleScreen() {
                 >
                   <Feather name="users" size={16} color={theme.accent} />
                   <Text style={[styles.alertConfigTitle, { color: theme.text }]}>
-                    Participantes · {participantes.length}
+                    Participantes · {participantes.filter((p) => p.estado === 'confirmado').length}
                   </Text>
                   <Feather
                     name={participantesAbierto ? 'chevron-up' : 'chevron-down'}

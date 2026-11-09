@@ -1,3 +1,4 @@
+import { useEspacioTabBar } from '@/hooks/useEspacioTabBar'
 import { useCallback, useEffect, useState } from 'react';
 import {
   View,
@@ -60,6 +61,7 @@ function getGroupColor(nombre: string): string {
 }
 
 export default function GruposScreen() {
+  const espacioTabBar = useEspacioTabBar()
   const { tab } = useLocalSearchParams<{ tab?: string }>();
   const { backendUserId, backendSyncing } = useAuth();
   const theme = useTheme();
@@ -300,7 +302,7 @@ export default function GruposScreen() {
     >
 
       <ScrollViewAyuda
-        contentContainerStyle={styles.inner}
+        contentContainerStyle={[styles.inner, { paddingBottom: espacioTabBar + 74 }]}
         keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl
@@ -510,6 +512,7 @@ export default function GruposScreen() {
             style={({ pressed }) => [
               styles.fab,
               {
+                bottom: espacioTabBar,
                 backgroundColor: theme.accent,
                 transform: [{ scale: pressed ? 0.95 : 1 }],
               },
@@ -549,7 +552,6 @@ const styles = StyleSheet.create({
   },
   inner: {
     padding: 20,
-    paddingBottom: 100, // Espacio para el FAB flotante
     gap: 20,
   },
   center: {
@@ -678,7 +680,6 @@ const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
     right: 20,
-    bottom: 20,
     height: 54,
     paddingHorizontal: 20,
     borderRadius: 18,

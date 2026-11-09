@@ -202,7 +202,7 @@ export function CrearAlertaSheet({
                       accessibilityState={{ selected: activo }}
                       accessibilityLabel={`Tipo ${t.label}`}
                     >
-                      <Text style={styles.tipoEmoji}>{t.emoji}</Text>
+                      <Text style={[styles.tipoEmoji, { color: t.color }]}>{t.emoji}</Text>
                       <Text style={[styles.tipoTxt, activo && { color: t.color }]}>{t.label}</Text>
                     </Pressable>
                   )

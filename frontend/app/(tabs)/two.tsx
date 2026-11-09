@@ -1,3 +1,4 @@
+import { useEspacioTabBar } from '@/hooks/useEspacioTabBar'
 import { useCallback, useMemo, useState } from 'react'
 import {
   View,
@@ -135,6 +136,48 @@ function puedeQuitarNoRealizado(v: ViajePlanificadoApi): boolean {
   return v.estado === 'planificado' && (v.mi_estado === 'creador' || v.mi_estado === 'confirmado')
 }
 
+/**
+ * Quita un viaje de "Viajes pasados". El creador lo elimina para todos; el participante
+ * de un finalizado lo oculta solo para él, y el de un no realizado se baja del viaje.
+ */
+async function quitarViajePasado(
+  id: string,
+  miEstado: string | null,
+  finalizado: boolean,
+  userId: string
+): Promise<void> {
+  if (miEstado === 'creador') {
+    await eliminarViaje(id, userId)
+  } else if (finalizado) {
+    await ocultarViaje(id, userId)
+  } else {
+    await salirViaje(id, userId)
+  }
+}
+
+/** Tachito por tarjeta: en iPhone no es habitual mantener apretado para seleccionar. */
+function BotonQuitar({
+  nombre,
+  onPress,
+  theme,
+}: {
+  nombre: string
+  onPress: () => void
+  theme: ReturnType<typeof useTheme>
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      hitSlop={10}
+      style={styles.botonQuitar}
+      accessibilityRole="button"
+      accessibilityLabel={`Quitar ${nombre}`}
+    >
+      <Feather name="trash-2" size={18} color={theme.danger} />
+    </Pressable>
+  )
+}
+
 function motivoNoEliminable(v: ViajePlanificadoApi): string {
   if (v.mi_estado !== 'creador') {
     return 'Solo el creador puede cancelar un viaje planificado.'
@@ -155,6 +198,7 @@ function TarjetaViaje({
   onEnterSelection,
   onToggle,
   onDisabledPress,
+  onQuitar,
 }: {
   v: ViajePlanificadoApi
   dimmed?: boolean
@@ -165,7 +209,9 @@ function TarjetaViaje({
   onEnterSelection?: (id: string) => void
   onToggle?: (id: string) => void
   onDisabledPress?: () => void
+  onQuitar?: () => void
 }) {
+  const nombre = v.nombre ?? etiquetaActividad(v.tipo_actividad)
   const contenido = (
     <>
       <View style={styles.tarjetaHeader}>
@@ -174,7 +220,7 @@ function TarjetaViaje({
           style={[styles.tarjetaTitulo, { color: dimmed ? theme.textDim : theme.text }]}
           numberOfLines={1}
         >
-          {v.nombre ?? etiquetaActividad(v.tipo_actividad)}
+          {nombre}
         </Text>
         {dimmed ? (
           <Badge tone="mute">No realizado</Badge>
@@ -183,6 +229,9 @@ function TarjetaViaje({
             {v.estado === 'en_curso' ? 'En vivo' : 'Planificado'}
           </Badge>
         )}
+        {onQuitar && !selectionActive ? (
+          <BotonQuitar nombre={nombre} onPress={onQuitar} theme={theme} />
+        ) : null}
       </View>
       <Text style={[styles.tarjetaMeta, { color: dimmed ? theme.textMute : theme.textDim }]}>
         <Feather name="calendar" size={12} />{'  '}{formatearFecha(v.fecha_programada)}
@@ -237,6 +286,7 @@ function TarjetaFinalizado({
   selectable = false,
   onEnterSelection,
   onToggle,
+  onQuitar,
 }: {
   v: ViajeFinalizadoApi
   theme: ReturnType<typeof useTheme>
@@ -245,7 +295,9 @@ function TarjetaFinalizado({
   selectable?: boolean
   onEnterSelection?: (id: string) => void
   onToggle?: (id: string) => void
+  onQuitar?: () => void
 }) {
+  const nombre = v.nombre ?? etiquetaActividad(v.tipo_actividad)
   return (
     <SelectableCard
       itemId={v.id}
@@ -260,9 +312,12 @@ function TarjetaFinalizado({
       <View style={styles.tarjetaHeader}>
         <ActivityTile activity={v.tipo_actividad} size={22} />
         <Text style={[styles.tarjetaTitulo, { color: theme.textDim }]} numberOfLines={1}>
-          {v.nombre ?? etiquetaActividad(v.tipo_actividad)}
+          {nombre}
         </Text>
         <Badge tone="mute">Finalizado</Badge>
+        {onQuitar && !selectionActive ? (
+          <BotonQuitar nombre={nombre} onPress={onQuitar} theme={theme} />
+        ) : null}
       </View>
       <Text style={[styles.tarjetaMeta, { color: theme.textMute }]}>
         <Feather name="calendar" size={12} />{'  '}{formatearFechaCorta(v.fecha_programada)}
@@ -305,6 +360,7 @@ function TarjetaFinalizado({
 }
 
 export default function ViajesScreen() {
+  const espacioTabBar = useEspacioTabBar()
   const theme = useTheme()
   const { backendUserId, backendSyncing } = useAuth()
   const { syncKnownTripIds } = useTripRealtime()
@@ -419,17 +475,14 @@ export default function ViajesScreen() {
           label: v.nombre ?? etiquetaActividad(v.tipo_actividad),
         }))
 
-      const result = await runBulkDelete(items, async (item) => {
-        const miEstado = miEstadoMap.get(item.id)
-        if (miEstado === 'creador') {
-          await eliminarViaje(item.id, userId)
-        } else if (idsFinalizados.has(item.id)) {
-          // Participante: se borra solo para él; el grupo conserva el viaje.
-          await ocultarViaje(item.id, userId)
-        } else {
-          await salirViaje(item.id, userId)
-        }
-      })
+      const result = await runBulkDelete(items, (item) =>
+        quitarViajePasado(
+          item.id,
+          miEstadoMap.get(item.id) ?? null,
+          idsFinalizados.has(item.id),
+          userId
+        )
+      )
 
       const idsOk = new Set(
         items.filter((i) => !result.failed.some((f) => f.id === i.id)).map((i) => i.id)
@@ -446,6 +499,31 @@ export default function ViajesScreen() {
     } finally {
       setEliminandoBulk(false)
     }
+  }
+
+  /** Quitar un solo viaje con el tachito de su tarjeta, sin entrar en modo selección. */
+  const confirmarQuitarUno = (
+    v: { id: string; nombre?: string | null; tipo_actividad: TipoActividadApi; mi_estado: string | null },
+    finalizado: boolean
+  ) => {
+    const nombre = v.nombre ?? etiquetaActividad(v.tipo_actividad)
+    const esCreador = v.mi_estado === 'creador'
+    meshConfirmDestructive({
+      title: esCreador ? 'Eliminar viaje' : 'Quitar viaje',
+      message: esCreador
+        ? `Sos el organizador de "${nombre}": se elimina para todo el grupo. Esta acción no se puede deshacer.`
+        : `¿Quitar "${nombre}" de tu historial? El resto del grupo lo sigue viendo.`,
+      confirmLabel: esCreador ? 'Eliminar' : 'Quitar',
+      onConfirm: async () => {
+        try {
+          await quitarViajePasado(v.id, v.mi_estado, finalizado, resolveBackendUserId(backendUserId))
+          setFinalizados((prev) => prev.filter((f) => f.id !== v.id))
+          setViajes((prev) => prev.filter((p) => p.id !== v.id))
+        } catch (e: unknown) {
+          meshError('Error', e instanceof Error ? e.message : 'No se pudo quitar el viaje.')
+        }
+      },
+    })
   }
 
   // Filtros
@@ -731,7 +809,7 @@ export default function ViajesScreen() {
         </View>
       ) : (
         <ScrollViewAyuda
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[styles.content, { paddingBottom: espacioTabBar }]}
           keyboardShouldPersistTaps="handled"
           automaticallyAdjustKeyboardInsets
           refreshControl={
@@ -845,6 +923,9 @@ export default function ViajesScreen() {
                       selectable={puedeGestionarFinalizado(v)}
                       onEnterSelection={selection.enter}
                       onToggle={selection.toggle}
+                      onQuitar={
+                        puedeGestionarFinalizado(v) ? () => confirmarQuitarUno(v, true) : undefined
+                      }
                     />
                   ))}
 
@@ -880,6 +961,9 @@ export default function ViajesScreen() {
                               onToggle={selection.toggle}
                               onDisabledPress={() =>
                                 meshWarning('No se puede quitar', 'Este viaje no se puede quitar de tu lista.')
+                              }
+                              onQuitar={
+                                puedeQuitarNoRealizado(v) ? () => confirmarQuitarUno(v, false) : undefined
                               }
                             />
                           ))}
@@ -1032,12 +1116,13 @@ const styles = StyleSheet.create({
   limpiarText: { fontSize: 12, fontWeight: '600' },
 
   // Contenido
-  content: { padding: 20, paddingBottom: 40, gap: 12 },
+  content: { padding: 20, gap: 12 },
 
   // Tarjetas
   tarjeta: { borderRadius: 14, padding: 14, borderWidth: 1.2, gap: 6 },
   tarjetaDimmed: { opacity: 0.75 },
   tarjetaHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  botonQuitar: { padding: 4, marginLeft: 2 },
   tarjetaTitulo: { flex: 1, fontSize: 15.5, fontWeight: '700' },
   tarjetaMeta: { fontSize: 13, lineHeight: 18 },
   tarjetaGrupo: { fontSize: 12.5, fontWeight: '600' },

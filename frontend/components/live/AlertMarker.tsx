@@ -38,5 +38,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  emoji: { fontSize: 18, lineHeight: 22 },
+  emoji: { fontSize: 18, lineHeight: 22, color: '#fff' },
 })

@@ -1,3 +1,4 @@
+import { useEspacioTabBar } from '@/hooks/useEspacioTabBar'
 import { useState, useEffect, useCallback } from 'react';
 import {
   View,
@@ -40,6 +41,7 @@ type StatsPerfil = {
 };
 
 export default function PerfilScreen() {
+  const espacioTabBar = useEspacioTabBar()
   const { user, profile, updateUserProfile, logout, backendUserId, esSuperadmin } = useAuth();
   const theme = useTheme();
   const { start } = useCopilot();
@@ -213,7 +215,7 @@ export default function PerfilScreen() {
       <TopBar title="Perfil" raiz bordered={false} onAyuda={() => start()} />
 
       <ScrollViewAyuda
-        contentContainerStyle={styles.inner}
+        contentContainerStyle={[styles.inner, { paddingBottom: espacioTabBar }]}
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
       >
@@ -567,7 +569,6 @@ const styles = StyleSheet.create({
   inner: {
     padding: 20,
     gap: 20,
-    paddingBottom: 48,
   },
   profileHeader: {
     flexDirection: 'row',

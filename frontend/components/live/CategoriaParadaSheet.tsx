@@ -92,7 +92,7 @@ export function CategoriaParadaSheet({
                 accessibilityLabel={`Parada por ${c.label}`}
               >
                 <View style={[styles.opcionEmojiWrap, { backgroundColor: theme.surface }]}>
-                  <Text style={styles.emoji}>{c.emoji}</Text>
+                  <Text style={[styles.emoji, { color: theme.text }]}>{c.emoji}</Text>
                 </View>
                 <Text
                   style={[styles.opcionTxt, { color: theme.text, fontSize: tamanoOutdoor(14.5) }]}

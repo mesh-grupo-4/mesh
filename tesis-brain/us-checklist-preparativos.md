@@ -32,7 +32,7 @@
 | **Autoridad = `creador_id`** | La base del viaje la define el creador, no el rol `líder` de un grupo | Consistente con RN-030: en viajes manda `creador_id`, el rol de grupo es otra cosa |
 | **Copia por integrante, no fila compartida** | El ítem base se **copia** al checklist de cada uno, con `origen_item_id` al original | Deja que cada persona tenga su propio `completado` sin una segunda tabla de tildes |
 | **Sincronización perezosa** | El `GET` siembra sugeridos y trae los ítems base faltantes antes de responder | Quien se une tarde al viaje recibe la base sin necesidad de un job ni de un fan-out con carrera |
-| **Sugeridos en código** | `checklistDefaults.ts`, junto a `activityDefaults.ts` | Mismo patrón que RN-021, testeable, sin seed ni tabla de catálogo |
+| **Sugeridos en código, editables por el superadmin** | `checklistDefaults.ts` es la lista por defecto; el superadmin puede reemplazarla por actividad (RN-132, tabla `checklist_actividad`) | El default sigue siendo testeable y sin seed; la tabla solo tiene filas para las actividades que alguien personalizó |
 | **Reutilizar = importar** | `POST /checklist/importar` copia los ítems propios de otro viaje | Cumple "reutilizable" sin introducir el concepto de plantilla con nombre, CRUD y pantallas propias |
 | **Importado entra como `personal`** | Aunque en el viaje origen fuera un ítem base | La obligación que puso el creador de aquel viaje no rige en este |
 | **Editable hasta `finalizado`** | Se usa en `planificado` y sigue en `en_curso`; en `finalizado` es solo lectura | Es pre-ruta, pero uno termina tildando cosas mientras arranca. Un viaje terminado es registro histórico |
@@ -95,6 +95,11 @@ Argentina la hace el frontend con `lib/tiempoArg.ts`.
 
 Definidos en `backend/src/modules/checklist/checklistDefaults.ts`. Son sugerencias,
 no obligaciones: se pueden borrar.
+
+**RN-132:** el superadmin puede reemplazar la lista de cualquier actividad desde
+*Perfil → Administración → Checklist de preparativos* (`/api/admin/checklist`). Al sembrar,
+`ChecklistService` usa la fila de `checklist_actividad` si existe y, si no, esta tabla.
+El cambio solo vale para los checklists que se siembren después.
 
 | Actividad | Ejemplos |
 |---|---|

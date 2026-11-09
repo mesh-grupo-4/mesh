@@ -204,7 +204,7 @@ function TarjetaAlerta({
       ]}
     >
       <View style={styles.tarjetaHeader}>
-        <Text style={styles.emoji}>{meta.emoji}</Text>
+        <Text style={[styles.emoji, { color: meta.color }]}>{meta.emoji}</Text>
         <Text style={[styles.tipo, { color: meta.color }]}>{meta.label}</Text>
         {alerta.estado !== 'activa' ? (
           <Text

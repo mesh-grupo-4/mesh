@@ -11,7 +11,7 @@ import {
   useSegments,
 } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import 'react-native-reanimated';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -25,6 +25,7 @@ import Colors from '@/constants/Colors';
 import { ViajeRealtimeBridge } from '@/components/ViajeRealtimeBridge';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { consumePendingReturn, setPendingReturn } from '@/lib/pendingDeepLink';
+import { cargarPreferenciaTema } from '@/lib/temaApp';
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -35,20 +36,26 @@ export const unstable_settings = {
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
+  const [temaListo, setTemaListo] = useState(false);
   const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
     ...FontAwesome.font,
   });
 
   useEffect(() => {
+    // El splash espera al tema guardado para no mostrar un destello del otro modo.
+    void cargarPreferenciaTema().then(() => setTemaListo(true));
+  }, []);
+
+  useEffect(() => {
     if (error) throw error;
   }, [error]);
 
   useEffect(() => {
-    if (loaded) SplashScreen.hideAsync();
-  }, [loaded]);
+    if (loaded && temaListo) SplashScreen.hideAsync();
+  }, [loaded, temaListo]);
 
-  if (!loaded) return null;
+  if (!loaded || !temaListo) return null;
 
   return (
     <GestureHandlerRootView style={styles.root}>

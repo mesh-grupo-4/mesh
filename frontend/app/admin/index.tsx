@@ -95,6 +95,12 @@ export default function AdminPanelScreen() {
             onPress={() => router.push('/admin/viajes')}
           />
           <Fila
+            icono="check-square"
+            titulo="Checklist de preparativos"
+            detalle="Ítems que se sugieren al armar el checklist de cada actividad"
+            onPress={() => router.push('/admin/checklist')}
+          />
+          <Fila
             icono="file-text"
             titulo="Auditoría"
             detalle="Registro de cada acción hecha desde el backoffice"

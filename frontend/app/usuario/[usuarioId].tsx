@@ -6,10 +6,10 @@ import { Feather } from '@expo/vector-icons';
 import { ActivityTile, Avatar, Badge, Btn, TopBar, useTheme } from '@/components/MeshUI';
 import { useAuth } from '@/context/AuthContext';
 import { resolveBackendUserId } from '@/lib/apiClient';
-import { solicitarAmistad } from '@/lib/amistadesApi';
+import { eliminarAmigo, solicitarAmistad } from '@/lib/amistadesApi';
 import { obtenerPerfilPublico, type PerfilPublicoApi } from '@/lib/usuariosApi';
 import { formatDurationHm, formatKmCompact } from '@/lib/format';
-import { meshAlert } from '@/lib/meshAlert';
+import { meshAlert, meshConfirmDestructive } from '@/lib/meshAlert';
 
 const ETIQUETA_ACTIVIDAD: Record<string, string> = {
   moto: 'Moto',
@@ -31,6 +31,8 @@ export default function PerfilUsuarioScreen() {
   const [error, setError] = useState<string | null>(null);
   const [solicitando, setSolicitando] = useState(false);
   const [solicitudEnviadaLocal, setSolicitudEnviadaLocal] = useState(false);
+  const [eliminando, setEliminando] = useState(false);
+  const [eliminadoLocal, setEliminadoLocal] = useState(false);
 
   const cargar = useCallback(async () => {
     if (!usuarioId) return;
@@ -65,7 +67,31 @@ export default function PerfilUsuarioScreen() {
     }
   };
 
-  const relacion = solicitudEnviadaLocal ? 'solicitud_enviada' : perfil?.relacion_amistad ?? null;
+  const quitarAmigo = () => {
+    if (!usuarioId || !perfil) return;
+    meshConfirmDestructive({
+      title: 'Eliminar de amigos',
+      message: `¿Querés eliminar a ${perfil.nombre} de tu lista de amigos?`,
+      confirmLabel: 'Eliminar',
+      onConfirm: async () => {
+        setEliminando(true);
+        try {
+          await eliminarAmigo(usuarioId, resolveBackendUserId(backendUserId));
+          setEliminadoLocal(true);
+        } catch (e: unknown) {
+          meshAlert('Error', e instanceof Error ? e.message : 'No se pudo eliminar al amigo.');
+        } finally {
+          setEliminando(false);
+        }
+      },
+    });
+  };
+
+  const relacion = solicitudEnviadaLocal
+    ? 'solicitud_enviada'
+    : eliminadoLocal
+      ? null
+      : perfil?.relacion_amistad ?? null;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -111,10 +137,22 @@ export default function PerfilUsuarioScreen() {
           {!perfil.es_yo ? (
             <View style={styles.amistadRow}>
               {relacion === 'amigo' ? (
-                <Badge tone="good">
-                  <Feather name="check" size={10} color={theme.good} style={{ marginRight: 3 }} />
-                  Son amigos
-                </Badge>
+                <>
+                  <Badge tone="good">
+                    <Feather name="check" size={10} color={theme.good} style={{ marginRight: 3 }} />
+                    Son amigos
+                  </Badge>
+                  <Btn
+                    variant="danger-outline"
+                    size="sm"
+                    icon="user-x"
+                    onPress={quitarAmigo}
+                    loading={eliminando}
+                    disabled={eliminando}
+                  >
+                    Eliminar de amigos
+                  </Btn>
+                </>
               ) : relacion === 'solicitud_enviada' ? (
                 <Badge tone="mute">Solicitud enviada</Badge>
               ) : relacion === 'solicitud_recibida' ? (
@@ -219,7 +257,7 @@ const styles = StyleSheet.create({
   nombre: { fontSize: 20, fontWeight: '800', letterSpacing: -0.3 },
   actividadRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
   actividadTxt: { fontSize: 14, fontWeight: '600' },
-  amistadRow: { alignItems: 'center' },
+  amistadRow: { alignItems: 'center', gap: 10 },
   statsCard: {
     flexDirection: 'row',
     borderRadius: 16,

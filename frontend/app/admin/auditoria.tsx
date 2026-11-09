@@ -4,6 +4,7 @@ import { useCopilot } from 'react-native-copilot'
 
 import {
   AdminScreen,
+  ETIQUETA_ACTIVIDAD,
   Fila,
   Paginador,
   Seccion,
@@ -28,11 +29,14 @@ const DESCRIPCION_ACCION: Record<string, string> = {
   'grupo.eliminar': 'Eliminó un grupo',
   'viaje.finalizar': 'Forzó la finalización de un viaje',
   'viaje.eliminar': 'Eliminó un viaje',
+  'checklist.definir_sugeridos': 'Editó el checklist sugerido',
+  'checklist.restaurar_sugeridos': 'Restauró el checklist sugerido',
 }
 
 /** Lo más legible del `detalle`: a quién o a qué afectó la acción. */
 function objetivo(e: EntradaAuditoria): string {
   const d = e.detalle ?? {}
+  if (typeof d.tipo_actividad === 'string') return ETIQUETA_ACTIVIDAD[d.tipo_actividad] ?? d.tipo_actividad
   const valor = d.email ?? d.nombre
   return typeof valor === 'string' && valor ? valor : e.entidad_id.slice(0, 8)
 }

@@ -1,3 +1,4 @@
+import { useEspacioTabBar } from '@/hooks/useEspacioTabBar'
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
@@ -23,6 +24,7 @@ import {
 } from '@/lib/rutasCompartidasApi';
 
 export function RutasGuardadasPanel() {
+  const espacioTabBar = useEspacioTabBar()
   const theme = useTheme();
   const { backendUserId } = useAuth();
   const [items, setItems] = useState<RutaPlantillaResumenApi[]>([]);
@@ -81,7 +83,7 @@ export function RutasGuardadasPanel() {
     <FlatList
       data={items}
       keyExtractor={(item) => item.id}
-      contentContainerStyle={items.length === 0 ? styles.center : styles.list}
+      contentContainerStyle={[items.length === 0 ? styles.center : styles.list, { paddingBottom: espacioTabBar }]}
       renderItem={({ item }) => (
         <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <Pressable
@@ -127,7 +129,7 @@ export function RutasGuardadasPanel() {
 
 const styles = StyleSheet.create({
   center: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  list: { paddingHorizontal: 20, paddingBottom: 24, gap: 12 },
+  list: { paddingHorizontal: 20, gap: 12 },
   empty: { fontSize: 15, textAlign: 'center', fontWeight: '600', lineHeight: 22 },
   card: {
     borderWidth: 1,

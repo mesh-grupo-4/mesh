@@ -422,7 +422,7 @@ export const AYUDA_ADMIN_PANEL: PasoDefinicion[] = [
   {
     nombre: 'adminPanel.gestion',
     orden: ORDEN_PANTALLA.adminPanel + 1,
-    texto: 'Desde acá gestionás usuarios, grupos, viajes, reportes y la auditoría del backoffice.',
+    texto: 'Desde acá gestionás usuarios, grupos, viajes, reportes, el checklist sugerido y la auditoría del backoffice.',
   },
 ]
 
