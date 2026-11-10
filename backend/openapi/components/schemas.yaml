@@ -858,8 +858,11 @@ LinkRutaCompartida:
       example: rQ7xK2mZp9Lw4Ns8Td1Vb6Yg3Hc5Jf0A
     link:
       type: string
-      description: Deep link de la app, con el token ya embebido.
-      example: mesh://ruta?token=rQ7xK2mZp9Lw4Ns8Td1Vb6Yg3Hc5Jf0A
+      description: |
+        Link para compartir, con el token ya embebido. Si el servidor tiene
+        `LINKS_BASE_URL` es un link https: abre la app si está instalada y la landing si
+        no. Sin esa variable es el deep link `mesh://ruta?token=...`.
+      example: https://mesh.example/ruta?token=rQ7xK2mZp9Lw4Ns8Td1Vb6Yg3Hc5Jf0A
     revocado:
       type: boolean
       enum: [false]
@@ -891,6 +894,7 @@ RutaPlantilla:
     - distancia_planeada_m
     - tiempo_estimado_seg
     - created_at
+    - checklist
     - paradas
   properties:
     id:
@@ -920,6 +924,15 @@ RutaPlantilla:
       type: string
       format: date-time
       example: '2026-08-18T13:05:00.000Z'
+    checklist:
+      type: array
+      description: |
+        Ítems que se copian al checklist de quien crea un viaje con esta plantilla.
+        Vacío si no se guardó ninguno.
+      items:
+        type: string
+        maxLength: 120
+      example: [Casco, Cámara de repuesto]
     paradas:
       type: array
       items:
@@ -938,6 +951,7 @@ RutaPlantillaResumen:
     - origen_nombre
     - destino_nombre
     - created_at
+    - con_checklist
   properties:
     id:
       type: string
@@ -967,6 +981,10 @@ RutaPlantillaResumen:
       type: string
       format: date-time
       example: '2026-08-18T13:05:00.000Z'
+    con_checklist:
+      type: boolean
+      description: Si la plantilla guardó un checklist.
+      example: false
   additionalProperties: false
 
 ImportacionRuta:
@@ -6007,7 +6025,17 @@ RecorridoPublicadoResumen:
   description: |
     Recorrido del historial publicado para la comunidad (RN-081). Snapshot congelado al
     publicar. Solo distancia y tiempo: nunca velocidad (RN-070).
-  required: [id, viaje_id, nombre, tipo_actividad, distancia_m, tiempo_seg, publicado_at, autor]
+  required:
+    - id
+    - viaje_id
+    - nombre
+    - tipo_actividad
+    - distancia_m
+    - tiempo_seg
+    - publicado_at
+    - comentario
+    - tiene_checklist
+    - autor
   properties:
     id:
       type: string
@@ -6028,6 +6056,14 @@ RecorridoPublicadoResumen:
     publicado_at:
       type: string
       format: date-time
+    comentario:
+      type: string
+      nullable: true
+      maxLength: 280
+      description: Nota del autor al publicar. No hay comentarios de la comunidad (RN-083).
+    tiene_checklist:
+      type: boolean
+      description: Si el autor compartió su checklist. Los ítems vienen en el detalle.
     autor:
       type: object
       required: [id, nombre, apellido]
@@ -6041,12 +6077,35 @@ RecorridoPublicadoResumen:
           type: string
           nullable: true
 
+PublicarRecorridoRequest:
+  type: object
+  additionalProperties: false
+  properties:
+    comentario:
+      type: string
+      maxLength: 280
+      description: Nota del autor. Vacía o ausente, se publica sin nota.
+    compartirChecklist:
+      type: boolean
+      default: false
+      description: Copia al recorrido los textos del checklist propio de ese viaje.
+
+ImportarRecorridoRequest:
+  type: object
+  additionalProperties: false
+  properties:
+    guardarChecklist:
+      type: boolean
+      default: false
+      description: La plantilla se queda con el checklist que compartió el autor.
+
 ValoracionRecorrido:
   type: object
   description: |
     Valoración de la comunidad sobre un recorrido publicado (RN-082, SCRUM-63):
     solo "Recomiendo" / "No recomiendo", sin texto (RN-083).
-  required: [recomiendan, no_recomiendan, total, porcentaje_recomienda, mi_valoracion]
+  required:
+    [recomiendan, no_recomiendan, total, porcentaje_recomienda, muy_recomendado, mi_valoracion]
   properties:
     recomiendan:
       type: integer
@@ -6063,6 +6122,11 @@ ValoracionRecorrido:
       maximum: 100
       nullable: true
       description: Porcentaje entero de "Recomiendo" sobre el total. `null` si nadie valoró todavía.
+    muy_recomendado:
+      type: boolean
+      description: |
+        `true` con 80 % o más de "Recomiendo" y al menos 3 valoraciones. Los muy
+        recomendados aparecen primero al explorar (RN-082).
     mi_valoracion:
       type: boolean
       nullable: true
@@ -6074,26 +6138,78 @@ ValoracionRecorrido:
     no_recomiendan: 3
     total: 12
     porcentaje_recomienda: 75
+    muy_recomendado: false
     mi_valoracion: null
 
+ReputacionAutor:
+  type: object
+  description: |
+    Antigüedad, racha e insignias de quien publicó. Sirve solo para destacar la tarjeta:
+    el orden del listado depende de la valoración del recorrido (RN-082), no de quién
+    lo publicó. No usa velocidad ni rendimiento (RN-070).
+  required: [miembro_desde, racha_semanas, insignias_total, insignias_destacadas, nivel]
+  properties:
+    miembro_desde:
+      type: string
+      format: date-time
+    racha_semanas:
+      type: integer
+      minimum: 0
+      description: Racha vigente al momento de la consulta (RN-075). 0 si se cortó.
+    insignias_total:
+      type: integer
+      minimum: 0
+    insignias_destacadas:
+      type: array
+      maxItems: 3
+      description: Hasta 3 insignias, las raras primero y luego las más recientes.
+      items:
+        type: object
+        required: [codigo, nombre, icono, rara]
+        properties:
+          codigo:
+            type: string
+          nombre:
+            type: string
+          icono:
+            type: string
+            description: Nombre de ícono de Feather.
+          rara:
+            type: boolean
+            description: Insignia exigente del catálogo. Nunca una de moto o auto (RN-070).
+    nivel:
+      type: string
+      enum: [comun, destacado, leyenda]
+      description: Combina racha, antigüedad e insignias. No es una posición en un ranking.
+
 RecorridoPublicadoListado:
-  description: Recorrido de la comunidad tal como aparece al explorar (SCRUM-62), con su valoración.
+  description: |
+    Recorrido de la comunidad tal como aparece al explorar (SCRUM-62), con su valoración
+    y la reputación de quien lo publicó.
   allOf:
     - $ref: '#/RecorridoPublicadoResumen'
     - type: object
-      required: [valoracion]
+      required: [valoracion, reputacion_autor]
       properties:
         valoracion:
           $ref: '#/ValoracionRecorrido'
+        reputacion_autor:
+          $ref: '#/ReputacionAutor'
 
 RecorridoPublicadoDetalle:
   allOf:
     - $ref: '#/RecorridoPublicadoResumen'
     - type: object
-      required: [valoracion, segmentos]
+      required: [valoracion, segmentos, checklist]
       properties:
         valoracion:
           $ref: '#/ValoracionRecorrido'
+        checklist:
+          type: array
+          description: Ítems que compartió el autor. Vacío si no compartió ninguno.
+          items:
+            type: string
+            maxLength: 120
         segmentos:
           type: array
           description: Tramos contiguos de la traza, cada punto `[lat, lng]`.

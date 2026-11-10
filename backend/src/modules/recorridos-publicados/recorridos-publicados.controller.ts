@@ -1,6 +1,8 @@
 import type { Request, RequestHandler, Response } from 'express'
 import {
+  importarRecorridoBody,
   listarRecorridosQuery,
+  publicarRecorridoBody,
   recorridoIdParamSchema,
   valorarRecorridoBody,
   viajeIdParamSchema,
@@ -17,7 +19,8 @@ export function crearRecorridosPublicadosController(service: RecorridosPublicado
   return {
     publicar: asyncHandler(async (req, res) => {
       const { viajeId } = viajeIdParamSchema.parse(req.params)
-      res.status(201).json(await service.publicar(req.userId!, viajeId))
+      const opciones = publicarRecorridoBody.parse(req.body ?? {})
+      res.status(201).json(await service.publicar(req.userId!, viajeId, opciones))
     }),
 
     despublicar: asyncHandler(async (req, res) => {
@@ -47,7 +50,8 @@ export function crearRecorridosPublicadosController(service: RecorridosPublicado
 
     importar: asyncHandler(async (req, res) => {
       const { recorridoId } = recorridoIdParamSchema.parse(req.params)
-      const out = await service.importar(req.userId!, recorridoId)
+      const opciones = importarRecorridoBody.parse(req.body ?? {})
+      const out = await service.importar(req.userId!, recorridoId, opciones)
       res.status(out.ya_existia ? 200 : 201).json(out)
     }),
   }

@@ -492,6 +492,8 @@ model RutaPlantilla {
   linestring_geojson     Json          @map("linestring_geojson")
   distancia_planeada_m   Float?        @map("distancia_planeada_m")
   tiempo_estimado_seg    Int?          @map("tiempo_estimado_seg")
+  /// Ítems que se copian al checklist de quien crea un viaje con esta plantilla. Vacío si no se guardó.
+  checklist              String[]      @default([])
   created_at             DateTime      @default(now()) @map("created_at")
 
   usuario             Usuario               @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
@@ -823,6 +825,10 @@ model RecorridoPublicado {
   /// Primer punto de la traza: el filtro por zona (SCRUM-62) usa ST_DWithin sobre él.
   inicio_lat     Float?        @map("inicio_lat")
   inicio_lng     Float?        @map("inicio_lng")
+  /// Nota del autor al publicar. No son comentarios de la comunidad (RN-083).
+  comentario     String?       @db.VarChar(280)
+  /// Textos del checklist propio, solo si el autor eligió compartirlo. Vacío si no.
+  checklist      String[]      @default([])
   activo         Boolean       @default(true)
   publicado_at   DateTime      @default(now()) @map("publicado_at")
 

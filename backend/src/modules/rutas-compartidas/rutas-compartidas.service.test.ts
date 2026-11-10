@@ -288,6 +288,42 @@ describe('RutasCompartidasService', () => {
     })
   })
 
+  it('con LINKS_BASE_URL el link es https, sin barra doble', () => {
+    vi.stubEnv('LINKS_BASE_URL', 'https://mesh.example/')
+    expect(buildRouteShareLink(token)).toBe(`https://mesh.example/ruta?token=${token}`)
+    vi.unstubAllEnvs()
+  })
+
+  it('copiarPlantillaAViaje copia el checklist guardado como ítems personales', async () => {
+    const { prisma, rutaPlantillaFindUnique } = createMockPrisma()
+    const service = new RutasCompartidasService(prisma)
+    const createMany = vi.fn().mockResolvedValue({ count: 2 })
+    const tx = {
+      rutaPlantilla: { findUnique: rutaPlantillaFindUnique },
+      ruta: { create: vi.fn().mockResolvedValue({ id: 'ruta-1' }) },
+      paradaIntermedia: { createMany: vi.fn() },
+      checklistItem: { createMany },
+    }
+    rutaPlantillaFindUnique.mockResolvedValue({
+      id: plantillaId,
+      usuario_id: usuarioId,
+      tipo_actividad: 'bici',
+      linestring_geojson: {},
+      checklist: ['Casco', 'Agua'],
+      paradas: [],
+    })
+
+    await service.copiarPlantillaAViaje(tx as never, usuarioId, viajeId, plantillaId)
+
+    expect(createMany).toHaveBeenCalledWith({
+      data: [
+        { viaje_id: viajeId, usuario_id: usuarioId, texto: 'Casco', origen: 'personal', orden: 0 },
+        { viaje_id: viajeId, usuario_id: usuarioId, texto: 'Agua', origen: 'personal', orden: 1 },
+      ],
+      skipDuplicates: true,
+    })
+  })
+
   it('copiarPlantillaAViaje exige dueño', async () => {
     const { prisma, rutaPlantillaFindUnique } = createMockPrisma()
     const service = new RutasCompartidasService(prisma)
