@@ -41,10 +41,25 @@ import {
 import { meshAlert, meshConfirmDestructive, meshError, meshWarning } from '@/lib/meshAlert';
 import { Feather } from '@expo/vector-icons';
 import { SegmentTabs } from '@/components/SegmentTabs';
+import {
+  BarraFiltros,
+  BuscadorFiltros,
+  ChipFiltro,
+  FilaChipsFiltro,
+} from '@/components/BarraFiltros';
 import { AmigosTabPanel } from '@/components/tabs/AmigosTabPanel';
+import { coincideBusqueda, normalizarBusqueda } from '@/lib/busqueda';
 import { setInvitacionesPendientesCount } from '@/lib/pendientesStore';
 
 type SeccionGruposAmigos = 'grupos' | 'amigos';
+
+type FiltroRolGrupo = 'todos' | 'lider' | 'participante';
+
+const FILTROS_ROL: { id: FiltroRolGrupo; label: string }[] = [
+  { id: 'todos', label: 'Todos' },
+  { id: 'lider', label: 'Líder' },
+  { id: 'participante', label: 'Participante' },
+];
 
 function formatearFecha(iso: string): string {
   return formatearEnArg(iso, {
@@ -100,7 +115,26 @@ export default function GruposScreen() {
     }, [selection.exit])
   );
 
-  const gruposEliminables = grupos.filter((g) => g.mi_rol === 'lider');
+  const [busqueda, setBusqueda] = useState('');
+  const [filtroRol, setFiltroRol] = useState<FiltroRolGrupo>('todos');
+
+  // Cambiar el filtro sale del modo selección: así nunca queda seleccionado un grupo oculto.
+  const cambiarBusqueda = (texto: string) => {
+    selection.exit();
+    setBusqueda(texto);
+  };
+  const cambiarFiltroRol = (rol: FiltroRolGrupo) => {
+    selection.exit();
+    setFiltroRol(rol);
+  };
+
+  const consulta = normalizarBusqueda(busqueda);
+  const gruposVisibles = grupos.filter(
+    (g) =>
+      (filtroRol === 'todos' || g.mi_rol === filtroRol) && coincideBusqueda(consulta, [g.nombre])
+  );
+
+  const gruposEliminables = gruposVisibles.filter((g) => g.mi_rol === 'lider');
   const gruposSeleccionados = grupos.filter((g) => selection.isSelected(g.id));
   const todosSeleccionados =
     gruposEliminables.length > 0 &&
@@ -300,6 +334,28 @@ export default function GruposScreen() {
       style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
+      {/* Barra de búsqueda y filtros (fija, no scrollea): mismo diseño que Viajes y Rutas. */}
+      {!mostrarFormulario && (
+        <BarraFiltros>
+          <BuscadorFiltros
+            value={busqueda}
+            onChangeText={cambiarBusqueda}
+            placeholder="Buscar por nombre..."
+            accessibilityLabel="Buscar grupos"
+            maxLength={60}
+          />
+          <FilaChipsFiltro>
+            {FILTROS_ROL.map((f) => (
+              <ChipFiltro
+                key={f.id}
+                label={f.label}
+                activo={filtroRol === f.id}
+                onPress={() => cambiarFiltroRol(f.id)}
+              />
+            ))}
+          </FilaChipsFiltro>
+        </BarraFiltros>
+      )}
 
       <ScrollViewAyuda
         contentContainerStyle={[styles.inner, { paddingBottom: espacioTabBar + 74 }]}
@@ -419,7 +475,7 @@ export default function GruposScreen() {
             <View style={styles.seccionGrupos}>
               <View style={styles.gruposHeaderRow}>
                 <Text style={[styles.seccionEyebrow, { color: theme.textDim }]}>
-                  TUS GRUPOS ({grupos.length})
+                  TUS GRUPOS ({gruposVisibles.length})
                 </Text>
                 <BotonSeleccionar
                   visible={!selection.active && gruposEliminables.length > 0}
@@ -442,10 +498,20 @@ export default function GruposScreen() {
                     Todavía no tenés grupos. Tocá el botón para crear uno y organizar viajes.
                   </Text>
                 </View>
+              ) : gruposVisibles.length === 0 ? (
+                <View style={styles.empty}>
+                  <Text style={[styles.subtitulo, { color: theme.textDim }]}>
+                    {consulta
+                      ? 'Ningún grupo coincide con la búsqueda.'
+                      : filtroRol === 'lider'
+                        ? 'No sos líder de ningún grupo.'
+                        : 'No tenés grupos donde seas participante.'}
+                  </Text>
+                </View>
               ) : (
                 <PasoAyuda {...AYUDA_GRUPOS[1]!}>
                 <View style={[styles.lista, selection.active && styles.listaConBarra]}>
-                  {grupos.map((g) => {
+                  {gruposVisibles.map((g) => {
                     const groupColor = getGroupColor(g.nombre);
                     const esLider = g.mi_rol === 'lider';
 

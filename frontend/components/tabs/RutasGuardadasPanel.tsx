@@ -8,10 +8,15 @@ import {
   View,
 } from 'react-native';
 import { Pressable } from '@/components/Pressable';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 
 import { CorazonGuardar } from '@/components/CorazonGuardar';
-import { BarraFiltros, ChipFiltro, FilaChipsFiltro } from '@/components/BarraFiltros';
+import {
+  BarraFiltros,
+  BuscadorFiltros,
+  ChipFiltro,
+  FilaChipsFiltro,
+} from '@/components/BarraFiltros';
 import { Btn, useTheme } from '@/components/MeshUI';
 import { useAuth } from '@/context/AuthContext';
 import { resolveBackendUserId } from '@/lib/apiClient';
@@ -19,6 +24,7 @@ import { formatDurationHm, formatKm } from '@/lib/format';
 import { meshAlert } from '@/lib/meshAlert';
 import { abrirNuevoViaje } from '@/lib/nuevoViaje';
 import { listarRutasPlantilla, type RutaPlantillaResumenApi } from '@/lib/rutasCompartidasApi';
+import { coincideBusqueda, normalizarBusqueda } from '@/lib/busqueda';
 import { confirmarQuitarGuardada } from '@/lib/rutasGuardadas';
 
 type FiltroAutor = 'todas' | 'mias' | 'otros';
@@ -37,6 +43,7 @@ export function RutasGuardadasPanel() {
   const [loading, setLoading] = useState(true);
   const [quitandoId, setQuitandoId] = useState<string | null>(null);
   const [filtroAutor, setFiltroAutor] = useState<FiltroAutor>('todas');
+  const [textoBusqueda, setTextoBusqueda] = useState('');
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -77,14 +84,23 @@ export function RutasGuardadasPanel() {
     );
   }
 
-  const visibles =
-    filtroAutor === 'todas'
-      ? items
-      : items.filter((item) => item.creada_por_mi === (filtroAutor === 'mias'));
+  const consulta = normalizarBusqueda(textoBusqueda);
+  const visibles = items.filter(
+    (item) =>
+      (filtroAutor === 'todas' || item.creada_por_mi === (filtroAutor === 'mias')) &&
+      coincideBusqueda(consulta, [item.nombre, item.origen_nombre, item.destino_nombre])
+  );
 
   return (
     <View style={styles.root}>
       <BarraFiltros>
+        <BuscadorFiltros
+          value={textoBusqueda}
+          onChangeText={setTextoBusqueda}
+          placeholder="Buscar por nombre, origen o destino"
+          accessibilityLabel="Buscar rutas guardadas"
+          maxLength={60}
+        />
         <FilaChipsFiltro>
           {FILTROS_AUTOR.map((f) => (
             <ChipFiltro
@@ -98,14 +114,17 @@ export function RutasGuardadasPanel() {
       </BarraFiltros>
     <FlatList
       data={visibles}
+      keyboardShouldPersistTaps="handled"
       keyExtractor={(item) => item.id}
       contentContainerStyle={[visibles.length === 0 ? styles.center : styles.list, { paddingBottom: espacioTabBar }]}
       renderItem={({ item }) => (
         <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <Pressable
             onPress={() =>
-              abrirNuevoViaje({ plantillaId: item.id, tipoActividad: item.tipo_actividad })
+              router.push({ pathname: '/rutas-guardadas/[plantillaId]', params: { plantillaId: item.id } })
             }
+            accessibilityRole="button"
+            accessibilityLabel={`Ver ruta ${item.nombre}`}
           >
             <Text style={[styles.nombre, { color: theme.text }]} numberOfLines={2}>
               {item.nombre}
@@ -141,7 +160,9 @@ export function RutasGuardadasPanel() {
         <Text style={[styles.empty, { color: theme.textDim }]}>
           {items.length === 0
             ? 'Todavía no guardaste rutas. Tocá el corazón de una en la pestaña Explorar o guardala desde un viaje compartido.'
-            : filtroAutor === 'mias'
+            : consulta
+              ? 'Ninguna ruta guardada coincide con la búsqueda.'
+              : filtroAutor === 'mias'
               ? 'No tenés rutas guardadas creadas por vos.'
               : 'No tenés rutas guardadas de otros usuarios.'}
         </Text>

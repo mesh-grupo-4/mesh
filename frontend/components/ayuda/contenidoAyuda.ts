@@ -42,6 +42,7 @@ export const ORDEN_PANTALLA = {
   escanearQr: 3400,
   recorridosPublicados: 3500,
   recorridoPublicado: 3600,
+  rutaGuardada: 3700,
 } as const
 
 export type PasoDefinicion = {
@@ -101,7 +102,7 @@ export const AYUDA_RUTAS: PasoDefinicion[] = [
     nombre: 'rutas.panel',
     orden: ORDEN_PANTALLA.rutas + 1,
     texto:
-      'En Guardadas, tocá una ruta para usarla como base de un viaje nuevo, o su corazón para quitarla. En Explorar, buscá entre los recorridos que publicó la comunidad y guardá los que te gusten con el corazón.',
+      'En Guardadas, buscá por nombre, origen o destino; tocá una ruta para verla, "Usar en viaje" para armar un viaje nuevo con ella, o su corazón para quitarla. En Explorar, buscá entre los recorridos que publicó la comunidad y guardá los que te gusten con el corazón.',
   },
 ]
 
@@ -546,6 +547,20 @@ export const AYUDA_RUTA_COMPARTIDA: PasoDefinicion[] = [
     nombre: 'ruta.guardar',
     orden: ORDEN_PANTALLA.ruta + 1,
     texto: 'Guardala en Mis rutas para usarla como base de un viaje nuevo.',
+  },
+]
+
+export const AYUDA_RUTA_GUARDADA: PasoDefinicion[] = [
+  {
+    nombre: 'rutaGuardada.mapa',
+    orden: ORDEN_PANTALLA.rutaGuardada,
+    texto: 'El trazado de tu ruta guardada: origen, destino y paradas.',
+  },
+  {
+    nombre: 'rutaGuardada.usar',
+    orden: ORDEN_PANTALLA.rutaGuardada + 1,
+    texto:
+      'Usala como base de un viaje nuevo: elegís si es un Viaje YA o uno planificado. Con el corazón de arriba la quitás de tus guardadas.',
   },
 ]
 
