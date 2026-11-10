@@ -38,6 +38,8 @@ function armarPrisma(otroEnCurso: { id: string; nombre: string | null } | null =
   }
   const prisma = {
     viaje: { findUnique: vi.fn().mockResolvedValue(viaje) },
+    // RN-029e: al iniciar se avisa por push a los confirmados que no están.
+    viajeIntegrante: { findMany: vi.fn().mockResolvedValue([]) },
     $transaction: (fn: (t: typeof tx) => Promise<unknown>) => fn(tx),
   } as unknown as PrismaClient
   return { prisma, executeRaw, findFirst, update, upsert }

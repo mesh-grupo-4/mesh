@@ -163,6 +163,12 @@ export function crearViajesController(service: ViajesService) {
       res.json(result)
     }),
 
+    avisarFaltantes: asyncHandler(async (req, res) => {
+      const { viajeId } = viajeIdParamSchema.parse(req.params)
+      const result = await service.avisarFaltantes(req.userId!, viajeId)
+      res.json(result)
+    }),
+
     cederLiderazgo: asyncHandler(async (req, res) => {
       const { viajeId } = viajeIdParamSchema.parse(req.params)
       const { nuevo_lider_id } = cederLiderazgoSchema.parse(req.body)

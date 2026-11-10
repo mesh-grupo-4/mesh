@@ -66,6 +66,8 @@ viajesRouter.post('/:viajeId/ocultar', requireUser, c.ocultar)
 // RN-029b / RN-029d: sumarse al viaje en curso y ceder el liderazgo.
 viajesRouter.post('/:viajeId/check-in', requireUser, c.checkIn)
 viajesRouter.post('/:viajeId/liderazgo', requireUser, c.cederLiderazgo)
+// RN-029e: el líder avisa por push a los confirmados que todavía no están.
+viajesRouter.post('/:viajeId/avisar-faltantes', requireUser, c.avisarFaltantes)
 
 // Paradas voluntarias y solicitudes de parada (US1–US3, RN-037 / RN-044).
 viajesRouter.get('/:viajeId/paradas/activa', ...paradasHandlers.activa)
