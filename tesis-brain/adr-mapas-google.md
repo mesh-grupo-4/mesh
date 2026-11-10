@@ -24,7 +24,8 @@ que uno nativo.
 | Necesidad | Servicio de Google | Respaldo |
 |---|---|---|
 | Mapa | Maps SDK for Android/iOS (`react-native-maps`, componente `MeshMapView`) | Apple Maps en iOS si el build no tiene key de iOS |
-| Búsqueda de lugares | Places API (New) — Text Search | Nominatim |
+| Sugerencias mientras se escribe (todos los buscadores de lugares) | Places API (New) — Autocomplete + Place Details (solo `location`) | Text Search → Nominatim |
+| Búsqueda de lugares por texto completo | Places API (New) — Text Search | Nominatim |
 | Nombre de un punto del mapa | Geocoding API | Nominatim |
 | Cálculo de rutas | Routes API — Compute Routes (Essentials) | OSRM → Valhalla |
 | Sugerir paradas sobre la ruta (planificación) | Places API (New) — Text Search con *search along route* | Sin respaldo (503 `LUGARES_NO_DISPONIBLE`) |
@@ -35,6 +36,15 @@ que uno nativo.
   igual que antes (solo OSM). Los contratos REST (`/api/geocoding/*`, `/api/routing/calcular`)
   no cambiaron, salvo un campo agregado: `/api/routing/calcular` devuelve `proveedor`
   (`google` | `osrm` | `valhalla`).
+- **Autocompletado (09/11/2026)**: los buscadores de lugares de la app (destino del Viaje YA,
+  origen/destino/paradas al planificar, lugar de una alerta, zona en Explorar) sugieren desde la
+  segunda letra con `GET /api/geocoding/autocompletar` (hook `useSugerenciasLugares`). Las
+  sugerencias de Google traen `placeId` sin coordenadas; al elegir una se piden con
+  `GET /api/geocoding/lugares/{placeId}`. El dispositivo genera un **token de sesión** (UUID) que
+  viaja en todo el tipeo y en el detalle final, para que Google cobre la sesión como una sola
+  consulta. Si Autocomplete falla o no hay key, el mismo endpoint devuelve resultados de Text
+  Search / Nominatim, que ya vienen con coordenadas. Si se conoce la posición del usuario se manda
+  como sesgo de cercanía (50 km); solo se usa para esa consulta y no se guarda ni se publica (RN-111).
 - **Tiempo estimado (RN-023)**: si la ruta la calculó Google, el planificador usa su
   `duracion_seg` tal cual (ya respeta auto / bici / a pie). Si vino de un respaldo OSM, la
   recalcula con la velocidad esperada de la actividad, porque el demo de OSRM usa el grafo
@@ -48,7 +58,8 @@ que uno nativo.
 ## Consecuencias
 
 - **Costo**: dentro de la cuota gratuita mensual por SKU para el volumen de la tesis
-  (Routes Essentials 10.000, Places Text Search Pro 5.000, Geocoding 10.000). Requiere un
+  (Routes Essentials 10.000, Places Text Search Pro 5.000, Geocoding 10.000; Autocomplete y Place Details Essentials tienen
+  su propia cuota por SKU). Requiere un
   proyecto de Google Cloud con facturación activa. El mapa nativo en el celular no consume cuota.
 - **Builds**: la key del mapa se embebe en el binario nativo; hace falta un build
   (`expo run:android` / EAS) para que tome la key configurada.
