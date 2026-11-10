@@ -1,6 +1,6 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, StyleSheet, Switch, Text, View } from 'react-native'
 import { useCopilot } from 'react-native-copilot'
 import { Feather } from '@expo/vector-icons'
 
@@ -44,7 +44,8 @@ export default function RecorridoPublicadoScreen() {
   const [cargando, setCargando] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [despublicando, setDespublicando] = useState(false)
-  const [importando, setImportando] = useState(false)
+  const [importando, setImportando] = useState<'usar' | 'guardar' | null>(null)
+  const [guardarChecklist, setGuardarChecklist] = useState(true)
   const [valorando, setValorando] = useState(false)
 
   useEffect(() => {
@@ -120,18 +121,27 @@ export default function RecorridoPublicadoScreen() {
     }
   }
 
-  // RN-084 / SCRUM-62: se guarda como plantilla en "Mis rutas" y se arranca a crear el viaje
-  // con el trazado precargado (mismo flujo que una ruta guardada).
-  const usarComoBase = async () => {
+  // RN-084 / SCRUM-62: se guarda como plantilla en "Mis rutas". "Usar" además arranca a
+  // crear el viaje con el trazado precargado (mismo flujo que una ruta guardada).
+  const importar = async (accion: 'usar' | 'guardar') => {
     if (!recorrido) return
-    setImportando(true)
+    setImportando(accion)
     try {
-      const { plantilla } = await importarRecorridoPublicado(recorrido.id)
-      abrirNuevoViaje({ plantillaId: plantilla.id, tipoActividad: plantilla.tipo_actividad })
+      const { plantilla } = await importarRecorridoPublicado(recorrido.id, {
+        guardarChecklist: recorrido.checklist.length > 0 && guardarChecklist,
+      })
+      if (accion === 'usar') {
+        abrirNuevoViaje({ plantillaId: plantilla.id, tipoActividad: plantilla.tipo_actividad })
+      } else {
+        meshAlert('Ruta guardada', 'La encontrás en Rutas, dentro de Guardadas.')
+      }
     } catch (e) {
-      meshError('No se pudo usar el recorrido', e instanceof Error ? e.message : undefined)
+      meshError(
+        accion === 'usar' ? 'No se pudo usar el recorrido' : 'No se pudo guardar la ruta',
+        e instanceof Error ? e.message : undefined
+      )
     } finally {
-      setImportando(false)
+      setImportando(null)
     }
   }
 
@@ -173,6 +183,18 @@ export default function RecorridoPublicadoScreen() {
               </Text>
             </View>
           </View>
+
+          {recorrido.comentario ? (
+            <View
+              style={[
+                styles.comentarioCard,
+                { backgroundColor: theme.surface, borderColor: theme.border },
+              ]}
+            >
+              <Feather name="message-circle" size={16} color={theme.textDim} />
+              <Text style={[styles.comentario, { color: theme.text }]}>{recorrido.comentario}</Text>
+            </View>
+          ) : null}
 
           <PasoAyuda {...AYUDA_RECORRIDO_PUBLICADO[0]!}>
             <RecorridoMapView segmentos={recorrido.segmentos} altura={300} />
@@ -256,16 +278,57 @@ export default function RecorridoPublicadoScreen() {
           </PasoAyuda>
 
           <PasoAyuda {...AYUDA_RECORRIDO_PUBLICADO[3]!}>
-            <Btn
-              variant="primary"
-              block
-              icon="plus"
-              loading={importando}
-              disabled={importando}
-              onPress={() => void usarComoBase()}
-            >
-              Usar como base de un viaje
-            </Btn>
+            <View style={styles.acciones}>
+              {recorrido.checklist.length > 0 ? (
+                <View
+                  style={[
+                    styles.valoracionCard,
+                    { backgroundColor: theme.surface, borderColor: theme.border },
+                  ]}
+                >
+                  <Text style={[styles.valoracionTitulo, { color: theme.text }]}>
+                    Checklist del recorrido
+                  </Text>
+                  {recorrido.checklist.map((item) => (
+                    <View key={item} style={styles.checklistFila}>
+                      <Feather name="check" size={14} color={theme.textDim} />
+                      <Text style={[styles.sub, styles.flex1, { color: theme.textDim }]}>{item}</Text>
+                    </View>
+                  ))}
+                  <View style={styles.checklistSwitch}>
+                    <Text style={[styles.guardarChecklist, { color: theme.text }]}>
+                      Guardar también el checklist
+                    </Text>
+                    <Switch
+                      value={guardarChecklist}
+                      onValueChange={setGuardarChecklist}
+                      trackColor={{ true: theme.accent, false: theme.border }}
+                      accessibilityLabel="Guardar también el checklist"
+                    />
+                  </View>
+                </View>
+              ) : null}
+              <Btn
+                variant="primary"
+                block
+                icon="plus"
+                loading={importando === 'usar'}
+                disabled={importando !== null}
+                onPress={() => void importar('usar')}
+              >
+                Usar como base de un viaje
+              </Btn>
+              <Btn
+                variant="outline"
+                block
+                icon="download"
+                loading={importando === 'guardar'}
+                disabled={importando !== null}
+                onPress={() => void importar('guardar')}
+              >
+                Guardar en mis rutas
+              </Btn>
+            </View>
           </PasoAyuda>
 
           {esMio ? (
@@ -305,4 +368,23 @@ const styles = StyleSheet.create({
   miValoracion: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   botonesValorar: { flexDirection: 'row', gap: 10 },
   botonValorar: { flex: 1 },
+  comentarioCard: {
+    flexDirection: 'row',
+    gap: 10,
+    borderWidth: 1.2,
+    borderRadius: 12,
+    padding: 14,
+  },
+  comentario: { flex: 1, fontSize: 15, lineHeight: 21 },
+  acciones: { gap: 10 },
+  flex1: { flex: 1 },
+  checklistFila: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  checklistSwitch: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginTop: 4,
+  },
+  guardarChecklist: { flex: 1, fontSize: 14, fontWeight: '600' },
 })

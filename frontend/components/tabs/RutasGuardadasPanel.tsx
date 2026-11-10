@@ -98,6 +98,7 @@ export function RutasGuardadasPanel() {
               {item.tipo_actividad}
               {item.distancia_planeada_m != null ? ` · ${formatKm(item.distancia_planeada_m)}` : ''}
               {item.tiempo_estimado_seg != null ? ` · ${formatDurationHm(item.tiempo_estimado_seg)}` : ''}
+              {item.con_checklist ? ' · con checklist' : ''}
             </Text>
           </Pressable>
           <View style={styles.row}>

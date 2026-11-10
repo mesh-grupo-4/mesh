@@ -119,20 +119,20 @@ export const AYUDA_RUTAS: PasoDefinicion[] = [
     nombre: 'rutas.panel',
     orden: ORDEN_PANTALLA.rutas + 1,
     texto:
-      'En Guardadas, tocá una ruta para usarla como base de un viaje nuevo. En Explorar, descubrí los recorridos que publicó la comunidad o abrí un link de ruta.',
+      'En Guardadas, tocá una ruta para usarla como base de un viaje nuevo. En Explorar, buscá entre los recorridos que publicó la comunidad.',
   },
 ]
 
 export const AYUDA_PERFIL: PasoDefinicion[] = [
   {
-    nombre: 'perfil.stats',
+    nombre: 'perfil.datos',
     orden: ORDEN_PANTALLA.perfil,
-    texto: 'Tocá cualquier número para ir directo a esa sección: viajes, grupos, amigos o rutas.',
+    texto: 'Tocá el lápiz para ver y editar tu nombre, apellido, teléfono y actividad preferida.',
   },
   {
-    nombre: 'perfil.datos',
+    nombre: 'perfil.stats',
     orden: ORDEN_PANTALLA.perfil + 1,
-    texto: 'Editá tu nombre, apellido, teléfono y actividad preferida.',
+    texto: 'Mirá tus números: viajes, grupos, amigos y kilómetros.',
   },
   {
     nombre: 'perfil.privacidad',
@@ -349,7 +349,7 @@ export const AYUDA_VIAJE_RESUMEN: PasoDefinicion[] = [
     nombre: 'resumen.publicar',
     orden: ORDEN_PANTALLA.viajeResumen + 3,
     texto:
-      'Publicá tu recorrido para que la comunidad lo vea y lo use de base. Se comparte tu traza, la distancia y el tiempo, nunca tu velocidad. Podés despublicarlo cuando quieras.',
+      'Publicá tu recorrido para que la comunidad lo vea y lo use de base. Se comparte tu traza, la distancia y el tiempo, nunca tu velocidad. Podés sumar un comentario, compartir tu checklist y despublicarlo cuando quieras.',
   },
 ]
 
@@ -570,27 +570,32 @@ export const AYUDA_ESCANEAR_QR: PasoDefinicion[] = [
   {
     nombre: 'escanearQr.scanner',
     orden: ORDEN_PANTALLA.escanearQr,
-    texto: 'Apuntá la cámara al código QR de una invitación a viaje o grupo.',
+    texto: 'Apuntá la cámara al código QR de una invitación a viaje o grupo. Si no podés escanearlo, ingresá el código del viaje.',
   },
 ]
 
 export const AYUDA_RECORRIDOS_PUBLICADOS: PasoDefinicion[] = [
   {
-    nombre: 'recorridosPublicados.actividad',
+    nombre: 'recorridosPublicados.buscar',
     orden: ORDEN_PANTALLA.recorridosPublicados,
+    texto: 'Buscá recorridos por nombre, autor o comentario.',
+  },
+  {
+    nombre: 'recorridosPublicados.actividad',
+    orden: ORDEN_PANTALLA.recorridosPublicados + 1,
     texto: 'Filtrá los recorridos por tipo de actividad.',
   },
   {
     nombre: 'recorridosPublicados.zona',
-    orden: ORDEN_PANTALLA.recorridosPublicados + 1,
+    orden: ORDEN_PANTALLA.recorridosPublicados + 2,
     texto:
       'Elegí una zona: cerca tuyo o buscando una ciudad. Se muestran los recorridos que arrancan dentro del radio que elijas.',
   },
   {
     nombre: 'recorridosPublicados.lista',
-    orden: ORDEN_PANTALLA.recorridosPublicados + 2,
+    orden: ORDEN_PANTALLA.recorridosPublicados + 3,
     texto:
-      'Recorridos que publicó la comunidad, el más reciente primero, con el porcentaje que lo recomienda. Tocá uno para ver el mapa, valorarlo o usarlo de base para tu viaje.',
+      'Recorridos que publicó la comunidad. Primero van los muy recomendados y después los más recientes. Resaltan además los de quienes tienen buena racha, antigüedad e insignias. Tocá uno para ver el mapa, valorarlo o usarlo de base para tu viaje.',
   },
 ]
 
@@ -615,7 +620,7 @@ export const AYUDA_RECORRIDO_PUBLICADO: PasoDefinicion[] = [
     nombre: 'recorridoPublicado.usar',
     orden: ORDEN_PANTALLA.recorridoPublicado + 3,
     texto:
-      'Usalo como base de un viaje nuevo: se guarda en tus rutas y arrancás a crear el viaje con este trazado ya cargado.',
+      'Usalo como base de un viaje nuevo o guardalo en tus rutas. Si quien lo publicó compartió su checklist, elegís si te lo llevás también.',
   },
   {
     nombre: 'recorridoPublicado.despublicar',
