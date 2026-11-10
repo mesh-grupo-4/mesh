@@ -9,8 +9,10 @@ import {
   ScrollView,
   RefreshControl,
   Modal,
+  Platform,
   SafeAreaView,
 } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Pressable } from '@/components/Pressable'
 import { router, useFocusEffect } from 'expo-router'
 import { Feather } from '@expo/vector-icons'
@@ -22,6 +24,7 @@ import { Btn, TopBar, useTheme, Badge, ActivityTile } from '@/components/MeshUI'
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
 import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda'
 import { AYUDA_VIAJES } from '@/components/ayuda/contenidoAyuda'
+import { SegmentTabs } from '@/components/SegmentTabs'
 import { SelectableCard } from '@/components/SelectableCard'
 import { SelectionActionBar } from '@/components/SelectionActionBar'
 import { BotonSeleccionar, SelectionHeader } from '@/components/SelectionHeader'
@@ -362,6 +365,7 @@ function TarjetaFinalizado({
 export default function ViajesScreen() {
   const espacioTabBar = useEspacioTabBar()
   const theme = useTheme()
+  const insets = useSafeAreaInsets()
   const { backendUserId, backendSyncing } = useAuth()
   const { syncKnownTripIds } = useTripRealtime()
   const selection = useSelectionMode()
@@ -710,24 +714,19 @@ export default function ViajesScreen() {
 
       {/* Tabs internos fijos */}
       <PasoAyuda {...AYUDA_VIAJES[1]!}>
-        <View style={[styles.tabRow, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
-          {(['mis_viajes', 'pasados'] as Tab[]).map((t) => (
-            <Pressable
-              key={t}
-              style={styles.tabBtn}
-              onPress={() => {
-                selection.exit()
-                setTab(t)
-              }}
-            >
-              <Text style={[styles.tabBtnText, { color: tab === t ? theme.accent : theme.textDim }]}>
-                {t === 'mis_viajes' ? 'Mis viajes' : 'Viajes pasados'}
-              </Text>
-              {tab === t && (
-                <View style={[styles.tabUnderline, { backgroundColor: theme.accent }]} />
-              )}
-            </Pressable>
-          ))}
+        <View style={styles.segmentWrap}>
+          <SegmentTabs
+            tabs={[
+              { key: 'mis_viajes', label: 'Mis viajes' },
+              { key: 'pasados', label: 'Viajes pasados' },
+            ]}
+            active={tab}
+            onChange={(key) => {
+              selection.exit()
+              setTab(key as Tab)
+            }}
+            theme={theme}
+          />
         </View>
       </PasoAyuda>
 
@@ -983,9 +982,18 @@ export default function ViajesScreen() {
         visible={modalInvitaciones}
         animationType="slide"
         presentationStyle="pageSheet"
+        statusBarTranslucent
+        navigationBarTranslucent
         onRequestClose={() => setModalInvitaciones(false)}
       >
-        <SafeAreaView style={[styles.modalRoot, { backgroundColor: theme.background }]}>
+        {/* SafeAreaView de RN solo aplica en iOS: en Android el margen va por insets. */}
+        <SafeAreaView
+          style={[
+            styles.modalRoot,
+            { backgroundColor: theme.background },
+            Platform.OS === 'android' && { paddingTop: insets.top, paddingBottom: insets.bottom },
+          ]}
+        >
           <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
             <Text style={[styles.modalTitulo, { color: theme.text }]}>
               Invitaciones{invitaciones.length > 0 ? ` · ${invitaciones.length}` : ''}
@@ -1085,10 +1093,7 @@ const styles = StyleSheet.create({
   bellBadgeText: { color: '#fff', fontSize: 9, fontWeight: '800', lineHeight: 12 },
 
   // Tabs internos
-  tabRow: { flexDirection: 'row', borderBottomWidth: 1 },
-  tabBtn: { flex: 1, alignItems: 'center', paddingVertical: 12, position: 'relative' },
-  tabBtnText: { fontSize: 14, fontWeight: '700' },
-  tabUnderline: { position: 'absolute', bottom: 0, left: 16, right: 16, height: 2.5, borderRadius: 2 },
+  segmentWrap: { paddingHorizontal: 20, paddingTop: 12 },
 
   // Barra de filtros
   filtersBar: { borderBottomWidth: 1, paddingTop: 10, paddingBottom: 4, gap: 8 },
