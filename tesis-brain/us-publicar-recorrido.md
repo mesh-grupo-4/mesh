@@ -32,6 +32,8 @@
 | **Snapshot congelado** | Editar o borrar después datos del viaje no cambia lo publicado. Republicar refresca el snapshot | Mismo criterio que RN-086 para el link de ruta: lo que vio la comunidad no cambia por debajo |
 | **Despublicar = `activo = false`** | La fila no se borra; volver a publicar reactiva la misma fila (idempotente por `(viaje, usuario)`) | Conserva las valoraciones recibidas ([[us-valorar-recorridos]]) si el autor despublica y vuelve a publicar |
 | **Nunca velocidad (RN-070)** | El contrato solo tiene `distancia_m` y `tiempo_seg`. También en moto: se puede publicar como referencia de ruta, pero no se compara rendimiento | Regla de seguridad vial no negociable |
+| **Comentario del autor** | Nota opcional de hasta 280 caracteres, escrita una sola vez al publicar | Da contexto al recorrido sin abrir hilos: RN-083 sigue prohibiendo los comentarios de la comunidad |
+| **Checklist opcional** | Interruptor al publicar, apagado por defecto. Se copian solo los textos de **su** checklist; el tilde de completado no viaja | Compartir el checklist es una decisión explícita de quien publica. Si no tiene ítems, no se ofrece |
 | **Solo el recorrido propio** | La tarjeta de publicación aparece solo en el resumen propio (no con `?userId=` de otra persona); el backend igual publica siempre lo de quien llama | El frontend orienta, el backend valida (RN-030) |
 
 ---
@@ -41,7 +43,7 @@
 `RecorridoPublicado` (`recorrido_publicado`): `viaje_id`, `usuario_id`, `nombre`,
 `tipo_actividad`, `distancia_m`, `tiempo_seg`, `segmentos` (JSON `[lat, lng][][]`),
 `inicio_lat`/`inicio_lng` (primer punto, para el filtro por zona de
-[[us-explorar-recorridos]]), `activo`, `publicado_at`. Único por `(viaje_id, usuario_id)`.
+[[us-explorar-recorridos]]), `comentario`, `checklist` (`text[]`), `activo`, `publicado_at`. Único por `(viaje_id, usuario_id)`.
 
 ---
 
@@ -58,11 +60,12 @@
 ## Interfaz
 
 - **Resumen del viaje** (`app/viaje/[viajeId]/resumen.tsx`): tarjeta "Compartir con la
-  comunidad" con **Publicar recorrido** / **Despublicar**. Solo aparece si hay
-  métricas propias y al menos dos puntos de traza (mismas condiciones que valida el backend).
+  comunidad" con comentario opcional, interruptor para compartir el checklist y
+  **Publicar recorrido** / **Despublicar**. Solo aparece si hay métricas propias y al
+  menos dos puntos de traza (mismas condiciones que valida el backend).
 - **Detalle del recorrido** (`app/recorridos-publicados/[recorridoId].tsx`): si es
   propio, botón **Despublicar** con confirmación.
-- **Entrada a la comunidad:** pestaña Rutas → Explorar → tarjeta "Recorridos de la comunidad".
+- **Entrada a la comunidad:** pestaña Rutas → Explorar, que ya muestra la lista.
 
 ### Ayuda en línea (E14)
 
