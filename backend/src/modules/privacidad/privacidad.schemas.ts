@@ -16,9 +16,14 @@ export const actualizarPrivacidadUsuarioSchema = z
      * y, con él, el compartir en todos los viajes (RN-113).
      */
     consentimiento_ubicacion: z.boolean().optional(),
+    /** RN-077: quién ve estadísticas, racha e insignias en el perfil público. */
+    visibilidad_logros: z.enum(['todos', 'amigos', 'solo_yo']).optional(),
   })
   .refine(
-    (v) => v.comparte_ubicacion_default !== undefined || v.consentimiento_ubicacion !== undefined,
+    (v) =>
+      v.comparte_ubicacion_default !== undefined ||
+      v.consentimiento_ubicacion !== undefined ||
+      v.visibilidad_logros !== undefined,
     { message: 'Nada para actualizar' }
   )
 

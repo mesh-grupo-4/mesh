@@ -36,6 +36,7 @@ ErrorCode:
     - NOT_PARTICIPANT
     - NOT_CONFIRMED_MEMBER
     - NOT_FRIEND
+    - LOGROS_PRIVADOS
     - FORBIDDEN
     - LEADER_CANNOT_LEAVE
     - CREATOR_MUST_DELETE
@@ -494,11 +495,14 @@ Usuario:
 PerfilPublico:
   type: object
   description: |
-    Perfil de un usuario visible para cualquiera de la comunidad: no hace falta
-    ser amigos ni compartir un viaje. Nunca expone email, teléfono ni nada
-    relacionado a ubicación — solo lo que ya es público por diseño (nombre,
-    estadísticas agregadas sin velocidad por RN-070, insignias por RN-074 y
-    racha de semanas consecutivas por RN-075).
+    Perfil de un usuario de la comunidad. Nunca expone email, teléfono ni nada
+    relacionado a ubicación. Nombre, actividad preferida y relación de amistad
+    se ven siempre (para poder mandar la solicitud desde el perfil).
+
+    Los logros —estadísticas agregadas sin velocidad (RN-070), insignias
+    (RN-074) y racha (RN-075)— dependen de la visibilidad que eligió la persona
+    (RN-077): si no los comparte con quien consulta, `logros_visibles` es
+    `false` y `racha`, `estadisticas` e `insignias` vuelven en `null`.
   required:
     - id
     - nombre
@@ -506,6 +510,8 @@ PerfilPublico:
     - actividad_preferida
     - es_yo
     - relacion_amistad
+    - visibilidad_logros
+    - logros_visibles
     - racha
     - estadisticas
     - insignias
@@ -531,15 +537,49 @@ PerfilPublico:
       allOf:
         - $ref: '#/RelacionAmistad'
       description: '`null` cuando `es_yo` es true: no se calcula relación propia.'
+    visibilidad_logros:
+      $ref: '#/VisibilidadLogros'
+    logros_visibles:
+      type: boolean
+      description: |
+        `true` si quien consulta puede ver los logros (siempre para el propio
+        usuario). Con `false`, la app muestra el perfil como privado.
     racha:
-      $ref: '#/Racha'
+      allOf:
+        - $ref: '#/Racha'
+      type: object
+      nullable: true
+      description: '`null` si `logros_visibles` es false.'
     estadisticas:
-      $ref: '#/EstadisticasUsuario'
+      allOf:
+        - $ref: '#/EstadisticasUsuario'
+      type: object
+      nullable: true
+      description: '`null` si `logros_visibles` es false.'
     insignias:
       type: array
+      nullable: true
+      description: '`null` si `logros_visibles` es false.'
       items:
         $ref: '#/InsigniaObtenida'
   additionalProperties: false
+
+VisibilidadLogros:
+  type: string
+  description: |
+    RN-077: quién puede ver los logros (estadísticas, racha e insignias) del
+    perfil. `todos` = cualquier usuario autenticado (default); `amigos` = solo
+    amistades aceptadas; `solo_yo` = nadie más. El propio usuario siempre los ve.
+  enum: [todos, amigos, solo_yo]
+  example: amigos
+
+RarezaInsignia:
+  type: string
+  description: |
+    RN-078: rareza fija por insignia, definida en el catálogo. Solo cambia cómo
+    se ve (color, marco, brillo); no afecta el otorgamiento ni compara usuarios.
+  enum: [comun, rara, epica, legendaria]
+  example: rara
 
 SyncUsuarioRequest:
   type: object
@@ -4352,6 +4392,7 @@ Insignia:
     - nombre
     - descripcion
     - icono
+    - rareza
     - criterio_distancia_m
     - criterio_duracion_seg
     - criterio_actividad
@@ -4370,6 +4411,8 @@ Insignia:
     icono:
       type: string
       description: Nombre de ícono de `@expo/vector-icons/Feather`.
+    rareza:
+      $ref: '#/RarezaInsignia'
     criterio_distancia_m:
       type: number
       format: double
@@ -4397,6 +4440,7 @@ InsigniaObtenida:
     - nombre
     - descripcion
     - icono
+    - rareza
     - viaje_id
     - obtenida_at
   properties:
@@ -4416,6 +4460,8 @@ InsigniaObtenida:
       nullable: true
     icono:
       type: string
+    rareza:
+      $ref: '#/RarezaInsignia'
     viaje_id:
       type: string
       format: uuid
@@ -4670,6 +4716,7 @@ PrivacidadUsuario:
     - consentimiento_version
     - version_vigente
     - ventana_registro_accesos_min
+    - visibilidad_logros
   properties:
     comparte_ubicacion_default:
       type: boolean
@@ -4704,12 +4751,14 @@ PrivacidadUsuario:
         Minutos de agregación del registro de accesos (RN-112): dentro de la ventana,
         releer la posición de la misma persona no genera una entrada nueva.
       example: 10
+    visibilidad_logros:
+      $ref: '#/VisibilidadLogros'
   additionalProperties: false
 
 PrivacidadUsuarioRequest:
   type: object
   description: |
-    Al menos uno de los dos campos. Revocar el consentimiento
+    Al menos uno de los campos. Revocar el consentimiento
     (`consentimiento_ubicacion: false`) apaga el compartir en todos los viajes y borra
     las posiciones vivas ya publicadas (RN-113).
   minProperties: 1
@@ -4721,6 +4770,8 @@ PrivacidadUsuarioRequest:
       type: boolean
       description: '`true` registra el consentimiento con la versión vigente; `false` lo revoca.'
       example: true
+    visibilidad_logros:
+      $ref: '#/VisibilidadLogros'
   additionalProperties: false
 
 PrivacidadViaje:

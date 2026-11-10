@@ -17,6 +17,7 @@ function armarPrisma(overrides: Record<string, unknown> = {}) {
     nombre: 'Ana',
     apellido: 'Pérez',
     actividad_preferida: 'bici',
+    visibilidad_logros: 'todos',
   })
   const amistadFindFirst = vi.fn().mockResolvedValue(null)
 
@@ -74,6 +75,8 @@ describe('UsuariosService.perfilPublico', () => {
       },
       insignias: [],
       racha: { semanas_consecutivas: 0, en_riesgo: false },
+      visibilidad_logros: 'todos',
+      logros_visibles: true,
     })
   })
 
@@ -85,6 +88,7 @@ describe('UsuariosService.perfilPublico', () => {
           nombre: 'Yo',
           apellido: null,
           actividad_preferida: null,
+          visibilidad_logros: 'solo_yo',
         }),
       },
     })
@@ -108,5 +112,87 @@ describe('UsuariosService.perfilPublico', () => {
     const perfil = await service.perfilPublico(otroId, yoId)
 
     expect(perfil.relacion_amistad).toBe('solicitud_enviada')
+  })
+
+  it('el propio usuario ve sus logros aunque los tenga en solo_yo', async () => {
+    const m = armarPrisma({
+      usuario: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: yoId,
+          nombre: 'Yo',
+          apellido: null,
+          actividad_preferida: null,
+          visibilidad_logros: 'solo_yo',
+        }),
+      },
+    })
+    const service = new UsuariosService(m.prisma)
+
+    const perfil = await service.perfilPublico(yoId, yoId)
+
+    expect(perfil.logros_visibles).toBe(true)
+    expect(perfil.estadisticas).not.toBeNull()
+  })
+})
+
+describe('UsuariosService.perfilPublico — visibilidad de logros (RN-077)', () => {
+  function conVisibilidad(visibilidad: string, amistad: unknown = null) {
+    return armarPrisma({
+      usuario: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: otroId,
+          nombre: 'Ana',
+          apellido: 'Pérez',
+          actividad_preferida: 'bici',
+          visibilidad_logros: visibilidad,
+        }),
+      },
+      amistad: { findFirst: vi.fn().mockResolvedValue(amistad) },
+    })
+  }
+
+  it('solo_yo: devuelve datos básicos y relación, pero logros en null sin consultarlos', async () => {
+    const m = conVisibilidad('solo_yo')
+    const service = new UsuariosService(m.prisma)
+
+    const perfil = await service.perfilPublico(otroId, yoId)
+
+    expect(perfil).toMatchObject({
+      nombre: 'Ana',
+      relacion_amistad: null,
+      visibilidad_logros: 'solo_yo',
+      logros_visibles: false,
+      estadisticas: null,
+      insignias: null,
+      racha: null,
+    })
+    const p = m.prisma as unknown as {
+      metricaViaje: { aggregate: ReturnType<typeof vi.fn> }
+      usuarioInsignia: { findMany: ReturnType<typeof vi.fn> }
+    }
+    expect(p.metricaViaje.aggregate).not.toHaveBeenCalled()
+    expect(p.usuarioInsignia.findMany).not.toHaveBeenCalled()
+  })
+
+  it('amigos: oculta los logros a quien no es amigo', async () => {
+    const m = conVisibilidad('amigos', { solicitante_id: yoId, estado: 'pendiente' })
+    const service = new UsuariosService(m.prisma)
+
+    const perfil = await service.perfilPublico(otroId, yoId)
+
+    expect(perfil.relacion_amistad).toBe('solicitud_enviada')
+    expect(perfil.logros_visibles).toBe(false)
+    expect(perfil.insignias).toBeNull()
+  })
+
+  it('amigos: muestra los logros a un amigo', async () => {
+    const m = conVisibilidad('amigos', { solicitante_id: otroId, estado: 'aceptada' })
+    const service = new UsuariosService(m.prisma)
+
+    const perfil = await service.perfilPublico(otroId, yoId)
+
+    expect(perfil.relacion_amistad).toBe('amigo')
+    expect(perfil.logros_visibles).toBe(true)
+    expect(perfil.insignias).toEqual([])
   })
 })

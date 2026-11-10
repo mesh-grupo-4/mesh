@@ -1,5 +1,5 @@
 import type { PrismaClient } from '@prisma/client'
-import { HttpError } from '../../lib/httpError'
+import { assertPuedeVerLogros } from '../privacidad/logros.acceso'
 import { diaArg, inicioBalde } from '../reportes/reportes.periodo'
 
 /** RN-075: hitos que disparan una notificación de logro. */
@@ -103,14 +103,9 @@ export class RachasService {
     return calcularRachaVigente(fila, ahora)
   }
 
-  async obtenerRachaDeUsuario(usuarioObjetivoId: string) {
-    const usuario = await this.prisma.usuario.findUnique({
-      where: { id: usuarioObjetivoId },
-      select: { id: true },
-    })
-    if (!usuario) {
-      throw new HttpError(404, 'Usuario no encontrado', 'USER_NOT_FOUND')
-    }
+  /** Racha de otra persona, respetando su visibilidad de logros (RN-077). */
+  async obtenerRachaDeUsuario(usuarioObjetivoId: string, solicitanteId: string) {
+    await assertPuedeVerLogros(this.prisma, usuarioObjetivoId, solicitanteId)
     return this.obtenerRachaVigente(usuarioObjetivoId)
   }
 

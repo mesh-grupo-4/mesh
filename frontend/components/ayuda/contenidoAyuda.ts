@@ -120,7 +120,7 @@ export const AYUDA_PERFIL: PasoDefinicion[] = [
   {
     nombre: 'perfil.privacidad',
     orden: ORDEN_PANTALLA.perfil + 2,
-    texto: 'Gestioná qué compartís de tu ubicación en cada viaje.',
+    texto: 'Gestioná qué compartís de tu ubicación en cada viaje y quién ve tus logros.',
   },
 ]
 
@@ -532,8 +532,13 @@ export const AYUDA_PRIVACIDAD_GLOBAL: PasoDefinicion[] = [
   },
   {
     nombre: 'privacidadGlobal.accesos',
-    orden: ORDEN_PANTALLA.privacidadGlobal + 3,
+    orden: ORDEN_PANTALLA.privacidadGlobal + 4,
     texto: 'Quién accedió a tu ubicación en cualquiera de tus viajes, y cuándo.',
+  },
+  {
+    nombre: 'privacidadGlobal.logros',
+    orden: ORDEN_PANTALLA.privacidadGlobal + 3,
+    texto: 'Elegí quién ve tus estadísticas, racha e insignias: todos, solo tus amigos o solo vos.',
   },
 ]
 

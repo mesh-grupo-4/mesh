@@ -209,3 +209,42 @@ describe('RachasService.verificarRachasRotas (job diario)', () => {
     expect(m.update).not.toHaveBeenCalled()
   })
 })
+
+describe('RachasService.obtenerRachaDeUsuario (RN-077)', () => {
+  function armarConVisibilidad(visibilidad: string | null) {
+    const prisma = {
+      usuario: {
+        findUnique: vi
+          .fn()
+          .mockResolvedValue(visibilidad ? { visibilidad_logros: visibilidad } : null),
+      },
+      rachaActividad: { findUnique: vi.fn().mockResolvedValue(null) },
+      amistad: { findFirst: vi.fn().mockResolvedValue(null) },
+    } as unknown as PrismaClient
+    return prisma
+  }
+
+  it('404 si el usuario no existe', async () => {
+    const service = new RachasService(armarConVisibilidad(null))
+    await expect(service.obtenerRachaDeUsuario('x', 'yo')).rejects.toMatchObject({
+      status: 404,
+      code: 'USER_NOT_FOUND',
+    })
+  })
+
+  it('403 LOGROS_PRIVADOS si solo la comparte con amigos y no lo son', async () => {
+    const service = new RachasService(armarConVisibilidad('amigos'))
+    await expect(service.obtenerRachaDeUsuario('x', 'yo')).rejects.toMatchObject({
+      status: 403,
+      code: 'LOGROS_PRIVADOS',
+    })
+  })
+
+  it('devuelve la racha vigente si es pública', async () => {
+    const service = new RachasService(armarConVisibilidad('todos'))
+    await expect(service.obtenerRachaDeUsuario('x', 'yo')).resolves.toEqual({
+      semanas_consecutivas: 0,
+      en_riesgo: false,
+    })
+  })
+})

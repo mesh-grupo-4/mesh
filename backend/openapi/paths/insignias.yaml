@@ -7,8 +7,8 @@
 # (distancia mínima, duración mínima y/o tipo de actividad, todos opcionales
 # e independientes entre sí). No hay endpoint para otorgar insignias a mano.
 #
-# Son públicas dentro de la comunidad: cualquier usuario autenticado puede ver
-# las insignias de cualquier otro usuario, no solo las propias.
+# Cada insignia tiene una rareza fija (RN-078) que solo define cómo se ve.
+# Las insignias de otra persona se ven según su visibilidad de logros (RN-077).
 
 InsigniasCatalogo:
   get:
@@ -34,6 +34,7 @@ InsigniasCatalogo:
                 nombre: 10K
                 descripcion: Corriste 10 km o más en un mismo viaje.
                 icono: zap
+                rareza: rara
                 criterio_distancia_m: 10000
                 criterio_duracion_seg: null
                 criterio_actividad: running
@@ -65,6 +66,7 @@ InsigniasMias:
                 nombre: 10K
                 descripcion: Corriste 10 km o más en un mismo viaje.
                 icono: zap
+                rareza: rara
                 viaje_id: 3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d
                 obtenida_at: '2026-10-20T12:00:00.000Z'
       '401':
@@ -77,9 +79,10 @@ InsigniasDeUsuario:
     operationId: listarInsigniasDeUsuario
     summary: Listar las insignias de un usuario de la comunidad
     description: |
-      Las insignias obtenidas son públicas: cualquier usuario autenticado
-      puede consultar las de cualquier otro, no hace falta ser amigos ni
-      compartir un viaje.
+      Respeta la visibilidad de logros que eligió la persona (RN-077):
+      `todos` las muestra a cualquier usuario autenticado, `amigos` solo a sus
+      amistades aceptadas y `solo_yo` a nadie más. Consultar las propias
+      siempre funciona.
     tags:
       - Insignias
     parameters:
@@ -93,8 +96,29 @@ InsigniasDeUsuario:
               type: array
               items:
                 $ref: '../components/schemas.yaml#/InsigniaObtenida'
+            example:
+              - id: 6d7e8f90-ab1c-4d2e-9f3a-4b5c6d7e8f90
+                insignia_id: a1000000-0000-4000-8000-000000000006
+                codigo: centurion_bici
+                nombre: Centurión
+                descripcion: 100 km o más en bicicleta en un mismo viaje.
+                icono: award
+                rareza: legendaria
+                viaje_id: 3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d
+                obtenida_at: '2026-10-20T12:00:00.000Z'
       '401':
         $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: |
+          La persona no comparte sus logros con quien consulta (`LOGROS_PRIVADOS`,
+          RN-077): los tiene en `solo_yo`, o en `amigos` y no son amigos.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Esta persona no comparte sus logros
+              code: LOGROS_PRIVADOS
       '404':
         description: Usuario no encontrado (`USER_NOT_FOUND`).
         content:

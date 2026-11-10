@@ -45,6 +45,7 @@ export class PrivacidadService {
         comparte_ubicacion_default: true,
         consentimiento_ubicacion_at: true,
         consentimiento_ubicacion_version: true,
+        visibilidad_logros: true,
       },
     })
     if (!usuario) throw new HttpError(404, 'Usuario no encontrado', 'USER_NOT_FOUND')
@@ -63,6 +64,7 @@ export class PrivacidadService {
       consentimiento_version: usuario.consentimiento_ubicacion_version,
       version_vigente: VERSION_CONSENTIMIENTO_UBICACION,
       ventana_registro_accesos_min: VENTANA_ACCESO_MIN,
+      visibilidad_logros: usuario.visibilidad_logros,
     }
   }
 
@@ -74,6 +76,9 @@ export class PrivacidadService {
       data: {
         ...(input.comparte_ubicacion_default !== undefined
           ? { comparte_ubicacion_default: input.comparte_ubicacion_default }
+          : {}),
+        ...(input.visibilidad_logros !== undefined
+          ? { visibilidad_logros: input.visibilidad_logros }
           : {}),
         ...(input.consentimiento_ubicacion === true
           ? {
