@@ -5,6 +5,7 @@ import { HttpError } from '../../lib/httpError'
 import type { SyncUsuarioInput } from './usuarios.schemas'
 import { AmistadesService } from '../amistades/amistades.service'
 import { InsigniasService } from '../insignias/insignias.service'
+import { puedeVerLogros } from '../privacidad/logros.acceso'
 import { RachasService } from '../rachas/rachas.service'
 import { ViajesService } from '../viajes/viajes.service'
 
@@ -137,37 +138,57 @@ export class UsuariosService {
   }
 
   /**
-   * Perfil de un usuario visible para cualquiera de la comunidad (no hace falta
-   * ser amigos ni compartir un viaje): nombre, actividad preferida, estadísticas
-   * agregadas (RN-070: nunca velocidad), insignias (RN-074) y racha (RN-075).
+   * Perfil de un usuario de la comunidad. Nombre, actividad preferida y relación
+   * de amistad se ven siempre (para poder mandar la solicitud). Los logros
+   * —estadísticas agregadas (RN-070: nunca velocidad), insignias (RN-074) y
+   * racha (RN-075)— dependen de la visibilidad que eligió la persona (RN-077):
+   * si no los comparte con quien consulta, vuelven en `null`.
    */
   async perfilPublico(usuarioObjetivoId: string, solicitanteId: string) {
     const usuario = await this.prisma.usuario.findUnique({
       where: { id: usuarioObjetivoId },
-      select: { id: true, nombre: true, apellido: true, actividad_preferida: true },
+      select: {
+        id: true,
+        nombre: true,
+        apellido: true,
+        actividad_preferida: true,
+        visibilidad_logros: true,
+      },
     })
     if (!usuario) {
       throw new HttpError(404, 'Usuario no encontrado', 'USER_NOT_FOUND')
     }
 
     const esYo = usuario.id === solicitanteId
-    const [estadisticas, insignias, racha, relacionAmistad] = await Promise.all([
-      this.viajes.estadisticasUsuario(usuario.id),
-      this.insignias.listarDeUsuario(usuario.id),
-      this.rachas.obtenerRachaVigente(usuario.id),
-      esYo ? Promise.resolve(null) : this.amistades.obtenerRelacion(solicitanteId, usuario.id),
-    ])
+    const relacionAmistad = esYo
+      ? null
+      : await this.amistades.obtenerRelacion(solicitanteId, usuario.id)
+    const logrosVisibles = puedeVerLogros(
+      usuario.visibilidad_logros,
+      esYo,
+      relacionAmistad === 'amigo'
+    )
 
-    return {
+    const base = {
       id: usuario.id,
       nombre: usuario.nombre,
       apellido: usuario.apellido,
       actividad_preferida: usuario.actividad_preferida,
       es_yo: esYo,
       relacion_amistad: relacionAmistad,
-      racha,
-      estadisticas,
-      insignias,
+      visibilidad_logros: usuario.visibilidad_logros,
+      logros_visibles: logrosVisibles,
     }
+    // Sin permiso no se calcula nada: ni siquiera se consultan los logros.
+    if (!logrosVisibles) {
+      return { ...base, racha: null, estadisticas: null, insignias: null }
+    }
+
+    const [estadisticas, insignias, racha] = await Promise.all([
+      this.viajes.estadisticasUsuario(usuario.id),
+      this.insignias.listarDeUsuario(usuario.id),
+      this.rachas.obtenerRachaVigente(usuario.id),
+    ])
+    return { ...base, racha, estadisticas, insignias }
   }
 }

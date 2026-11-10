@@ -15,7 +15,7 @@ export function crearRachasController(service: RachasService) {
     }),
 
     deUsuario: asyncHandler(async (req, res) => {
-      const racha = await service.obtenerRachaDeUsuario(req.params.usuarioId as string)
+      const racha = await service.obtenerRachaDeUsuario(req.params.usuarioId as string, req.userId!)
       res.json(racha)
     }),
   }

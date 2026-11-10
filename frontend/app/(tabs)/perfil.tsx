@@ -24,13 +24,14 @@ import { AYUDA_PERFIL } from '@/components/ayuda/contenidoAyuda';
 import { FilaOpcion } from '@/components/perfil/FilaOpcion';
 import { FondoMesh, FundidoMesh } from '@/components/perfil/FondoMesh';
 import { FueguitosRacha } from '@/components/perfil/FueguitosRacha';
+import { DetalleInsigniaModal } from '@/components/perfil/DetalleInsigniaModal';
+import { InsigniaChip, ordenarPorRareza } from '@/components/perfil/InsigniaChip';
+import { TarjetaRacha } from '@/components/perfil/TarjetaRacha';
 import { etiquetaTema } from '@/components/SelectorTema';
 import { Feather } from '@expo/vector-icons';
 
 const ALTO_FONDO = 460;
 const ALTO_FUEGUITOS = 340;
-/** El ícono de la racha crece con cada hito (3, 5 y 10 semanas). */
-const TAMANO_EMOJI_RACHA = [28, 32, 36, 42];
 
 export default function PerfilScreen() {
   const espacioTabBar = useEspacioTabBar()
@@ -47,6 +48,7 @@ export default function PerfilScreen() {
   const [cargandoRacha, setCargandoRacha] = useState(true);
   // Cambia cada vez que llega la racha al entrar: remonta los fueguitos y repite la ráfaga.
   const [rafagaFueguitos, setRafagaFueguitos] = useState(0);
+  const [insigniaAbierta, setInsigniaAbierta] = useState<InsigniaObtenidaApi | null>(null);
 
   const cargarInsignias = useCallback(async () => {
     try {
@@ -58,7 +60,7 @@ export default function PerfilScreen() {
     }
     setCargandoInsignias(true);
     try {
-      setInsignias(await listarMisInsignias());
+      setInsignias(ordenarPorRareza(await listarMisInsignias()));
     } catch {
       setInsignias([]);
     } finally {
@@ -198,37 +200,7 @@ export default function PerfilScreen() {
               {cargandoRacha ? (
                 <Text style={[styles.insigniasVacio, { color: theme.textMute }]}>Cargando...</Text>
               ) : (
-                <View
-                  style={[
-                    styles.rachaCard,
-                    {
-                      backgroundColor: nivel >= 2 ? theme.fireWeak : theme.surface,
-                      borderColor: nivel >= 1 ? theme.fire : theme.border,
-                      borderWidth: nivel >= 3 ? 2 : 1,
-                    },
-                  ]}
-                >
-                  <Text style={{ fontSize: TAMANO_EMOJI_RACHA[nivel] }}>🔥</Text>
-                  <View style={styles.rachaTexto}>
-                    <Text style={[styles.rachaValor, { color: theme.text }]}>
-                      {racha && racha.semanas_consecutivas > 0
-                        ? `${racha.semanas_consecutivas} semana${racha.semanas_consecutivas === 1 ? '' : 's'} seguidas`
-                        : 'Sin racha activa'}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.rachaHint,
-                        { color: racha?.en_riesgo ? theme.danger : theme.textDim },
-                      ]}
-                    >
-                      {racha?.en_riesgo
-                        ? 'Salí esta semana para no perderla'
-                        : racha && racha.semanas_consecutivas > 0
-                          ? 'Completá un viaje cada semana para mantenerla'
-                          : 'Completá un viaje para arrancar una racha'}
-                    </Text>
-                  </View>
-                </View>
+                <TarjetaRacha racha={racha} propia />
               )}
             </View>
 
@@ -248,17 +220,7 @@ export default function PerfilScreen() {
                   contentContainerStyle={styles.insigniasRow}
                 >
                   {insignias.map((ins) => (
-                    <View
-                      key={ins.id}
-                      style={[styles.insigniaChip, { backgroundColor: theme.surface, borderColor: theme.border }]}
-                    >
-                      <View style={[styles.insigniaIconWrap, { backgroundColor: theme.accentWeak }]}>
-                        <Feather name={ins.icono as keyof typeof Feather.glyphMap} size={20} color={theme.accent} />
-                      </View>
-                      <Text style={[styles.insigniaNombre, { color: theme.text }]} numberOfLines={2}>
-                        {ins.nombre}
-                      </Text>
-                    </View>
+                    <InsigniaChip key={ins.id} insignia={ins} onPress={setInsigniaAbierta} />
                   ))}
                 </ScrollView>
               )}
@@ -295,8 +257,8 @@ export default function PerfilScreen() {
           <PasoAyuda {...AYUDA_PERFIL[2]!}>
             <FilaOpcion
               icono="shield"
-              titulo="Privacidad y ubicación"
-              subtitulo="Qué compartís en cada viaje"
+              titulo="Privacidad"
+              subtitulo="Tu ubicación en viajes y quién ve tus logros"
               onPress={() => router.push('/privacidad')}
             />
           </PasoAyuda>
@@ -342,6 +304,8 @@ export default function PerfilScreen() {
       {rafagaFueguitos > 0 ? (
         <FueguitosRacha key={rafagaFueguitos} semanas={semanasRacha} alto={ALTO_FUEGUITOS} />
       ) : null}
+
+      <DetalleInsigniaModal insignia={insigniaAbierta} onClose={() => setInsigniaAbierta(null)} />
     </View>
   );
 }
@@ -411,50 +375,11 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     lineHeight: 19,
   },
-  rachaCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-  },
-  rachaTexto: {
-    flex: 1,
-    gap: 2,
-  },
-  rachaValor: {
-    fontSize: 15.5,
-    fontWeight: '800',
-  },
-  rachaHint: {
-    fontSize: 12.5,
-  },
   insigniasRow: {
     flexDirection: 'row',
     gap: 10,
     paddingVertical: 2,
     paddingRight: 4,
-  },
-  insigniaChip: {
-    width: 92,
-    alignItems: 'center',
-    gap: 6,
-    padding: 10,
-    borderRadius: 14,
-    borderWidth: 1,
-  },
-  insigniaIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  insigniaNombre: {
-    fontSize: 12,
-    fontWeight: '700',
-    textAlign: 'center',
   },
   footerText: {
     textAlign: 'center',

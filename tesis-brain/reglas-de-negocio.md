@@ -54,7 +54,7 @@ A diferencia de soluciones existentes (Strava, Garmin, Google Maps, Life360) que
 | RN-012 | El líder puede asignar y cambiar roles de otros integrantes. |
 | RN-013 | Si el líder abandona el grupo, el rol se transfiere al siguiente integrante más antiguo; si no hay nadie, el grupo se elimina. |
 | RN-014 | La eliminación de un grupo requiere confirmación explícita. |
-| RN-017 | Las solicitudes de amistad requieren aceptación del receptor. Además de la búsqueda y el perfil público, se pueden enviar desde la lista de integrantes durante el viaje (`GET /api/amistades/relaciones` resuelve la relación con cada persona). |
+| RN-017 | Las solicitudes de amistad requieren aceptación del receptor. Además de la búsqueda y el perfil público (donde el botón de solicitud se ve aunque la persona tenga sus logros privados, RN-077), se pueden enviar desde la lista de integrantes durante el viaje (`GET /api/amistades/relaciones` resuelve la relación con cada persona). |
 | RN-018 | Invitar personas **al grupo** crea registros en `grupo_invitacion` con estado `pendiente`. Fuentes válidas (SCRUM-18): amigos aceptados, búsqueda global de usuarios registrados, o co-miembros de otro grupo del líder. Solo el **líder** del grupo destino puede invitar; se excluye al invitador y a quienes ya son miembros o tienen invitación pendiente. La respuesta de los endpoints de invitables distingue ambos estados con flags separados: `ya_es_miembro` (miembro real) e `invitacion_pendiente` (invitación sin aceptar), de modo que la UI muestre "Ya es miembro" vs "Invitación enviada" correctamente. `grupo_origen_id` es nullable cuando la invitación no proviene de otro grupo. **Reinvitación:** como hay una única fila por `(grupo_id, usuario_id)` (constraint `@@unique`), invitar a alguien que ya tuvo una invitación en otro estado (`aceptada` de una membresía pasada que abandonó, o `rechazada`) **reabre** esa fila a `pendiente` (upsert) en lugar de saltarla; así una persona que se fue del grupo puede volver a ser invitada y la invitación efectivamente llega. **Flujo distinto** de invitar grupos a un viaje (RN-028/RN-029). |
 | RN-019 | El invitado a un grupo puede aceptar o rechazar una invitación pendiente (SCRUM-17). Aceptar la marca como `aceptada` y agrega al usuario como `participante` del grupo; rechazar la marca como `rechazada` sin modificar membresía. Abandonar el grupo elimina la membresía pero conserva la fila `grupo_invitacion` (queda en `aceptada`); una futura reinvitación la reabre a `pendiente` (ver RN-018). |
 | RN-019b | **Pendientes en la tab bar:** la pestaña **Grupos** muestra un badge con la suma de invitaciones a grupos pendientes (RN-018) y solicitudes de amistad recibidas (RN-017); se oculta en 0 y muestra `99+` por encima de 99. Al crear una invitación a grupo o una solicitud de amistad, el backend envía un **push** al destinatario (`data.tipo`: `invitacion_grupo` / `solicitud_amistad`, best-effort, no bloquea la respuesta); con la app abierta el push refresca el badge al instante, y al tocarlo abre Grupos en la sección correspondiente. Como respaldo, el badge se refresca al volver la app a primer plano y cada 60 s. |
@@ -256,6 +256,8 @@ Si el PO prefiere un criterio más conservador, la alternativa es devolver
 | RN-074 | Las insignias se otorgan automáticamente al cumplir criterios de logro (distancia, duración, tipo de actividad). **Implementación:** `InsigniasService.evaluarYOtorgar()`, llamado por `ViajesService.generarResumen()` al finalizar el viaje, contra la `MetricaViaje` recién calculada de cada integrante. Ver [`us-insignias.md`](us-insignias.md). |
 | RN-075 | Las rachas se miden en semanas consecutivas con al menos una actividad (un viaje finalizado). Al romperse, el contador se reinicia. **Implementación:** `RachasService.registrarActividad()`, llamado por `ViajesService.generarResumen()` al finalizar un viaje; detecta hitos (3, 5, 10 semanas) y rotura. Un job diario (`src/jobs/rachasJob.ts`) notifica las rachas rotas por pura inactividad el mismo día, sin esperar al próximo viaje. Ver [`us-rachas.md`](us-rachas.md). |
 | RN-076 | La tabla global de posiciones está segmentada por tipo de actividad (bici, running, trekking, otro — moto y auto no tienen tabla, RN-070) y filtrable por período (semanal, mensual, anual). **Implementación:** `TablaPosicionesService.obtener()`, calculada on-demand sumando `MetricaViaje` de los viajes finalizados desde el inicio del período vigente; nada persistido aparte. Ver [`us-tabla-posiciones.md`](us-tabla-posiciones.md). |
+| RN-077 | Cada persona elige **quién ve sus logros** (estadísticas agregadas, racha e insignias) en su perfil: `todos` (por defecto), `amigos` (solo amistades aceptadas) o `solo_yo`. Un único ajuste para los tres. El propio usuario siempre ve los suyos. Nombre, actividad preferida y el botón de solicitud de amistad se ven siempre. **Implementación:** `usuario.visibilidad_logros`, editable por `PUT /api/usuarios/me/privacidad`. El punto de control único es `modules/privacidad/logros.acceso.ts` (`puedeVerLogros` / `assertPuedeVerLogros`): el perfil devuelve los logros en `null` con `logros_visibles: false`, y `GET /insignias/usuario/:id` y `GET /rachas/usuario/:id` responden `403 LOGROS_PRIVADOS`. Ver [`us-insignias.md`](us-insignias.md). |
+| RN-078 | Cada insignia tiene una **rareza fija** definida en el catálogo: `comun`, `rara`, `epica` o `legendaria`. Solo cambia cómo se ve (color, marco y, en épicas y legendarias, un brillo animado); no afecta el otorgamiento ni compara usuarios entre sí. Nunca se usa para premiar velocidad (RN-070). **Implementación:** columna `insignia.rareza`, asignada en la migración `20261110120000_logros_visibilidad_rareza`. Ver [`us-insignias.md`](us-insignias.md). |
 
 ### 2.9 Reglas de Red Social de Recorridos
 
@@ -629,6 +631,7 @@ Usuario
 ├── consentimiento_ubicacion_at (timestamp, nullable)       ← RN-110
 ├── consentimiento_ubicacion_version (text, nullable)       ← RN-110
 ├── comparte_ubicacion_default (bool, default true)         ← RN-111
+├── visibilidad_logros (enum: todos, amigos, solo_yo)       ← RN-077
 ├── rol_sistema (enum: usuario, superadmin)                 ← RN-120
 ├── suspendido_at (timestamp, nullable)                     ← RN-123
 ├── motivo_suspension (text, nullable)                      ← RN-123
@@ -845,6 +848,7 @@ Insignia
 ├── nombre
 ├── descripcion (nullable)
 ├── icono
+├── rareza (enum: comun, rara, epica, legendaria)           ← RN-078
 ├── criterio_distancia_m (nullable)
 ├── criterio_duracion_seg (nullable)
 ├── criterio_actividad (nullable)

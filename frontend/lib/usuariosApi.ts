@@ -2,6 +2,7 @@ import { apiUrl, meshFetchAuthed, parseJson } from './apiClient'
 import type { RelacionAmistad } from './amistadesApi'
 import type { InsigniaObtenidaApi } from './insigniasApi'
 import type { RachaApi } from './rachasApi'
+import type { VisibilidadLogrosApi } from './privacidadApi'
 import type { EstadisticasUsuarioApi } from './viajesApi'
 
 export type ActividadPreferidaApi = 'moto' | 'auto' | 'bici' | 'running' | 'trekking' | 'otro'
@@ -67,7 +68,10 @@ export async function obtenerMiPerfil(baseUrl?: string): Promise<UsuarioPerfilRe
   return parseJson<UsuarioPerfilResponse>(res)
 }
 
-/** Perfil visible para cualquier usuario de la comunidad (RN-074): sin email ni teléfono. */
+/**
+ * Perfil de un usuario de la comunidad: sin email ni teléfono. Los logros vienen
+ * en `null` si la persona no los comparte con quien consulta (RN-077).
+ */
 export type PerfilPublicoApi = {
   id: string
   nombre: string
@@ -75,9 +79,11 @@ export type PerfilPublicoApi = {
   actividad_preferida: ActividadPreferidaApi | null
   es_yo: boolean
   relacion_amistad: RelacionAmistad
-  racha: RachaApi
-  estadisticas: EstadisticasUsuarioApi
-  insignias: InsigniaObtenidaApi[]
+  visibilidad_logros: VisibilidadLogrosApi
+  logros_visibles: boolean
+  racha: RachaApi | null
+  estadisticas: EstadisticasUsuarioApi | null
+  insignias: InsigniaObtenidaApi[] | null
 }
 
 export async function obtenerPerfilPublico(

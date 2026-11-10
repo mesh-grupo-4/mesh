@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useCopilot } from 'react-native-copilot'
 import { AvisoUbicacion } from '@/components/AvisoUbicacion'
 import { Btn, TopBar, useTheme } from '@/components/MeshUI'
+import { Pressable } from '@/components/Pressable'
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
 import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda'
 import { AYUDA_PRIVACIDAD_GLOBAL } from '@/components/ayuda/contenidoAyuda'
@@ -24,8 +25,21 @@ import {
   obtenerMiPrivacidad,
   type AccesoUbicacionGlobalApi,
   type PrivacidadUsuarioApi,
+  type VisibilidadLogrosApi,
 } from '@/lib/privacidadApi'
 import { formatearEnArg } from '@/lib/tiempoArg'
+
+/** RN-077: opciones de quién ve estadísticas, racha e insignias en el perfil. */
+const OPCIONES_LOGROS: {
+  valor: VisibilidadLogrosApi
+  titulo: string
+  detalle: string
+  icono: keyof typeof Feather.glyphMap
+}[] = [
+  { valor: 'todos', titulo: 'Todos', detalle: 'Cualquier persona de Mesh', icono: 'globe' },
+  { valor: 'amigos', titulo: 'Solo amigos', detalle: 'Tus amistades aceptadas', icono: 'users' },
+  { valor: 'solo_yo', titulo: 'Solo yo', detalle: 'Nadie más los ve', icono: 'lock' },
+]
 
 /** RN-105: toda fecha visible va en hora argentina. */
 function fechaCorta(iso: string): string {
@@ -41,6 +55,7 @@ function fechaCorta(iso: string): string {
 /**
  * RN-110/112/113: consentimiento informado de geolocalización, valor por defecto
  * del compartir y registro de quiénes accedieron a la posición propia.
+ * RN-077: quién ve los logros (estadísticas, racha e insignias) del perfil.
  */
 export default function PrivacidadScreen() {
   const router = useRouter()
@@ -74,7 +89,11 @@ export default function PrivacidadScreen() {
   }, [cargar])
 
   const guardar = useCallback(
-    (cambio: { comparte_ubicacion_default?: boolean; consentimiento_ubicacion?: boolean }) => {
+    (cambio: {
+      comparte_ubicacion_default?: boolean
+      consentimiento_ubicacion?: boolean
+      visibilidad_logros?: VisibilidadLogrosApi
+    }) => {
       if (guardando) return
       setGuardando(true)
       void (async () => {
@@ -115,8 +134,8 @@ export default function PrivacidadScreen() {
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <TopBar
-        title="Privacidad y ubicación"
-        sub="Quién puede ver dónde estás"
+        title="Privacidad"
+        sub="Tu ubicación y quién ve tus logros"
         onBack={() => router.back()}
         onAyuda={() => start()}
       />
@@ -210,6 +229,50 @@ export default function PrivacidadScreen() {
             </View>
           </PasoAyuda>
 
+          <PasoAyuda {...AYUDA_PRIVACIDAD_GLOBAL[4]!}>
+            <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+              <Text style={[styles.tituloSeccion, { color: theme.text, marginBottom: 4 }]}>
+                Quién ve tus logros
+              </Text>
+              <Text style={[styles.estadoTexto, { color: theme.textDim, marginBottom: 10 }]}>
+                Tus estadísticas, racha e insignias en tu perfil. Tu nombre y el botón para
+                mandarte una solicitud de amistad se ven siempre.
+              </Text>
+              {OPCIONES_LOGROS.map((op) => {
+                const elegida = (privacidad?.visibilidad_logros ?? 'todos') === op.valor
+                return (
+                  <Pressable
+                    key={op.valor}
+                    onPress={() => {
+                      if (!elegida) guardar({ visibilidad_logros: op.valor })
+                    }}
+                    disabled={guardando}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: elegida, disabled: guardando }}
+                    style={[
+                      styles.opcion,
+                      {
+                        borderColor: elegida ? theme.accent : theme.border,
+                        backgroundColor: elegida ? theme.accentWeak : 'transparent',
+                      },
+                    ]}
+                  >
+                    <Feather name={op.icono} size={18} color={elegida ? theme.accent : theme.textDim} />
+                    <View style={styles.opcionTexto}>
+                      <Text style={[styles.opcionTitulo, { color: theme.text }]}>{op.titulo}</Text>
+                      <Text style={[styles.opcionDetalle, { color: theme.textDim }]}>{op.detalle}</Text>
+                    </View>
+                    <Feather
+                      name={elegida ? 'check-circle' : 'circle'}
+                      size={20}
+                      color={elegida ? theme.accent : theme.textMute}
+                    />
+                  </Pressable>
+                )
+              })}
+            </View>
+          </PasoAyuda>
+
           <PasoAyuda {...AYUDA_PRIVACIDAD_GLOBAL[3]!}>
             <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
               <Text style={[styles.tituloSeccion, { color: theme.text }]}>
@@ -272,4 +335,18 @@ const styles = StyleSheet.create({
   accesoTexto: { flex: 1, gap: 3 },
   accesoNombre: { fontSize: 15, fontWeight: '600' },
   accesoDetalle: { fontSize: 13, lineHeight: 18 },
+  opcion: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    minHeight: 56,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    marginTop: 8,
+  },
+  opcionTexto: { flex: 1, gap: 2 },
+  opcionTitulo: { fontSize: 15.5, fontWeight: '700' },
+  opcionDetalle: { fontSize: 13 },
 })

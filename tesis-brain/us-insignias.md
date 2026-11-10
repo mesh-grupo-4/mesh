@@ -32,7 +32,8 @@
 | **Nunca velocidad** | El modelo `Insignia` no tiene (ni debe agregarse) un campo de criterio de velocidad | RN-070 es irrevocable: la moto queda afuera de toda gamificación de velocidad. Insignias de distancia/duración/actividad no comparan velocidades entre sí, así que no chocan con la regla — pero agregar una de velocidad sí lo haría |
 | **Idempotente, best-effort** | `evaluarYOtorgar` usa `createMany({ skipDuplicates: true })` sobre el unique `(usuario_id, insignia_id)`, y corre fuera de la transacción del resumen, con su propio try/catch | Una insignia ya obtenida no se duplica ni pisa su fecha; si falla, el cierre del viaje y el resumen ya guardado no se ven afectados (mismo patrón que el resto de `generarResumen`) |
 | **Catálogo seedeado por migración** | Las 8 insignias iniciales se insertan por `INSERT ... ON CONFLICT DO NOTHING` en la propia migración, no por un script de seed aparte | El proyecto no tiene infraestructura de seed; usar la migración (ya sancionada por `migrate deploy`) es la vía más simple para datos de catálogo que deben existir siempre |
-| **Públicas en la comunidad** | `GET /insignias/usuario/{usuarioId}` no exige amistad ni viaje en común, solo estar autenticado | Es justamente lo que pide el criterio de aceptación: "visibles para otros usuarios de la comunidad" |
+| **Visibles según lo que elija cada persona (RN-077)** | `GET /insignias/usuario/{usuarioId}` y el perfil pasan por `assertPuedeVerLogros` / `puedeVerLogros` (`modules/privacidad/logros.acceso.ts`). Con `todos` (default) las ve cualquier usuario autenticado; con `amigos`, solo amistades aceptadas; con `solo_yo`, nadie más. Sin permiso: `403 LOGROS_PRIVADOS` en el endpoint suelto y `null` en el perfil | El criterio original pedía "visibles para otros usuarios de la comunidad", y el default lo cumple. Se agregó la opción de cerrarlas porque son datos de actividad de la persona: lo decide ella. Un solo selector para estadísticas, racha e insignias, por simplicidad |
+| **Rareza fija por insignia (RN-078)** | Columna `rareza` (`comun`, `rara`, `epica`, `legendaria`) asignada a mano en el catálogo | Calcularla por % de usuarios que la tienen daría resultados inestables con pocos usuarios (casi todo saldría "legendaria"). La rareza solo cambia cómo se ve; no compara personas ni toca el otorgamiento |
 | **Perfil ajeno compone, no duplica** | `GET /usuarios/{id}/perfil` (módulo `usuarios`) reutiliza `ViajesService.estadisticasUsuario()`, `InsigniasService.listarDeUsuario()` y la nueva `AmistadesService.obtenerRelacion()`, en vez de reimplementar las consultas | Cada pieza de dato ya tenía su servicio; componerlas evita tener dos fuentes de verdad para lo mismo |
 
 ---
@@ -46,6 +47,7 @@ Insignia
 ├── nombre
 ├── descripcion (nullable)
 ├── icono                       ← nombre de ícono de @expo/vector-icons/Feather
+├── rareza (RarezaInsignia)     ← comun | rara | epica | legendaria (RN-078, solo visual)
 ├── criterio_distancia_m (nullable)
 ├── criterio_duracion_seg (nullable)
 ├── criterio_actividad (nullable, TipoActividad)
@@ -69,6 +71,18 @@ el usuario tiene una primera métrica — así funciona `primer_recorrido`.
 Migración: `20261023120000_insignias`. Catálogo inicial (8 insignias): ver el
 `INSERT` de esa migración o `GET /api/insignias`.
 
+Rareza (migración `20261110120000_logros_visibilidad_rareza`):
+
+| Rareza | Insignias |
+|---|---|
+| Común | Primer recorrido, Hora en marcha |
+| Rara | 10K, 50K en bici |
+| Épica | Media maratón, Trekker resistente, Rodador de 100 |
+| Legendaria | Centurión |
+
+"Rodador de 100" (moto) es por distancia, nunca por velocidad: su rareza no
+choca con RN-070.
+
 ---
 
 ## API
@@ -77,8 +91,9 @@ Migración: `20261023120000_insignias`. Catálogo inicial (8 insignias): ver el
 |---|---|---|
 | `GET` | `/api/insignias` | Cualquier usuario autenticado — catálogo completo |
 | `GET` | `/api/insignias/mias` | Cualquier usuario autenticado — atajo de la siguiente con su propio id |
-| `GET` | `/api/insignias/usuario/{usuarioId}` | Cualquier usuario autenticado — insignias de cualquier otro |
-| `GET` | `/api/usuarios/{usuarioId}/perfil` | Cualquier usuario autenticado — perfil público completo (nombre, actividad, estadísticas, insignias y relación de amistad) |
+| `GET` | `/api/insignias/usuario/{usuarioId}` | Cualquier usuario autenticado, si la persona comparte sus logros con quien consulta (RN-077); si no, `403 LOGROS_PRIVADOS` |
+| `GET` | `/api/usuarios/{usuarioId}/perfil` | Cualquier usuario autenticado — nombre, actividad y relación de amistad siempre; estadísticas, insignias y racha solo si los comparte (si no, vuelven en `null` con `logros_visibles: false`) |
+| `PUT` | `/api/usuarios/me/privacidad` | Cada usuario — `visibilidad_logros`: `todos`, `amigos` o `solo_yo` |
 
 No existe un endpoint para otorgar insignias a mano: solo las otorga
 `ViajesService` automáticamente al finalizar un viaje.
@@ -87,13 +102,23 @@ No existe un endpoint para otorgar insignias a mano: solo las otorga
 
 ## Interfaz
 
+- **Chip con rareza** (`components/perfil/InsigniaChip.tsx`): color, marco y
+  etiqueta por rareza (común gris, rara azul, épica violeta, legendaria
+  dorada). Épicas y legendarias tienen un destello que cruza el chip cada
+  unos segundos; las legendarias, además, un halo que late alrededor del
+  ícono. Sin animaciones si el sistema tiene "reducir movimiento". Se ordenan
+  de la más rara a la más común. Tocar un chip abre el detalle
+  (`DetalleInsigniaModal`: rareza, descripción y fecha en hora argentina).
 - **Perfil propio** (`app/(tabs)/perfil.tsx`): sección "Insignias" debajo del
-  bloque de estadísticas, fila horizontal de chips (ícono en círculo +
-  nombre), con estado vacío ("Todavía no conseguiste ninguna...").
-- **Perfil ajeno** (`app/usuario/[usuarioId].tsx`, nueva pantalla): mismo
-  patrón de chips, más estadísticas agregadas y la relación de amistad (badge
-  "Son amigos" / "Solicitud enviada" / botón "Agregar amigo" si no hay
-  relación). Se abre tocando a una persona en: lista de Amigos y resultados de
+  bloque de estadísticas, fila horizontal de chips, con estado vacío
+  ("Todavía no conseguiste ninguna...").
+- **Perfil ajeno** (`app/usuario/[usuarioId].tsx`): todas las insignias en
+  grilla, más estadísticas agregadas, la racha (con fondo y fueguitos según
+  nivel, ver [[us-rachas]]) y la relación de amistad (badge "Son amigos" /
+  "Solicitud enviada" / botón "Enviar solicitud de amistad" si no hay
+  relación). Si la persona no comparte sus logros, en lugar de todo eso se ve
+  una tarjeta "Logros privados" con candado; el botón de amistad sigue
+  visible. Se abre tocando a una persona en: lista de Amigos y resultados de
   búsqueda (`AmigosTabPanel`), solicitudes pendientes, miembros de un viaje
   (`viaje/[viajeId]/miembros.tsx` y la tarjeta "Participantes" de
   `viaje/[viajeId]/index.tsx`) y miembros de un grupo

@@ -1,5 +1,6 @@
-import type { PrismaClient, TipoActividad } from '@prisma/client'
+import type { PrismaClient, RarezaInsignia, TipoActividad } from '@prisma/client'
 import { HttpError } from '../../lib/httpError'
+import { assertPuedeVerLogros } from '../privacidad/logros.acceso'
 
 type CriterioInsignia = {
   id: string
@@ -14,6 +15,7 @@ type InsigniaConRelaciones = {
   nombre: string
   descripcion: string | null
   icono: string
+  rareza: RarezaInsignia
   criterio_distancia_m: number | null
   criterio_duracion_seg: number | null
   criterio_actividad: TipoActividad | null
@@ -96,7 +98,19 @@ export class InsigniasService {
     return filas.map((f) => this.mapInsignia(f))
   }
 
-  /** Insignias obtenidas por un usuario. Visible para cualquiera (son públicas dentro de la comunidad). */
+  /**
+   * Insignias de otra persona, respetando su visibilidad de logros (RN-077):
+   * 403 `LOGROS_PRIVADOS` si no las comparte con quien consulta.
+   */
+  async listarDeUsuarioVisible(usuarioObjetivoId: string, solicitanteId: string) {
+    await assertPuedeVerLogros(this.prisma, usuarioObjetivoId, solicitanteId)
+    return this.listarDeUsuario(usuarioObjetivoId)
+  }
+
+  /**
+   * Insignias obtenidas por un usuario, sin chequear visibilidad: solo para el
+   * propio usuario o para quien ya pasó por `assertPuedeVerLogros` / `puedeVerLogros`.
+   */
   async listarDeUsuario(usuarioObjetivoId: string) {
     const usuario = await this.prisma.usuario.findUnique({
       where: { id: usuarioObjetivoId },
@@ -121,6 +135,7 @@ export class InsigniasService {
       nombre: i.nombre,
       descripcion: i.descripcion,
       icono: i.icono,
+      rareza: i.rareza,
       criterio_distancia_m: i.criterio_distancia_m,
       criterio_duracion_seg: i.criterio_duracion_seg,
       criterio_actividad: i.criterio_actividad,
@@ -135,6 +150,7 @@ export class InsigniasService {
       nombre: f.insignia.nombre,
       descripcion: f.insignia.descripcion,
       icono: f.insignia.icono,
+      rareza: f.insignia.rareza,
       viaje_id: f.viaje_id,
       obtenida_at: f.obtenida_at.toISOString(),
     }

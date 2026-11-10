@@ -20,7 +20,7 @@ export function crearInsigniasController(service: InsigniasService) {
     }),
 
     deUsuario: asyncHandler(async (req, res) => {
-      const insignias = await service.listarDeUsuario(req.params.usuarioId as string)
+      const insignias = await service.listarDeUsuarioVisible(req.params.usuarioId as string, req.userId!)
       res.json(insignias)
     }),
   }

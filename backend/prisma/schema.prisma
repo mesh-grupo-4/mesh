@@ -127,6 +127,21 @@ enum EstadoAmistad {
   rechazada
 }
 
+/// RN-077: quién puede ver los logros (estadísticas, racha e insignias) de un perfil.
+enum VisibilidadLogros {
+  todos
+  amigos
+  solo_yo
+}
+
+/// RN-078: rareza de una insignia, fija por catálogo. Solo cambia cómo se ve.
+enum RarezaInsignia {
+  comun
+  rara
+  epica
+  legendaria
+}
+
 enum EstadoViajeIntegrante {
   pendiente
   confirmado
@@ -156,11 +171,13 @@ model Usuario {
   push_token          String?        @map("push_token")
 
   /// RN-110: consentimiento informado de geolocalización. Null = todavía no lo dio.
-  consentimiento_ubicacion_at      DateTime? @map("consentimiento_ubicacion_at")
+  consentimiento_ubicacion_at      DateTime?         @map("consentimiento_ubicacion_at")
   /// Versión del texto aceptado: si se publica una nueva, hay que volver a pedirlo.
-  consentimiento_ubicacion_version String?   @map("consentimiento_ubicacion_version")
+  consentimiento_ubicacion_version String?           @map("consentimiento_ubicacion_version")
   /// RN-111: valor con el que arranca `privacidad_viaje` en cada viaje nuevo.
-  comparte_ubicacion_default       Boolean   @default(true) @map("comparte_ubicacion_default")
+  comparte_ubicacion_default       Boolean           @default(true) @map("comparte_ubicacion_default")
+  /// RN-077: quién ve estadísticas, racha e insignias en el perfil público.
+  visibilidad_logros               VisibilidadLogros @default(todos) @map("visibilidad_logros")
 
   /// RN-120: rol de plataforma. Solo un superadmin puede cambiarlo (RN-122).
   rol_sistema       RolSistema @default(usuario) @map("rol_sistema")
@@ -386,18 +403,18 @@ model ViajeGrupo {
 }
 
 model ViajeIntegrante {
-  viaje_id        String                @map("viaje_id") @db.Uuid
-  usuario_id      String                @map("usuario_id") @db.Uuid
-  estado          EstadoViajeIntegrante
-  origen          OrigenViajeIntegrante
-  grupo_origen_id String?               @map("grupo_origen_id") @db.Uuid
-  created_at      DateTime              @default(now()) @map("created_at")
-  fecha_salida    DateTime?             @map("fecha_salida")
+  viaje_id            String                @map("viaje_id") @db.Uuid
+  usuario_id          String                @map("usuario_id") @db.Uuid
+  estado              EstadoViajeIntegrante
+  origen              OrigenViajeIntegrante
+  grupo_origen_id     String?               @map("grupo_origen_id") @db.Uuid
+  created_at          DateTime              @default(now()) @map("created_at")
+  fecha_salida        DateTime?             @map("fecha_salida")
   /// El participante quitó el viaje finalizado de su historial. Solo afecta su lista.
-  oculto_en_historial Boolean           @default(false) @map("oculto_en_historial")
+  oculto_en_historial Boolean               @default(false) @map("oculto_en_historial")
   /// RN-029b: momento en que se sumó al viaje en curso ("Me sumo"). Sin check-in no hay
   /// tracking, motor de eventos ni alertas en vivo para esta persona.
-  check_in_at     DateTime?             @map("check_in_at")
+  check_in_at         DateTime?             @map("check_in_at")
 
   viaje        Viaje   @relation(fields: [viaje_id], references: [id], onDelete: Cascade)
   usuario      Usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
@@ -658,6 +675,8 @@ model Insignia {
   descripcion           String?
   /// Nombre de ícono de @expo/vector-icons/Feather.
   icono                 String
+  /// RN-078: define el estilo visual (color, marco, brillo). No afecta el otorgamiento.
+  rareza                RarezaInsignia @default(comun)
   criterio_distancia_m  Float?         @map("criterio_distancia_m")
   criterio_duracion_seg Int?           @map("criterio_duracion_seg")
   criterio_actividad    TipoActividad? @map("criterio_actividad")
