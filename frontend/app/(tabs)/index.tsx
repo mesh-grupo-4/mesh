@@ -93,12 +93,12 @@ export default function InicioScreen() {
         userLocation={ubicacion}
       />
 
-      {/* Vista del mapa: flota sobre el mapa, arriba a la izquierda. */}
+      {/* Vista del mapa: flota sobre el mapa, arriba a la derecha. */}
       <SelectorCapaMapa
         value={capaMapa}
         onChange={setCapaMapa}
         menuTop={altoBarra + 12 + 48 + 8}
-        menuLado="izquierda"
+        menuLado="derecha"
         style={[styles.capaFlotante, styles.sombra, { top: altoBarra + 12 }]}
       />
 
@@ -228,7 +228,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   unirmeTexto: { fontSize: 16, fontWeight: '700' },
-  capaFlotante: { position: 'absolute', left: 16 },
+  capaFlotante: { position: 'absolute', right: 16 },
   sombra: {
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 3 },

@@ -102,6 +102,18 @@ export async function listarRutasPlantilla(
   return parseJson<RutaPlantillaResumenApi[]>(res)
 }
 
+/** Detalle de una ruta guardada (trazado, paradas y checklist) para verla antes de usarla. */
+export async function obtenerRutaPlantilla(
+  plantillaId: string,
+  baseUrl: string = API_BASE_URL
+): Promise<RutaPlantillaDetalleApi> {
+  const res = await meshFetchAuthed(
+    apiUrl(`/api/rutas-plantilla/${encodeURIComponent(plantillaId)}`, baseUrl),
+    { method: 'GET' }
+  )
+  return parseJson<RutaPlantillaDetalleApi>(res)
+}
+
 export async function eliminarRutaPlantilla(
   plantillaId: string,
   _userId: string,

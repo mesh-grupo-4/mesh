@@ -72,7 +72,12 @@ Recorrido despublicado → `404 RECORRIDO_NOT_FOUND`.
   checklist" y botón **Usar como base de un viaje** → importa y abre `app/viaje/crear.tsx` con
   la plantilla precargada.
 - **Guardadas** (`components/tabs/RutasGuardadasPanel.tsx`): cada ruta con el corazón marcado;
-  desmarcarlo pide confirmación y la quita.
+  desmarcarlo pide confirmación y la quita. Tocar la tarjeta **abre el detalle** de la ruta
+  guardada (`app/rutas-guardadas/[plantillaId].tsx`, lee `GET /api/rutas-plantilla/{id}`): mapa
+  con trazado y paradas, actividad, distancia, tiempo estimado, paradas y checklist. El botón
+  **Usar en viaje** (en la tarjeta y en el detalle) abre el selector Viaje YA / Planificar con la
+  plantilla precargada. Tocar = ver, botón = acción: antes tocar la tarjeta ya arrancaba a crear
+  el viaje y no había forma de ver la ruta.
 
 ### Ayuda en línea (E14)
 
@@ -80,3 +85,4 @@ Recorrido despublicado → `404 RECORRIDO_NOT_FOUND`.
 |---|---|
 | Recorridos de la comunidad (3500) | `recorridosPublicados.buscar`, `.actividad`, `.zona`, `.lista` |
 | Detalle de recorrido publicado (3600) | `recorridoPublicado.mapa`, `.datos`, `.valorar` (ver [[us-valorar-recorridos]]), `.usar`, `.despublicar` |
+| Detalle de ruta guardada (3700) | `rutaGuardada.mapa`, `.usar` |
