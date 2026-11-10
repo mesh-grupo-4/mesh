@@ -30854,8 +30854,8 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\usuarios\\usuarios.service.ts",
       "source_location": "L166",
       "weight": 1.0,
-      "_src": "usuarios_service_usuariosservice_perfilpublico",
-      "_tgt": "logros_acceso_puedeverlogros",
+      "_src": "logros_acceso_puedeverlogros",
+      "_tgt": "usuarios_service_usuariosservice_perfilpublico",
       "source": "logros_acceso_puedeverlogros",
       "target": "usuarios_service_usuariosservice_perfilpublico"
     },
@@ -30878,8 +30878,8 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\rachas\\rachas.service.ts",
       "source_location": "L108",
       "weight": 1.0,
-      "_src": "rachas_service_rachasservice_obtenerrachadeusuario",
-      "_tgt": "logros_acceso_assertpuedeverlogros",
+      "_src": "logros_acceso_assertpuedeverlogros",
+      "_tgt": "rachas_service_rachasservice_obtenerrachadeusuario",
       "source": "logros_acceso_assertpuedeverlogros",
       "target": "rachas_service_rachasservice_obtenerrachadeusuario"
     },
