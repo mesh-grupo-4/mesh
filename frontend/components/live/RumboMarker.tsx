@@ -5,12 +5,12 @@ import type { MemberLocation } from '@/hooks/useLiveLocations'
 
 /**
  * Flecha de rumbo de un integrante: un triángulo apenas por fuera del anillo
- * del avatar, que el mapa nativo gira con `rotation` (ver `MeshMapView`).
+ * del avatar. Va en un marcador aparte y plano (`flat`), para que el avatar y
+ * sus iniciales no giren y para que la flecha siga apuntando bien con el mapa rotado.
  *
- * Va en un marcador aparte del avatar a propósito: si girara el avatar, giraría
- * también las iniciales; y si la flecha se dibujara dentro del bitmap del
- * avatar, habría que redibujarlo en cada cambio de rumbo. Así el bitmap es fijo
- * y solo cambia la rotación nativa.
+ * Se gira acá adentro y no con la `rotation` del marcador porque, en Android con
+ * la nueva arquitectura, react-native-maps 1.29 solo aplica esa prop al crearlo:
+ * la flecha quedaba fija en el primer rumbo.
  */
 export const RUMBO_BOX = 48
 const PUNTA_ANCHO = 7
@@ -33,7 +33,6 @@ export function rumboColor(member: MemberLocation, isMe: boolean): string {
 }
 
 /**
- * Sin rotación nativa (Apple Maps en iOS) la flecha se gira acá adentro.
  * Se redondea a pasos de 10° para no redibujar el marcador por cada décima.
  */
 export function rumboEnPasos(rumbo: number): number {

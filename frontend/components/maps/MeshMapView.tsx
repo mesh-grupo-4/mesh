@@ -8,6 +8,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ComponentRef,
   type ReactElement,
 } from 'react'
 import { Platform, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native'
@@ -23,6 +24,8 @@ import type { MapStyleConfig } from '@/components/route-config/mapStyles'
  * En iOS se usa Google solo si el build tiene `GOOGLE_MAPS_IOS_API_KEY`
  * (ver `app.config.ts`); si no, cae a Apple Maps para no mostrar un mapa vacío.
  */
+
+type MarcadorNativo = ComponentRef<typeof Marker>
 
 export type LatLng = { latitude: number; longitude: number }
 
@@ -40,18 +43,19 @@ export type MarkerSpec = {
   contentKey: string
   /** Punto de anclaje como fracción del tamaño (default: centro). */
   anchor?: { x: number; y: number }
-  /**
-   * Rotación nativa en grados, sentido horario. La aplica el SDK sobre el bitmap
-   * ya dibujado: cambiarla no obliga a redibujar el marcador (barato con 200
-   * integrantes). Con `flat` se mide desde el norte del mapa, así sigue siendo
-   * correcta aunque se gire el mapa.
-   */
-  rotation?: number
   /** Marcador pegado al plano del mapa (gira y se inclina con él). */
   flat?: boolean
   zIndex?: number
   popup?: { title: string; description?: string }
+  /**
+   * Posición que se está dibujando, si el marcador se mueve con `moverMarcadores`.
+   * Sin esto, cada redibujo de React lo devolvería al último ping real.
+   */
+  posicionDibujada?: () => { lat: number; lng: number } | undefined
 }
+
+/** Movimiento de un marcador sin pasar por React (ver `moverMarcadores`). */
+export type MovimientoMarcador = { id: string; lat: number; lng: number }
 
 export type PolylineSpec = {
   coords: [number, number][]
@@ -66,8 +70,12 @@ export type EdgePadding = { top: number; right: number; bottom: number; left: nu
 export type MeshMapViewHandle = {
   fitBounds: (coords: LatLng[], padding?: EdgePadding, animated?: boolean) => void
   animateTo: (center: LatLng, zoom?: number) => void
-  /** Recentra sin tocar el zoom — para seguir al usuario sin "saltos" de escala. */
-  panTo: (center: LatLng) => void
+  /** Recentra animando, sin tocar el zoom. Con `heading`, además orienta el mapa. */
+  panTo: (center: LatLng, heading?: number) => void
+  /** Cámara pegada a un objetivo que se mueve: sin animación, se llama muchas veces por segundo. */
+  seguir: (center: LatLng, heading?: number) => void
+  /** Mueve marcadores directo en el mapa nativo: barato aunque sean muchos y muy seguido. */
+  moverMarcadores: (movimientos: MovimientoMarcador[]) => void
 }
 
 type Props = {
@@ -88,7 +96,7 @@ type Props = {
 
 /** Color de acento de la app para el punto "estoy acá" (ver constants/Colors.ts). */
 const COLOR_UBICACION = '#d76655'
-const DURACION_ANIMACION_MS = 400
+export const DURACION_ANIMACION_MS = 400
 /** Tiempo que el marcador sigue redibujándose tras un cambio de aspecto. */
 const MS_REDIBUJO_MARCADOR = 600
 
@@ -96,11 +104,10 @@ const usarGoogleEnIos = Boolean(Constants.expoConfig?.extra?.googleMapsIos)
 const PROVIDER = Platform.OS === 'ios' && !usarGoogleEnIos ? PROVIDER_DEFAULT : PROVIDER_GOOGLE
 
 /**
- * `rotation`/`flat` de los marcadores solo existen con Google Maps (en iOS con
- * Apple Maps se ignoran). Sin esto, quien dibuja una flecha tiene que girarla
- * dentro de su propia vista.
+ * `flat` solo existe con Google Maps (Apple Maps lo ignora): sin marcadores planos,
+ * una flecha quedaría mal orientada apenas gire el mapa.
  */
-export const ROTACION_NATIVA_MARCADORES = PROVIDER === PROVIDER_GOOGLE
+export const SOPORTA_MARCADOR_PLANO = PROVIDER === PROVIDER_GOOGLE
 
 /** Aproxima un zoom de Google Maps a partir de un `latitudeDelta`. */
 export function zoomFromLatDelta(latitudeDelta: number): number {
@@ -115,7 +122,26 @@ function colorConOpacidad(hex: string, opacidad: number): string {
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${opacidad})`
 }
 
-const MarcadorMapa = memo(function MarcadorMapa({ spec }: { spec: MarkerSpec }) {
+const LineaMapa = memo(function LineaMapa({ spec }: { spec: PolylineSpec }) {
+  return (
+    <Polyline
+      coordinates={spec.coords.map(([lat, lng]) => ({ latitude: lat, longitude: lng }))}
+      strokeColor={colorConOpacidad(spec.color, spec.opacity ?? 0.88)}
+      strokeWidth={spec.width}
+      lineDashPattern={spec.dashed ? [8, 10] : undefined}
+      lineCap="round"
+      lineJoin="round"
+    />
+  )
+})
+
+const MarcadorMapa = memo(function MarcadorMapa({
+  spec,
+  registro,
+}: {
+  spec: MarkerSpec
+  registro?: Map<string, MarcadorNativo>
+}) {
   // Redibujar el bitmap solo un momento tras cada cambio de aspecto: dejar
   // `tracksViewChanges` siempre en true con 200 integrantes es muy costoso.
   const [redibujar, setRedibujar] = useState(true)
@@ -125,11 +151,22 @@ const MarcadorMapa = memo(function MarcadorMapa({ spec }: { spec: MarkerSpec }) 
     return () => clearTimeout(t)
   }, [spec.contentKey])
 
+  const { id } = spec
+  const registrar = useCallback(
+    (marcador: MarcadorNativo | null) => {
+      if (marcador) registro?.set(id, marcador)
+      else registro?.delete(id)
+    },
+    [id, registro]
+  )
+
+  const posicion = spec.posicionDibujada?.() ?? spec
+
   return (
     <Marker
-      coordinate={{ latitude: spec.lat, longitude: spec.lng }}
+      ref={registrar}
+      coordinate={{ latitude: posicion.lat, longitude: posicion.lng }}
       anchor={spec.anchor ?? { x: 0.5, y: 0.5 }}
-      rotation={spec.rotation ?? 0}
       flat={spec.flat ?? false}
       zIndex={spec.zIndex ?? 0}
       tracksViewChanges={redibujar}
@@ -161,6 +198,7 @@ export const MeshMapView = forwardRef<MeshMapViewHandle, Props>(function MeshMap
   const listoRef = useRef(false)
   // Última acción de cámara pedida antes de que el mapa esté listo: se aplica en onMapReady.
   const pendienteRef = useRef<(() => void) | null>(null)
+  const marcadoresRef = useRef(new Map<string, MarcadorNativo>())
 
   const initialCamera = useMemo(
     () => ({ center: initialCenter, zoom: initialZoom, heading: 0, pitch: 0 }),
@@ -186,8 +224,22 @@ export const MeshMapView = forwardRef<MeshMapViewHandle, Props>(function MeshMap
         })
       )
     },
-    panTo(center) {
-      ejecutar(() => mapRef.current?.animateCamera({ center }, { duration: DURACION_ANIMACION_MS }))
+    panTo(center, heading) {
+      ejecutar(() =>
+        mapRef.current?.animateCamera(heading == null ? { center } : { center, heading }, {
+          duration: DURACION_ANIMACION_MS,
+        })
+      )
+    },
+    seguir(center, heading) {
+      if (!listoRef.current) return
+      mapRef.current?.setCamera(heading == null ? { center } : { center, heading })
+    },
+    moverMarcadores(movimientos) {
+      if (!listoRef.current) return
+      for (const { id, lat, lng } of movimientos) {
+        marcadoresRef.current.get(id)?.setCoordinates({ latitude: lat, longitude: lng })
+      }
     },
   }))
 
@@ -226,19 +278,11 @@ export const MeshMapView = forwardRef<MeshMapViewHandle, Props>(function MeshMap
         {(polylines ?? [])
           .filter((pl) => pl.coords.length > 1)
           .map((pl, i) => (
-            <Polyline
-              key={`pl-${i}`}
-              coordinates={pl.coords.map(([lat, lng]) => ({ latitude: lat, longitude: lng }))}
-              strokeColor={colorConOpacidad(pl.color, pl.opacity ?? 0.88)}
-              strokeWidth={pl.width}
-              lineDashPattern={pl.dashed ? [8, 10] : undefined}
-              lineCap="round"
-              lineJoin="round"
-            />
+            <LineaMapa key={`pl-${i}`} spec={pl} />
           ))}
 
         {(markers ?? []).map((m) => (
-          <MarcadorMapa key={m.id} spec={m} />
+          <MarcadorMapa key={m.id} spec={m} registro={marcadoresRef.current} />
         ))}
 
         {userLocation ? (

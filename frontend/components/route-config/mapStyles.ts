@@ -1,7 +1,5 @@
 import type { MapStyleElement, MapType } from 'react-native-maps'
 
-import Colors from '@/constants/Colors'
-
 export type MapStyleId = 'standard' | 'dark' | 'satellite' | 'terrain'
 
 export type MapStyleConfig = {
@@ -71,25 +69,6 @@ export const MAP_STYLES: MapStyleConfig[] = [
     routeStrokeColor: '#dc2626',
   },
 ]
-
-/** Mapa oscuro de Inicio, con los grises del tema oscuro de la app. */
-export const ESTILO_MAPA_OSCURO_INICIO: MapStyleConfig = {
-  id: 'dark',
-  label: 'Oscuro',
-  icon: 'moon',
-  mapType: 'standard',
-  routeStrokeColor: Colors.dark.accent,
-  customMapStyle: [
-    { elementType: 'geometry', stylers: [{ color: Colors.dark.surface }] },
-    { elementType: 'labels.text.fill', stylers: [{ color: Colors.dark.textDim }] },
-    { elementType: 'labels.text.stroke', stylers: [{ color: Colors.dark.background }] },
-    { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: Colors.dark.surface2 }] },
-    { featureType: 'road', elementType: 'geometry', stylers: [{ color: Colors.dark.borderStrong }] },
-    { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: Colors.dark.textMute }] },
-    { featureType: 'transit', elementType: 'geometry', stylers: [{ color: Colors.dark.surface2 }] },
-    { featureType: 'water', elementType: 'geometry', stylers: [{ color: Colors.dark.background }] },
-  ],
-}
 
 export function getMapStyle(id: MapStyleId): MapStyleConfig {
   return MAP_STYLES.find((s) => s.id === id) ?? MAP_STYLES[0]

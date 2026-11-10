@@ -47,6 +47,20 @@ export async function listarAmigos(
   return parseJson<AmigoApi[]>(res)
 }
 
+export type RelacionAmistadUsuarioApi = {
+  usuario_id: string
+  relacion: Exclude<RelacionAmistad, null>
+}
+
+/** Relaciones vigentes: quien no aparece todavía se puede agregar. */
+export async function listarRelacionesAmistad(
+  baseUrl?: string
+): Promise<RelacionAmistadUsuarioApi[]> {
+  const res = await meshFetchAuthed(apiUrl('/api/amistades/relaciones', baseUrl), {
+  })
+  return parseJson<RelacionAmistadUsuarioApi[]>(res)
+}
+
 export async function listarSolicitudesAmistadPendientes(
   userId: string,
   baseUrl?: string

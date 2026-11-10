@@ -32,7 +32,7 @@ import { LeaderboardPanel } from '@/components/live/LeaderboardPanel'
 import { LiveBottomPanel } from '@/components/live/LiveBottomPanel'
 import { LiveMapView, type LiveMapViewHandle } from '@/components/live/LiveMapView'
 import type { LiveMember } from '@/components/live/LiveMembersBar'
-import { LiveTripHeader } from '@/components/live/LiveTripHeader'
+import { ALTO_HEADER_COMPACTO, LiveTripHeader } from '@/components/live/LiveTripHeader'
 import { MapStylePicker } from '@/components/route-config/MapStylePicker'
 import type { MapStyleId } from '@/components/route-config/mapStyles'
 import { useTheme } from '@/components/MeshUI'
@@ -165,14 +165,6 @@ export default function ViajeLiveScreen() {
     if (initialCenter) return { lat: initialCenter.latitude, lng: initialCenter.longitude }
     return null
   }, [memberList, userId, initialCenter])
-
-  // Modo "seguirme": recentra (sin tocar el zoom) cada vez que se actualiza tu
-  // posición, mientras `siguiendo` esté activo. Se pausa solo al arrastrar el
-  // mapa a mano (`onUserDrag`, ver más abajo) y se reactiva con el botón centrar.
-  useEffect(() => {
-    if (!siguiendo || !myPosition) return
-    mapRef.current?.panTo(myPosition.lat, myPosition.lng)
-  }, [siguiendo, myPosition])
 
   const nextStop = useNextStopEta({
     currentPos: myPosition,
@@ -337,6 +329,8 @@ export default function ViajeLiveScreen() {
     if (!myPosition) return
     const coords = await calcularGuiaHastaDestino(myPosition, lugar, tipoActividad)
     setGuiaLugar({ coords, destino: { lat: lugar.lat, lng: lugar.lng, nombre: lugar.nombre } })
+    // El encuadre de la guía es deliberado: como un arrastre manual, pausa el "seguirme".
+    setSiguiendo(false)
     mapRef.current?.fitBoundsToCoords(coords)
   }
 
@@ -849,7 +843,7 @@ export default function ViajeLiveScreen() {
     router.push({ pathname: '/viaje/[viajeId]/alertas', params: { viajeId: viajeId ?? '' } })
 
   /** Los flotantes arrancan bajo el header compacto y se corren si hay banners visibles. */
-  const TOP_OVERLAYS = 96
+  const TOP_OVERLAYS = insets.top + ALTO_HEADER_COMPACTO
   const topFlotantes = TOP_OVERLAYS + (altoBanners > 0 ? altoBanners + 10 : 0)
   // Sin medir, el botón de centrar quedaba debajo de la botonera al aparecer
   // la fila de paradas.
@@ -896,6 +890,9 @@ export default function ViajeLiveScreen() {
         <LiveMapView
           ref={mapRef}
           routeRemaining={routeRemaining}
+          rutaCompleta={routeLine}
+          movimientoFluido
+          siguiendo={siguiendo}
           breadcrumb={breadcrumb}
           members={memberList}
           alertasEnMapa={alertasEnMapa}
@@ -940,7 +937,7 @@ export default function ViajeLiveScreen() {
       {/* Pila de banners: se apilan solos y su alto real corre a los botones
           flotantes, que antes quedaban tapados debajo de estos avisos. */}
       <View
-        style={styles.bannerStack}
+        style={[styles.bannerStack, { top: TOP_OVERLAYS + 6 }]}
         pointerEvents="box-none"
         onLayout={(e) => setAltoBanners(e.nativeEvent.layout.height)}
       >
@@ -1231,7 +1228,6 @@ const styles = StyleSheet.create({
   },
   bannerStack: {
     position: 'absolute',
-    top: 96,
     left: 12,
     right: 12,
     gap: 8,

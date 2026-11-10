@@ -30,7 +30,7 @@ export function indiceMasCercanoEnRuta(
   return { indice: mejorIndice, distanciaM: mejorDist }
 }
 
-function proyectarEnSegmento(
+export function proyectarEnSegmento(
   lat: number,
   lng: number,
   latA: number,

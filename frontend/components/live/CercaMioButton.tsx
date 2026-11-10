@@ -1,4 +1,5 @@
-import { StyleSheet, Text } from 'react-native'
+import { Feather } from '@expo/vector-icons'
+import { StyleSheet } from 'react-native'
 import { Pressable } from '@/components/Pressable'
 
 import { uiConfigPorActividad } from '@/lib/activityUi'
@@ -29,7 +30,11 @@ export function CercaMioButton({ topOffset, guiaActiva, onPress, tipoActividad =
       accessibilityRole="button"
       accessibilityLabel={guiaActiva ? 'Quitar la guía al lugar' : 'Buscar lugares cerca mío'}
     >
-      <Text style={{ fontSize: Math.round(20 * escalaBotones) }}>{guiaActiva ? '✕' : '📍'}</Text>
+      <Feather
+        name={guiaActiva ? 'x' : 'map-pin'}
+        size={Math.round(22 * escalaBotones)}
+        color={guiaActiva ? '#0e7490' : '#1f2937'}
+      />
     </Pressable>
   )
 }
