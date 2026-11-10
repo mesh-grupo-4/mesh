@@ -191,7 +191,7 @@ export class AmistadesService {
   }
 
   async buscarUsuarios(usuarioId: string, query: string) {
-    const [usuarios, amistades] = await Promise.all([
+    const [usuarios, relaciones] = await Promise.all([
       this.prisma.usuario.findMany({
         where: {
           id: { not: usuarioId },
@@ -204,17 +204,32 @@ export class AmistadesService {
         orderBy: { nombre: 'asc' },
         take: 20,
       }),
-      this.prisma.amistad.findMany({
-        where: {
-          OR: [{ solicitante_id: usuarioId }, { destinatario_id: usuarioId }],
-        },
-        select: {
-          solicitante_id: true,
-          destinatario_id: true,
-          estado: true,
-        },
-      }),
+      this.relacionesPorUsuario(usuarioId),
     ])
+
+    return usuarios.map((u) => ({
+      ...u,
+      relacion: relaciones.get(u.id) ?? null,
+    }))
+  }
+
+  /** Relaciones vigentes del usuario: quien no aparece no tiene ninguna con él. */
+  async listarRelaciones(usuarioId: string) {
+    const relaciones = await this.relacionesPorUsuario(usuarioId)
+    return Array.from(relaciones, ([usuario_id, relacion]) => ({ usuario_id, relacion }))
+  }
+
+  private async relacionesPorUsuario(usuarioId: string): Promise<Map<string, RelacionAmistad>> {
+    const amistades = await this.prisma.amistad.findMany({
+      where: {
+        OR: [{ solicitante_id: usuarioId }, { destinatario_id: usuarioId }],
+      },
+      select: {
+        solicitante_id: true,
+        destinatario_id: true,
+        estado: true,
+      },
+    })
 
     const relaciones = new Map<string, RelacionAmistad>()
     for (const a of amistades) {
@@ -230,11 +245,7 @@ export class AmistadesService {
         )
       }
     }
-
-    return usuarios.map((u) => ({
-      ...u,
-      relacion: relaciones.get(u.id) ?? null,
-    }))
+    return relaciones
   }
 
   async eliminarAmigo(usuarioId: string, amigoId: string) {

@@ -607,6 +607,22 @@ RelacionAmistad:
   enum: [amigo, solicitud_enviada, solicitud_recibida, null]
   example: solicitud_enviada
 
+RelacionAmistadUsuario:
+  type: object
+  description: Relación vigente del usuario autenticado con otra persona.
+  required:
+    - usuario_id
+    - relacion
+  properties:
+    usuario_id:
+      type: string
+      format: uuid
+    relacion:
+      type: string
+      enum: [amigo, solicitud_enviada, solicitud_recibida]
+      example: amigo
+  additionalProperties: false
+
 UsuarioBuscado:
   type: object
   description: Resultado de búsqueda, con la relación de amistad ya resuelta.
