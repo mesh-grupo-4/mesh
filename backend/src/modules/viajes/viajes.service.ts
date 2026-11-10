@@ -18,6 +18,7 @@ import {
   computeTrazaRecorrido,
 } from '../../lib/postgis'
 import { filtrosGpsPorActividad } from '../../lib/gpsFilters'
+import { armarParadasDelResumen } from './viajes.paradas-resumen'
 import { columnasGpsExtra } from '../../lib/datosGpsExtra'
 import { esIntegranteActivo, unirUsuarioAlViaje, WHERE_INTEGRANTE_ACTIVO } from './viajes.membership'
 import type {
@@ -1568,7 +1569,7 @@ export class ViajesService {
       resumen = await this.prisma.resumenViaje.findUnique({ where: { viaje_id: viajeId } })
     }
 
-    const [cantidadIntegrantes, mia, miIntegrante] = await Promise.all([
+    const [cantidadIntegrantes, mia, miIntegrante, filasParadas] = await Promise.all([
       this.contarIntegrantesEfectivos(viajeId, viaje.creador_id),
       this.prisma.metricaViaje.findUnique({
         where: { viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId } },
@@ -1576,6 +1577,20 @@ export class ViajesService {
       this.prisma.viajeIntegrante.findUnique({
         where: { viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId } },
         select: { estado: true, fecha_salida: true },
+      }),
+      this.prisma.parada.findMany({
+        where: { viaje_id: viajeId },
+        select: {
+          id: true,
+          usuario_id: true,
+          tipo: true,
+          categoria: true,
+          inicio: true,
+          fin: true,
+          grupal: true,
+          confirmado_bien: true,
+          usuario: { select: { nombre: true, apellido: true } },
+        },
       }),
     ])
 
@@ -1611,6 +1626,7 @@ export class ViajesService {
         sali_antes: miIntegrante?.estado === 'salido',
         fecha_salida: miIntegrante?.fecha_salida ?? null,
       },
+      paradas: armarParadasDelResumen(filasParadas, usuarioId, viaje.creador_id),
       // RN-070 + RN-072: comparar solo en modo competitivo, y nunca en vehículo motorizado.
       ranking_habilitado: !esMotorizado(viaje.tipo_actividad) && viaje.modo === 'competitivo',
       generado_en: resumen?.generado_en ?? null,

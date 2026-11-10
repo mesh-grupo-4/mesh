@@ -2802,6 +2802,7 @@ ResumenViaje:
     - viaje
     - totales
     - mis_metricas
+    - paradas
     - ranking_habilitado
     - generado_en
   properties:
@@ -2924,6 +2925,15 @@ ResumenViaje:
           format: date-time
           nullable: true
       additionalProperties: false
+    paradas:
+      type: array
+      description: |
+        Paradas del viaje en orden cronológico; vacío si no hubo. Incluye las de todo el
+        grupo y los posibles incidentes. Una parada grupal (RN-045) aparece una sola vez.
+
+        No trae coordenadas: la ubicación de terceros se rige por RN-111.
+      items:
+        $ref: '#/ParadaResumen'
     ranking_habilitado:
       type: boolean
       description: |
@@ -2936,6 +2946,66 @@ ResumenViaje:
       type: string
       format: date-time
       nullable: true
+  additionalProperties: false
+
+ParadaResumen:
+  type: object
+  description: Una parada registrada durante el viaje, para el detalle del cierre.
+  required:
+    - id
+    - tipo
+    - categoria
+    - grupal
+    - inicio
+    - fin
+    - duracion_seg
+    - nombre
+    - es_propia
+    - confirmado_bien
+  properties:
+    id:
+      type: string
+      format: uuid
+    tipo:
+      type: string
+      enum: [voluntaria, incidente_detectado]
+      example: voluntaria
+    categoria:
+      type: string
+      nullable: true
+      enum: [accidente, combustible, descanso, gastronomia, punto_control, sanitario, otro, null]
+      description: '`null` en los posibles incidentes detectados por el motor de eventos.'
+      example: combustible
+    grupal:
+      type: boolean
+      description: '`true` si el líder detuvo a todo el grupo (RN-045).'
+      example: false
+    inicio:
+      type: string
+      format: date-time
+      example: '2026-08-13T15:30:00.000Z'
+    fin:
+      type: string
+      format: date-time
+      nullable: true
+      example: '2026-08-13T15:50:00.000Z'
+    duracion_seg:
+      type: integer
+      nullable: true
+      description: '`null` si la parada quedó sin cierre registrado.'
+      example: 1200
+    nombre:
+      type: string
+      description: Quien paró. En una parada grupal, el líder que la abrió.
+      example: Martina Gómez
+    es_propia:
+      type: boolean
+      description: '`true` si quien consulta participó de esta parada.'
+      example: true
+    confirmado_bien:
+      type: boolean
+      nullable: true
+      description: 'RN-036: la persona confirmó que estaba bien tras un posible incidente.'
   additionalProperties: false
 
 MetricaIntegrante:
