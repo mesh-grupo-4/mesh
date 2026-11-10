@@ -70,10 +70,14 @@ export function textoAntiguedad(miembroDesde: string, ahora: Date = new Date()):
 export type RecorridoComunidadApi = RecorridoPublicadoApi & {
   valoracion: ValoracionRecorridoApi
   reputacion_autor: ReputacionAutorApi
+  /** Plantilla con la que lo guardé en mis rutas; null si no lo guardé. */
+  mi_plantilla_id: string | null
 }
 
 export type RecorridoPublicadoDetalleApi = RecorridoPublicadoApi & {
   valoracion: ValoracionRecorridoApi
+  /** Plantilla con la que lo guardé en mis rutas; null si no lo guardé. */
+  mi_plantilla_id: string | null
   segmentos: [number, number][][]
   /** Ítems que compartió el autor; vacío si no compartió ninguno. */
   checklist: string[]

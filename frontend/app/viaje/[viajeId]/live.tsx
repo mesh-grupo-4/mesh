@@ -4,6 +4,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated'
 import {
   ActivityIndicator,
   Platform,
@@ -17,6 +18,7 @@ import { meshAlert, meshConfirmDestructive } from '@/lib/meshAlert';
 
 import { AlertaGrupalBanner } from '@/components/live/AlertaGrupalBanner'
 import { AlertasButton } from '@/components/live/AlertasButton'
+import { AjustesViajeSheet } from '@/components/live/AjustesViajeSheet'
 import { CategoriaParadaSheet } from '@/components/live/CategoriaParadaSheet'
 import { CrearAlertaSheet } from '@/components/live/CrearAlertaSheet'
 import { CenterLocationButton } from '@/components/live/CenterLocationButton'
@@ -34,7 +36,7 @@ import { LiveMapView, type LiveMapViewHandle } from '@/components/live/LiveMapVi
 import type { LiveMember } from '@/components/live/LiveMembersBar'
 import { ALTO_HEADER_COMPACTO, LiveTripHeader } from '@/components/live/LiveTripHeader'
 import { MapStylePicker } from '@/components/route-config/MapStylePicker'
-import type { MapStyleId } from '@/components/route-config/mapStyles'
+import { useCapaMapa } from '@/hooks/useCapaMapa'
 import { useTheme } from '@/components/MeshUI'
 import { BotonAyuda } from '@/components/ayuda/BotonAyuda'
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
@@ -67,7 +69,6 @@ import { motivoParadaLegible } from '@/lib/paradasApi'
 import { waypointTieneCoords } from '@/components/route-config/routeTypes'
 import { linestringToLatLng, waypointsFromRutaDetalle } from '@/lib/routePayload'
 import { connectMeshSocket, joinViajeRoom } from '@/lib/meshSocket'
-import { isSupabaseConfigured } from '@/lib/supabase'
 import {
   checkInPendienteLocal,
   detenerTrackingViaje,
@@ -123,13 +124,14 @@ export default function ViajeLiveScreen() {
   const [siguiendo, setSiguiendo] = useState(true)
   const [fg, setFg] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
-  const [mapStyle, setMapStyle] = useState<MapStyleId>('standard')
+  const [mapStyle, setMapStyle] = useCapaMapa()
   const [headerExpandido, setHeaderExpandido] = useState(false)
   const [accion, setAccion] = useState(false)
   const [eligiendoCategoria, setEligiendoCategoria] = useState(false)
   const [componiendoAlerta, setComponiendoAlerta] = useState(false)
   const [eligiendoFantasma, setEligiendoFantasma] = useState(false)
   const [buscandoCerca, setBuscandoCerca] = useState(false)
+  const [ajustando, setAjustando] = useState(false)
   const [guiaLugar, setGuiaLugar] = useState<{
     coords: [number, number][]
     destino: { lat: number; lng: number; nombre: string }
@@ -138,6 +140,10 @@ export default function ViajeLiveScreen() {
   const [altoBanners, setAltoBanners] = useState(0)
   /** Alto real de la botonera inferior, que creció con la fila de paradas. */
   const [altoBotonera, setAltoBotonera] = useState(0)
+  /** Alto de la pantalla del viaje: junto con `topPanel` da cuánto asoma el panel inferior. */
+  const [altoRaiz, setAltoRaiz] = useState(0)
+  /** Borde superior del panel inferior, cuadro a cuadro (-1 = todavía no se midió). */
+  const topPanel = useSharedValue(-1)
 
   const nameByUserId = useMemo(() => {
     const map: Record<string, string> = {}
@@ -152,7 +158,7 @@ export default function ViajeLiveScreen() {
     return map
   }, [viaje, participantes])
 
-  const { memberList, staleByUserId, realtimeOk } = useLiveLocations({
+  const { memberList, staleByUserId } = useLiveLocations({
     viajeId: viajeId ?? '',
     userId,
     nameByUserId,
@@ -337,6 +343,11 @@ export default function ViajeLiveScreen() {
   const puedeCrearAlertas =
     viaje?.estado === 'en_curso' &&
     (esLider || (sumado && (viaje?.alertas_solo_lider ?? true) === false))
+
+  // RN-030: el backend valida ambos; acá solo se decide qué accesos mostrar.
+  const puedeGastos = viaje?.estado === 'en_curso' && viaje.es_grupal && sumado
+  // RN-025: el líder corrige en vivo parámetros que disparan alertas de más.
+  const puedeAjustar = viaje?.estado === 'en_curso' && viaje.es_grupal && esLider
 
   const centroMapaAlerta = useMemo(() => {
     if (myPosition) return { latitude: myPosition.lat, longitude: myPosition.lng }
@@ -527,14 +538,17 @@ export default function ViajeLiveScreen() {
             setViaje(v)
             setParticipantes(parts)
           })
-          .catch((e) => console.warn('[live] no se pudo refrescar el líder:', e))
+          .catch((e) => console.warn('[live] no se pudo refrescar el viaje:', e))
       }
 
       sock.on('viaje:finalizado', onFin)
       sock.on('viaje:participante_salio', onSalio)
       sock.on('viaje:participante_sumado', onSumado)
       sock.on('viaje:lider_cambiado', onLiderCambiado)
+      // El líder ajustó parámetros o alertas (RN-025): mismo refresco del detalle.
+      sock.on('viaje:actualizado', onLiderCambiado)
       cleanup = () => {
+        sock.off('viaje:actualizado', onLiderCambiado)
         sock.off('viaje:finalizado', onFin)
         sock.off('viaje:participante_salio', onSalio)
         sock.off('viaje:participante_sumado', onSumado)
@@ -855,7 +869,15 @@ export default function ViajeLiveScreen() {
   useHapticaAlEntrar(Boolean(llegada), tipoActividad, 'exito')
   useHapticaAlEntrar(incidentePropio, tipoActividad, 'alerta')
   const bottomCentrar = (altoBotonera || 130) + 12
-  const bottomCentrarMapa = bottomCentrar + (incidentePropio ? 236 : 0)
+  const extraIncidente = incidentePropio ? 236 : 0
+  const altoFlotantesInferiores = Math.round(48 * uiConfig.escalaBotones)
+  // Los botones de centrar y de ayuda acompañan al panel inferior mientras se
+  // arrastra: antes se reubicaban recién al soltar y quedaban colgados en el medio.
+  const estiloFlotantesInferiores = useAnimatedStyle(() => {
+    const sobrePanel =
+      topPanel.value >= 0 && altoRaiz > 0 ? altoRaiz - topPanel.value + 12 : bottomCentrar
+    return { transform: [{ translateY: -(sobrePanel + extraIncidente) }] }
+  }, [altoRaiz, bottomCentrar, extraIncidente])
 
   /** Reactiva el modo "seguirme" y centra ya mismo con la posición que ya tenemos
    * en memoria — sin pedir una lectura GPS nueva y aislada. */
@@ -883,7 +905,10 @@ export default function ViajeLiveScreen() {
   }
 
   return (
-    <View style={[styles.root, { backgroundColor: theme.background }]}>
+    <View
+      style={[styles.root, { backgroundColor: theme.background }]}
+      onLayout={(e) => setAltoRaiz(e.nativeEvent.layout.height)}
+    >
       <Stack.Screen options={{ headerShown: false }} />
       <StatusBar hidden={uiConfig.pantallaCompleta} />
       <PasoAyuda {...AYUDA_VIAJE_LIVE[0]!} estilo={styles.flex1}>
@@ -928,11 +953,6 @@ export default function ViajeLiveScreen() {
         />
       </PasoAyuda>
 
-      <BotonAyuda
-        altoContraste={uiConfig.altoContraste}
-        size={Math.round(44 * uiConfig.escalaBotones)}
-        style={[styles.botonAyudaLive, { bottom: bottomCentrarMapa }]}
-      />
 
       {/* Pila de banners: se apilan solos y su alto real corre a los botones
           flotantes, que antes quedaban tapados debajo de estos avisos. */}
@@ -945,14 +965,6 @@ export default function ViajeLiveScreen() {
           <View style={[styles.warnBanner, { backgroundColor: theme.dangerWeak }]}>
             <Text style={[styles.warnTxt, { color: theme.danger, fontSize: tamanoOutdoor(13) }]}>
               Ubicación desconocida: tu posición no se compartirá hasta que otorgues permisos.
-            </Text>
-          </View>
-        ) : null}
-
-        {!realtimeOk && isSupabaseConfigured() ? (
-          <View style={[styles.infoBanner, { backgroundColor: theme.accentWeak }]}>
-            <Text style={[styles.infoTxt, { color: theme.text, fontSize: tamanoOutdoor(12) }]}>
-              Realtime Supabase desconectado; usamos WebSocket y refresco cada 15 s.
             </Text>
           </View>
         ) : null}
@@ -1039,12 +1051,22 @@ export default function ViajeLiveScreen() {
         </>
       ) : null}
 
-      <CenterLocationButton
-        onPress={handleCenterOnMe}
-        bottomOffset={bottomCentrarMapa}
-        siguiendo={siguiendo}
-        tipoActividad={tipoActividad}
-      />
+      <Animated.View
+        style={[styles.flotantesInferiores, { height: altoFlotantesInferiores }, estiloFlotantesInferiores]}
+        pointerEvents="box-none"
+      >
+        <BotonAyuda
+          altoContraste={uiConfig.altoContraste}
+          size={Math.round(44 * uiConfig.escalaBotones)}
+          style={styles.botonAyudaLive}
+        />
+        <CenterLocationButton
+          onPress={handleCenterOnMe}
+          bottomOffset={0}
+          siguiendo={siguiendo}
+          tipoActividad={tipoActividad}
+        />
+      </Animated.View>
 
       {incidentePropio && paradaActiva ? (
         <EstoyBienBanner
@@ -1120,7 +1142,14 @@ export default function ViajeLiveScreen() {
           onSolicitar={handleSolicitar}
           onFinalizar={confirmarFinalizar}
           onSalir={confirmarSalir}
+          onGastos={
+            puedeGastos
+              ? () => router.push({ pathname: '/viaje/[viajeId]/gastos', params: { viajeId: viajeId ?? '' } })
+              : undefined
+          }
+          onAjustes={puedeAjustar ? () => setAjustando(true) : undefined}
           onHeightChange={setAltoBotonera}
+          posicionAnimada={topPanel}
           tipoActividad={tipoActividad}
         />
       </PasoAyuda>
@@ -1166,6 +1195,16 @@ export default function ViajeLiveScreen() {
         onElegir={handleElegirFantasma}
         onCerrar={() => setEligiendoFantasma(false)}
       />
+
+      {viaje && puedeAjustar ? (
+        <AjustesViajeSheet
+          visible={ajustando}
+          viaje={viaje}
+          userId={userId}
+          onActualizado={(a) => setViaje((prev) => (prev ? { ...prev, ...a } : prev))}
+          onCerrar={() => setAjustando(false)}
+        />
+      ) : null}
 
       <CrearAlertaSheet
         visible={componiendoAlerta}
@@ -1213,9 +1252,16 @@ const styles = StyleSheet.create({
   zIndexAlertas: {
     zIndex: 20,
   },
+  flotantesInferiores: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
   botonAyudaLive: {
     position: 'absolute',
     right: 16,
+    bottom: 0,
   },
   center: {
     flex: 1,

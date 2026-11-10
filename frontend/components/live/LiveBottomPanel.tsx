@@ -1,8 +1,10 @@
+import { Feather } from '@expo/vector-icons'
 import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { LayoutChangeEvent, StyleSheet, Text, View } from 'react-native'
 import { Pressable } from '@/components/Pressable'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import type { SharedValue } from 'react-native-reanimated'
 
 import { useTheme } from '@/components/MeshUI'
 import { tamanoOutdoor } from '@/constants/Typography'
@@ -34,7 +36,12 @@ type Props = {
   onSolicitar: () => void
   onFinalizar: () => void
   onSalir: () => void
+  /** Accesos discretos, visibles solo con el panel desplegado. Sin handler no se muestran. */
+  onGastos?: () => void
+  onAjustes?: () => void
   onHeightChange?: (height: number) => void
+  /** Recibe el borde superior del panel cuadro a cuadro, para que lo sigan los flotantes. */
+  posicionAnimada?: SharedValue<number>
   tipoActividad?: TipoActividadApi
 }
 
@@ -57,7 +64,10 @@ export function LiveBottomPanel({
   onSolicitar,
   onFinalizar,
   onSalir,
+  onGastos,
+  onAjustes,
   onHeightChange,
+  posicionAnimada,
   tipoActividad = 'otro',
 }: Props) {
   const { altoContraste, escalaBotones } = uiConfigPorActividad(tipoActividad)
@@ -103,6 +113,7 @@ export function LiveBottomPanel({
       index={0}
       snapPoints={snapPoints}
       bottomInset={insets.bottom}
+      animatedPosition={posicionAnimada}
       onChange={(index) => {
         setSheetIndex(index)
         reportHeight(index)
@@ -138,6 +149,42 @@ export function LiveBottomPanel({
             />
           ) : null}
 
+          {onGastos || onAjustes ? (
+            <View style={styles.accesos}>
+              {(
+                [
+                  { texto: 'Gastos', icono: 'dollar-sign', onPress: onGastos, label: 'Gastos compartidos' },
+                  { texto: 'Ajustes', icono: 'sliders', onPress: onAjustes, label: 'Ajustes del viaje' },
+                ] as const
+              ).map((a) =>
+                a.onPress ? (
+                  <Pressable
+                    key={a.texto}
+                    onPress={a.onPress}
+                    style={({ pressed }) => [
+                      styles.acceso,
+                      {
+                        minHeight: endBarMinHeight,
+                        backgroundColor: theme.surface2,
+                        borderColor: theme.border,
+                      },
+                      pressed && styles.endBarPressed,
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel={a.label}
+                  >
+                    <Feather name={a.icono} size={Math.round(17 * escalaBotones)} color={theme.text} />
+                    <Text
+                      style={[styles.accesoTxt, { color: theme.text, fontSize: tamanoOutdoor(14.5 * escalaBotones) }]}
+                    >
+                      {a.texto}
+                    </Text>
+                  </Pressable>
+                ) : null
+              )}
+            </View>
+          ) : null}
+
           <Pressable
             style={({ pressed }) => [
               styles.endBar,
@@ -170,6 +217,24 @@ export function LiveBottomPanel({
 }
 
 const styles = StyleSheet.create({
+  accesos: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+  },
+  acceso: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  accesoTxt: {
+    fontWeight: '700',
+  },
   endBar: {
     paddingVertical: 14,
     alignItems: 'center',

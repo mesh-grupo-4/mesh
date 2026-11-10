@@ -1,9 +1,11 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 
+import { CorazonGuardar } from '@/components/CorazonGuardar';
 import { ActivityTile, Avatar, useTheme } from '@/components/MeshUI';
 import { Pressable } from '@/components/Pressable';
 import { formatDurationHm, formatKm } from '@/lib/format';
+import { nombreCompleto } from '@/lib/nombres';
 import {
   textoAntiguedad,
   textoValoracion,
@@ -15,6 +17,9 @@ import { formatearEnArg } from '@/lib/tiempoArg';
 type Props = {
   recorrido: RecorridoComunidadApi;
   onPress: () => void;
+  /** Toque en el corazón: guardar la ruta o quitarla de guardadas. */
+  onAlternarGuardado: () => void;
+  guardando?: boolean;
 };
 
 /**
@@ -22,7 +27,12 @@ type Props = {
  * más constante quien lo publicó, más resalta. El orden lo decide el backend (RN-082);
  * nada de esto usa velocidad (RN-070).
  */
-export function RecorridoComunidadCard({ recorrido: r, onPress }: Props) {
+export function RecorridoComunidadCard({
+  recorrido: r,
+  onPress,
+  onAlternarGuardado,
+  guardando,
+}: Props) {
   const theme = useTheme();
   const { autor, valoracion, reputacion_autor: reputacion } = r;
   const muyRecomendado = valoracion.muy_recomendado;
@@ -30,7 +40,7 @@ export function RecorridoComunidadCard({ recorrido: r, onPress }: Props) {
   const esDestacado = reputacion.nivel === 'destacado';
   const rachaEncendida = nivelRacha(reputacion.racha_semanas) > 0;
   const insigniasOcultas = reputacion.insignias_total - reputacion.insignias_destacadas.length;
-  const nombreCompleto = [autor.nombre, autor.apellido].filter(Boolean).join(' ');
+  const nombreAutor = nombreCompleto(autor.nombre, autor.apellido);
   const nombreRecorrido = r.nombre?.trim() || 'Recorrido sin nombre';
 
   const borde =
@@ -44,7 +54,7 @@ export function RecorridoComunidadCard({ recorrido: r, onPress }: Props) {
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${nombreRecorrido}, publicado por ${nombreCompleto}`}
+      accessibilityLabel={`${nombreRecorrido}, publicado por ${nombreAutor}`}
       style={[styles.card, borde, { backgroundColor: theme.surface }]}
     >
       {muyRecomendado ? (
@@ -66,7 +76,7 @@ export function RecorridoComunidadCard({ recorrido: r, onPress }: Props) {
           />
           <View style={styles.autorTexto}>
             <Text style={[styles.autorNombre, { color: theme.text }]} numberOfLines={1}>
-              {nombreCompleto}
+              {nombreAutor}
             </Text>
             <Text style={[styles.textoChico, { color: theme.textMute }]} numberOfLines={1}>
               {formatearEnArg(r.publicado_at, { day: '2-digit', month: '2-digit', year: 'numeric' })}
@@ -166,6 +176,12 @@ export function RecorridoComunidadCard({ recorrido: r, onPress }: Props) {
               {formatKm(r.distancia_m)} · {formatDurationHm(r.tiempo_seg)}
             </Text>
           </View>
+          <CorazonGuardar
+            guardada={r.mi_plantilla_id !== null}
+            cargando={guardando}
+            nombre={nombreRecorrido}
+            onPress={onAlternarGuardado}
+          />
         </View>
 
         <View style={styles.pie}>

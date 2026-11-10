@@ -31,6 +31,8 @@ export type RutaPlantillaResumenApi = {
   destino_nombre: string | null
   created_at: string
   con_checklist: boolean
+  /** La ruta de origen es propia (recorrido que publiqué o viaje que creé). */
+  creada_por_mi: boolean
 }
 
 export type RutaPlantillaDetalleApi = RutaSnapshotPreviewApi & {

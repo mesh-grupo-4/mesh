@@ -13,29 +13,12 @@ import {
 import { Pressable } from '@/components/Pressable'
 
 import { useTheme } from '@/components/MeshUI'
-import { MeshApiError } from '@/lib/apiClient'
-import { buscarLugares, type LugarHit } from '@/lib/nominatim'
+import { useSugerenciasLugares } from '@/hooks/useSugerenciasLugares'
+import { MIN_LETRAS_SUGERENCIAS, type LugarSugerencia } from '@/lib/nominatim'
 
 import { ManijaArrastre } from './ParadasReordenables'
 import { StopCategoryPicker } from './StopCategoryPicker'
 import { labelTipoWaypoint, type RouteWaypoint, type StopCategory } from './routeTypes'
-
-/** Traduce la falla real del buscador a algo accionable, en vez de siempre "sin conexión". */
-export function mensajeErrorBusqueda(e: unknown): string {
-  if (e instanceof MeshApiError) {
-    if (e.code === 'GEOCODING_TIMEOUT') {
-      return 'El buscador tardó demasiado en responder. Reintentá o probá el mapa.'
-    }
-    if (e.code === 'GEOCODING_RATE_LIMIT') {
-      return 'Demasiadas búsquedas seguidas. Esperá un momento y reintentá.'
-    }
-    if (e.status === 401) {
-      return 'Tu sesión expiró. Volvé a iniciar sesión.'
-    }
-    return 'No se pudo buscar en este momento. Probá seleccionar en el mapa.'
-  }
-  return 'Sin conexión. Probá seleccionar en el mapa.'
-}
 
 type Props = {
   waypoint: RouteWaypoint
@@ -65,15 +48,18 @@ export function RouteWaypointRow({
 }: Props) {
   const theme = useTheme()
   const [query, setQuery] = useState(waypoint.name)
-  const [debounced, setDebounced] = useState(waypoint.name)
   const [focused, setFocused] = useState(false)
-  const [hits, setHits] = useState<LugarHit[]>([])
-  const [buscando, setBuscando] = useState(false)
-  const [searchError, setSearchError] = useState<string | null>(null)
+  const {
+    sugerencias: hits,
+    buscando,
+    error: searchError,
+    sinResultados,
+    resolver,
+  } = useSugerenciasLugares(query, { activo: focused })
   const selectingRef = useRef(false)
   const inputRef = useRef<TextInput | null>(null)
 
-  const suggestionsVisibles = focused && debounced.length >= 3
+  const suggestionsVisibles = focused && query.trim().length >= MIN_LETRAS_SUGERENCIAS
 
   useEffect(() => {
     onSuggestionsOpenChange?.(suggestionsVisibles)
@@ -82,39 +68,6 @@ export function RouteWaypointRow({
   useEffect(() => {
     setQuery(waypoint.name)
   }, [waypoint.name])
-
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(query.trim()), 500)
-    return () => clearTimeout(t)
-  }, [query])
-
-  useEffect(() => {
-    let cancel = false
-    async function run() {
-      if (!focused || debounced.length < 3) {
-        setHits([])
-        setSearchError(null)
-        return
-      }
-      setBuscando(true)
-      setSearchError(null)
-      try {
-        const r = await buscarLugares(debounced)
-        if (!cancel) setHits(r)
-      } catch (e) {
-        if (!cancel) {
-          setHits([])
-          setSearchError(mensajeErrorBusqueda(e))
-        }
-      } finally {
-        if (!cancel) setBuscando(false)
-      }
-    }
-    void run()
-    return () => {
-      cancel = true
-    }
-  }, [debounced, focused])
 
   const placeholder =
     waypoint.type === 'ORIGIN'
@@ -128,21 +81,18 @@ export function RouteWaypointRow({
       ? `Parada ${(stopIndex ?? 0) + 1}`
       : labelTipoWaypoint(waypoint.type)
 
-  const onSelectHit = (item: LugarHit) => {
-    if (Number.isNaN(item.lat) || Number.isNaN(item.lng)) return
+  const onSelectHit = async (sugerencia: LugarSugerencia) => {
+    const item = await resolver(sugerencia)
+    if (!item || Number.isNaN(item.lat) || Number.isNaN(item.lng)) return
     setQuery(item.nombre)
-    setHits([])
     setFocused(false)
     inputRef.current?.blur()
     Keyboard.dismiss()
     onUpdate(waypoint.id, { lat: item.lat, lon: item.lng, name: item.nombre })
   }
 
-  const cerrarSugerencias = () => {
-    setFocused(false)
-    setHits([])
-    setSearchError(null)
-  }
+  // Al perder el foco el hook deja de buscar y vacía sugerencias y error.
+  const cerrarSugerencias = () => setFocused(false)
 
   const esParada = waypoint.type === 'STOP'
 
@@ -243,23 +193,26 @@ export function RouteWaypointRow({
             { backgroundColor: theme.surface, borderColor: theme.border },
           ]}
         >
-          {buscando ? (
-            <ActivityIndicator size="small" color={theme.accent} style={styles.loader} />
-          ) : searchError ? (
+          {searchError ? (
             <Text style={[styles.errorHits, { color: theme.danger }]}>{searchError}</Text>
           ) : hits.length === 0 ? (
-            <Text style={[styles.noHits, { color: theme.textDim }]}>
-              Sin resultados. Probá otro texto o el mapa.
-            </Text>
+            sinResultados && !buscando ? (
+              <Text style={[styles.noHits, { color: theme.textDim }]}>
+                Sin resultados. Probá otro texto o el mapa.
+              </Text>
+            ) : (
+              <ActivityIndicator size="small" color={theme.accent} style={styles.loader} />
+            )
           ) : (
+            // Las sugerencias anteriores quedan a la vista mientras llega la siguiente búsqueda.
             hits.map((item, i) => (
               <Pressable
-                key={`${item.lat},${item.lng}-${i}`}
+                key={item.placeId ?? `${item.lat},${item.lng}-${i}`}
                 style={[styles.hitRow, { borderColor: theme.border }]}
                 onPressIn={() => {
                   selectingRef.current = true
                 }}
-                onPress={() => onSelectHit(item)}
+                onPress={() => void onSelectHit(item)}
               >
                 <Text style={[styles.hitText, { color: theme.text }]} numberOfLines={2}>
                   {item.nombre}

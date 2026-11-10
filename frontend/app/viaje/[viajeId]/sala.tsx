@@ -15,7 +15,9 @@ import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router
 import QRCode from 'react-native-qrcode-svg'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
+import { AjustesViajeCards } from '@/components/AjustesViajeCards'
 import { AvisoUbicacion, textoPermisoSistema } from '@/components/AvisoUbicacion'
+import { ClimaViajeCard } from '@/components/ClimaViajeCard'
 import { Badge, Btn, TopBar, useTheme } from '@/components/MeshUI'
 import { CodigoViaje } from '@/components/CodigoViaje'
 import { DestinoPicker } from '@/components/viaje-rapido/DestinoPicker'
@@ -28,12 +30,13 @@ import { etiquetaActividad } from '@/lib/activityDefaults'
 import { resolveBackendUserId } from '@/lib/apiClient'
 import { arrancarViaje, avisarSiOtroViajeEnCurso } from '@/lib/arrancarViaje'
 import { buildInviteMessage, buildInviteUrl } from '@/lib/inviteLinks'
-import { meshAlert, meshSuccess, meshWarning } from '@/lib/meshAlert'
+import { meshAlert, meshConfirmDestructive, meshSuccess, meshWarning } from '@/lib/meshAlert'
 import { nombreCompleto } from '@/lib/nombres'
 import { paramTexto } from '@/lib/nuevoViaje'
 import { waypointsFromRutaDetalle } from '@/lib/routePayload'
 import { guardarRutaRapida, type PuntoDestino } from '@/lib/rutaRapida'
 import {
+  eliminarViaje,
   listarParticipantesViaje,
   obtenerRuta,
   obtenerViaje,
@@ -205,6 +208,27 @@ export default function SalaEsperaScreen() {
     }
   }
 
+  /** Un viaje rápido creado por error no tiene por qué quedar como planificado. */
+  const confirmarCancelar = () => {
+    meshConfirmDestructive({
+      title: 'Cancelar viaje',
+      message: 'Se elimina el viaje para vos y para todos los que invitaste.',
+      confirmLabel: 'Cancelar viaje',
+      cancelLabel: 'Volver',
+      onConfirm: async () => {
+        if (!viaje || !userId) return
+        setArrancando(true)
+        try {
+          await eliminarViaje(viaje.id, userId)
+          router.replace('/(tabs)')
+        } catch (e) {
+          meshAlert('Error', e instanceof Error ? e.message : 'No se pudo cancelar el viaje.')
+          setArrancando(false)
+        }
+      },
+    })
+  }
+
   const volver = () => {
     if (router.canGoBack()) router.back()
     else router.replace('/(tabs)')
@@ -278,6 +302,22 @@ export default function SalaEsperaScreen() {
               </Btn>
             </View>
 
+            {/* RN-108: el pronóstico va sobre el recorrido; sin destino no hay nada que mostrar. */}
+            {destino ? (
+              <View style={styles.clima}>
+                <ClimaViajeCard viajeId={viajeId} habilitado claveRefresco={destino} />
+              </View>
+            ) : null}
+
+            {/* RN-025: el viaje rápido nace con los defaults de la actividad; acá se ajustan. */}
+            {viaje && userId ? (
+              <AjustesViajeCards
+                viaje={viaje}
+                userId={userId}
+                onActualizado={(a) => setViaje((prev) => (prev ? { ...prev, ...a } : prev))}
+              />
+            ) : null}
+
             <Text style={[styles.seccion, { color: theme.text }]}>
               En el viaje ({confirmados.length})
             </Text>
@@ -310,6 +350,9 @@ export default function SalaEsperaScreen() {
           <View style={[styles.footer, { paddingBottom: insets.bottom + 16, borderTopColor: theme.border }]}>
             <Btn block size="xl" icon="play" onPress={pedirArrancar} loading={arrancando} disabled={!viaje || arrancando}>
               Arrancar viaje
+            </Btn>
+            <Btn variant="ghost" block onPress={confirmarCancelar} disabled={!viaje || arrancando}>
+              Cancelar viaje
             </Btn>
           </View>
         </>
@@ -368,13 +411,15 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   destino: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   destinoIcono: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  // La tarjeta de clima trae su propio margen superior; el `gap` de la lista ya separa.
+  clima: { marginTop: -12 },
   label: { fontSize: 13, fontWeight: '600' },
   destinoNombre: { fontSize: 16, fontWeight: '700', marginTop: 2 },
   seccion: { fontSize: 18, fontWeight: '800', marginTop: 4 },
   persona: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, paddingVertical: 12 },
   personaNombre: { flex: 1, fontSize: 16, fontWeight: '600' },
   vacio: { fontSize: 15, paddingVertical: 8 },
-  footer: { paddingHorizontal: 16, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth },
+  footer: { paddingHorizontal: 16, paddingTop: 12, gap: 4,borderTopWidth: StyleSheet.hairlineWidth },
   modalBg: { flex: 1, justifyContent: 'center', padding: 20 },
   modalCard: { borderRadius: 20, borderWidth: 1, padding: 20 },
   modalTitulo: { fontSize: 18, fontWeight: '800', marginBottom: 10 },

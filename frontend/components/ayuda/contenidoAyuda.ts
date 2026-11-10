@@ -119,7 +119,7 @@ export const AYUDA_RUTAS: PasoDefinicion[] = [
     nombre: 'rutas.panel',
     orden: ORDEN_PANTALLA.rutas + 1,
     texto:
-      'En Guardadas, tocá una ruta para usarla como base de un viaje nuevo. En Explorar, buscá entre los recorridos que publicó la comunidad.',
+      'En Guardadas, tocá una ruta para usarla como base de un viaje nuevo, o su corazón para quitarla. En Explorar, buscá entre los recorridos que publicó la comunidad y guardá los que te gusten con el corazón.',
   },
 ]
 
@@ -206,7 +206,8 @@ export const AYUDA_VIAJE_LIVE: PasoDefinicion[] = [
   {
     nombre: 'live.panel',
     orden: ORDEN_PANTALLA.viajeLive + 3,
-    texto: 'Tiempo y distancia del viaje, y los botones para detenerte o finalizar.',
+    texto:
+      'Tiempo y distancia del viaje, y los botones para detenerte o finalizar. Deslizá hacia arriba para cargar gastos o ajustar el viaje.',
   },
 ]
 
@@ -595,7 +596,7 @@ export const AYUDA_RECORRIDOS_PUBLICADOS: PasoDefinicion[] = [
     nombre: 'recorridosPublicados.lista',
     orden: ORDEN_PANTALLA.recorridosPublicados + 3,
     texto:
-      'Recorridos que publicó la comunidad. Primero van los muy recomendados y después los más recientes. Resaltan además los de quienes tienen buena racha, antigüedad e insignias. Tocá uno para ver el mapa, valorarlo o usarlo de base para tu viaje.',
+      'Recorridos que publicó la comunidad. Primero van los muy recomendados y después los más recientes. Resaltan además los de quienes tienen buena racha, antigüedad e insignias. Tocá el corazón para guardarlo en tus rutas, o la tarjeta para ver el mapa, valorarlo o usarlo de base para tu viaje.',
   },
 ]
 
@@ -620,7 +621,7 @@ export const AYUDA_RECORRIDO_PUBLICADO: PasoDefinicion[] = [
     nombre: 'recorridoPublicado.usar',
     orden: ORDEN_PANTALLA.recorridoPublicado + 3,
     texto:
-      'Usalo como base de un viaje nuevo o guardalo en tus rutas. Si quien lo publicó compartió su checklist, elegís si te lo llevás también.',
+      'Usalo como base de un viaje nuevo, o guardalo en tus rutas con el corazón de arriba. Si quien lo publicó compartió su checklist, elegís si te lo llevás también.',
   },
   {
     nombre: 'recorridoPublicado.despublicar',

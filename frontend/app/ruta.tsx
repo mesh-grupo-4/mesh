@@ -175,7 +175,6 @@ export default function RutaCompartidaPreviewScreen() {
               <RouteMapView
                 waypoints={mapa.waypoints}
                 routeLineLatLng={mapa.routeLine.length > 1 ? mapa.routeLine : null}
-                mapStyle="standard"
                 initialRegion={initialRegion}
                 cameraTarget={null}
                 fitRouteCoords={fitCoords}

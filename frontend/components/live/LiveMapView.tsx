@@ -14,6 +14,7 @@ import {
   type MeshMapViewHandle,
   type MarkerSpec,
 } from '@/components/maps/MeshMapView'
+import { useCapaMapa } from '@/hooks/useCapaMapa'
 import type { MemberLocation } from '@/hooks/useLiveLocations'
 import type { AlertaApi } from '@/lib/alertasApi'
 import {
@@ -78,7 +79,8 @@ type Props = {
   fantasma?: { lat: number; lng: number; nombre: string; pausado: boolean; traza: [number, number][] } | null
   currentUserId: string
   initialCenter: { latitude: number; longitude: number } | null
-  mapStyle: MapStyleId
+  /** Si no se pasa, usa la vista de mapa elegida por el usuario. */
+  mapStyle?: MapStyleId
   /** El usuario arrastró el mapa a mano — señal para pausar el modo "seguirme". */
   onUserDrag?: () => void
   /** Solo pantalla en vivo: entre pings los marcadores avanzan en vez de saltar. */
@@ -115,7 +117,8 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
   ref
 ) {
   const mapRef = useRef<MeshMapViewHandle>(null)
-  const capa = getMapStyle(mapStyle)
+  const [capaElegida] = useCapaMapa()
+  const capa = getMapStyle(mapStyle ?? capaElegida)
   const centeredOnce = useRef(false)
   const [mapaListo, setMapaListo] = useState(false)
   /** Tramo entre el último ping y tu marcador, para que la traza no quede atrás. */

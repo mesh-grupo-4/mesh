@@ -13,18 +13,28 @@ import {
 import { Feather } from '@expo/vector-icons';
 
 import { Pressable } from '@/components/Pressable';
-import { Btn, Chip, ChipRow, useTheme } from '@/components/MeshUI';
+import {
+  BarraFiltros,
+  BotonLimpiarFiltros,
+  BuscadorFiltros,
+  ChipFiltro,
+  FilaChipsFiltro,
+} from '@/components/BarraFiltros';
+import { Btn, useTheme } from '@/components/MeshUI';
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda';
 import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda';
 import { AYUDA_RECORRIDOS_PUBLICADOS } from '@/components/ayuda/contenidoAyuda';
 import { RecorridoComunidadCard } from '@/components/tabs/RecorridoComunidadCard';
 import { meshError } from '@/lib/meshAlert';
-import { buscarLugares, type LugarHit } from '@/lib/nominatim';
+import { useSugerenciasLugares } from '@/hooks/useSugerenciasLugares';
+import type { LugarSugerencia } from '@/lib/nominatim';
 import { abrirNuevoViaje } from '@/lib/nuevoViaje';
 import {
+  importarRecorridoPublicado,
   listarRecorridosPublicados,
   type RecorridoComunidadApi,
 } from '@/lib/recorridosPublicadosApi';
+import { confirmarQuitarGuardada } from '@/lib/rutasGuardadas';
 import type { TipoActividadApi } from '@/lib/viajesApi';
 
 const FILTROS: { id: TipoActividadApi | null; label: string }[] = [
@@ -58,8 +68,15 @@ export function RutasExplorarPanel() {
   const [radioKm, setRadioKm] = useState<number>(25);
   const [ubicando, setUbicando] = useState(false);
   const [busquedaLugar, setBusquedaLugar] = useState('');
-  const [buscandoLugar, setBuscandoLugar] = useState(false);
-  const [resultados, setResultados] = useState<LugarHit[]>([]);
+  // Sugiere mientras se escribe; se apaga cuando el texto es el lugar ya elegido.
+  const {
+    sugerencias: resultados,
+    buscando: buscandoLugar,
+    error: errorLugar,
+    resolver: resolverLugar,
+  } = useSugerenciasLugares(busquedaLugar, {
+    activo: modoZona === 'lugar' && busquedaLugar !== zona?.etiqueta,
+  });
   const [recorridos, setRecorridos] = useState<RecorridoComunidadApi[]>([]);
   const [cargando, setCargando] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -105,15 +122,46 @@ export function RutasExplorarPanel() {
     }, [cargar])
   );
 
+  const [guardandoId, setGuardandoId] = useState<string | null>(null);
+
+  const marcarGuardado = (recorridoId: string, plantillaId: string | null) =>
+    setRecorridos((prev) =>
+      prev.map((r) => (r.id === recorridoId ? { ...r, mi_plantilla_id: plantillaId } : r))
+    );
+
+  // Corazón de la tarjeta: guarda la ruta (con su checklist, si tiene) o, si ya estaba
+  // guardada, la quita previa confirmación.
+  const alternarGuardado = async (r: RecorridoComunidadApi) => {
+    if (r.mi_plantilla_id) {
+      confirmarQuitarGuardada({
+        nombre: r.nombre?.trim() || 'Recorrido sin nombre',
+        plantillaId: r.mi_plantilla_id,
+        onInicio: () => setGuardandoId(r.id),
+        onFin: () => setGuardandoId(null),
+        onQuitada: () => marcarGuardado(r.id, null),
+      });
+      return;
+    }
+    setGuardandoId(r.id);
+    try {
+      const { plantilla } = await importarRecorridoPublicado(r.id, {
+        guardarChecklist: r.tiene_checklist,
+      });
+      marcarGuardado(r.id, plantilla.id);
+    } catch (e) {
+      meshError('No se pudo guardar la ruta', e instanceof Error ? e.message : undefined);
+    } finally {
+      setGuardandoId(null);
+    }
+  };
+
   const verTodas = () => {
     setModoZona('todas');
     setZona(null);
-    setResultados([]);
   };
 
   const usarMiUbicacion = async () => {
     setModoZona('cerca');
-    setResultados([]);
     setUbicando(true);
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -137,22 +185,11 @@ export function RutasExplorarPanel() {
     setZona(null);
   };
 
-  const buscarLugar = async () => {
-    if (busquedaLugar.trim().length < 3) return;
-    setBuscandoLugar(true);
-    try {
-      setResultados(await buscarLugares(busquedaLugar));
-    } catch (e) {
-      meshError('Búsqueda', e instanceof Error ? e.message : 'No se pudo buscar el lugar.');
-    } finally {
-      setBuscandoLugar(false);
-    }
-  };
-
-  const seleccionarLugar = (lugar: LugarHit) => {
+  const seleccionarLugar = async (sugerencia: LugarSugerencia) => {
+    const lugar = await resolverLugar(sugerencia);
+    if (!lugar) return;
     setZona({ lat: lugar.lat, lng: lugar.lng, etiqueta: lugar.nombre });
     setBusquedaLugar(lugar.nombre);
-    setResultados([]);
   };
 
   const mensajeVacio = q
@@ -161,7 +198,68 @@ export function RutasExplorarPanel() {
       ? 'No hay recorridos publicados que arranquen en esta zona. Probá con un radio mayor.'
       : 'Todavía no hay recorridos publicados. Publicá uno desde el resumen de un viaje finalizado.';
 
+  const filtrosActivos = textoBusqueda.trim() !== '' || filtro !== null || modoZona !== 'todas';
+
+  const limpiarFiltros = () => {
+    setTextoBusqueda('');
+    setFiltro(null);
+    verTodas();
+  };
+
+  const detalleZonaVisible = modoZona === 'lugar' || ubicando || zona !== null;
+
   return (
+    <View style={styles.root}>
+      {/* Barra de búsqueda y filtros (fija, no scrollea): mismo diseño que Viajes. */}
+      <BarraFiltros>
+        <PasoAyuda {...AYUDA_RECORRIDOS_PUBLICADOS[0]!}>
+          <BuscadorFiltros
+            value={textoBusqueda}
+            onChangeText={setTextoBusqueda}
+            placeholder="Buscar por nombre, autor o comentario"
+            accessibilityLabel="Buscar recorridos"
+            maxLength={60}
+          />
+        </PasoAyuda>
+
+        <PasoAyuda {...AYUDA_RECORRIDOS_PUBLICADOS[1]!}>
+          <FilaChipsFiltro>
+            {FILTROS.map((f) => (
+              <ChipFiltro
+                key={f.label}
+                label={f.label}
+                activo={filtro === f.id}
+                onPress={() => setFiltro(f.id)}
+              />
+            ))}
+          </FilaChipsFiltro>
+        </PasoAyuda>
+
+        <PasoAyuda {...AYUDA_RECORRIDOS_PUBLICADOS[2]!}>
+          <FilaChipsFiltro>
+            <ChipFiltro
+              icon="globe"
+              label="Cualquier lugar"
+              activo={modoZona === 'todas'}
+              onPress={verTodas}
+            />
+            <ChipFiltro
+              icon="navigation"
+              label="Cerca mío"
+              activo={modoZona === 'cerca'}
+              onPress={() => void usarMiUbicacion()}
+            />
+            <ChipFiltro
+              icon="map-pin"
+              label="Elegir lugar"
+              activo={modoZona === 'lugar'}
+              onPress={elegirLugar}
+            />
+            {filtrosActivos && <BotonLimpiarFiltros onPress={limpiarFiltros} />}
+          </FilaChipsFiltro>
+        </PasoAyuda>
+      </BarraFiltros>
+
     <ScrollViewAyuda
       contentContainerStyle={[styles.content, { paddingBottom: espacioTabBar }]}
       keyboardShouldPersistTaps="handled"
@@ -174,63 +272,8 @@ export function RutasExplorarPanel() {
         />
       }
     >
-      <PasoAyuda {...AYUDA_RECORRIDOS_PUBLICADOS[0]!}>
-        <View
-          style={[styles.buscador, { backgroundColor: theme.surface, borderColor: theme.border }]}
-        >
-          <Feather name="search" size={18} color={theme.textDim} />
-          <TextInput
-            style={[styles.buscadorInput, { color: theme.text }]}
-            placeholder="Buscar por nombre, autor o comentario"
-            placeholderTextColor={theme.textMute}
-            value={textoBusqueda}
-            onChangeText={setTextoBusqueda}
-            returnKeyType="search"
-            autoCorrect={false}
-            maxLength={60}
-            accessibilityLabel="Buscar recorridos"
-          />
-          {textoBusqueda ? (
-            <Pressable
-              onPress={() => setTextoBusqueda('')}
-              hitSlop={12}
-              accessibilityRole="button"
-              accessibilityLabel="Limpiar búsqueda"
-            >
-              <Feather name="x" size={18} color={theme.textDim} />
-            </Pressable>
-          ) : null}
-        </View>
-      </PasoAyuda>
-
-      <PasoAyuda {...AYUDA_RECORRIDOS_PUBLICADOS[1]!}>
-        <ChipRow>
-          {FILTROS.map((f) => (
-            <Chip key={f.label} active={filtro === f.id} onPress={() => setFiltro(f.id)}>
-              {f.label}
-            </Chip>
-          ))}
-        </ChipRow>
-      </PasoAyuda>
-
-      <PasoAyuda {...AYUDA_RECORRIDOS_PUBLICADOS[2]!}>
+      {detalleZonaVisible ? (
         <View style={styles.zona}>
-          <ChipRow>
-            <Chip icon="globe" active={modoZona === 'todas'} onPress={verTodas}>
-              Cualquier lugar
-            </Chip>
-            <Chip
-              icon="navigation"
-              active={modoZona === 'cerca'}
-              onPress={() => void usarMiUbicacion()}
-            >
-              Cerca mío
-            </Chip>
-            <Chip icon="map-pin" active={modoZona === 'lugar'} onPress={elegirLugar}>
-              Elegir lugar
-            </Chip>
-          </ChipRow>
-
           {modoZona === 'lugar' ? (
             <View style={styles.lugar}>
               <View style={styles.lugarFila}>
@@ -247,27 +290,25 @@ export function RutasExplorarPanel() {
                   placeholderTextColor={theme.textMute}
                   value={busquedaLugar}
                   onChangeText={setBusquedaLugar}
-                  onSubmitEditing={() => void buscarLugar()}
                   returnKeyType="search"
                   autoCorrect={false}
                 />
-                <Pressable
-                  onPress={() => void buscarLugar()}
-                  accessibilityRole="button"
-                  accessibilityLabel="Buscar lugar"
-                  style={[styles.btnBuscar, { backgroundColor: theme.accent }]}
-                >
+                {/* Indicador: las sugerencias aparecen solas mientras se escribe. */}
+                <View style={[styles.btnBuscar, { backgroundColor: theme.accent }]}>
                   {buscandoLugar ? (
                     <ActivityIndicator color={theme.onAccent} size="small" />
                   ) : (
                     <Feather name="search" size={18} color={theme.onAccent} />
                   )}
-                </Pressable>
+                </View>
               </View>
-              {resultados.map((lugar) => (
+              {errorLugar ? (
+                <Text style={[styles.zonaTexto, { color: theme.danger }]}>{errorLugar}</Text>
+              ) : null}
+              {resultados.map((lugar, i) => (
                 <Pressable
-                  key={`${lugar.lat},${lugar.lng},${lugar.nombre}`}
-                  onPress={() => seleccionarLugar(lugar)}
+                  key={lugar.placeId ?? `${lugar.lat},${lugar.lng},${i}`}
+                  onPress={() => void seleccionarLugar(lugar)}
                   style={[
                     styles.resultado,
                     { backgroundColor: theme.surface, borderColor: theme.border },
@@ -291,17 +332,20 @@ export function RutasExplorarPanel() {
               <Text style={[styles.zonaTexto, { color: theme.textDim }]} numberOfLines={2}>
                 Recorridos que arrancan a menos de {radioKm} km de {zona.etiqueta}
               </Text>
-              <ChipRow>
+              <View style={styles.radios}>
                 {RADIOS_KM.map((km) => (
-                  <Chip key={km} active={radioKm === km} onPress={() => setRadioKm(km)}>
-                    {`${km} km`}
-                  </Chip>
+                  <ChipFiltro
+                    key={km}
+                    label={`${km} km`}
+                    activo={radioKm === km}
+                    onPress={() => setRadioKm(km)}
+                  />
                 ))}
-              </ChipRow>
+              </View>
             </>
           ) : null}
         </View>
-      </PasoAyuda>
+      ) : null}
 
       <PasoAyuda {...AYUDA_RECORRIDOS_PUBLICADOS[3]!}>
         <View style={styles.lista}>
@@ -316,6 +360,8 @@ export function RutasExplorarPanel() {
               <RecorridoComunidadCard
                 key={r.id}
                 recorrido={r}
+                guardando={guardandoId === r.id}
+                onAlternarGuardado={() => void alternarGuardado(r)}
                 onPress={() =>
                   router.push({
                     pathname: '/recorridos-publicados/[recorridoId]',
@@ -343,29 +389,19 @@ export function RutasExplorarPanel() {
         </Btn>
       </View>
     </ScrollViewAyuda>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1 },
   content: {
     paddingHorizontal: 20,
-    paddingTop: 4,
+    paddingTop: 12,
     gap: 12,
   },
-  buscador: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-  },
-  buscadorInput: {
-    flex: 1,
-    paddingVertical: 12,
-    fontSize: 16,
-  },
   zona: { gap: 10 },
+  radios: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   zonaTexto: { fontSize: 13, lineHeight: 18 },
   lugar: { gap: 6 },
   lugarFila: { flexDirection: 'row', gap: 8 },

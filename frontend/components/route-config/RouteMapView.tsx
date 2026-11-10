@@ -11,6 +11,7 @@ import {
   type LatLng,
 } from '@/components/maps/MeshMapView'
 import { PinMarker, PIN_ANCHOR } from '@/components/maps/PinMarker'
+import { useCapaMapa } from '@/hooks/useCapaMapa'
 
 import { getMapStyle, type MapStyleId } from './mapStyles'
 import {
@@ -31,7 +32,8 @@ type Props = {
   routeLineLatLng: [number, number][] | null
   /** Línea recta punteada entre waypoints mientras no hay ruta calculada (OSRM aún no respondió o falló). */
   previewLineLatLng?: [number, number][] | null
-  mapStyle: MapStyleId
+  /** Si no se pasa, usa la vista de mapa elegida por el usuario. */
+  mapStyle?: MapStyleId
   initialRegion: {
     latitude: number
     longitude: number
@@ -68,7 +70,8 @@ export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function Route
 ) {
   const theme = useTheme()
   const mapRef = useRef<MeshMapViewHandle>(null)
-  const capa = getMapStyle(mapStyle)
+  const [capaElegida] = useCapaMapa()
+  const capa = getMapStyle(mapStyle ?? capaElegida)
 
   useImperativeHandle(ref, () => ({
     fitRoute(coords) {

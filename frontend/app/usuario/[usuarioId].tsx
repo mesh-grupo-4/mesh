@@ -10,6 +10,7 @@ import { eliminarAmigo, solicitarAmistad } from '@/lib/amistadesApi';
 import { obtenerPerfilPublico, type PerfilPublicoApi } from '@/lib/usuariosApi';
 import { formatDurationHm, formatKmCompact } from '@/lib/format';
 import { meshAlert, meshConfirmDestructive } from '@/lib/meshAlert';
+import { nombreCompleto } from '@/lib/nombres';
 
 const ETIQUETA_ACTIVIDAD: Record<string, string> = {
   moto: 'Moto',
@@ -121,7 +122,7 @@ export default function PerfilUsuarioScreen() {
               ring
             />
             <Text style={[styles.nombre, { color: theme.text }]}>
-              {perfil.nombre} {perfil.apellido ?? ''}
+              {nombreCompleto(perfil.nombre, perfil.apellido)}
               {perfil.es_yo ? ' (Vos)' : ''}
             </Text>
             {perfil.actividad_preferida ? (
