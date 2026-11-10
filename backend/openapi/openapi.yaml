@@ -248,6 +248,10 @@ paths:
   # ── Geocoding ──────────────────────────────────────────────────────────────
   /api/geocoding/buscar:
     $ref: './paths/geocoding.yaml#/BuscarLugares'
+  /api/geocoding/autocompletar:
+    $ref: './paths/geocoding.yaml#/AutocompletarLugares'
+  /api/geocoding/lugares/{placeId}:
+    $ref: './paths/geocoding.yaml#/DetalleLugar'
   /api/geocoding/reverse:
     $ref: './paths/geocoding.yaml#/ReverseGeocoding'
 

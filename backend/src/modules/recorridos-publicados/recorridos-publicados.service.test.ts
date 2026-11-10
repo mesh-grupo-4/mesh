@@ -68,6 +68,7 @@ function armar(overrides: { viaje?: unknown; metrica?: unknown } = {}) {
   const findMany = vi.fn().mockResolvedValue([FILA])
   const queryRaw = vi.fn().mockResolvedValue([{ id: 'r1' }])
   const plantillaFindUnique = vi.fn().mockResolvedValue(null)
+  const plantillaFindMany = vi.fn().mockResolvedValue([])
   const plantillaCreate = vi.fn().mockImplementation(({ data }) =>
     Promise.resolve({ id: 'p1', created_at: new Date(), paradas: [], ...data })
   )
@@ -88,6 +89,7 @@ function armar(overrides: { viaje?: unknown; metrica?: unknown } = {}) {
     recorridoPublicado: { upsert, updateMany, findFirst, findMany },
     rutaPlantilla: {
       findUnique: plantillaFindUnique,
+      findMany: plantillaFindMany,
       create: plantillaCreate,
       update: plantillaUpdate,
     },
@@ -108,6 +110,7 @@ function armar(overrides: { viaje?: unknown; metrica?: unknown } = {}) {
     queryRaw,
     usuarioFindMany,
     plantillaFindUnique,
+    plantillaFindMany,
     plantillaCreate,
     plantillaUpdate,
     checklistFindMany,
@@ -309,6 +312,25 @@ describe('RecorridosPublicadosService lecturas', () => {
     expect(r[1]).toMatchObject({
       reputacion_autor: { racha_semanas: 0, insignias_total: 0, nivel: 'comun' },
     })
+  })
+
+  it('listar y obtener marcan los recorridos que ya guardó quien consulta', async () => {
+    const { service, queryRaw, findMany, plantillaFindMany } = armar()
+    queryRaw.mockResolvedValue([{ id: 'r1' }, { id: 'r2' }])
+    findMany.mockResolvedValue([FILA, { ...FILA, id: 'r2' }])
+    plantillaFindMany.mockResolvedValue([{ id: 'p1', recorrido_publicado_id: 'r2' }])
+
+    const lista = await service.listar(usuarioId, { limit: 20, offset: 0 })
+
+    expect(plantillaFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { usuario_id: usuarioId, recorrido_publicado_id: { in: ['r1', 'r2'] } },
+      })
+    )
+    expect(lista.map((x) => x.mi_plantilla_id)).toEqual([null, 'p1'])
+
+    plantillaFindMany.mockResolvedValue([{ id: 'p1', recorrido_publicado_id: 'r1' }])
+    expect((await service.obtener(usuarioId, 'r1')).mi_plantilla_id).toBe('p1')
   })
 
   it('obtener incluye los ítems del checklist compartido', async () => {

@@ -281,6 +281,7 @@ RecorridosPublicadosColeccion:
                       icono: zap
                       rara: false
                   nivel: leyenda
+                mi_plantilla_id: null
       '400':
         description: |
           Parámetros de consulta inválidos (`VALIDATION_ERROR`): fuera de rango, `lat`
@@ -372,6 +373,7 @@ RecorridoPublicadoPorId:
                 porcentaje_recomienda: 75
                 muy_recomendado: false
                 mi_valoracion: true
+              mi_plantilla_id: 7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d
               segmentos:
                 - - [-31.4201, -64.1888]
                   - [-31.4215, -64.1902]

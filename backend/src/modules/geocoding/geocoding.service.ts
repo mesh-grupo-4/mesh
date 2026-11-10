@@ -3,6 +3,15 @@ import { HttpError } from '../../lib/httpError'
 const NOMINATIM_BASE_URL = 'https://nominatim.openstreetmap.org'
 const GOOGLE_PLACES_SEARCH_URL = 'https://places.googleapis.com/v1/places:searchText'
 const GOOGLE_GEOCODE_URL = 'https://maps.googleapis.com/maps/api/geocode/json'
+const GOOGLE_PLACES_AUTOCOMPLETE_URL = 'https://places.googleapis.com/v1/places:autocomplete'
+const GOOGLE_PLACES_DETALLE_URL = 'https://places.googleapis.com/v1/places'
+
+const GOOGLE_AUTOCOMPLETE_FIELD_MASK =
+  'suggestions.placePrediction.placeId,suggestions.placePrediction.text.text'
+// Solo la coordenada: mantiene el detalle en el SKU más barato (Essentials).
+const GOOGLE_DETALLE_FIELD_MASK = 'location'
+// Radio del sesgo por cercanía del autocompletado (máximo que admite Google).
+const RADIO_SESGO_M = 50000
 
 // Campos mínimos que necesita el buscador (nombre, dirección y coordenadas).
 const GOOGLE_PLACES_FIELD_MASK = 'places.displayName,places.formattedAddress,places.location'
@@ -31,6 +40,40 @@ export type GeocodingHit = {
 
 export type GeocodingReverseResult = {
   nombre: string
+}
+
+/**
+ * Sugerencia mientras el usuario escribe. Las de Google traen `placeId` y sus
+ * coordenadas se piden aparte con `detalleLugar`; las del respaldo (Text
+ * Search / Nominatim) ya vienen con `lat`/`lng` y `placeId` en null.
+ */
+export type GeocodingSugerencia = {
+  nombre: string
+  placeId: string | null
+  lat: number | null
+  lng: number | null
+}
+
+export type GeocodingLugar = {
+  lat: number
+  lng: number
+}
+
+export type OpcionesAutocompletar = {
+  /** Sesga las sugerencias hacia esta posición (no las restringe). */
+  cerca?: { lat: number; lng: number }
+  /** Token de sesión de Google: agrupa el tipeo y el detalle final en un solo cobro. */
+  sesion?: string
+}
+
+type GoogleAutocompleteResponse = {
+  suggestions?: Array<{
+    placePrediction?: { placeId?: string; text?: { text?: string } }
+  }>
+}
+
+type GooglePlaceDetalleResponse = {
+  location?: { latitude?: number; longitude?: number }
 }
 
 type NominatimHit = {
@@ -150,10 +193,51 @@ export class GeocodingService {
     } finally {
       clearTimeout(timeoutId)
     }
+    if (res.status === 404) {
+      throw new HttpError(404, 'No encontramos ese lugar', 'GEOCODING_LUGAR_NO_ENCONTRADO')
+    }
     if (!res.ok) {
       throw new HttpError(502, 'Google respondió con un error', 'GEOCODING_UPSTREAM_ERROR')
     }
     return res.json()
+  }
+
+  private async autocompletarConGoogle(
+    apiKey: string,
+    query: string,
+    opciones: OpcionesAutocompletar
+  ): Promise<GeocodingSugerencia[]> {
+    const data = (await this.fetchGoogle(GOOGLE_PLACES_AUTOCOMPLETE_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask': GOOGLE_AUTOCOMPLETE_FIELD_MASK,
+      },
+      body: JSON.stringify({
+        input: query,
+        languageCode: 'es-419',
+        regionCode: 'AR',
+        includedRegionCodes: ['ar'],
+        ...(opciones.sesion ? { sessionToken: opciones.sesion } : {}),
+        ...(opciones.cerca
+          ? {
+              locationBias: {
+                circle: {
+                  center: { latitude: opciones.cerca.lat, longitude: opciones.cerca.lng },
+                  radius: RADIO_SESGO_M,
+                },
+              },
+            }
+          : {}),
+      }),
+    })) as GoogleAutocompleteResponse
+
+    return (data.suggestions ?? [])
+      .map((s) => s.placePrediction)
+      .filter((p): p is { placeId: string; text: { text: string } } => Boolean(p?.placeId && p.text?.text))
+      .slice(0, MAX_RESULTADOS)
+      .map((p) => ({ nombre: p.text.text, placeId: p.placeId, lat: null, lng: null }))
   }
 
   private async buscarConGoogle(apiKey: string, query: string): Promise<GeocodingHit[]> {
@@ -225,6 +309,46 @@ export class GeocodingService {
       lat: Number(hit.lat),
       lng: Number(hit.lon),
     }))
+  }
+
+  /**
+   * Sugerencias mientras se escribe (Google Places Autocomplete). Si no hay
+   * key o Google falla, cae a `buscar` (Text Search → Nominatim), cuyos
+   * resultados ya traen coordenadas.
+   */
+  async autocompletar(query: string, opciones: OpcionesAutocompletar = {}): Promise<GeocodingSugerencia[]> {
+    if (this.googleApiKey) {
+      try {
+        return await this.autocompletarConGoogle(this.googleApiKey, query, opciones)
+      } catch {
+        // Google caído o sin cuota: seguimos con la búsqueda clásica.
+      }
+    }
+    return (await this.buscar(query)).map((hit) => ({ ...hit, placeId: null }))
+  }
+
+  /** Coordenadas de una sugerencia de Google. Cierra la sesión de autocompletado. */
+  async detalleLugar(placeId: string, sesion?: string): Promise<GeocodingLugar> {
+    if (!this.googleApiKey) {
+      throw new HttpError(503, 'El detalle de lugares no está disponible', 'GEOCODING_NO_DISPONIBLE')
+    }
+    const params = sesion ? `?${new URLSearchParams({ sessionToken: sesion }).toString()}` : ''
+    const data = (await this.fetchGoogle(
+      `${GOOGLE_PLACES_DETALLE_URL}/${encodeURIComponent(placeId)}${params}`,
+      {
+        headers: {
+          'X-Goog-Api-Key': this.googleApiKey,
+          'X-Goog-FieldMask': GOOGLE_DETALLE_FIELD_MASK,
+        },
+      }
+    )) as GooglePlaceDetalleResponse
+
+    const lat = data.location?.latitude
+    const lng = data.location?.longitude
+    if (typeof lat !== 'number' || typeof lng !== 'number') {
+      throw new HttpError(502, 'Google respondió con un error', 'GEOCODING_UPSTREAM_ERROR')
+    }
+    return { lat, lng }
   }
 
   async reverseGeocode(lat: number, lng: number): Promise<GeocodingReverseResult> {

@@ -82,6 +82,175 @@ BuscarLugares:
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'
 
+AutocompletarLugares:
+  get:
+    operationId: autocompletarLugares
+    summary: Sugerir lugares mientras se escribe
+    description: |
+      Devuelve hasta 5 sugerencias para un texto parcial, acotadas a Argentina.
+      Es lo que usan los buscadores de la app en cada pausa de tipeo.
+
+      Con `GOOGLE_MAPS_API_KEY` usa **Google Places API (Autocomplete)**: cada
+      sugerencia trae `placeId` y **no** trae coordenadas (`lat`/`lng` en
+      `null`); se obtienen con `GET /api/geocoding/lugares/{placeId}` cuando el
+      usuario elige una.
+
+      Sin key, o si Google falla, cae a la búsqueda clásica
+      (`GET /api/geocoding/buscar`: Text Search → Nominatim): esas sugerencias
+      ya vienen con `lat`/`lng` y `placeId` en `null`. Los errores documentados
+      abajo corresponden a Nominatim (último proveedor).
+
+      `sesion` es el token de sesión de Google: el cliente genera uno (UUID),
+      lo repite en cada pedido del mismo tipeo y en el detalle final, y así
+      Google cobra la sesión completa como una sola consulta.
+    tags:
+      - Geocoding
+    parameters:
+      - $ref: '../components/parameters.yaml#/GeocodingQuery'
+      - name: lat
+        in: query
+        required: false
+        description: Latitud para priorizar sugerencias cercanas (radio de 50 km). Va junto con `lng`.
+        schema:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+        example: -31.4201
+      - name: lng
+        in: query
+        required: false
+        description: Longitud para priorizar sugerencias cercanas. Va junto con `lat`.
+        schema:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+        example: -64.1888
+      - $ref: '../components/parameters.yaml#/GeocodingSesion'
+    responses:
+      '200':
+        description: Hasta 5 sugerencias, puede ser un array vacío.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/GeocodingSugerencia'
+            example:
+              - nombre: Villa General Belgrano, Provincia de Córdoba
+                placeId: ChIJN1t_tDeuEmsRUsoyG83frY4
+                lat: null
+                lng: null
+              - nombre: Villa General Mitre, Provincia de Córdoba
+                placeId: ChIJrTLr-GyuEmsRBfy61i59si0
+                lat: null
+                lng: null
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '429':
+        description: Nominatim respondió con `429 Too Many Requests` (`GEOCODING_RATE_LIMIT`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Demasiadas búsquedas, esperá un momento
+              code: GEOCODING_RATE_LIMIT
+      '502':
+        description: |
+          No se pudo contactar a Nominatim, o respondió con un error distinto de
+          `429` (`GEOCODING_UPSTREAM_ERROR`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: No se pudo contactar el servicio de búsqueda de lugares
+              code: GEOCODING_UPSTREAM_ERROR
+      '504':
+        description: Nominatim no respondió dentro del timeout de 8s (`GEOCODING_TIMEOUT`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: El servicio de búsqueda de lugares no respondió a tiempo
+              code: GEOCODING_TIMEOUT
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+DetalleLugar:
+  get:
+    operationId: detalleLugar
+    summary: Obtener las coordenadas de una sugerencia
+    description: |
+      Resuelve el `placeId` de una sugerencia de
+      `GET /api/geocoding/autocompletar` a sus coordenadas, con **Google Places
+      API (Place Details)** pidiendo solo `location`. Mandar la misma `sesion`
+      del autocompletado cierra la sesión de cobro.
+
+      No tiene respaldo: los `placeId` solo existen cuando el servidor tiene
+      `GOOGLE_MAPS_API_KEY` (sin key, las sugerencias ya traen coordenadas y
+      este endpoint no hace falta).
+    tags:
+      - Geocoding
+    parameters:
+      - name: placeId
+        in: path
+        required: true
+        description: Identificador de lugar de Google, tal como vino en la sugerencia.
+        schema:
+          type: string
+          pattern: '^[A-Za-z0-9_-]{1,300}$'
+        example: ChIJN1t_tDeuEmsRUsoyG83frY4
+      - $ref: '../components/parameters.yaml#/GeocodingSesion'
+    responses:
+      '200':
+        description: Coordenadas del lugar.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/GeocodingLugar'
+            example:
+              lat: -31.9789
+              lng: -64.5583
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '404':
+        description: Google no conoce ese `placeId` (`GEOCODING_LUGAR_NO_ENCONTRADO`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: No encontramos ese lugar
+              code: GEOCODING_LUGAR_NO_ENCONTRADO
+      '502':
+        description: No se pudo contactar a Google o respondió con un error (`GEOCODING_UPSTREAM_ERROR`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Google respondió con un error
+              code: GEOCODING_UPSTREAM_ERROR
+      '503':
+        description: El servidor no tiene `GOOGLE_MAPS_API_KEY` configurada (`GEOCODING_NO_DISPONIBLE`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: El detalle de lugares no está disponible
+              code: GEOCODING_NO_DISPONIBLE
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
 ReverseGeocoding:
   get:
     operationId: reverseGeocode

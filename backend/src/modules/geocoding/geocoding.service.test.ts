@@ -233,6 +233,100 @@ describe('GeocodingService — Google (con API key)', () => {
     expect(fetchMock.mock.calls[1]![0]).toContain('https://nominatim.openstreetmap.org/search?')
   })
 
+  it('autocompletar usa Places Autocomplete con sesión y sesgo por cercanía', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      okResponse({
+        suggestions: [
+          { placePrediction: { placeId: 'ID_VGB', text: { text: 'Villa General Belgrano, Provincia de Córdoba' } } },
+          { queryPrediction: { text: { text: 'villa general' } } },
+          { placePrediction: { text: { text: 'Sin placeId' } } },
+        ],
+      })
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const sugerencias = await new GeocodingService('KEY_TEST').autocompletar('villa gen', {
+      cerca: { lat: -31.42, lng: -64.18 },
+      sesion: 'sesion-1',
+    })
+
+    expect(sugerencias).toEqual([
+      { nombre: 'Villa General Belgrano, Provincia de Córdoba', placeId: 'ID_VGB', lat: null, lng: null },
+    ])
+    const [url, init] = fetchMock.mock.calls[0]! as [string, RequestInit]
+    expect(url).toBe('https://places.googleapis.com/v1/places:autocomplete')
+    expect((init.headers as Record<string, string>)['X-Goog-Api-Key']).toBe('KEY_TEST')
+    expect(JSON.parse(init.body as string)).toMatchObject({
+      input: 'villa gen',
+      includedRegionCodes: ['ar'],
+      sessionToken: 'sesion-1',
+      locationBias: { circle: { center: { latitude: -31.42, longitude: -64.18 }, radius: 50000 } },
+    })
+  })
+
+  it('autocompletar cae a la búsqueda clásica (con coordenadas) si Autocomplete falla', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(errorResponse(403)) // Autocomplete
+      .mockResolvedValueOnce(errorResponse(403)) // Text Search
+      .mockResolvedValueOnce(okResponse([{ display_name: 'Córdoba, Argentina', lat: '-31.4201', lon: '-64.1888' }]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const sugerencias = await new GeocodingService('KEY_TEST').autocompletar('cordoba')
+
+    expect(sugerencias).toEqual([
+      { nombre: 'Córdoba, Argentina', placeId: null, lat: -31.4201, lng: -64.1888 },
+    ])
+  })
+
+  it('autocompletar sin key usa Nominatim directamente', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(okResponse([{ display_name: 'Córdoba, Argentina', lat: '-31.4201', lon: '-64.1888' }]))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const sugerencias = await new GeocodingService().autocompletar('cordoba')
+
+    expect(sugerencias).toEqual([
+      { nombre: 'Córdoba, Argentina', placeId: null, lat: -31.4201, lng: -64.1888 },
+    ])
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('detalleLugar pide solo la coordenada a Place Details y manda la sesión', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(okResponse({ location: { latitude: -31.9789, longitude: -64.5583 } }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const lugar = await new GeocodingService('KEY_TEST').detalleLugar('ID_VGB', 'sesion-1')
+
+    expect(lugar).toEqual({ lat: -31.9789, lng: -64.5583 })
+    const [url, init] = fetchMock.mock.calls[0]! as [string, RequestInit]
+    expect(url).toBe('https://places.googleapis.com/v1/places/ID_VGB?sessionToken=sesion-1')
+    expect((init.headers as Record<string, string>)['X-Goog-FieldMask']).toBe('location')
+  })
+
+  it('detalleLugar responde 404 GEOCODING_LUGAR_NO_ENCONTRADO si Google no conoce el placeId', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(errorResponse(404)))
+
+    await expect(new GeocodingService('KEY_TEST').detalleLugar('NO_EXISTE')).rejects.toMatchObject({
+      status: 404,
+      code: 'GEOCODING_LUGAR_NO_ENCONTRADO',
+    } satisfies Partial<HttpError>)
+  })
+
+  it('detalleLugar responde 503 GEOCODING_NO_DISPONIBLE sin key, sin llamar a Google', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(new GeocodingService().detalleLugar('ID_VGB')).rejects.toMatchObject({
+      status: 503,
+      code: 'GEOCODING_NO_DISPONIBLE',
+    } satisfies Partial<HttpError>)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('reverseGeocode usa Google Geocoding', async () => {
     const fetchMock = vi
       .fn()

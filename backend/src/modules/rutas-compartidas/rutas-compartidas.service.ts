@@ -300,20 +300,31 @@ export class RutasCompartidasService {
         destino_nombre: true,
         created_at: true,
         checklist: true,
+        recorrido_publicado: { select: { usuario_id: true } },
+        ruta_compartida: {
+          select: { ruta: { select: { viaje: { select: { creador_id: true } } } } },
+        },
       },
     })
 
-    return rows.map((r) => ({
-      id: r.id,
-      nombre: r.nombre,
-      tipo_actividad: r.tipo_actividad,
-      distancia_planeada_m: r.distancia_planeada_m,
-      tiempo_estimado_seg: r.tiempo_estimado_seg,
-      origen_nombre: r.origen_nombre,
-      destino_nombre: r.destino_nombre,
-      created_at: r.created_at,
-      con_checklist: r.checklist.length > 0,
-    }))
+    return rows.map((r) => {
+      // Autor de la ruta de origen: quien publicó el recorrido o creó el viaje compartido.
+      // Si el origen ya no existe no se puede saber, y cuenta como de otro usuario.
+      const autorId =
+        r.recorrido_publicado?.usuario_id ?? r.ruta_compartida?.ruta?.viaje.creador_id ?? null
+      return {
+        id: r.id,
+        nombre: r.nombre,
+        tipo_actividad: r.tipo_actividad,
+        distancia_planeada_m: r.distancia_planeada_m,
+        tiempo_estimado_seg: r.tiempo_estimado_seg,
+        origen_nombre: r.origen_nombre,
+        destino_nombre: r.destino_nombre,
+        created_at: r.created_at,
+        con_checklist: r.checklist.length > 0,
+        creada_por_mi: autorId === usuarioId,
+      }
+    })
   }
 
   async obtenerPlantilla(usuarioId: string, plantillaId: string) {
