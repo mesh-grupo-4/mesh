@@ -3,8 +3,12 @@ import {
   View,
   Text,
   StyleSheet,
-  Linking, 
+  Linking,
   ActivityIndicator,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
 } from 'react-native'
 import { meshAlert } from '@/lib/meshAlert';
 import { Stack, router } from 'expo-router'
@@ -26,7 +30,8 @@ import { ejecutarUnionPorQr } from '@/lib/joinViajeQr'
 import { TopBar, Btn, useTheme } from '@/components/MeshUI'
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
 import { AYUDA_ESCANEAR_QR } from '@/components/ayuda/contenidoAyuda'
-import { IngresarCodigoViajeModal } from '@/components/IngresarCodigoViajeModal'
+import { IngresarCodigoViaje } from '@/components/IngresarCodigoViaje'
+import { Pressable } from '@/components/Pressable'
 
 export default function EscanearQrScreen() {
   const { backendUserId } = useAuth()
@@ -34,7 +39,19 @@ export default function EscanearQrScreen() {
   const { start } = useCopilot()
   const [permission, requestPermission] = useCameraPermissions()
   const [procesando, setProcesando] = useState(false)
-  const [ingresandoCodigo, setIngresandoCodigo] = useState(false)
+  // Con el teclado abierto se oculta el visor para que el campo del código no quede tapado.
+  const [tecladoVisible, setTecladoVisible] = useState(false)
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow'
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide'
+    const show = Keyboard.addListener(showEvent, () => setTecladoVisible(true))
+    const hide = Keyboard.addListener(hideEvent, () => setTecladoVisible(false))
+    return () => {
+      show.remove()
+      hide.remove()
+    }
+  }, [])
 
   // Animated laser line
   const laserY = useSharedValue(10)
@@ -92,27 +109,32 @@ export default function EscanearQrScreen() {
           onAyuda={() => start()}
         />
         
-        <View style={styles.permissionContent}>
-          <View style={[styles.iconContainer, { backgroundColor: theme.accentWeak }]}>
-            <Feather name="camera" size={32} color={theme.accent} />
-          </View>
-          <Text style={[styles.permissionTitle, { color: theme.text }]}>Permiso de cámara</Text>
-          <Text style={[styles.permissionSub, { color: theme.textDim }]}>
-            Mesh necesita acceso a tu cámara para poder escanear los códigos QR de invitaciones a viajes y grupos.
-          </Text>
-          <View style={styles.permissionActions}>
-            <Btn variant="primary" block onPress={() => void requestPermission()}>
-              Permitir acceso
-            </Btn>
-            <Btn variant="ghost" block onPress={() => void Linking.openSettings()}>
-              Abrir ajustes del sistema
-            </Btn>
-            <Btn variant="secondary" block icon="hash" onPress={() => setIngresandoCodigo(true)}>
-              Ingresar código de viaje
-            </Btn>
-          </View>
-        </View>
-        <IngresarCodigoViajeModal visible={ingresandoCodigo} onCerrar={() => setIngresandoCodigo(false)} />
+        <KeyboardAvoidingView
+          style={styles.container}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <ScrollView
+            contentContainerStyle={styles.permissionContent}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={[styles.iconContainer, { backgroundColor: theme.accentWeak }]}>
+              <Feather name="camera" size={32} color={theme.accent} />
+            </View>
+            <Text style={[styles.permissionTitle, { color: theme.text }]}>Permiso de cámara</Text>
+            <Text style={[styles.permissionSub, { color: theme.textDim }]}>
+              Mesh necesita acceso a tu cámara para poder escanear los códigos QR de invitaciones a viajes y grupos.
+            </Text>
+            <View style={styles.permissionActions}>
+              <Btn variant="primary" block onPress={() => void requestPermission()}>
+                Permitir acceso
+              </Btn>
+              <Btn variant="ghost" block onPress={() => void Linking.openSettings()}>
+                Abrir ajustes del sistema
+              </Btn>
+            </View>
+            <IngresarCodigoViaje />
+          </ScrollView>
+        </KeyboardAvoidingView>
       </View>
     )
   }
@@ -125,10 +147,13 @@ export default function EscanearQrScreen() {
         style={styles.camera}
         facing="back"
         barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-        onBarcodeScanned={procesando || ingresandoCodigo ? undefined : ({ data }) => void onBarcode(data)}
+        onBarcodeScanned={procesando || tecladoVisible ? undefined : ({ data }) => void onBarcode(data)}
       />
 
-      <View style={styles.overlayContainer}>
+      <KeyboardAvoidingView
+        style={styles.overlayContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
         {/* Customized transparent Header */}
         <View style={styles.overlayHeader}>
           <TopBar
@@ -147,8 +172,14 @@ export default function EscanearQrScreen() {
         {/* Central Scan Window & Masking */}
         <PasoAyuda {...AYUDA_ESCANEAR_QR[0]!} estilo={styles.scannerZone}>
         <View style={styles.scannerZone}>
-          <View style={styles.maskBlock} />
-          
+          {/* Tocar la zona del visor cierra el teclado y vuelve a escanear. */}
+          <Pressable
+            style={styles.maskBlock}
+            onPress={tecladoVisible ? Keyboard.dismiss : undefined}
+            accessibilityLabel={tecladoVisible ? 'Cerrar teclado' : undefined}
+          />
+
+          {!tecladoVisible && (
           <View style={styles.scannerRow}>
             <View style={styles.maskBlock} />
             
@@ -173,21 +204,19 @@ export default function EscanearQrScreen() {
             
             <View style={styles.maskBlock} />
           </View>
+          )}
 
           <View style={[styles.maskBlock, styles.bottomMask]}>
-            <Text style={styles.hintText}>
-              {procesando ? 'Procesando código de invitación...' : 'Apuntá la cámara al código QR de Mesh'}
-            </Text>
-            {!procesando && (
-              <Btn variant="secondary" icon="hash" onPress={() => setIngresandoCodigo(true)}>
-                Ingresar código de viaje
-              </Btn>
+            {!tecladoVisible && (
+              <Text style={styles.hintText}>
+                {procesando ? 'Procesando código de invitación...' : 'Apuntá la cámara al código QR de Mesh'}
+              </Text>
             )}
+            <IngresarCodigoViaje deshabilitado={procesando} />
           </View>
         </View>
         </PasoAyuda>
-      </View>
-      <IngresarCodigoViajeModal visible={ingresandoCodigo} onCerrar={() => setIngresandoCodigo(false)} />
+      </KeyboardAvoidingView>
     </View>
   )
 }
@@ -227,7 +256,8 @@ const styles = StyleSheet.create({
     flex: 1.5,
     justifyContent: 'flex-start',
     alignItems: 'center',
-    paddingTop: 32,
+    paddingTop: 28,
+    paddingHorizontal: 24,
     gap: 20,
   },
   scanBox: {
@@ -291,8 +321,9 @@ const styles = StyleSheet.create({
     textShadowRadius: 3,
   },
   permissionContent: {
-    flex: 1,
+    flexGrow: 1,
     paddingHorizontal: 32,
+    paddingVertical: 24,
     justifyContent: 'center',
     alignItems: 'center',
     gap: 16,

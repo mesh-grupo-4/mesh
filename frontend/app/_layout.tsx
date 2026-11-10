@@ -28,6 +28,7 @@ import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { consumePendingReturn, setPendingReturn } from '@/lib/pendingDeepLink';
 import { debeMostrarIntro } from '@/lib/introMesh';
 import { cargarPreferenciaTema } from '@/lib/temaApp';
+import { cargarVibracionAvisos } from '@/lib/vibracionPrefs';
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -48,6 +49,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     // El splash espera al tema guardado para no mostrar un destello del otro modo.
+    void cargarVibracionAvisos();
     void Promise.all([cargarPreferenciaTema(), debeMostrarIntro()]).then(([, intro]) => {
       setMostrarIntro(intro);
       setTemaListo(true);

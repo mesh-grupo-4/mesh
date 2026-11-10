@@ -50,24 +50,6 @@ export type PasoDefinicion = {
   texto: string
 }
 
-export const AYUDA_INICIO: PasoDefinicion[] = [
-  {
-    nombre: 'inicio.mapa',
-    orden: ORDEN_PANTALLA.inicio,
-    texto: 'Este es tu mapa: el punto marca dónde estás parado ahora.',
-  },
-  {
-    nombre: 'inicio.viajeYa',
-    orden: ORDEN_PANTALLA.inicio + 1,
-    texto: 'Viaje YA: elegís la actividad, invitás por QR, grupos o amigos, y salen.',
-  },
-  {
-    nombre: 'inicio.enCurso',
-    orden: ORDEN_PANTALLA.inicio + 2,
-    texto: 'Si tenés un viaje en curso, tocá esta tarjeta para volver al mapa en vivo.',
-  },
-]
-
 export const AYUDA_GRUPOS: PasoDefinicion[] = [
   {
     nombre: 'grupos.segmentos',
@@ -287,7 +269,7 @@ export const AYUDA_VIAJE_MIEMBROS: PasoDefinicion[] = [
   {
     nombre: 'viajeMiembros.lista',
     orden: ORDEN_PANTALLA.viajeMiembros,
-    texto: 'Quién confirmó, quién está pendiente y quién salió del viaje. El badge te dice el estado de cada uno.',
+    texto: 'Quién confirmó, quién está pendiente y quién salió del viaje. El badge te dice el estado de cada uno. Si sos líder, desde acá podés avisarles a los que todavía no están.',
   },
 ]
 

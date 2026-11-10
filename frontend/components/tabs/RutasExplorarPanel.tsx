@@ -20,7 +20,7 @@ import {
   ChipFiltro,
   FilaChipsFiltro,
 } from '@/components/BarraFiltros';
-import { Btn, useTheme } from '@/components/MeshUI';
+import { useTheme } from '@/components/MeshUI';
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda';
 import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda';
 import { AYUDA_RECORRIDOS_PUBLICADOS } from '@/components/ayuda/contenidoAyuda';
@@ -28,7 +28,6 @@ import { RecorridoComunidadCard } from '@/components/tabs/RecorridoComunidadCard
 import { meshError } from '@/lib/meshAlert';
 import { useSugerenciasLugares } from '@/hooks/useSugerenciasLugares';
 import type { LugarSugerencia } from '@/lib/nominatim';
-import { abrirNuevoViaje } from '@/lib/nuevoViaje';
 import {
   importarRecorridoPublicado,
   listarRecorridosPublicados,
@@ -373,21 +372,6 @@ export function RutasExplorarPanel() {
           )}
         </View>
       </PasoAyuda>
-
-      <View style={[styles.planificar, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <View style={styles.planificarHeader}>
-          <Feather name="map" size={20} color={theme.accent} />
-          <Text style={[styles.planificarTitulo, { color: theme.text }]}>
-            Planificar una ruta nueva
-          </Text>
-        </View>
-        <Text style={[styles.planificarHint, { color: theme.textDim }]}>
-          Creá un viaje y definí el recorrido desde cero para usarlo con tu grupo.
-        </Text>
-        <Btn block size="lg" icon="plus" variant="secondary" onPress={() => abrirNuevoViaje()}>
-          Crear viaje con ruta
-        </Btn>
-      </View>
     </ScrollViewAyuda>
     </View>
   );
@@ -432,24 +416,4 @@ const styles = StyleSheet.create({
   lista: { gap: 12 },
   spinner: { marginVertical: 48 },
   mensaje: { fontSize: 14, lineHeight: 20, textAlign: 'center', marginVertical: 32 },
-  planificar: {
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 16,
-    gap: 12,
-    marginTop: 4,
-  },
-  planificarHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  planificarTitulo: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  planificarHint: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
 });

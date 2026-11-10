@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Modal, StyleSheet, Text, View } from 'react-native'
+import { Modal, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native'
 import { Feather } from '@expo/vector-icons'
 
 import { useTheme } from '@/components/MeshUI'
@@ -12,10 +12,13 @@ type Props = {
   onChange: (id: MapStyleId) => void
   /** Distancia desde arriba de la pantalla a la que se abre el menú. */
   menuTop: number
+  /** Lado de la pantalla al que se alinea el menú. Por defecto, la derecha. */
+  menuLado?: 'izquierda' | 'derecha'
+  style?: StyleProp<ViewStyle>
 }
 
-/** Botón de capas para una barra superior: abre el menú para elegir la vista del mapa. */
-export function SelectorCapaMapa({ value, onChange, menuTop }: Props) {
+/** Botón de capas: abre el menú para elegir la vista del mapa. */
+export function SelectorCapaMapa({ value, onChange, menuTop, menuLado = 'derecha', style }: Props) {
   const theme = useTheme()
   const [abierto, setAbierto] = useState(false)
   const actual = MAP_STYLES.find((s) => s.id === value) ?? MAP_STYLES[0]!
@@ -33,6 +36,7 @@ export function SelectorCapaMapa({ value, onChange, menuTop }: Props) {
             backgroundColor: pressed ? theme.surface2 : theme.surface,
             borderColor: theme.border,
           },
+          style,
         ]}
       >
         <Feather name="layers" size={22} color={theme.accent} />
@@ -57,6 +61,7 @@ export function SelectorCapaMapa({ value, onChange, menuTop }: Props) {
           accessibilityRole="menu"
           style={[
             styles.menu,
+            menuLado === 'izquierda' ? { left: 16 } : { right: 16 },
             { top: menuTop, backgroundColor: theme.surface, borderColor: theme.border },
           ]}
         >
@@ -104,7 +109,6 @@ const styles = StyleSheet.create({
   },
   menu: {
     position: 'absolute',
-    right: 16,
     width: 200,
     padding: 6,
     gap: 2,

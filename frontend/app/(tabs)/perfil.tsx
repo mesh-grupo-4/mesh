@@ -15,6 +15,7 @@ import { listarSolicitudesAmistadPendientes } from '@/lib/amistadesApi';
 import { listarMisInsignias, type InsigniaObtenidaApi } from '@/lib/insigniasApi';
 import { intensidadRacha, nivelRacha, obtenerMiRacha, type RachaApi } from '@/lib/rachasApi';
 import { usePreferenciaTema } from '@/lib/temaApp';
+import { elegirVibracionAvisos, useVibracionAvisos } from '@/lib/vibracionPrefs';
 import { Avatar, TopBar, useTheme } from '@/components/MeshUI';
 import { BotonAyuda } from '@/components/ayuda/BotonAyuda';
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda';
@@ -36,6 +37,7 @@ export default function PerfilScreen() {
   const { user, profile, logout, backendUserId, esSuperadmin } = useAuth();
   const theme = useTheme();
   const preferenciaTema = usePreferenciaTema();
+  const vibracionAvisos = useVibracionAvisos();
 
   const [loggingOut, setLoggingOut] = useState(false);
   const [solicitudesPendientes, setSolicitudesPendientes] = useState(0);
@@ -303,6 +305,16 @@ export default function PerfilScreen() {
             titulo="Apariencia"
             subtitulo={etiquetaTema(preferenciaTema)}
             onPress={() => router.push('/apariencia')}
+          />
+          <FilaOpcion
+            icono="smartphone"
+            titulo="Vibración de avisos"
+            subtitulo={
+              vibracionAvisos
+                ? 'Activada · tocá para apagarla'
+                : 'Apagada · las alertas críticas vibran igual'
+            }
+            onPress={() => elegirVibracionAvisos(!vibracionAvisos)}
           />
           {/* RN-120: entrada al backoffice, solo para superadmins (el backend valida igual). */}
           {esSuperadmin && (

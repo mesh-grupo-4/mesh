@@ -99,6 +99,16 @@ export const MENSAJE_PREDETERMINADO: Record<TipoAlertaApi, string> = {
   atraso: 'Vamos con atraso, ajusten el ritmo.',
 }
 
+/**
+ * Gravedad de una alerta: define cómo vibra al entrar (`lib/haptics.ts`).
+ * Espejo de `gravedadDeAlerta` en `backend/src/lib/gravedadAlerta.ts`.
+ */
+export function gravedadAlerta(tipo: TipoAlertaApi): 'critica' | 'importante' | 'informativa' {
+  if (tipo === 'peligro') return 'critica'
+  if (tipo === 'informacion') return 'informativa'
+  return 'importante'
+}
+
 export function metaTipoAlerta(tipo: TipoAlertaApi) {
   return TIPOS_ALERTA.find((t) => t.id === tipo) ?? TIPOS_ALERTA[4]!
 }

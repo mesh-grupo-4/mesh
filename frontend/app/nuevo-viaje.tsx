@@ -4,6 +4,7 @@ import { Feather } from '@expo/vector-icons'
 import { router, useLocalSearchParams } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
+import { DragToDismiss } from '@/components/DragToDismiss'
 import { useTheme } from '@/components/MeshUI'
 import { paramTexto, type NuevoViajeParams } from '@/lib/nuevoViaje'
 
@@ -43,29 +44,35 @@ export default function NuevoViajeScreen() {
         accessibilityLabel="Cerrar"
       />
 
-      <View
+      <DragToDismiss
+        onDismiss={() => router.back()}
         style={[
           styles.sheet,
           { backgroundColor: theme.background, borderColor: theme.border, paddingBottom: insets.bottom + 20 },
         ]}
       >
         <View style={[styles.grabber, { backgroundColor: theme.borderStrong }]} />
-        <Text style={[styles.titulo, { color: theme.text }]}>Nuevo viaje</Text>
+        <View style={styles.encabezado}>
+          <Text style={[styles.titulo, { color: theme.text }]}>Nuevo viaje</Text>
+          <Text style={[styles.subtitulo, { color: theme.textDim }]}>
+            ¿Salen ahora o lo dejás armado para otro momento?
+          </Text>
+        </View>
 
         <Opcion
           icon="zap"
           titulo="Viaje YA"
-          detalle="Salís ahora: elegís la actividad, invitás y arrancan."
+          detalle="Arrancan ahora. Elegí la actividad y, si querés, un destino; después compartís el QR y salen."
           destacada
           onPress={() => ir('rapido')}
         />
         <Opcion
           icon="calendar"
           titulo="Planificar viaje"
-          detalle="Fecha, recorrido, parámetros e invitados con tiempo."
+          detalle="Para otro día. Definí fecha y hora, el recorrido con paradas, los parámetros del grupo y a quién invitar."
           onPress={() => ir('planificar')}
         />
-      </View>
+      </DragToDismiss>
     </View>
   )
 }
@@ -129,7 +136,9 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   grabber: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, marginBottom: 6 },
-  titulo: { fontSize: 22, fontWeight: '800', marginBottom: 4 },
+  encabezado: { gap: 2, marginBottom: 4 },
+  titulo: { fontSize: 22, fontWeight: '800' },
+  subtitulo: { fontSize: 15, lineHeight: 20 },
   opcion: {
     flexDirection: 'row',
     alignItems: 'center',
