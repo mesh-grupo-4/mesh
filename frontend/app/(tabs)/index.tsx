@@ -3,15 +3,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { Pressable } from '@/components/Pressable'
 import { router, useFocusEffect, useIsFocused } from 'expo-router'
-import { Feather, FontAwesome } from '@expo/vector-icons'
+import { Feather } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useAuth } from '@/context/AuthContext'
 import { useTripRealtime } from '@/context/TripRealtimeContext'
 import { Badge, MeshLogo, useTheme } from '@/components/MeshUI'
-import { BotonAyuda } from '@/components/ayuda/BotonAyuda'
-import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
-import { AYUDA_INICIO } from '@/components/ayuda/contenidoAyuda'
 import { MeshMapView, type MeshMapViewHandle } from '@/components/maps/MeshMapView'
 import { getMapStyle } from '@/components/route-config/mapStyles'
 import { SelectorCapaMapa } from '@/components/route-config/SelectorCapaMapa'
@@ -87,16 +84,23 @@ export default function InicioScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <PasoAyuda {...AYUDA_INICIO[0]!} estilo={[StyleSheet.absoluteFill, { top: altoBarra }]}>
-        <MeshMapView
-          ref={mapRef}
-          style={StyleSheet.absoluteFill}
-          initialCenter={{ latitude: REGION_FALLBACK.latitude, longitude: REGION_FALLBACK.longitude }}
-          initialZoom={12}
-          mapStyle={getMapStyle(capaMapa)}
-          userLocation={ubicacion}
-        />
-      </PasoAyuda>
+      <MeshMapView
+        ref={mapRef}
+        style={[StyleSheet.absoluteFill, { top: altoBarra }]}
+        initialCenter={{ latitude: REGION_FALLBACK.latitude, longitude: REGION_FALLBACK.longitude }}
+        initialZoom={12}
+        mapStyle={getMapStyle(capaMapa)}
+        userLocation={ubicacion}
+      />
+
+      {/* Vista del mapa: flota sobre el mapa, arriba a la izquierda. */}
+      <SelectorCapaMapa
+        value={capaMapa}
+        onChange={setCapaMapa}
+        menuTop={altoBarra + 12 + 48 + 8}
+        menuLado="izquierda"
+        style={[styles.capaFlotante, styles.sombra, { top: altoBarra + 12 }]}
+      />
 
       <View
         style={[
@@ -110,24 +114,22 @@ export default function InicioScreen() {
         ]}
       >
         <MeshLogo size={22} />
-        <View style={styles.barraAcciones}>
-          <SelectorCapaMapa value={capaMapa} onChange={setCapaMapa} menuTop={altoBarra + 8} />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Escanear un QR para unirte"
-            onPress={() => router.push('/escanear-qr')}
-            style={({ pressed }) => [
-              styles.barraBoton,
-              {
-                backgroundColor: pressed ? theme.surface2 : theme.surface,
-                borderColor: theme.border,
-              },
-            ]}
-          >
-            <FontAwesome name="qrcode" size={24} color={theme.accent} />
-          </Pressable>
-          <BotonAyuda size={48} />
-        </View>
+        {/* Lleva a la pantalla de unirse: escanear el QR o ingresar el código. */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Unirme a un viaje con QR o código"
+          onPress={() => router.push('/escanear-qr')}
+          style={({ pressed }) => [
+            styles.unirme,
+            {
+              backgroundColor: pressed ? theme.surface2 : theme.surface,
+              borderColor: theme.border,
+            },
+          ]}
+        >
+          <Feather name="log-in" size={20} color={theme.accent} />
+          <Text style={[styles.unirmeTexto, { color: theme.text }]}>Unirme a un viaje</Text>
+        </Pressable>
       </View>
 
       <View
@@ -136,56 +138,52 @@ export default function InicioScreen() {
       >
         {/* Con un viaje en curso no se ofrece iniciar otro: la acción es volver a ese viaje. */}
         {!enCurso && (
-          <PasoAyuda {...AYUDA_INICIO[1]!} estilo={styles.viajeYaPaso}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={abrirViajeYa}
-              style={({ pressed }) => [
-                styles.viajeYa,
-                styles.sombra,
-                { backgroundColor: theme.accent },
-                pressed && styles.presionado,
-              ]}
-            >
-              <Feather name="zap" size={20} color={theme.onAccent} />
-              <Text style={[styles.viajeYaTexto, { color: theme.onAccent }]}>Viaje YA</Text>
-            </Pressable>
-          </PasoAyuda>
+          <Pressable
+            accessibilityRole="button"
+            onPress={abrirViajeYa}
+            style={({ pressed }) => [
+              styles.viajeYa,
+              styles.sombra,
+              { backgroundColor: theme.accent },
+              pressed && styles.presionado,
+            ]}
+          >
+            <Feather name="zap" size={20} color={theme.onAccent} />
+            <Text style={[styles.viajeYaTexto, { color: theme.onAccent }]}>Viaje YA</Text>
+          </Pressable>
         )}
 
         {enCurso && (
-          <PasoAyuda {...AYUDA_INICIO[2]!}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() =>
-                router.push({ pathname: '/viaje/[viajeId]/live', params: { viajeId: enCurso.id } })
-              }
-              style={({ pressed }) => [
-                styles.panel,
-                styles.sombra,
-                { backgroundColor: pressed ? theme.surface2 : theme.surface },
-              ]}
-            >
-              <View style={[styles.filete, styles.fileteViaje, { borderColor: theme.accentLine }]}>
-                <View style={styles.enCursoInfo}>
-                  <View style={styles.enCursoTop}>
-                    <Badge tone="live" pulse>
-                      EN VIVO
-                    </Badge>
-                    <Text style={[styles.enCursoMeta, { color: theme.textDim }]} numberOfLines={1}>
-                      {horaInicio(enCurso.fecha_inicio_real)}
-                    </Text>
-                  </View>
-                  <Text style={[styles.enCursoTitulo, { color: theme.text }]} numberOfLines={1}>
-                    {enCurso.nombre || etiquetaActividad(enCurso.tipo_actividad)}
+          <Pressable
+            accessibilityRole="button"
+            onPress={() =>
+              router.push({ pathname: '/viaje/[viajeId]/live', params: { viajeId: enCurso.id } })
+            }
+            style={({ pressed }) => [
+              styles.panel,
+              styles.sombra,
+              { backgroundColor: pressed ? theme.surface2 : theme.surface },
+            ]}
+          >
+            <View style={[styles.filete, styles.fileteViaje, { borderColor: theme.accentLine }]}>
+              <View style={styles.enCursoInfo}>
+                <View style={styles.enCursoTop}>
+                  <Badge tone="live" pulse>
+                    EN VIVO
+                  </Badge>
+                  <Text style={[styles.enCursoMeta, { color: theme.textDim }]} numberOfLines={1}>
+                    {horaInicio(enCurso.fecha_inicio_real)}
                   </Text>
                 </View>
-                <View style={[styles.enCursoFlecha, { backgroundColor: theme.accent }]}>
-                  <Feather name="arrow-right" size={22} color={theme.onAccent} />
-                </View>
+                <Text style={[styles.enCursoTitulo, { color: theme.text }]} numberOfLines={1}>
+                  {enCurso.nombre || etiquetaActividad(enCurso.tipo_actividad)}
+                </Text>
               </View>
-            </Pressable>
-          </PasoAyuda>
+              <View style={[styles.enCursoFlecha, { backgroundColor: theme.accent }]}>
+                <Feather name="arrow-right" size={22} color={theme.onAccent} />
+              </View>
+            </View>
+          </Pressable>
         )}
 
         {ubicacion && (
@@ -220,15 +218,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  barraAcciones: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  barraBoton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  unirme: {
+    height: 44,
+    paddingHorizontal: 16,
+    borderRadius: 22,
     borderWidth: 1,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 8,
   },
+  unirmeTexto: { fontSize: 16, fontWeight: '700' },
+  capaFlotante: { position: 'absolute', left: 16 },
   sombra: {
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 3 },
@@ -239,8 +239,8 @@ const styles = StyleSheet.create({
   dock: { position: 'absolute', left: 16, right: 16, gap: 12 },
   // Con viaje en curso, reserva la fila del botón de centrar arriba de la tarjeta.
   dockConCentrar: { paddingTop: 64 },
-  viajeYaPaso: { alignSelf: 'flex-start' },
   viajeYa: {
+    alignSelf: 'flex-start',
     height: 52,
     paddingHorizontal: 20,
     borderRadius: 26,

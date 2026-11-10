@@ -60,10 +60,11 @@ import { haversineDistanceM } from '@/lib/geo/haversine'
 import { buscarLugaresCercanos, type CategoriaLugar, type LugarSugerido } from '@/lib/lugaresApi'
 import { calcularGuiaHastaDestino } from '@/lib/osrmGuia'
 import { dividirRutaPorAvance } from '@/lib/geo/routeProgress'
-import { useHapticaAlEntrar } from '@/lib/haptics'
+import { useHapticaAlEntrar, useHapticaCriticaRepetida } from '@/lib/haptics'
+import { marcarViajeEnPantalla } from '@/hooks/usePushNotifications'
 import { formatPaceMinKm, formatSpeedKmh } from '@/lib/format'
 import { nombreCompleto } from '@/lib/nombres'
-import type { TipoAlertaApi } from '@/lib/alertasApi'
+import { gravedadAlerta, type TipoAlertaApi } from '@/lib/alertasApi'
 import type { CategoriaParadaApi } from '@/lib/paradasApi'
 import { motivoParadaLegible } from '@/lib/paradasApi'
 import { waypointTieneCoords } from '@/components/route-config/routeTypes'
@@ -863,11 +864,38 @@ export default function ViajeLiveScreen() {
   // la fila de paradas.
   const incidentePropio = paradaActiva?.tipo === 'incidente_detectado'
 
-  // Trekking/running priorizan la vibración sobre mirar la pantalla (RN-052).
-  useHapticaAlEntrar(Boolean(alertaEntrante), tipoActividad, 'alerta')
-  useHapticaAlEntrar(Boolean(paradaEntrante), tipoActividad, 'alerta')
-  useHapticaAlEntrar(Boolean(llegada), tipoActividad, 'exito')
-  useHapticaAlEntrar(incidentePropio, tipoActividad, 'alerta')
+  // Todas las actividades vibran y el patrón depende de la gravedad;
+  // trekking/running además lo repiten (RN-052).
+  useHapticaAlEntrar(
+    alertaEntrante?.id ?? null,
+    tipoActividad,
+    alertaEntrante ? gravedadAlerta(alertaEntrante.tipo) : 'importante'
+  )
+  useHapticaAlEntrar(paradaEntrante?.paradaId ?? null, tipoActividad, 'importante')
+  useHapticaAlEntrar(llegada ? 'llegada' : null, tipoActividad, 'exito')
+  // Solicitudes de parada: al líder cuando entra una, al solicitante cuando se resuelve.
+  useHapticaAlEntrar(
+    esLider ? (pendientes[0]?.solicitudId ?? null) : null,
+    tipoActividad,
+    'importante'
+  )
+  useHapticaAlEntrar(
+    miSolicitud && (miSolicitud.estado === 'aprobada' || miSolicitud.estado === 'rechazada')
+      ? `${miSolicitud.id}:${miSolicitud.estado}`
+      : null,
+    tipoActividad,
+    'importante'
+  )
+  // "¿Estás bien?": insiste cada 5 s hasta que la persona responde.
+  useHapticaCriticaRepetida(incidentePropio && !paradaActiva?.necesita_ayuda)
+
+  // Con esta pantalla abierta los avisos del viaje ya se ven y vibran acá:
+  // la push del mismo viaje no vuelve a sonar.
+  useEffect(() => {
+    if (!viajeId) return
+    marcarViajeEnPantalla(viajeId)
+    return () => marcarViajeEnPantalla(null)
+  }, [viajeId])
   const bottomCentrar = (altoBotonera || 130) + 12
   const extraIncidente = incidentePropio ? 236 : 0
   const altoFlotantesInferiores = Math.round(48 * uiConfig.escalaBotones)

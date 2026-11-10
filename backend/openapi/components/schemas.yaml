@@ -65,6 +65,7 @@ ErrorCode:
     - VALORACION_EXISTENTE
     - INVALID_STATE
     - OTRO_VIAJE_EN_CURSO
+    - AVISO_RECIENTE
     - INVALID_TRANSITION
     - TRIP_NOT_FINISHED
     - TRIP_NOT_PLANNED
@@ -182,6 +183,27 @@ ErrorOtroViajeEnCurso:
       type: string
       format: uuid
       description: Viaje en curso que impide iniciar este.
+  additionalProperties: false
+
+ErrorAvisoReciente:
+  type: object
+  description: |
+    Error `AVISO_RECIENTE` (RN-029e): además de la forma estándar, indica cuánto falta
+    para que el líder pueda volver a avisar a los que faltan.
+  required:
+    - error
+    - code
+    - reintentar_en_seg
+  properties:
+    error:
+      type: string
+      description: Mensaje en español, redactado para mostrarse al usuario final.
+    code:
+      $ref: '#/ErrorCode'
+    reintentar_en_seg:
+      type: integer
+      description: Segundos que faltan para poder mandar otro aviso.
+      example: 85
   additionalProperties: false
 
 ValidationError:
@@ -2091,6 +2113,30 @@ CheckInRequest:
         si se omite, se usa la hora del servidor.
       example: '2026-08-21T14:05:00.000Z'
   additionalProperties: false
+
+AvisoFaltantes:
+  type: object
+  required:
+    - viaje_id
+    - faltantes
+    - avisados
+    - espera_seg
+  properties:
+    viaje_id:
+      type: string
+      format: uuid
+    faltantes:
+      type: integer
+      description: Confirmados que todavía no están (sin contar al líder).
+      example: 3
+    avisados:
+      type: integer
+      description: A cuántos de ellos se les mandó la push (tienen notificaciones activas).
+      example: 2
+    espera_seg:
+      type: integer
+      description: Segundos que hay que esperar para volver a avisar.
+      example: 120
 
 CheckInViaje:
   type: object

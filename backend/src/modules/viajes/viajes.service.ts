@@ -62,6 +62,14 @@ const ORDEN_ESTADO_INTEGRANTE: Record<EstadoViajeIntegrante, number> = {
   rechazado: 4,
 }
 
+/** RN-029e: espera mínima entre dos avisos del líder a los que faltan, por viaje. */
+export const ESPERA_AVISO_FALTANTES_MS = 2 * 60 * 1000
+/**
+ * Último aviso por viaje. En memoria: si el proceso reinicia, lo peor que pasa es
+ * que el líder pueda avisar de nuevo antes de tiempo.
+ */
+const ultimoAvisoFaltantes = new Map<string, number>()
+
 export class ViajesService {
   private readonly rutasCompartidas: RutasCompartidasService
   private readonly motor: MotorEventosService
@@ -1014,8 +1022,112 @@ export class ViajesService {
       fechaInicioReal: actualizado.fecha_inicio_real?.toISOString() ?? null,
       iniciadoPor: creadorId,
     })
+    // RN-029e: el evento de sala solo llega con la app abierta; la push avisa al resto.
+    void this.notificarFaltantes(viajeId, creadorId, {
+      title: 'El viaje arrancó',
+      body: `${actualizado.nombre ? `"${actualizado.nombre}"` : 'El viaje'} ya está en curso. Tocá "Me sumo" para unirte.`,
+    })
 
     return actualizado
+  }
+
+  /**
+   * RN-029e: el líder les avisa por push a los que confirmaron pero todavía no
+   * están. Antes de iniciar va a todos los confirmados ("estamos por salir"); con
+   * el viaje en curso, solo a los que no tocaron "Me sumo". Texto fijo y sin
+   * ubicación de nadie. Un aviso cada `ESPERA_AVISO_FALTANTES_MS` por viaje.
+   */
+  async avisarFaltantes(liderId: string, viajeId: string) {
+    const viaje = await this.prisma.viaje.findUnique({
+      where: { id: viajeId },
+      select: {
+        estado: true,
+        nombre: true,
+        creador_id: true,
+        creador: { select: { nombre: true, apellido: true } },
+      },
+    })
+    if (!viaje) throw new HttpError(404, 'Viaje no encontrado', 'VIAJE_NOT_FOUND')
+    if (viaje.creador_id !== liderId) {
+      throw new HttpError(403, 'Solo el líder puede avisar a los que faltan', 'NOT_CREATOR')
+    }
+    if (viaje.estado === 'finalizado') {
+      throw new HttpError(409, 'El viaje ya finalizó', 'INVALID_STATE')
+    }
+
+    const ahora = Date.now()
+    const ultimo = ultimoAvisoFaltantes.get(viajeId)
+    if (ultimo != null && ahora - ultimo < ESPERA_AVISO_FALTANTES_MS) {
+      const reintentarEnSeg = Math.ceil((ESPERA_AVISO_FALTANTES_MS - (ahora - ultimo)) / 1000)
+      throw new HttpError(
+        429,
+        `Ya les avisaste recién. Podés volver a avisar en ${reintentarEnSeg} s.`,
+        'AVISO_RECIENTE',
+        { reintentar_en_seg: reintentarEnSeg }
+      )
+    }
+
+    const nombreViaje = viaje.nombre ? `"${viaje.nombre}"` : 'El viaje'
+    const lider = nombreVisible(viaje.creador.nombre, viaje.creador.apellido)
+    const { faltantes, avisados } = await this.notificarFaltantes(
+      viajeId,
+      liderId,
+      viaje.estado === 'planificado'
+        ? { title: 'Estamos por salir', body: `${lider} avisa que ${nombreViaje} está por arrancar.` }
+        : {
+            title: 'Ya arrancamos',
+            body: `${nombreViaje} ya está en curso. Tocá "Me sumo" para unirte.`,
+          }
+    )
+    // Sin nadie a quien avisar no se consume la espera.
+    if (faltantes > 0) ultimoAvisoFaltantes.set(viajeId, ahora)
+
+    return {
+      viaje_id: viajeId,
+      faltantes,
+      avisados,
+      espera_seg: ESPERA_AVISO_FALTANTES_MS / 1000,
+    }
+  }
+
+  /**
+   * Push a los confirmados sin check-in, menos el líder. En un viaje planificado
+   * nadie hizo check-in todavía, así que son todos los confirmados.
+   * `faltantes` = a cuántos les corresponde; `avisados` = cuántos tienen push activa.
+   */
+  private async notificarFaltantes(
+    viajeId: string,
+    liderId: string,
+    mensaje: { title: string; body: string }
+  ): Promise<{ faltantes: number; avisados: number }> {
+    try {
+      const filas = await this.prisma.viajeIntegrante.findMany({
+        where: {
+          viaje_id: viajeId,
+          estado: 'confirmado',
+          check_in_at: null,
+          usuario_id: { not: liderId },
+        },
+        select: { usuario: { select: { push_token: true } } },
+      })
+      const tokens = filas.map((f) => f.usuario.push_token).filter((t): t is string => !!t)
+      if (tokens.length > 0) {
+        const { sendExpoPush } = await import('../../lib/expoPush')
+        await sendExpoPush(
+          tokens.map((to) => ({
+            to,
+            ...mensaje,
+            data: { viajeId, tipo: 'aviso_salida' },
+            sound: 'default' as const,
+            gravedad: 'importante' as const,
+          }))
+        )
+      }
+      return { faltantes: filas.length, avisados: tokens.length }
+    } catch (e) {
+      console.warn('[viajes] notificarFaltantes falló:', e)
+      return { faltantes: 0, avisados: 0 }
+    }
   }
 
   /**

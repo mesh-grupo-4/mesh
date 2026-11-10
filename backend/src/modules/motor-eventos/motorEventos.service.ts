@@ -10,6 +10,7 @@ import { distanciaMetros } from '../../lib/geo2d'
 import { esMotorizado } from '../../lib/actividad'
 import type { GeoJsonLineString } from '../../lib/geo'
 import { computeDistanciaPuntoARutaM, computeProgresoEnRutaM } from '../../lib/postgis'
+import { gravedadDeAlerta, type GravedadAviso } from '../../lib/gravedadAlerta'
 import { getIo } from '../../realtime/ioRegistry'
 import { armarLeaderboard, type IntegranteEnRuta } from '../viajes/leaderboard'
 import { WHERE_INTEGRANTE_ACTIVO } from '../viajes/viajes.membership'
@@ -571,7 +572,8 @@ export class MotorEventosService {
       input.usuarioAfectadoId,
       input.tituloPush,
       input.mensaje,
-      input.notificarSoloLider ?? false
+      input.notificarSoloLider ?? false,
+      gravedadDeAlerta(input.tipo)
     )
   }
 
@@ -588,7 +590,8 @@ export class MotorEventosService {
     autorExcluidoId: string,
     titulo: string,
     mensaje: string,
-    soloLider: boolean
+    soloLider: boolean,
+    gravedad: GravedadAviso
   ): Promise<void> {
     try {
       const viaje = await this.prisma.viaje.findUnique({
@@ -627,6 +630,7 @@ export class MotorEventosService {
           body: cuerpo,
           data: { viajeId, tipo: 'alerta_sistema' },
           sound: 'default' as const,
+          gravedad,
         }))
       )
     } catch (e) {

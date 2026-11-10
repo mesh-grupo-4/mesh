@@ -11,6 +11,7 @@ import {
   prefijoAlertaAfectado,
   usuarioAfectadoDesdeMensaje,
 } from '../motor-eventos/motorEventos.config'
+import type { GravedadAviso } from '../../lib/gravedadAlerta'
 import { obtenerMotorEventos } from '../motor-eventos/motorEventos.service'
 import { esIntegranteActivo, WHERE_INTEGRANTE_ACTIVO } from '../viajes/viajes.membership'
 
@@ -478,7 +479,7 @@ export class ParadasService {
       include: { creada_por: { select: { nombre: true, apellido: true } } },
     })
     this.emitir(viajeId, 'viaje:alerta', { viajeId, alerta: this.mapAlerta(alerta, nombre) })
-    void this.notificarGrupo(viajeId, usuarioId, 'Necesita ayuda', `${nombre} confirmó que necesita ayuda.`)
+    void this.notificarGrupo(viajeId, usuarioId, 'Necesita ayuda', `${nombre} confirmó que necesita ayuda.`, 'critica')
 
     return this.mapParada(parada)
   }
@@ -500,7 +501,7 @@ export class ParadasService {
 
     await this.cerrarAlertaAyuda(viajeId, usuarioId, 'cancelada', new Date())
     const nombre = nombreDe(parada.usuario)
-    void this.notificarGrupo(viajeId, usuarioId, 'Aviso cancelado', `${nombre} canceló el pedido de ayuda.`)
+    void this.notificarGrupo(viajeId, usuarioId, 'Aviso cancelado', `${nombre} canceló el pedido de ayuda.`, 'informativa')
 
     return this.mapParada(parada)
   }
@@ -867,6 +868,7 @@ export class ParadasService {
           body: `${nombre} reportó un accidente.`,
           data: { viajeId, tipo: 'alerta' },
           sound: 'default' as const,
+          gravedad: 'critica' as const,
         }))
       )
     } catch (e) {
@@ -879,7 +881,8 @@ export class ParadasService {
     viajeId: string,
     autorId: string,
     title: string,
-    body: string
+    body: string,
+    gravedad: GravedadAviso = 'importante'
   ): Promise<void> {
     try {
       const viaje = await this.prisma.viaje.findUnique({
@@ -909,6 +912,7 @@ export class ParadasService {
           body,
           data: { viajeId, tipo: 'alerta' },
           sound: 'default' as const,
+          gravedad,
         }))
       )
     } catch (e) {
@@ -953,6 +957,7 @@ export class ParadasService {
           body: motivo ? `${nombre} se detuvo para ${motivo}.` : `${nombre} se detuvo.`,
           data: { viajeId },
           sound: 'default' as const,
+          gravedad: 'importante' as const,
         }))
       )
     } catch (e) {
@@ -981,6 +986,7 @@ export class ParadasService {
           body: motivo ? `${nombre}: "${motivo}"` : `${nombre} pide detenerse.`,
           data: { viajeId },
           sound: 'default' as const,
+          gravedad: 'importante' as const,
         },
       ])
     } catch (e) {
@@ -1006,6 +1012,7 @@ export class ParadasService {
               : 'El líder rechazó tu solicitud de parada.',
           data: { viajeId },
           sound: 'default' as const,
+          gravedad: 'importante' as const,
         },
       ])
     } catch (e) {

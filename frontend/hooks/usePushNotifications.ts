@@ -11,20 +11,38 @@ const pushDisponible = Platform.OS !== 'web' && !isRunningInExpoGo()
 
 let handlerListo = false
 
-type PushData = { viajeId?: string; tipo?: 'invitacion_grupo' | 'solicitud_amistad' } | undefined
+type PushData =
+  | { viajeId?: string; tipo?: 'invitacion_grupo' | 'solicitud_amistad'; gravedad?: string }
+  | undefined
+
+let viajeEnPantalla: string | null = null
+
+/**
+ * La pantalla del viaje en vivo avisa qué viaje está mostrando. Sus avisos
+ * (los que traen `gravedad`) ya se ven y vibran ahí: la push no suena ni
+ * muestra banner, solo queda en la bandeja.
+ */
+export function marcarViajeEnPantalla(viajeId: string | null): void {
+  viajeEnPantalla = viajeId
+}
 
 async function ensureNotifications() {
   if (!pushDisponible) return null
   const Notifications = await import('expo-notifications')
   if (!handlerListo) {
     Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: false,
-        shouldShowBanner: true,
-        shouldShowList: true,
-      }),
+      handleNotification: async (notification) => {
+        const data = notification.request.content.data as PushData
+        const yaEnPantalla =
+          Boolean(data?.gravedad) && data?.viajeId != null && data.viajeId === viajeEnPantalla
+        return {
+          shouldShowAlert: !yaEnPantalla,
+          shouldPlaySound: !yaEnPantalla,
+          shouldSetBadge: false,
+          shouldShowBanner: !yaEnPantalla,
+          shouldShowList: true,
+        }
+      },
     })
     handlerListo = true
   }
@@ -82,11 +100,28 @@ async function registerForPushNotificationsAsync(): Promise<void> {
   if (!Notifications) return
 
   if (Platform.OS === 'android') {
+    // Un canal por gravedad (ids espejo de `backend/src/lib/gravedadAlerta.ts`).
+    // Los patrones copian los de `lib/haptics.ts`: la misma gravedad se siente
+    // igual con la app abierta o cerrada.
+    await Notifications.setNotificationChannelAsync('alertas-criticas', {
+      name: 'Alertas críticas',
+      description: 'Peligro, posible incidente y pedidos de ayuda.',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 700, 200, 700, 200, 700],
+      lightColor: '#dc2626',
+    })
     await Notifications.setNotificationChannelAsync('viajes', {
       name: 'Viajes',
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
+      description: 'Paradas, desvíos y atrasos del grupo.',
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 350, 150, 350],
       lightColor: '#6366f1',
+    })
+    await Notifications.setNotificationChannelAsync('avisos', {
+      name: 'Avisos',
+      description: 'Avisos informativos del viaje.',
+      importance: Notifications.AndroidImportance.DEFAULT,
+      vibrationPattern: [0, 200],
     })
   }
 
