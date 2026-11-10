@@ -540,8 +540,22 @@ export type ResumenViajeApi = {
     sali_antes: boolean
     fecha_salida: string | null
   }
+  paradas: ParadaResumenApi[]
   ranking_habilitado: boolean
   generado_en: string | null
+}
+
+export type ParadaResumenApi = {
+  id: string
+  tipo: 'voluntaria' | 'incidente_detectado'
+  categoria: CategoriaParadaApi | null
+  grupal: boolean
+  inicio: string
+  fin: string | null
+  duracion_seg: number | null
+  nombre: string
+  es_propia: boolean
+  confirmado_bien: boolean | null
 }
 
 export type MetricaIntegranteApi = {

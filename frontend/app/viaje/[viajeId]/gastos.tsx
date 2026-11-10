@@ -1,4 +1,3 @@
-import { Feather } from '@expo/vector-icons'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
@@ -16,7 +15,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { useCopilot } from 'react-native-copilot'
 import { AvatarFallback } from '@/components/AvatarFallback'
-import { Badge, Btn, TopBar, useTheme } from '@/components/MeshUI'
+import { BalanceCard, GastoFila } from '@/components/gastos/GastoCards'
+import { Btn, TopBar, useTheme } from '@/components/MeshUI'
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
 import { AYUDA_VIAJE_GASTOS } from '@/components/ayuda/contenidoAyuda'
 import { DEV_USER_ID } from '@/constants/Config'
@@ -32,17 +32,12 @@ import {
 } from '@/lib/gastosApi'
 import { meshAlert } from '@/lib/meshAlert'
 import { nombreCompleto } from '@/lib/nombres'
-import { formatearEnArg } from '@/lib/tiempoArg'
 import {
   listarParticipantesViaje,
   obtenerViaje,
   type ViajeDetalleApi,
   type ViajeParticipanteApi,
 } from '@/lib/viajesApi'
-
-function formatMonto(n: number): string {
-  return `$${n.toFixed(2)}`
-}
 
 /** SCRUM: gastos compartidos del viaje, prorrateados por quien elige cada quien los carga. */
 export default function GastosViajeScreen() {
@@ -381,97 +376,6 @@ export default function GastosViajeScreen() {
   )
 }
 
-type Theme = ReturnType<typeof useTheme>
-
-function GastoFila({
-  gasto,
-  theme,
-  soloLectura,
-  enEdicion,
-  onEditar,
-  onEliminar,
-}: {
-  gasto: GastoApi
-  theme: Theme
-  soloLectura: boolean
-  enEdicion: boolean
-  onEditar: () => void
-  onEliminar: () => void
-}) {
-  const fecha = formatearEnArg(gasto.created_at, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }, '')
-
-  return (
-    <View
-      style={[
-        styles.gasto,
-        {
-          backgroundColor: theme.surface,
-          borderColor: enEdicion ? theme.accent : theme.border,
-        },
-      ]}
-    >
-      <View style={styles.gastoHead}>
-        <Text style={[styles.gastoDescripcion, { color: theme.text }]} numberOfLines={2}>
-          {gasto.descripcion}
-        </Text>
-        <Text style={[styles.gastoMonto, { color: theme.text }]}>{formatMonto(gasto.monto)}</Text>
-      </View>
-
-      <Text style={[styles.gastoMeta, { color: theme.textMute }]}>
-        Pagó {gasto.usuario_nombre} · {fecha}
-      </Text>
-
-      <View style={styles.gastoPie}>
-        <Badge tone="mute">
-          {formatMonto(gasto.monto_por_persona)} × {gasto.participantes.length}{' '}
-          {gasto.participantes.length === 1 ? 'persona' : 'personas'}
-        </Badge>
-
-        {!soloLectura && gasto.puede_editar ? (
-          <View style={styles.gastoAcciones}>
-            <Pressable onPress={onEditar} hitSlop={8} style={styles.accionBtn}>
-              <Feather name="edit-2" size={16} color={theme.textMute} />
-            </Pressable>
-            <Pressable onPress={onEliminar} hitSlop={8} style={styles.accionBtn}>
-              <Feather name="trash-2" size={16} color={theme.textMute} />
-            </Pressable>
-          </View>
-        ) : null}
-      </View>
-    </View>
-  )
-}
-
-function BalanceCard({ balance, theme }: { balance: BalanceGastosApi | null; theme: Theme }) {
-  if (!balance) {
-    return (
-      <View style={[styles.balanceCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <ActivityIndicator color={theme.accent} />
-      </View>
-    )
-  }
-
-  return (
-    <View style={[styles.balanceCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-      <Text style={[styles.balanceTitulo, { color: theme.text }]}>Balance final</Text>
-
-      {balance.transacciones.length === 0 ? (
-        <Text style={[styles.balanceVacio, { color: theme.textMute }]}>
-          Todos pagaron su parte: no hay nada que saldar.
-        </Text>
-      ) : (
-        balance.transacciones.map((t, i) => (
-          <Text key={i} style={[styles.balanceLinea, { color: theme.textDim }]}>
-            <Text style={{ color: theme.text, fontWeight: '700' }}>{t.de_nombre}</Text> le debe{' '}
-            <Text style={{ color: theme.text, fontWeight: '700' }}>{formatMonto(t.monto)}</Text> a{' '}
-            <Text style={{ color: theme.text, fontWeight: '700' }}>{t.para_nombre}</Text>
-          </Text>
-        ))
-      )}
-    </View>
-  )
-}
-
 const styles = StyleSheet.create({
   root: { flex: 1 },
   flex1: { flex: 1 },
@@ -482,30 +386,6 @@ const styles = StyleSheet.create({
   vacio: { alignItems: 'center', paddingTop: 40, paddingHorizontal: 32 },
   vacioTitulo: { fontSize: 16, fontWeight: '700', marginBottom: 6 },
   vacioTxt: { fontSize: 14, textAlign: 'center', lineHeight: 20 },
-
-  balanceCard: {
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 14,
-    gap: 8,
-  },
-  balanceTitulo: { fontSize: 15, fontWeight: '700', marginBottom: 2 },
-  balanceVacio: { fontSize: 14, lineHeight: 20 },
-  balanceLinea: { fontSize: 14, lineHeight: 21 },
-
-  gasto: {
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 14,
-    gap: 6,
-  },
-  gastoHead: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
-  gastoDescripcion: { flex: 1, fontSize: 15, fontWeight: '600' },
-  gastoMonto: { fontSize: 15, fontWeight: '800' },
-  gastoMeta: { fontSize: 12.5 },
-  gastoPie: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 },
-  gastoAcciones: { flexDirection: 'row', gap: 4 },
-  accionBtn: { padding: 4 },
 
   pie: {
     borderTopWidth: StyleSheet.hairlineWidth,
