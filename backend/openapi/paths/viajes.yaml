@@ -1342,6 +1342,9 @@ IniciarViaje:
     description: |
       Transición `planificado` → `en_curso`. **Solo el creador** puede hacerla (RN-030).
 
+      No se puede iniciar si la persona lidera otro viaje `en_curso` o ya se sumó a uno
+      con check-in (RN-030c). Un confirmado sin check-in no bloquea.
+
       Efectos: registra `fecha_inicio_real`, **caduca el QR de invitación** (RN-015),
       habilita el ingreso de GPS y emite `viaje:iniciado` a la sala `viaje:<id>`.
     tags:
@@ -1369,14 +1372,27 @@ IniciarViaje:
       '404':
         $ref: '../components/responses.yaml#/NotFound'
       '409':
-        description: El viaje no está en estado planificado (`INVALID_STATE`).
+        description: |
+          El viaje no está en estado planificado (`INVALID_STATE`) o la persona ya está en
+          otro viaje en curso (`OTRO_VIAJE_EN_CURSO`, RN-030c).
         content:
           application/json:
             schema:
-              $ref: '../components/schemas.yaml#/Error'
-            example:
-              error: El viaje no está en estado planificado
-              code: INVALID_STATE
+              oneOf:
+                - $ref: '../components/schemas.yaml#/Error'
+                - $ref: '../components/schemas.yaml#/ErrorOtroViajeEnCurso'
+            examples:
+              estadoInvalido:
+                summary: El viaje ya no está planificado
+                value:
+                  error: El viaje no está en estado planificado
+                  code: INVALID_STATE
+              otroViajeEnCurso:
+                summary: La persona ya está en otro viaje en curso
+                value:
+                  error: Ya estás en "Sierras", que sigue en curso. Terminalo o salí de ese viaje antes de iniciar otro.
+                  code: OTRO_VIAJE_EN_CURSO
+                  viaje_en_curso_id: 1b8d4c37-6e29-4f05-a3b7-9c2f8e5d0a41
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'
 

@@ -64,6 +64,7 @@ ErrorCode:
     - RECORRIDO_SIN_TRAZA
     - VALORACION_EXISTENTE
     - INVALID_STATE
+    - OTRO_VIAJE_EN_CURSO
     - INVALID_TRANSITION
     - TRIP_NOT_FINISHED
     - TRIP_NOT_PLANNED
@@ -158,6 +159,27 @@ Error:
       example: Solo el creador puede iniciar el viaje
     code:
       $ref: '#/ErrorCode'
+  additionalProperties: false
+
+ErrorOtroViajeEnCurso:
+  type: object
+  description: |
+    Error `OTRO_VIAJE_EN_CURSO` (RN-030c): además de la forma estándar, indica cuál es
+    el viaje en curso para que el cliente pueda llevar a la persona hasta él.
+  required:
+    - error
+    - code
+    - viaje_en_curso_id
+  properties:
+    error:
+      type: string
+      description: Mensaje en español, redactado para mostrarse al usuario final.
+    code:
+      $ref: '#/ErrorCode'
+    viaje_en_curso_id:
+      type: string
+      format: uuid
+      description: Viaje en curso que impide iniciar este.
   additionalProperties: false
 
 ValidationError:

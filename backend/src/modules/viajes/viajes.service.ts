@@ -948,6 +948,38 @@ export class ViajesService {
 
     const inicio = new Date()
     const actualizado = await this.prisma.$transaction(async (tx) => {
+      // RN-030c: el lock por usuario evita que dos inicios simultáneos pasen ambos el chequeo.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${creadorId}::text))`
+      // Un confirmado sin check-in no cuenta: solo dijo que iba (RN-029b).
+      const otroEnCurso = await tx.viaje.findFirst({
+        where: {
+          id: { not: viajeId },
+          estado: 'en_curso',
+          OR: [
+            { creador_id: creadorId },
+            {
+              integrantes: {
+                some: {
+                  usuario_id: creadorId,
+                  estado: 'confirmado',
+                  check_in_at: { not: null },
+                },
+              },
+            },
+          ],
+        },
+        select: { id: true, nombre: true },
+      })
+      if (otroEnCurso) {
+        const cual = otroEnCurso.nombre ? `"${otroEnCurso.nombre}"` : 'otro viaje'
+        throw new HttpError(
+          409,
+          `Ya estás en ${cual}, que sigue en curso. Terminalo o salí de ese viaje antes de iniciar otro.`,
+          'OTRO_VIAJE_EN_CURSO',
+          { viaje_en_curso_id: otroEnCurso.id }
+        )
+      }
+
       const v = await tx.viaje.update({
         where: { id: viajeId },
         data: {
