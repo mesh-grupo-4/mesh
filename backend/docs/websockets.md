@@ -406,6 +406,32 @@ descarga la traza histórica por REST y la anima localmente.
 | `viaje:parada_finalizada` | Retomar viaje (US3), confirmar "Estoy bien" (RN-036) o el líder cancela/resuelve la alerta del incidente (RN-042) |
 | `viaje:solicitud_parada` | Solicitud de parada al líder (US2) |
 | `viaje:solicitud_parada_resuelta` | El líder aprueba o rechaza la solicitud |
+| `viaje:parada_grupal_iniciada` | El líder detiene a todo el grupo (RN-045) |
+| `viaje:parada_grupal_finalizada` | El líder retoma una parada grupal (RN-045) |
+
+Las paradas grupales emiten un único evento con la lista de integrantes, no uno por persona (RN-033):
+
+```jsonc
+// viaje:parada_grupal_iniciada
+{
+  "viajeId": "...",
+  "liderId": "...",
+  "nombre": "Leo Díaz",
+  "lat": -31.4201,   // punto del líder, igual para todos (RN-111)
+  "lng": -64.1888,
+  "categoria": "descanso",
+  "inicio": "2026-08-21T17:05:00.000Z",
+  "paradas": [{ "paradaId": "...", "usuarioId": "..." }]
+}
+
+// viaje:parada_grupal_finalizada
+{
+  "viajeId": "...",
+  "liderId": "...",
+  "fin": "2026-08-21T17:25:00.000Z",
+  "paradas": [{ "paradaId": "...", "usuarioId": "..." }]
+}
+```
 
 Payload de `viaje:parada_iniciada` cuando el motor detecta detención sospechosa:
 
@@ -448,6 +474,8 @@ Para paradas voluntarias, `estado` es `detenido_voluntario`. El frontend en `liv
 | `viaje:parada_finalizada` | servidor → sala | — | — |
 | `viaje:solicitud_parada` | servidor → sala | — | — |
 | `viaje:solicitud_parada_resuelta` | servidor → sala | — | — |
+| `viaje:parada_grupal_iniciada` | servidor → sala | — | solo el líder la dispara |
+| `viaje:parada_grupal_finalizada` | servidor → sala | — | solo el líder la dispara |
 
 ## Escala
 

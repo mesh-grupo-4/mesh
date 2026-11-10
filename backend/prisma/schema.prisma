@@ -565,6 +565,8 @@ model Parada {
   fin             DateTime?
   /// RN-036: el integrante confirmó que está bien tras un posible incidente.
   confirmado_bien Boolean?         @map("confirmado_bien")
+  /// RN-045: la abrió el líder para todo el grupo; al retomar él, se cierran juntas.
+  grupal          Boolean          @default(false)
 
   viaje   Viaje   @relation(fields: [viaje_id], references: [id], onDelete: Cascade)
   usuario Usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade)

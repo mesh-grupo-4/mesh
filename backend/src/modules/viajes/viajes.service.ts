@@ -1467,9 +1467,14 @@ export class ViajesService {
         delCreador?.distancia_m ??
         (metricas.length > 0 ? Math.max(...metricas.map((m) => m.distancia_m)) : null)
 
-      // US3: paradas voluntarias efectivamente registradas durante el viaje.
+      // US3: paradas voluntarias efectivamente registradas durante el viaje. Una grupal
+      // (RN-045) guarda una fila por integrante: se cuenta solo la del líder.
       const cantidadParadasVoluntarias = await tx.parada.count({
-        where: { viaje_id: viajeId, tipo: 'voluntaria' },
+        where: {
+          viaje_id: viajeId,
+          tipo: 'voluntaria',
+          OR: [{ grupal: false }, { usuario_id: viaje.creador_id }],
+        },
       })
 
       const datos = {

@@ -63,10 +63,10 @@ export class ParadasService {
   private async assertParticipaEnViajeEnCurso(
     viajeId: string,
     usuarioId: string
-  ): Promise<{ creadorId: string; esLider: boolean }> {
+  ): Promise<{ creadorId: string; esLider: boolean; esGrupal: boolean }> {
     const viaje = await this.prisma.viaje.findUnique({
       where: { id: viajeId },
-      select: { creador_id: true, estado: true },
+      select: { creador_id: true, estado: true, es_grupal: true },
     })
     if (!viaje) {
       throw new HttpError(404, 'Viaje no encontrado', 'VIAJE_NOT_FOUND')
@@ -75,7 +75,7 @@ export class ParadasService {
       throw new HttpError(409, 'El viaje no está en curso', 'INVALID_STATE')
     }
     if (viaje.creador_id === usuarioId) {
-      return { creadorId: viaje.creador_id, esLider: true }
+      return { creadorId: viaje.creador_id, esLider: true, esGrupal: viaje.es_grupal }
     }
 
     const integrante = await this.prisma.viajeIntegrante.findUnique({
@@ -89,14 +89,23 @@ export class ParadasService {
     if (!esIntegranteActivo(integrante)) {
       throw new HttpError(403, 'Tenés que sumarte al viaje primero', 'NOT_CHECKED_IN')
     }
-    return { creadorId: viaje.creador_id, esLider: false }
+    return { creadorId: viaje.creador_id, esLider: false, esGrupal: viaje.es_grupal }
   }
 
   // ---------------------------------------------------------------- US1 / US3
 
   /** US1: registra la parada voluntaria con hora y ubicación, y avisa al grupo. */
   async iniciarParada(usuarioId: string, viajeId: string, input: IniciarParadaInput) {
-    await this.assertParticipaEnViajeEnCurso(viajeId, usuarioId)
+    const { esLider, esGrupal } = await this.assertParticipaEnViajeEnCurso(viajeId, usuarioId)
+
+    if (input.grupal) {
+      if (!esLider) {
+        throw new HttpError(403, 'Solo el líder puede detener al grupo', 'FORBIDDEN')
+      }
+      if (!esGrupal) {
+        throw new HttpError(409, 'Este viaje no tiene grupo que detener', 'INDIVIDUAL_TRIP')
+      }
+    }
 
     const abierta = await this.prisma.parada.findFirst({
       where: { viaje_id: viajeId, usuario_id: usuarioId, fin: null },
@@ -105,6 +114,8 @@ export class ParadasService {
     if (abierta) {
       throw new HttpError(409, 'Ya tenés una parada en curso', 'PARADA_ABIERTA')
     }
+
+    if (input.grupal) return this.iniciarParadaGrupal(usuarioId, viajeId, input)
 
     const parada = await this.prisma.parada.create({
       data: {
@@ -140,9 +151,102 @@ export class ParadasService {
     return this.mapParada(parada)
   }
 
+  /**
+   * RN-045: abre una parada a cada integrante sumado que no tenga otra abierta; un
+   * posible incidente no se pisa. Todas llevan el punto del líder y no el de cada
+   * uno: así el aviso al grupo no expone a quien no comparte su ubicación (RN-111).
+   * Un único evento: con 200 integrantes, uno por persona saturaría la sala (RN-033).
+   */
+  private async iniciarParadaGrupal(liderId: string, viajeId: string, input: IniciarParadaInput) {
+    const integrantes = await this.prisma.viajeIntegrante.findMany({
+      where: { viaje_id: viajeId, ...WHERE_INTEGRANTE_ACTIVO },
+      select: { usuario_id: true },
+    })
+    const candidatos = [...new Set([liderId, ...integrantes.map((i) => i.usuario_id)])]
+    const conParada = await this.prisma.parada.findMany({
+      where: { viaje_id: viajeId, usuario_id: { in: candidatos }, fin: null },
+      select: { usuario_id: true },
+    })
+    const ocupados = new Set(conParada.map((p) => p.usuario_id))
+
+    const inicio = new Date()
+    const paradas = await this.prisma.parada.createManyAndReturn({
+      data: candidatos
+        .filter((id) => !ocupados.has(id))
+        .map((usuario_id) => ({
+          viaje_id: viajeId,
+          usuario_id,
+          lat: input.lat,
+          lng: input.lng,
+          categoria: input.categoria,
+          tipo: 'voluntaria' as const,
+          grupal: true,
+          inicio,
+        })),
+    })
+    const propia = paradas.find((p) => p.usuario_id === liderId)
+    if (!propia) throw new HttpError(409, 'Ya tenés una parada en curso', 'PARADA_ABIERTA')
+
+    const lider = await this.prisma.usuario.findUnique({
+      where: { id: liderId },
+      select: { nombre: true, apellido: true },
+    })
+    const nombre = lider ? nombreDe(lider) : 'El líder'
+
+    this.emitir(viajeId, 'viaje:parada_grupal_iniciada', {
+      viajeId,
+      liderId,
+      nombre,
+      lat: input.lat,
+      lng: input.lng,
+      categoria: input.categoria,
+      inicio: inicio.toISOString(),
+      paradas: paradas.map((p) => ({ paradaId: p.id, usuarioId: p.usuario_id })),
+    })
+    const motivo = ETIQUETA_CATEGORIA[input.categoria]
+    void this.notificarGrupo(
+      viajeId,
+      liderId,
+      'Parada del grupo',
+      motivo ? `${nombre} detuvo al grupo para ${motivo}.` : `${nombre} detuvo al grupo.`
+    )
+    if (input.categoria === 'accidente') {
+      void this.alertarAccidente(viajeId, liderId, nombre, input.lat, input.lng)
+    }
+
+    return this.mapParada(propia)
+  }
+
+  /** RN-045: el líder retoma y se cierran todas las paradas grupales aún abiertas. */
+  private async finalizarParadaGrupal(
+    liderId: string,
+    viajeId: string,
+    propia: Parameters<ParadasService['mapParada']>[0]
+  ) {
+    const abiertas = await this.prisma.parada.findMany({
+      where: { viaje_id: viajeId, fin: null, grupal: true },
+      select: { id: true, usuario_id: true },
+    })
+    const fin = new Date()
+    await this.prisma.parada.updateMany({
+      where: { id: { in: abiertas.map((p) => p.id) } },
+      data: { fin },
+    })
+
+    this.emitir(viajeId, 'viaje:parada_grupal_finalizada', {
+      viajeId,
+      liderId,
+      fin: fin.toISOString(),
+      paradas: abiertas.map((p) => ({ paradaId: p.id, usuarioId: p.usuario_id })),
+    })
+    void this.notificarGrupo(viajeId, liderId, 'El grupo retoma', 'El líder retomó el viaje.')
+
+    return this.mapParada({ ...propia, fin })
+  }
+
   /** US3: cierra la parada abierta y devuelve cuánto duró. */
   async finalizarParada(usuarioId: string, viajeId: string) {
-    await this.assertParticipaEnViajeEnCurso(viajeId, usuarioId)
+    const { esLider } = await this.assertParticipaEnViajeEnCurso(viajeId, usuarioId)
 
     const abierta = await this.prisma.parada.findFirst({
       where: { viaje_id: viajeId, usuario_id: usuarioId, fin: null },
@@ -158,6 +262,9 @@ export class ParadasService {
         'USAR_CONFIRMAR_BIEN'
       )
     }
+
+    // RN-045: un integrante puede retomar solo; cuando retoma el líder, retoman todos.
+    if (abierta.grupal && esLider) return this.finalizarParadaGrupal(usuarioId, viajeId, abierta)
 
     const fin = new Date()
     const parada = await this.prisma.parada.update({
@@ -621,6 +728,7 @@ export class ParadasService {
     inicio: Date
     fin: Date | null
     confirmado_bien?: boolean | null
+    grupal?: boolean
   }) {
     return {
       id: p.id,
@@ -634,6 +742,7 @@ export class ParadasService {
       fin: p.fin ? p.fin.toISOString() : null,
       duracion_segundos: p.fin ? duracionSeg(p.inicio, p.fin) : null,
       necesita_ayuda: p.confirmado_bien === false,
+      grupal: p.grupal ?? false,
     }
   }
 

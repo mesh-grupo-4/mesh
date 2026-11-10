@@ -3311,6 +3311,10 @@ IniciarParadaRequest:
       maximum: 180
     categoria:
       $ref: '#/CategoriaParada'
+    grupal:
+      type: boolean
+      description: RN-045. Solo el líder, en viajes grupales. Detiene a todo el grupo en su punto.
+      example: false
   additionalProperties: false
 
 SolicitarParadaRequest:
@@ -3393,6 +3397,9 @@ Parada:
       description: |
         RN-036: `true` si el integrante confirmó que NO está bien ante un posible
         incidente (`confirmarEstoyMal`). Siempre `false` en paradas voluntarias.
+    grupal:
+      type: boolean
+      description: RN-045. `true` si la abrió el líder para todo el grupo.
   additionalProperties: false
 
 EstadoSolicitudParada:

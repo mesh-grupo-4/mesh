@@ -103,6 +103,112 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
+// -------------------------------------------------------------------- RN-045
+
+describe('RN-045 — parada de todo el grupo', () => {
+  const inicio = new Date('2026-08-21T14:00:00.000Z')
+  const entrada = { lat: -31.42, lng: -64.18, categoria: 'descanso' as const, grupal: true }
+  const fila = (id: string, usuario_id: string) => ({
+    id,
+    viaje_id: viajeId,
+    usuario_id,
+    lat: -31.42,
+    lng: -64.18,
+    categoria: 'descanso',
+    tipo: 'voluntaria',
+    inicio,
+    fin: null,
+    grupal: true,
+  })
+
+  function armarGrupal(conParada: string[] = []) {
+    const m = armarPrisma()
+    const createManyAndReturn = vi.fn(async ({ data }: { data: { usuario_id: string }[] }) =>
+      data.map((d, i) => fila(`p-${i}`, d.usuario_id))
+    )
+    const findMany = vi.fn().mockResolvedValue(conParada.map((usuario_id) => ({ usuario_id })))
+    const updateMany = vi.fn().mockResolvedValue({ count: 2 })
+    Object.assign((m.prisma as unknown as { parada: object }).parada, {
+      createManyAndReturn,
+      findMany,
+      updateMany,
+    })
+    m.viajeFindUnique.mockResolvedValue({
+      creador_id: liderId,
+      estado: 'en_curso',
+      es_grupal: true,
+      creador: { push_token: null },
+    })
+    m.integranteFindMany.mockResolvedValue([{ usuario_id: liderId }, { usuario_id: integranteId }])
+    m.usuarioFindUnique.mockResolvedValue({ nombre: 'Leo', apellido: 'Díaz', push_token: null })
+    return { ...m, createManyAndReturn, findMany, updateMany }
+  }
+
+  it('abre una parada a cada integrante con el punto del líder (RN-111) y emite un solo evento', async () => {
+    const m = armarGrupal()
+    const parada = await new ParadasService(m.prisma).iniciarParada(liderId, viajeId, entrada)
+
+    const datos = m.createManyAndReturn.mock.calls[0]![0].data as Array<Record<string, unknown>>
+    expect(datos.map((d) => d.usuario_id)).toEqual([liderId, integranteId])
+    expect(datos.every((d) => d.lat === -31.42 && d.lng === -64.18 && d.grupal === true)).toBe(true)
+    expect(parada.grupal).toBe(true)
+    expect(parada.usuario_id).toBe(liderId)
+    expect(eventos()).toEqual(['viaje:parada_grupal_iniciada'])
+  })
+
+  it('no le pisa la parada a quien ya tenía una abierta, ni un posible incidente', async () => {
+    const m = armarGrupal([integranteId])
+    await new ParadasService(m.prisma).iniciarParada(liderId, viajeId, entrada)
+
+    const datos = m.createManyAndReturn.mock.calls[0]![0].data as Array<Record<string, unknown>>
+    expect(datos.map((d) => d.usuario_id)).toEqual([liderId])
+  })
+
+  it('solo el líder puede detener al grupo (RN-030)', async () => {
+    const m = armarGrupal()
+    await expect(
+      new ParadasService(m.prisma).iniciarParada(integranteId, viajeId, entrada)
+    ).rejects.toMatchObject({ status: 403, code: 'FORBIDDEN' })
+    expect(m.createManyAndReturn).not.toHaveBeenCalled()
+  })
+
+  it('rechaza una parada grupal en un viaje individual', async () => {
+    const m = armarGrupal()
+    m.viajeFindUnique.mockResolvedValue({ creador_id: liderId, estado: 'en_curso', es_grupal: false })
+    await expect(
+      new ParadasService(m.prisma).iniciarParada(liderId, viajeId, entrada)
+    ).rejects.toMatchObject({ status: 409, code: 'INDIVIDUAL_TRIP' })
+  })
+
+  it('cuando retoma el líder se cierran todas las paradas grupales', async () => {
+    const m = armarGrupal()
+    m.paradaFindFirst.mockResolvedValue(fila('p-0', liderId))
+    m.findMany.mockResolvedValue([
+      { id: 'p-0', usuario_id: liderId },
+      { id: 'p-1', usuario_id: integranteId },
+    ])
+
+    const parada = await new ParadasService(m.prisma).finalizarParada(liderId, viajeId)
+
+    expect(m.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: { in: ['p-0', 'p-1'] } } })
+    )
+    expect(parada.fin).not.toBeNull()
+    expect(eventos()).toEqual(['viaje:parada_grupal_finalizada'])
+  })
+
+  it('un integrante que retoma solo cierra únicamente la suya', async () => {
+    const m = armarGrupal()
+    m.paradaFindFirst.mockResolvedValue(fila('p-1', integranteId))
+    m.paradaUpdate.mockResolvedValue({ ...fila('p-1', integranteId), fin: new Date(), usuario })
+
+    await new ParadasService(m.prisma).finalizarParada(integranteId, viajeId)
+
+    expect(m.updateMany).not.toHaveBeenCalled()
+    expect(eventos()).toEqual(['viaje:parada_finalizada'])
+  })
+})
+
 // ------------------------------------------------------------------------ US1
 
 describe('US1 — registrar parada voluntaria', () => {
