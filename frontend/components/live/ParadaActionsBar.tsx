@@ -17,6 +17,8 @@ type Props = {
   paradaDesde: string | null
   /** Parada abierta detectada por el motor (RN-036). */
   esIncidenteDetectado?: boolean
+  /** RN-045: es el líder en una parada grupal; al retomar, retoman todos. */
+  retomaElGrupo?: boolean
   /** El botón de solicitar no se muestra al líder ni en viajes individuales. */
   puedeSolicitar: boolean
   /** Hay una solicitud propia esperando respuesta del líder. */
@@ -43,6 +45,7 @@ function transcurrido(desde: string): string {
 export function ParadaActionsBar({
   paradaDesde,
   esIncidenteDetectado = false,
+  retomaElGrupo = false,
   puedeSolicitar,
   solicitudPendiente,
   ocupado,
@@ -81,7 +84,11 @@ export function ParadaActionsBar({
           disabled={ocupado || (esIncidenteDetectado && !onEstoyBien)}
           accessibilityRole="button"
           accessibilityLabel={
-            esIncidenteDetectado ? 'Confirmar que estoy bien' : 'Retomar el viaje y finalizar la parada'
+            esIncidenteDetectado
+              ? 'Confirmar que estoy bien'
+              : retomaElGrupo
+                ? 'Retomar el viaje con todo el grupo'
+                : 'Retomar el viaje y finalizar la parada'
           }
         >
           {ocupado ? (
@@ -89,7 +96,7 @@ export function ParadaActionsBar({
           ) : (
             <>
               <Text style={styles.retomarTxt}>
-                {esIncidenteDetectado ? 'Estoy bien' : 'Retomar viaje'}
+                {esIncidenteDetectado ? 'Estoy bien' : retomaElGrupo ? 'Retomar con el grupo' : 'Retomar viaje'}
               </Text>
               <Text style={styles.cronometro}>{transcurrido(paradaDesde)}</Text>
             </>
@@ -114,7 +121,7 @@ export function ParadaActionsBar({
         accessibilityRole="button"
         accessibilityLabel="Registrar que me detuve"
       >
-        <Feather name="pause" size={19} color="#fff" />
+        <Feather name="pause" size={19} color="#111827" />
         <Text style={styles.detenerseTxt}>Me detuve</Text>
       </Pressable>
 
@@ -169,13 +176,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   detenerse: {
-    backgroundColor: '#d97706',
-    borderColor: '#b45309',
+    backgroundColor: '#fff',
+    borderColor: '#d1d5db',
   },
   detenerseTxt: {
     fontSize: 17,
     fontWeight: '800',
-    color: '#fff',
+    color: '#111827',
     letterSpacing: 0.3,
   },
   solicitar: {

@@ -1,4 +1,5 @@
 import { Feather } from '@expo/vector-icons'
+import { useEffect, useState } from 'react'
 import { Modal, StyleSheet, Text, View } from 'react-native'
 import { Pressable } from '@/components/Pressable'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
@@ -14,8 +15,11 @@ import type { TipoActividadApi } from '@/lib/viajesApi'
 /** Selector de categoría al registrar una parada voluntaria (RN-022). */
 type Props = {
   visible: boolean
-  onSeleccionar: (categoria: CategoriaParadaApi) => void
+  /** `grupal`: el líder eligió detener a todo el grupo (RN-045). */
+  onSeleccionar: (categoria: CategoriaParadaApi, grupal: boolean) => void
   onCancelar: () => void
+  /** Solo el líder de un viaje grupal ve la opción de detener a todos. */
+  puedeDetenerGrupo?: boolean
   tipoActividad?: TipoActividadApi
 }
 
@@ -23,12 +27,21 @@ export function CategoriaParadaSheet({
   visible,
   onSeleccionar,
   onCancelar,
+  puedeDetenerGrupo = false,
   tipoActividad = 'otro',
 }: Props) {
   const { altoContraste, escalaBotones } = uiConfigPorActividad(tipoActividad)
   const theme = useTheme(altoContraste)
   const insets = useSafeAreaInsets()
   const alturaOpcion = Math.round(58 * escalaBotones)
+  const [todoElGrupo, setTodoElGrupo] = useState(false)
+
+  // Cada parada arranca en "Solo yo": detener a todos tiene que ser una elección explícita.
+  useEffect(() => {
+    if (visible) setTodoElGrupo(false)
+  }, [visible])
+
+  const elegir = (categoria: CategoriaParadaApi) => onSeleccionar(categoria, puedeDetenerGrupo && todoElGrupo)
 
   const accidente = CATEGORIAS_PARADA.find((c) => c.id === 'accidente')
   const resto = CATEGORIAS_PARADA.filter((c) => c.id !== 'accidente')
@@ -54,6 +67,44 @@ export function CategoriaParadaSheet({
             Se le avisa al grupo con el motivo.
           </Text>
 
+          {puedeDetenerGrupo ? (
+            <View style={styles.alcance}>
+              {[
+                { valor: false, texto: 'Solo yo', icono: 'user' as const },
+                { valor: true, texto: 'Todo el grupo', icono: 'users' as const },
+              ].map((o) => {
+                const activo = todoElGrupo === o.valor
+                return (
+                  <Pressable
+                    key={o.texto}
+                    onPress={() => setTodoElGrupo(o.valor)}
+                    style={[
+                      styles.alcanceOpcion,
+                      {
+                        minHeight: alturaOpcion,
+                        backgroundColor: activo ? theme.accent : theme.surface2,
+                        borderColor: activo ? theme.accent : theme.border,
+                      },
+                    ]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: activo }}
+                    accessibilityLabel={o.texto}
+                  >
+                    <Feather name={o.icono} size={18} color={activo ? '#fff' : theme.text} />
+                    <Text
+                      style={[
+                        styles.alcanceTxt,
+                        { color: activo ? '#fff' : theme.text, fontSize: tamanoOutdoor(14.5) },
+                      ]}
+                    >
+                      {o.texto}
+                    </Text>
+                  </Pressable>
+                )
+              })}
+            </View>
+          ) : null}
+
           {accidente ? (
             <Pressable
               style={({ pressed }) => [
@@ -61,7 +112,7 @@ export function CategoriaParadaSheet({
                 { backgroundColor: theme.danger, minHeight: Math.round(66 * escalaBotones) },
                 pressed && styles.presionado,
               ]}
-              onPress={() => onSeleccionar(accidente.id)}
+              onPress={() => elegir(accidente.id)}
               accessibilityRole="button"
               accessibilityLabel="Reportar un accidente"
             >
@@ -87,7 +138,7 @@ export function CategoriaParadaSheet({
                   { backgroundColor: theme.surface2, borderColor: theme.border, minHeight: alturaOpcion },
                   pressed && [styles.presionado, { borderColor: theme.accentLine }],
                 ]}
-                onPress={() => onSeleccionar(c.id)}
+                onPress={() => elegir(c.id)}
                 accessibilityRole="button"
                 accessibilityLabel={`Parada por ${c.label}`}
               >
@@ -148,6 +199,23 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     marginTop: 3,
     marginBottom: 16,
+  },
+  alcance: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 12,
+  },
+  alcanceOpcion: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 14,
+    borderWidth: 1.5,
+  },
+  alcanceTxt: {
+    fontWeight: '800',
   },
   accidente: {
     flexDirection: 'row',

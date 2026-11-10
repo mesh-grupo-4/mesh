@@ -694,7 +694,7 @@ export default function ViajeLiveScreen() {
 
   const handleDetenerse = () => setEligiendoCategoria(true)
 
-  const handleCategoriaElegida = (categoria: CategoriaParadaApi) => {
+  const handleCategoriaElegida = (categoria: CategoriaParadaApi, grupal: boolean) => {
     setEligiendoCategoria(false)
     void (async () => {
       const pos = await posicionActual()
@@ -706,7 +706,7 @@ export default function ViajeLiveScreen() {
         return
       }
       try {
-        await registrarParada(categoria, pos)
+        await registrarParada(categoria, pos, grupal)
       } catch (e) {
         meshAlert('No se pudo registrar la parada', mensajeDeError(e))
       }
@@ -993,6 +993,7 @@ export default function ViajeLiveScreen() {
             motivo={motivoParadaLegible(paradaEntrante.categoria)}
             restantes={paradasEntrantes.length}
             ocupado={calculandoSeguir}
+            grupal={paradaEntrante.grupal}
             onSeguir={handleSeguirParada}
             onIgnorar={ignorarParadaEntrante}
           />
@@ -1112,6 +1113,7 @@ export default function ViajeLiveScreen() {
           accion={!!accion}
           paradaDesde={paradaActiva?.inicio ?? null}
           esIncidenteDetectado={paradaActiva?.tipo === 'incidente_detectado'}
+          retomaElGrupo={esLider && Boolean(paradaActiva?.grupal)}
           puedeSolicitar={puedeSolicitarParada}
           solicitudPendiente={miSolicitud?.estado === 'pendiente'}
           paradaEnCurso={paradaEnCurso}
@@ -1145,6 +1147,7 @@ export default function ViajeLiveScreen() {
         visible={eligiendoCategoria}
         onSeleccionar={handleCategoriaElegida}
         onCancelar={() => setEligiendoCategoria(false)}
+        puedeDetenerGrupo={esLider && viaje?.es_grupal === true}
         tipoActividad={tipoActividad}
       />
 
