@@ -12,7 +12,7 @@ import { LugaresSugeridosModal } from '@/components/lugares/LugaresSugeridosModa
 import { MapPickOverlay } from '@/components/route-config/MapPickOverlay'
 import { RouteBottomSheet } from '@/components/route-config/RouteBottomSheet'
 import { MapStylePicker } from '@/components/route-config/MapStylePicker'
-import type { MapStyleId } from '@/components/route-config/mapStyles'
+import { useCapaMapa } from '@/hooks/useCapaMapa'
 import { RouteMapView } from '@/components/route-config/RouteMapView'
 import { useVolverInterno } from '@/hooks/useVolver'
 import {
@@ -50,7 +50,7 @@ export default function ConfigurarRutaScreen() {
   const [velocidadEsperada, setVelocidadEsperada] = useState(35)
   const [distanciaMaxSeparacion, setDistanciaMaxSeparacion] = useState(300)
   const [cargandoViaje, setCargandoViaje] = useState(true)
-  const [mapStyle, setMapStyle] = useState<MapStyleId>('standard')
+  const [mapStyle, setMapStyle] = useCapaMapa()
   const [sugiriendoParadas, setSugiriendoParadas] = useState(false)
 
   useEffect(() => {

@@ -4,6 +4,7 @@ import { Modal, StyleSheet, View } from 'react-native'
 import { getMapStyle } from '@/components/route-config/mapStyles'
 import { MapPickOverlay } from '@/components/route-config/MapPickOverlay'
 import { MeshMapView, zoomFromLatDelta, type MeshMapViewHandle } from '@/components/maps/MeshMapView'
+import { useCapaMapa } from '@/hooks/useCapaMapa'
 
 type Props = {
   visible: boolean
@@ -15,7 +16,8 @@ type Props = {
 /** Selector de punto en el mapa para marcar dónde van a parar (opcional). */
 export function AlertaMapPickModal({ visible, initialCenter, onConfirm, onCancel }: Props) {
   const mapRef = useRef<MeshMapViewHandle>(null)
-  const capa = getMapStyle('standard')
+  const [capaElegida] = useCapaMapa()
+  const capa = getMapStyle(capaElegida)
   const [centro, setCentro] = useState(initialCenter)
 
   useEffect(() => {

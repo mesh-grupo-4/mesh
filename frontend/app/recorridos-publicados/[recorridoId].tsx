@@ -4,6 +4,7 @@ import { ActivityIndicator, StyleSheet, Switch, Text, View } from 'react-native'
 import { useCopilot } from 'react-native-copilot'
 import { Feather } from '@expo/vector-icons'
 
+import { CorazonGuardar } from '@/components/CorazonGuardar'
 import { RecorridoMapView } from '@/components/RecorridoMapView'
 import { StatCard, StatCardRow } from '@/components/StatCard'
 import { ActivityTile, Btn, TopBar, useTheme } from '@/components/MeshUI'
@@ -20,6 +21,7 @@ import {
   valorarRecorrido,
   type RecorridoPublicadoDetalleApi,
 } from '@/lib/recorridosPublicadosApi'
+import { confirmarQuitarGuardada } from '@/lib/rutasGuardadas'
 import { formatearEnArg } from '@/lib/tiempoArg'
 import { abrirNuevoViaje } from '@/lib/nuevoViaje'
 
@@ -121,8 +123,8 @@ export default function RecorridoPublicadoScreen() {
     }
   }
 
-  // RN-084 / SCRUM-62: se guarda como plantilla en "Mis rutas". "Usar" además arranca a
-  // crear el viaje con el trazado precargado (mismo flujo que una ruta guardada).
+  // RN-084 / SCRUM-62: se guarda como plantilla en "Mis rutas" (queda con el corazón
+  // marcado). "Usar" además arranca a crear el viaje con el trazado precargado.
   const importar = async (accion: 'usar' | 'guardar') => {
     if (!recorrido) return
     setImportando(accion)
@@ -130,10 +132,9 @@ export default function RecorridoPublicadoScreen() {
       const { plantilla } = await importarRecorridoPublicado(recorrido.id, {
         guardarChecklist: recorrido.checklist.length > 0 && guardarChecklist,
       })
+      setRecorrido((prev) => (prev ? { ...prev, mi_plantilla_id: plantilla.id } : prev))
       if (accion === 'usar') {
         abrirNuevoViaje({ plantillaId: plantilla.id, tipoActividad: plantilla.tipo_actividad })
-      } else {
-        meshAlert('Ruta guardada', 'La encontrás en Rutas, dentro de Guardadas.')
       }
     } catch (e) {
       meshError(
@@ -143,6 +144,23 @@ export default function RecorridoPublicadoScreen() {
     } finally {
       setImportando(null)
     }
+  }
+
+  // Corazón: guarda la ruta o, si ya estaba guardada, la quita previa confirmación.
+  const alternarGuardado = () => {
+    if (!recorrido) return
+    if (!recorrido.mi_plantilla_id) {
+      void importar('guardar')
+      return
+    }
+    confirmarQuitarGuardada({
+      nombre: recorrido.nombre?.trim() || 'Recorrido sin nombre',
+      plantillaId: recorrido.mi_plantilla_id,
+      onInicio: () => setImportando('guardar'),
+      onFin: () => setImportando(null),
+      onQuitada: () =>
+        setRecorrido((prev) => (prev ? { ...prev, mi_plantilla_id: null } : prev)),
+    })
   }
 
   return (
@@ -182,6 +200,11 @@ export default function RecorridoPublicadoScreen() {
                 })}
               </Text>
             </View>
+            <CorazonGuardar
+              guardada={recorrido.mi_plantilla_id !== null}
+              cargando={importando === 'guardar'}
+              onPress={alternarGuardado}
+            />
           </View>
 
           {recorrido.comentario ? (
@@ -317,16 +340,6 @@ export default function RecorridoPublicadoScreen() {
                 onPress={() => void importar('usar')}
               >
                 Usar como base de un viaje
-              </Btn>
-              <Btn
-                variant="outline"
-                block
-                icon="download"
-                loading={importando === 'guardar'}
-                disabled={importando !== null}
-                onPress={() => void importar('guardar')}
-              >
-                Guardar en mis rutas
               </Btn>
             </View>
           </PasoAyuda>

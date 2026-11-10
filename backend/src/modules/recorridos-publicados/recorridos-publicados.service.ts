@@ -224,20 +224,42 @@ export class RecorridosPublicadosService {
    */
   async listar(usuarioId: string, filtros: FiltrosListado) {
     const resumenes = await this.listarResumenes(filtros)
-    const [valoraciones, reputaciones] = await Promise.all([
-      this.valoraciones(
-        usuarioId,
-        resumenes.map((r) => r.id)
-      ),
+    const ids = resumenes.map((r) => r.id)
+    const [valoraciones, reputaciones, guardadas] = await Promise.all([
+      this.valoraciones(usuarioId, ids),
       this.reputaciones(resumenes.map((r) => r.autor.id)),
+      this.plantillasGuardadas(usuarioId, ids),
     ])
     // Sin reputación = la cuenta se borró entre las dos consultas (y con ella, su recorrido).
     return resumenes.flatMap((r) => {
       const reputacion_autor = reputaciones.get(r.autor.id)
       return reputacion_autor
-        ? [{ ...r, valoracion: valoraciones.get(r.id)!, reputacion_autor }]
+        ? [
+            {
+              ...r,
+              valoracion: valoraciones.get(r.id)!,
+              reputacion_autor,
+              mi_plantilla_id: guardadas.get(r.id) ?? null,
+            },
+          ]
         : []
     })
+  }
+
+  /**
+   * Qué recorridos de la página ya guardó quien consulta (RN-084): id de recorrido → id de
+   * su plantilla. La app lo usa para mostrar el corazón marcado y para poder quitarla.
+   */
+  private async plantillasGuardadas(
+    usuarioId: string,
+    recorridoIds: string[]
+  ): Promise<Map<string, string>> {
+    if (recorridoIds.length === 0) return new Map()
+    const filas = await this.prisma.rutaPlantilla.findMany({
+      where: { usuario_id: usuarioId, recorrido_publicado_id: { in: recorridoIds } },
+      select: { id: true, recorrido_publicado_id: true },
+    })
+    return new Map(filas.map((f) => [f.recorrido_publicado_id!, f.id]))
   }
 
   /** Antigüedad, racha e insignias de toda la página de autores en una sola consulta. */
@@ -348,10 +370,14 @@ export class RecorridosPublicadosService {
       select: { ...SELECT_RESUMEN, segmentos: true },
     })
     if (!r) throw new HttpError(404, 'Recorrido no encontrado', 'RECORRIDO_NOT_FOUND')
-    const valoraciones = await this.valoraciones(usuarioId, [r.id])
+    const [valoraciones, guardadas] = await Promise.all([
+      this.valoraciones(usuarioId, [r.id]),
+      this.plantillasGuardadas(usuarioId, [r.id]),
+    ])
     return {
       ...aResumen(r),
       valoracion: valoraciones.get(r.id)!,
+      mi_plantilla_id: guardadas.get(r.id) ?? null,
       segmentos: r.segmentos as Segmentos,
       checklist: r.checklist,
     }

@@ -251,6 +251,9 @@ export const MeshMapView = forwardRef<MeshMapViewHandle, Props>(function MeshMap
         provider={PROVIDER}
         initialCamera={initialCamera}
         mapType={mapStyle.mapType}
+        // En Android el esquema nativo solo se lee al crear el mapa: queda en claro
+        // y el oscuro llega por `customMapStyle` (ver mapStyles.ts).
+        userInterfaceStyle={Platform.OS === 'android' ? 'light' : mapStyle.esquema}
         customMapStyle={mapStyle.customMapStyle ?? []}
         scrollEnabled={interactive}
         zoomEnabled={interactive}

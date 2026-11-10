@@ -25,7 +25,9 @@ import {
   RUTA_LARGO,
   RUTA_PASO,
 } from '@/components/intro/logoMesh'
+import Colors from '@/constants/Colors'
 import { useAuth } from '@/context/AuthContext'
+import { esquemaDelSplash } from '@/lib/temaApp'
 
 /** Línea de tiempo, en ms. */
 const RECORRIDO_INICIO = 100
@@ -36,6 +38,12 @@ const ACHICA_INICIO = 2120
 const LETRA_DURACION = 460
 const FUNDIDO_INICIO = 3210
 const FUNDIDO_DURACION = 250
+/** El fondo pasa del color del splash nativo al del tema de la app. */
+const CAMBIO_FONDO_FIN = 350
+/** Margen para que la app termine de montarse abajo antes de animar: si no, la animación se traba. */
+const ASENTAMIENTO_MS = 350
+/** Tope de espera a la sesión antes de arrancar igual. */
+const ESPERA_SESION_MAXIMA_MS = 1500
 
 /** Escena en dp. La M arranca con el tamaño y el lugar del splash nativo (`imageWidth` de app.json). */
 const ESCENA_ANCHO = 360
@@ -302,7 +310,10 @@ export function IntroMesh({ onLista, onFin }: Props) {
   const theme = useTheme()
   const { loading } = useAuth()
   const t = useSharedValue(0)
+  const fondoSplash = Colors[esquemaDelSplash].background
+  const [splashFuera, setSplashFuera] = useState(false)
   const [recorridoListo, setRecorridoListo] = useState(false)
+  const pidioSplash = useRef(false)
   const arranco = useRef(false)
   const temporizadores = useRef<ReturnType<typeof setTimeout>[]>([])
 
@@ -311,15 +322,28 @@ export function IntroMesh({ onLista, onFin }: Props) {
     return () => pendientes.forEach(clearTimeout)
   }, [])
 
-  const arrancar = () => {
-    if (arranco.current) return
-    arranco.current = true
+  const sacarSplash = () => {
+    if (pidioSplash.current) return
+    pidioSplash.current = true
+    const listo = () => setSplashFuera(true)
+    onLista().then(listo, listo)
+  }
+
+  // El primer cuadro es igual al splash, así que esperar quieto no se nota. Recién se anima
+  // cuando la sesión cargó y la app de abajo ya se montó: ese montaje ocupa el hilo de UI.
+  useEffect(() => {
+    if (!splashFuera) return
     const empezar = () => {
+      if (arranco.current) return
+      arranco.current = true
       t.value = withTiming(FUNDIDO_INICIO, { duration: FUNDIDO_INICIO, easing: Easing.linear })
       temporizadores.current.push(setTimeout(() => setRecorridoListo(true), FUNDIDO_INICIO))
     }
-    onLista().then(empezar, empezar)
-  }
+    const espera = setTimeout(empezar, loading ? ESPERA_SESION_MAXIMA_MS : ASENTAMIENTO_MS)
+    return () => clearTimeout(espera)
+    // `t` es estable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [splashFuera, loading])
 
   useEffect(() => {
     if (!recorridoListo || loading) return
@@ -334,6 +358,9 @@ export function IntroMesh({ onLista, onFin }: Props) {
 
   const estiloFondo = useAnimatedStyle(() => ({
     opacity: 1 - suave(avance(t.value, FUNDIDO_INICIO, FUNDIDO_INICIO + FUNDIDO_DURACION)),
+  }))
+  const estiloFondoSplash = useAnimatedStyle(() => ({
+    opacity: 1 - suave(avance(t.value, 0, CAMBIO_FONDO_FIN)),
   }))
   const estiloM = useAnimatedStyle(() => ({
     transform: [
@@ -359,11 +386,16 @@ export function IntroMesh({ onLista, onFin }: Props) {
   return (
     <Animated.View
       style={[StyleSheet.absoluteFill, styles.fondo, { backgroundColor: theme.background }, estiloFondo]}
-      onLayout={arrancar}
+      onLayout={sacarSplash}
       accessible
       accessibilityRole="image"
       accessibilityLabel="Mesh"
     >
+      {fondoSplash !== theme.background && (
+        <Animated.View
+          style={[StyleSheet.absoluteFill, { backgroundColor: fondoSplash }, estiloFondoSplash]}
+        />
+      )}
       <View style={styles.escena}>
         <Animated.View style={[styles.recorte, estiloRecorte]}>
           <Animated.View style={[styles.escenaInterior, estiloContraRecorte]}>

@@ -847,6 +847,10 @@ export class ViajesService {
       data,
     })
 
+    // Los demás integrantes refrescan el detalle: sin esto seguían viendo los
+    // parámetros viejos (p. ej. el indicador "lejos") hasta reabrir la pantalla.
+    getIo().to(`viaje:${viajeId}`).emit('viaje:actualizado', { viajeId })
+
     return {
       id: actualizado.id,
       fecha_programada: actualizado.fecha_programada,

@@ -112,6 +112,8 @@ ErrorCode:
     - GEOCODING_TIMEOUT
     - GEOCODING_UPSTREAM_ERROR
     - GEOCODING_RATE_LIMIT
+    - GEOCODING_NO_DISPONIBLE
+    - GEOCODING_LUGAR_NO_ENCONTRADO
     # Routing — proxy a Google Routes con OSRM/Valhalla de respaldo (src/modules/routing/)
     - ROUTING_TIMEOUT
     - ROUTING_UPSTREAM_ERROR
@@ -952,6 +954,7 @@ RutaPlantillaResumen:
     - destino_nombre
     - created_at
     - con_checklist
+    - creada_por_mi
   properties:
     id:
       type: string
@@ -984,6 +987,12 @@ RutaPlantillaResumen:
     con_checklist:
       type: boolean
       description: Si la plantilla guardó un checklist.
+      example: false
+    creada_por_mi:
+      type: boolean
+      description: |
+        `true` si la ruta de origen es del propio usuario: publicó el recorrido o creó el
+        viaje cuyo link importó. `false` si es de otro usuario o si el origen ya no existe.
       example: false
   additionalProperties: false
 
@@ -4401,6 +4410,55 @@ GeocodingHit:
       example: -64.1888
   additionalProperties: false
 
+GeocodingSugerencia:
+  type: object
+  description: |
+    Sugerencia de lugar mientras se escribe. Las de Google Places Autocomplete
+    traen `placeId` y las coordenadas en `null` (se piden con
+    `GET /api/geocoding/lugares/{placeId}`); las del respaldo (Text Search /
+    Nominatim) traen `lat`/`lng` y `placeId` en `null`.
+  required:
+    - nombre
+    - placeId
+    - lat
+    - lng
+  properties:
+    nombre:
+      type: string
+      example: Villa General Belgrano, Provincia de Córdoba
+    placeId:
+      type: string
+      nullable: true
+      example: ChIJN1t_tDeuEmsRUsoyG83frY4
+    lat:
+      type: number
+      format: double
+      nullable: true
+      example: null
+    lng:
+      type: number
+      format: double
+      nullable: true
+      example: null
+  additionalProperties: false
+
+GeocodingLugar:
+  type: object
+  description: Coordenadas de un lugar de Google Places.
+  required:
+    - lat
+    - lng
+  properties:
+    lat:
+      type: number
+      format: double
+      example: -31.9789
+    lng:
+      type: number
+      format: double
+      example: -64.5583
+  additionalProperties: false
+
 GeocodingReverseResult:
   type: object
   description: Nombre del lugar más cercano a una coordenada.
@@ -6189,21 +6247,34 @@ RecorridoPublicadoListado:
   allOf:
     - $ref: '#/RecorridoPublicadoResumen'
     - type: object
-      required: [valoracion, reputacion_autor]
+      required: [valoracion, reputacion_autor, mi_plantilla_id]
       properties:
         valoracion:
           $ref: '#/ValoracionRecorrido'
         reputacion_autor:
           $ref: '#/ReputacionAutor'
+        mi_plantilla_id:
+          $ref: '#/MiPlantillaId'
+
+MiPlantillaId:
+  type: string
+  format: uuid
+  nullable: true
+  description: |
+    Id de la plantilla con la que quien consulta guardó este recorrido en sus rutas
+    (RN-084), o `null` si no lo guardó. Para quitarlo de guardadas:
+    `DELETE /api/rutas-plantilla/{plantillaId}`.
 
 RecorridoPublicadoDetalle:
   allOf:
     - $ref: '#/RecorridoPublicadoResumen'
     - type: object
-      required: [valoracion, segmentos, checklist]
+      required: [valoracion, mi_plantilla_id, segmentos, checklist]
       properties:
         valoracion:
           $ref: '#/ValoracionRecorrido'
+        mi_plantilla_id:
+          $ref: '#/MiPlantillaId'
         checklist:
           type: array
           description: Ítems que compartió el autor. Vacío si no compartió ninguno.

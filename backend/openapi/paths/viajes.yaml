@@ -916,6 +916,8 @@ ViajePorId:
       **Solo el creador** puede hacerlo (RN-030). La fecha solo se edita en estado
       `planificado` y debe ser futura (RN-107). La config de alertas de incidente
       solo aplica a viajes grupales, en `planificado` o `en_curso`.
+
+      Emite `viaje:actualizado` a la sala para que el resto refresque el detalle.
     tags:
       - Viajes
     parameters:

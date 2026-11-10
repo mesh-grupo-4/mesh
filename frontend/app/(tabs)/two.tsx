@@ -3,7 +3,6 @@ import { useCallback, useMemo, useState } from 'react'
 import {
   View,
   Text,
-  TextInput,
   StyleSheet,
   ActivityIndicator,
   ScrollView,
@@ -24,6 +23,14 @@ import { Btn, TopBar, useTheme, Badge, ActivityTile } from '@/components/MeshUI'
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
 import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda'
 import { AYUDA_VIAJES } from '@/components/ayuda/contenidoAyuda'
+import {
+  BarraFiltros,
+  BotonLimpiarFiltros,
+  BuscadorFiltros,
+  ChipFiltro,
+  DivisorChipsFiltro,
+  FilaChipsFiltro,
+} from '@/components/BarraFiltros'
 import { SegmentTabs } from '@/components/SegmentTabs'
 import { SelectableCard } from '@/components/SelectableCard'
 import { SelectionActionBar } from '@/components/SelectionActionBar'
@@ -96,33 +103,6 @@ function filtrar<T extends {
     if (rol === 'participante' && (v.mi_estado === 'creador' || v.mi_estado === null)) return false
     return true
   })
-}
-
-function Chip({
-  label,
-  activo,
-  onPress,
-  theme,
-}: {
-  label: string
-  activo: boolean
-  onPress: () => void
-  theme: ReturnType<typeof useTheme>
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={[
-        styles.chip,
-        { borderColor: activo ? theme.accent : theme.border },
-        activo && { backgroundColor: theme.accent },
-      ]}
-    >
-      <Text style={[styles.chipText, { color: activo ? '#fff' : theme.textDim }]}>
-        {label}
-      </Text>
-    </Pressable>
-  )
 }
 
 function puedeEliminarViaje(v: ViajePlanificadoApi): boolean {
@@ -732,32 +712,16 @@ export default function ViajesScreen() {
 
       {/* Barra de búsqueda y filtros (fija, no scrollea) */}
       <PasoAyuda {...AYUDA_VIAJES[2]!}>
-      <View style={[styles.filtersBar, { backgroundColor: theme.background, borderBottomColor: theme.border }]}>
-        {/* Buscador */}
-        <View style={[styles.searchBox, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <Feather name="search" size={15} color={theme.textMute} />
-          <TextInput
-            style={[styles.searchInput, { color: theme.text }]}
-            placeholder="Buscar por nombre..."
-            placeholderTextColor={theme.textMute}
-            value={busqueda}
-            onChangeText={setBusqueda}
-            returnKeyType="search"
-            clearButtonMode="while-editing"
-          />
-          {busqueda.length > 0 && (
-            <Pressable onPress={() => setBusqueda('')} hitSlop={8}>
-              <Feather name="x-circle" size={15} color={theme.textMute} />
-            </Pressable>
-          )}
-        </View>
+      <BarraFiltros>
+        <BuscadorFiltros
+          value={busqueda}
+          onChangeText={setBusqueda}
+          placeholder="Buscar por nombre..."
+          accessibilityLabel="Buscar viajes"
+        />
 
-        {/* Chips de actividad */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.chipsRow}
-        >
+        {/* Chips de actividad y rol */}
+        <FilaChipsFiltro>
           {([
             { key: 'all', label: 'Todas' },
             { key: 'moto', label: 'Moto' },
@@ -767,39 +731,32 @@ export default function ViajesScreen() {
             { key: 'trekking', label: 'Trekking' },
             { key: 'otro', label: 'Otro' },
           ] as { key: FiltroActividad; label: string }[]).map(({ key, label }) => (
-            <Chip
+            <ChipFiltro
               key={key}
               label={label}
               activo={filtroActividad === key}
               onPress={() => setFiltroActividad(key)}
-              theme={theme}
             />
           ))}
 
-          <View style={[styles.chipsDivider, { backgroundColor: theme.border }]} />
+          <DivisorChipsFiltro />
 
           {([
             { key: 'todos', label: 'Todos los roles' },
             { key: 'creador', label: 'Organizador' },
             { key: 'participante', label: 'Participante' },
           ] as { key: FiltroRol; label: string }[]).map(({ key, label }) => (
-            <Chip
+            <ChipFiltro
               key={key}
               label={label}
               activo={filtroRol === key}
               onPress={() => setFiltroRol(key)}
-              theme={theme}
             />
           ))}
 
-          {filtrosActivos && (
-            <Pressable style={styles.limpiarBtn} onPress={limpiarFiltros}>
-              <Feather name="x" size={12} color={theme.textMute} />
-              <Text style={[styles.limpiarText, { color: theme.textMute }]}>Limpiar</Text>
-            </Pressable>
-          )}
-        </ScrollView>
-      </View>
+          {filtrosActivos && <BotonLimpiarFiltros onPress={limpiarFiltros} />}
+        </FilaChipsFiltro>
+      </BarraFiltros>
       </PasoAyuda>
 
       {cargando ? (
@@ -1094,31 +1051,6 @@ const styles = StyleSheet.create({
 
   // Tabs internos
   segmentWrap: { paddingHorizontal: 20, paddingTop: 12 },
-
-  // Barra de filtros
-  filtersBar: { borderBottomWidth: 1, paddingTop: 10, paddingBottom: 4, gap: 8 },
-  searchBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: 16,
-    borderRadius: 10,
-    borderWidth: 1,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    gap: 8,
-  },
-  searchInput: { flex: 1, fontSize: 14, padding: 0 },
-  chipsRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingBottom: 8, gap: 6 },
-  chip: {
-    borderRadius: 20,
-    borderWidth: 1.2,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-  },
-  chipText: { fontSize: 12.5, fontWeight: '600' },
-  chipsDivider: { width: 1, height: 20, marginHorizontal: 2 },
-  limpiarBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 5 },
-  limpiarText: { fontSize: 12, fontWeight: '600' },
 
   // Contenido
   content: { padding: 20, gap: 12 },

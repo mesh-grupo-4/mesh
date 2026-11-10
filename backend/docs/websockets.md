@@ -284,6 +284,20 @@ El cliente refresca el detalle del viaje: desde ese momento las acciones de líd
 (iniciar, finalizar, aprobar paradas) son del nuevo líder. Al nuevo líder le llega además
 una notificación push.
 
+### `viaje:actualizado`
+
+Emitido por `ViajesService.actualizarViaje()` (`PATCH /api/viajes/{viajeId}`) cada vez que
+el líder cambia la fecha, los parámetros del grupo (RN-025) o la configuración de alertas.
+
+```jsonc
+{
+  "viajeId": "3f2c9a10-..."
+}
+```
+
+No lleva los valores: el cliente vuelve a pedir el detalle (`GET /api/viajes/{viajeId}`).
+El motor de eventos no depende de este evento, relee el viaje en cada ping.
+
 ### `viaje:ubicacion_oculta`
 
 Emitido por `PrivacidadService` cuando alguien apaga el compartir ubicación en un viaje
@@ -466,6 +480,7 @@ Para paradas voluntarias, `estado` es `detenido_voluntario`. El frontend en `liv
 | `viaje:participante_salio` | servidor → sala | — | — |
 | `viaje:participante_sumado` | servidor → sala | — | solo la propia persona la dispara |
 | `viaje:lider_cambiado` | servidor → sala | — | solo el líder la dispara |
+| `viaje:actualizado` | servidor → sala | — | solo el líder la dispara |
 | `viaje:ubicacion_oculta` | servidor → sala | — | solo la propia persona la dispara |
 | `viaje:alerta` | servidor → sala | — | — |
 | `viaje:alerta_actualizada` | servidor → sala | — | — |

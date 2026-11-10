@@ -27,13 +27,13 @@
 | Decisión | Qué se resolvió | Por qué |
 |---|---|---|
 | **Zona = dónde arranca el recorrido** | Al publicar se guarda el primer punto de la traza (`inicio_lat`/`inicio_lng`); el filtro devuelve los recorridos cuyo inicio cae dentro de un radio (`ST_DWithin` sobre `geography`, en PostGIS) | Es la lectura más útil de "recorridos en esta zona" (dónde hay que ir para hacerlo) y alcanza con un punto. Cálculo espacial en la base, como pide la arquitectura |
-| **Centro + radio, no "provincia/ciudad" fija** | `lat` + `lng` + `radioKm` (1–200, default 25). La app ofrece "Cerca mío" (GPS del dispositivo) o "Elegir lugar" (búsqueda por nombre vía `/api/geocoding/buscar`, ya proxiada por el backend) y radios de 10/25/50/100 km | No requiere mantener un catálogo de zonas ni geocodificar al publicar. La búsqueda de lugares ya existía y respeta la regla de no exponer la key de Google al dispositivo |
+| **Centro + radio, no "provincia/ciudad" fija** | `lat` + `lng` + `radioKm` (1–200, default 25). La app ofrece "Cerca mío" (GPS del dispositivo) o "Elegir lugar" (sugerencias mientras se escribe vía `/api/geocoding/autocompletar`, proxiadas por el backend) y radios de 10/25/50/100 km | No requiere mantener un catálogo de zonas ni geocodificar al publicar. La búsqueda de lugares ya existía y respeta la regla de no exponer la key de Google al dispositivo |
 | **Importar = plantilla en "Mis rutas"** | `POST /recorridos-publicados/{id}/importaciones` crea una `RutaPlantilla` (la misma entidad que un link de ruta importado) y la app abre "Crear viaje" con `plantillaId`. Responde con el mismo contrato `ImportacionRuta` (200 si ya existía, 201 si se creó) | Reusa entero el flujo que ya existe para crear un viaje desde una plantilla (incluido el ghost tracking contra plantillas, RN-073). La ruta además queda guardada para usarla otra vez |
 | **La traza pasa a ser el trazado planificado** | Los tramos se unen en un solo `LineString`; primer y último punto son origen y destino; sin paradas. `distancia_planeada_m` = longitud de ese trazado (PostGIS), `tiempo_estimado_seg` = tiempo en movimiento del autor | Un recorrido publicado es una traza GPS, no una ruta con postas. El usuario puede ajustar origen, destino y paradas en "Configurar ruta" después de crear el viaje |
 | **Copia independiente (RN-086)** | `ruta_plantilla.recorrido_publicado_id` es `ON DELETE SET NULL`; despublicar no toca la plantilla | Mismo criterio que el link de ruta: lo importado es del receptor |
 | **Idempotente por (usuario, recorrido)** | Único `(usuario_id, recorrido_publicado_id)`; ante carrera concurrente (P2002) se devuelve la plantilla del otro request | Tocar dos veces "Usar como base" no duplica rutas guardadas |
 | **Buscador por texto** | `q` busca en nombre, comentario y nombre del autor, sin distinguir mayúsculas ni acentos (`translate` + `strpos` en SQL) y se combina con los demás filtros | "cordoba" tiene que encontrar "Córdoba". No hace falta sumar la extensión `unaccent` |
-| **Guardar sin crear el viaje** | Además de "Usar como base", el detalle ofrece **Guardar en mis rutas** | Son dos intenciones distintas y comparten el mismo `importar` |
+| **Guardar = corazón** | Cada tarjeta de Explorar y el detalle tienen un corazón: marcarlo guarda la ruta (mismo `importar`; desde la tarjeta se lleva el checklist si lo hay) y desmarcarlo la quita, previa confirmación (`DELETE /api/rutas-plantilla/{id}`). El listado y el detalle traen `mi_plantilla_id` (id de la plantilla propia o `null`) para pintar el corazón ya marcado. En Guardadas todas las rutas aparecen con el corazón puesto; desmarcarlo pide confirmación y la saca de la lista | Guardar y "Usar como base" son intenciones distintas. El corazón es el gesto habitual de "guardar" y muestra el estado sin entrar al detalle |
 | **El checklist se elige al guardar** | `guardarChecklist` en el cuerpo de la importación. Al repetir el guardado se aplica la última elección. Al crear un viaje con la plantilla, los ítems entran como `personal` | Mismo criterio que importar el checklist de otro viaje: no obliga al grupo |
 | **La reputación destaca, la valoración ordena** | Cada recorrido del listado trae `reputacion_autor` (antigüedad, racha vigente, insignias, `nivel`). `nivel` suma puntos por racha (hitos 3/5/10), antigüedad (6/12 meses), insignias (3/5) y raras (1/2): desde 2 es `destacado`, desde 5 `leyenda`. Un recorrido es "Muy recomendado" con 80 % o más y al menos 3 votos | La reputación del autor solo resalta la tarjeta. El orden lo define la valoración del recorrido: muy recomendados primero, después por fecha (RN-082, ver [[us-valorar-recorridos]]) |
 | **Insignias raras** | Lista fija en `recorridos-publicados.reputacion.ts`: `media_maraton`, `centurion_bici`, `trekker_resistente` | El criterio no depende de cuántos usuarios haya. Ninguna de moto o auto se destaca como rara (RN-070) y ningún cálculo usa velocidad |
@@ -65,11 +65,14 @@ Recorrido despublicado → `404 RECORRIDO_NOT_FOUND`.
 - **Recorridos de la comunidad** (pestaña Rutas → Explorar,
   `components/tabs/RutasExplorarPanel.tsx`): buscador por texto; chips de actividad; chips de zona (Cualquier lugar / Cerca mío / Elegir lugar) con buscador de lugares y radios
   de 10/25/50/100 km; lista de tarjetas tipo publicación (`RecorridoComunidadCard.tsx`) con
-  autor, racha, antigüedad, insignias, comentario, actividad, distancia, tiempo, valoración y
-  aviso de checklist. Borde y cinta dorados para "Muy recomendado" y nivel `leyenda`.
-- **Detalle** (`app/recorridos-publicados/[recorridoId].tsx`): comentario del autor, checklist
-  con interruptor "Guardar también el checklist", botón **Usar como base de un viaje** → importa
-  y abre `app/viaje/crear.tsx` con la plantilla precargada, y botón **Guardar en mis rutas**.
+  autor, racha, antigüedad, insignias, comentario, actividad, distancia, tiempo, valoración,
+  aviso de checklist y corazón para guardar (`components/CorazonGuardar.tsx`). Borde y cinta dorados para "Muy recomendado" y nivel `leyenda`.
+- **Detalle** (`app/recorridos-publicados/[recorridoId].tsx`): corazón para guardar o quitar
+  junto al título, comentario del autor, checklist con interruptor "Guardar también el
+  checklist" y botón **Usar como base de un viaje** → importa y abre `app/viaje/crear.tsx` con
+  la plantilla precargada.
+- **Guardadas** (`components/tabs/RutasGuardadasPanel.tsx`): cada ruta con el corazón marcado;
+  desmarcarlo pide confirmación y la quita.
 
 ### Ayuda en línea (E14)
 

@@ -17,13 +17,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { DragToDismiss } from '@/components/DragToDismiss'
 import { useTheme } from '@/components/MeshUI'
-import { mensajeErrorBusqueda } from '@/components/route-config/RouteWaypointRow'
+import { useSugerenciasLugares } from '@/hooks/useSugerenciasLugares'
 import {
   MENSAJE_PREDETERMINADO,
   TIPOS_ALERTA,
   type TipoAlertaApi,
 } from '@/lib/alertasApi'
-import { buscarLugares, type LugarHit } from '@/lib/nominatim'
+import { MIN_LETRAS_SUGERENCIAS, type LugarSugerencia } from '@/lib/nominatim'
 
 import { AlertaMapPickModal } from './AlertaMapPickModal'
 
@@ -55,10 +55,16 @@ export function CrearAlertaSheet({
   const [eligiendoMapa, setEligiendoMapa] = useState(false)
   const [nombreUbicacion, setNombreUbicacion] = useState<string | null>(null)
   const [busqueda, setBusqueda] = useState('')
-  const [busquedaDebounced, setBusquedaDebounced] = useState('')
-  const [hits, setHits] = useState<LugarHit[]>([])
-  const [buscando, setBuscando] = useState(false)
-  const [errorBusqueda, setErrorBusqueda] = useState<string | null>(null)
+  const {
+    sugerencias: hits,
+    buscando,
+    error: errorBusqueda,
+    sinResultados,
+    resolver,
+  } = useSugerenciasLugares(busqueda, {
+    activo: visible,
+    cerca: { lat: centroMapaInicial.latitude, lng: centroMapaInicial.longitude },
+  })
   const tipoAnterior = useRef(tipo)
   const theme = useTheme()
   const insets = useSafeAreaInsets()
@@ -66,12 +72,8 @@ export function CrearAlertaSheet({
   const yBusqueda = useRef(0)
   const styles = useMemo(() => crearEstilos(theme), [theme])
 
-  const limpiarBusqueda = () => {
-    setBusqueda('')
-    setBusquedaDebounced('')
-    setHits([])
-    setErrorBusqueda(null)
-  }
+  // Con el texto vacío el hook vacía solo sugerencias y error.
+  const limpiarBusqueda = () => setBusqueda('')
 
   const quitarUbicacion = () => {
     setUbicacion(null)
@@ -88,41 +90,9 @@ export function CrearAlertaSheet({
     tipoAnterior.current = 'informacion'
   }, [visible])
 
-  useEffect(() => {
-    const t = setTimeout(() => setBusquedaDebounced(busqueda.trim()), 500)
-    return () => clearTimeout(t)
-  }, [busqueda])
-
-  useEffect(() => {
-    let cancel = false
-    async function run() {
-      if (busquedaDebounced.length < 3) {
-        setHits([])
-        setErrorBusqueda(null)
-        return
-      }
-      setBuscando(true)
-      setErrorBusqueda(null)
-      try {
-        const r = await buscarLugares(busquedaDebounced)
-        if (!cancel) setHits(r)
-      } catch (e) {
-        if (!cancel) {
-          setHits([])
-          setErrorBusqueda(mensajeErrorBusqueda(e))
-        }
-      } finally {
-        if (!cancel) setBuscando(false)
-      }
-    }
-    void run()
-    return () => {
-      cancel = true
-    }
-  }, [busquedaDebounced])
-
-  const elegirHit = (hit: LugarHit) => {
-    if (Number.isNaN(hit.lat) || Number.isNaN(hit.lng)) return
+  const elegirHit = async (sugerencia: LugarSugerencia) => {
+    const hit = await resolver(sugerencia)
+    if (!hit || Number.isNaN(hit.lat) || Number.isNaN(hit.lng)) return
     setUbicacion({ lat: hit.lat, lng: hit.lng })
     setNombreUbicacion(hit.nombre)
     limpiarBusqueda()
@@ -258,20 +228,23 @@ export function CrearAlertaSheet({
                     returnKeyType="search"
                     accessibilityLabel="Buscar el lugar donde van a parar"
                   />
-                  {busquedaDebounced.length >= 3 ? (
+                  {busqueda.trim().length >= MIN_LETRAS_SUGERENCIAS ? (
                     <View style={styles.sugerencias}>
-                      {buscando ? (
-                        <ActivityIndicator size="small" color={theme.accent} style={styles.sugerenciaInfo} />
-                      ) : errorBusqueda ? (
+                      {errorBusqueda ? (
                         <Text style={[styles.sugerenciaInfo, styles.sugerenciaError]}>{errorBusqueda}</Text>
                       ) : hits.length === 0 ? (
-                        <Text style={styles.sugerenciaInfo}>Sin resultados. Probá otro texto o el mapa.</Text>
+                        sinResultados && !buscando ? (
+                          <Text style={styles.sugerenciaInfo}>Sin resultados. Probá otro texto o el mapa.</Text>
+                        ) : (
+                          <ActivityIndicator size="small" color={theme.accent} style={styles.sugerenciaInfo} />
+                        )
                       ) : (
+                        // Las sugerencias anteriores quedan a la vista mientras llega la siguiente búsqueda.
                         hits.map((hit, i) => (
                           <Pressable
-                            key={`${hit.lat},${hit.lng}-${i}`}
+                            key={hit.placeId ?? `${hit.lat},${hit.lng}-${i}`}
                             style={({ pressed }) => [styles.sugerencia, pressed && styles.presionado]}
-                            onPress={() => elegirHit(hit)}
+                            onPress={() => void elegirHit(hit)}
                           >
                             <Text style={styles.sugerenciaTxt} numberOfLines={2}>
                               {hit.nombre}

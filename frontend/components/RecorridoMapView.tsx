@@ -5,6 +5,7 @@ import { useTheme } from '@/components/MeshUI'
 import { MeshMapView, zoomFromLatDelta, type MeshMapViewHandle, type MarkerSpec } from '@/components/maps/MeshMapView'
 import { PinMarker, PIN_ANCHOR } from '@/components/maps/PinMarker'
 import { getMapStyle } from '@/components/route-config/mapStyles'
+import { useCapaMapa } from '@/hooks/useCapaMapa'
 
 /**
  * US2: dibuja la traza GPS realmente recorrida en un viaje finalizado.
@@ -26,7 +27,8 @@ const PADDING_FIT = { top: 40, right: 40, bottom: 40, left: 40 }
 export function RecorridoMapView({ segmentos, cargando = false, altura = 220 }: Props) {
   const theme = useTheme()
   const mapRef = useRef<MeshMapViewHandle>(null)
-  const capa = getMapStyle('standard')
+  const [capaElegida] = useCapaMapa()
+  const capa = getMapStyle(capaElegida)
   const puntos = useMemo(() => segmentos.flat(), [segmentos])
   const hayTraza = puntos.length > 1
 
