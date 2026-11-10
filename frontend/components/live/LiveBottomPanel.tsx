@@ -24,6 +24,7 @@ type Props = {
   accion: boolean
   paradaDesde: string | null
   esIncidenteDetectado?: boolean
+  retomaElGrupo?: boolean
   puedeSolicitar: boolean
   solicitudPendiente: boolean
   paradaEnCurso: boolean
@@ -46,6 +47,7 @@ export function LiveBottomPanel({
   accion,
   paradaDesde,
   esIncidenteDetectado,
+  retomaElGrupo,
   puedeSolicitar,
   solicitudPendiente,
   paradaEnCurso,
@@ -124,6 +126,7 @@ export function LiveBottomPanel({
             <ParadaActionsBar
               paradaDesde={paradaDesde}
               esIncidenteDetectado={esIncidenteDetectado}
+              retomaElGrupo={retomaElGrupo}
               puedeSolicitar={puedeSolicitar}
               solicitudPendiente={solicitudPendiente}
               ocupado={paradaEnCurso || accion}

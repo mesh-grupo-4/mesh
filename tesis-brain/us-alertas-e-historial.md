@@ -97,8 +97,9 @@ Migraciones: `20260821170000_alertas`, `20260828190000_alertas_solo_lider`, `202
 **US1** — En el mapa en vivo: campana con contador y botón `+` para quien puede crear.
 Al componer: tipo → mensaje predeterminado editable → opcional "Marcar en el mapa".
 La alerta entrante aparece como banner sobre el mapa; con ubicación: **Seguir** / **Ignorar**.
-Sin ubicación: **Entendido**. La pantalla `/viaje/[viajeId]/alertas` lista todo con color
-por tipo y hora en UTC-3 (RN-105).
+Sin ubicación: **Entendido**. La pantalla `/viaje/[viajeId]/alertas` separa en dos pestañas:
+**Activas** (activa y pausada, con color por tipo) y **Resueltas** (resuelta y cancelada, en gris).
+Hora en UTC-3 (RN-105).
 
 En detalle del viaje (grupal): toggle **Solo el líder crea alertas** junto a la config de incidente.
 

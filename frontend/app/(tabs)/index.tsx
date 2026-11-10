@@ -9,21 +9,20 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useAuth } from '@/context/AuthContext'
 import { useTripRealtime } from '@/context/TripRealtimeContext'
 import { Badge, MeshLogo, useTheme } from '@/components/MeshUI'
-import { SelectorTema } from '@/components/SelectorTema'
-import Colors from '@/constants/Colors'
 import { BotonAyuda } from '@/components/ayuda/BotonAyuda'
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
 import { AYUDA_INICIO } from '@/components/ayuda/contenidoAyuda'
 import { MeshMapView, type MeshMapViewHandle } from '@/components/maps/MeshMapView'
-import { ESTILO_MAPA_OSCURO_INICIO, getMapStyle } from '@/components/route-config/mapStyles'
+import { getMapStyle } from '@/components/route-config/mapStyles'
+import { SelectorCapaMapa } from '@/components/route-config/SelectorCapaMapa'
 import { REGION_FALLBACK } from '@/components/route-config/routeTypes'
+import { useCapaMapa } from '@/hooks/useCapaMapa'
 import { useUbicacionActual } from '@/hooks/useUbicacionActual'
 import { etiquetaActividad } from '@/lib/activityDefaults'
 import { resolveBackendUserId } from '@/lib/apiClient'
 import { formatearEnArg } from '@/lib/tiempoArg'
 import { obtenerViajeEnCurso, type ViajeEnCursoApi } from '@/lib/viajesApi'
 
-const ESTILO_MAPA = getMapStyle('standard')
 const ZOOM_UBICACION = 16
 /** Alto de la barra superior, sin contar el inset del sistema. */
 const BARRA_ALTO = 56
@@ -45,6 +44,8 @@ export default function InicioScreen() {
   const { backendUserId, backendSyncing } = useAuth()
   const { syncKnownTripIds } = useTripRealtime()
   const [enCurso, setEnCurso] = useState<ViajeEnCursoApi | null>(null)
+  // La vista del mapa no depende del tema de la app: es la misma en claro y en oscuro.
+  const [capaMapa, setCapaMapa] = useCapaMapa()
   const mapRef = useRef<MeshMapViewHandle>(null)
   const centradoRef = useRef(false)
   // La ubicación solo se sigue mientras Inicio está a la vista.
@@ -92,7 +93,7 @@ export default function InicioScreen() {
           style={StyleSheet.absoluteFill}
           initialCenter={{ latitude: REGION_FALLBACK.latitude, longitude: REGION_FALLBACK.longitude }}
           initialZoom={12}
-          mapStyle={theme === Colors.dark ? ESTILO_MAPA_OSCURO_INICIO : ESTILO_MAPA}
+          mapStyle={getMapStyle(capaMapa)}
           userLocation={ubicacion}
         />
       </PasoAyuda>
@@ -110,7 +111,7 @@ export default function InicioScreen() {
       >
         <MeshLogo size={22} />
         <View style={styles.barraAcciones}>
-          <SelectorTema menuTop={altoBarra + 8} />
+          <SelectorCapaMapa value={capaMapa} onChange={setCapaMapa} menuTop={altoBarra + 8} />
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Escanear un QR para unirte"

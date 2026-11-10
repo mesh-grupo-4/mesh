@@ -1,5 +1,5 @@
 import { useEspacioTabBar } from '@/hooks/useEspacioTabBar'
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,59 +8,43 @@ import {
 } from 'react-native';
 import { Pressable } from '@/components/Pressable';
 import { meshAlert } from '@/lib/meshAlert';
-import { useAuth, ActividadPreferida } from '@/context/AuthContext';
+import { useAuth } from '@/context/AuthContext';
 import { router, useFocusEffect } from 'expo-router';
-import { useCopilot } from 'react-native-copilot';
 import { resolveBackendUserId } from '@/lib/apiClient';
-import { listarAmigos, listarSolicitudesAmistadPendientes } from '@/lib/amistadesApi';
-import { listarGrupos } from '@/lib/gruposApi';
-import { obtenerEstadisticasUsuario } from '@/lib/viajesApi';
+import { listarSolicitudesAmistadPendientes } from '@/lib/amistadesApi';
 import { listarMisInsignias, type InsigniaObtenidaApi } from '@/lib/insigniasApi';
-import { obtenerMiRacha, type RachaApi } from '@/lib/rachasApi';
-import { formatKmCompact } from '@/lib/format';
-import { Btn, Field, Chip, ChipRow, Avatar, TopBar, useTheme } from '@/components/MeshUI';
+import { intensidadRacha, nivelRacha, obtenerMiRacha, type RachaApi } from '@/lib/rachasApi';
+import { usePreferenciaTema } from '@/lib/temaApp';
+import { Avatar, TopBar, useTheme } from '@/components/MeshUI';
+import { BotonAyuda } from '@/components/ayuda/BotonAyuda';
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda';
 import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda'
 import { AYUDA_PERFIL } from '@/components/ayuda/contenidoAyuda';
+import { FilaOpcion } from '@/components/perfil/FilaOpcion';
+import { FondoMesh, FundidoMesh } from '@/components/perfil/FondoMesh';
+import { FueguitosRacha } from '@/components/perfil/FueguitosRacha';
+import { etiquetaTema } from '@/components/SelectorTema';
 import { Feather } from '@expo/vector-icons';
 
-const ACTIVIDADES: { valor: ActividadPreferida; etiqueta: string; icono: keyof typeof Feather.glyphMap }[] = [
-  { valor: 'moto', etiqueta: 'Moto', icono: 'compass' },
-  { valor: 'auto', etiqueta: 'Auto', icono: 'navigation' },
-  { valor: 'bici', etiqueta: 'Bici', icono: 'git-commit' },
-  { valor: 'running', etiqueta: 'Running', icono: 'zap' },
-  { valor: 'trekking', etiqueta: 'Trekking', icono: 'map' },
-  { valor: 'otro', etiqueta: 'Otro', icono: 'more-horizontal' },
-];
-
-type StatsPerfil = {
-  viajes: number;
-  grupos: number;
-  amigos: number;
-  distancia_m: number;
-};
+const ALTO_FONDO = 460;
+const ALTO_FUEGUITOS = 340;
+/** El ícono de la racha crece con cada hito (3, 5 y 10 semanas). */
+const TAMANO_EMOJI_RACHA = [28, 32, 36, 42];
 
 export default function PerfilScreen() {
   const espacioTabBar = useEspacioTabBar()
-  const { user, profile, updateUserProfile, logout, backendUserId, esSuperadmin } = useAuth();
+  const { user, profile, logout, backendUserId, esSuperadmin } = useAuth();
   const theme = useTheme();
-  const { start } = useCopilot();
+  const preferenciaTema = usePreferenciaTema();
 
-  const [nombre, setNombre] = useState('');
-  const [apellido, setApellido] = useState('');
-  const [telefono, setTelefono] = useState('');
-  const [actividad, setActividad] = useState<ActividadPreferida>('');
-  const [loading, setLoading] = useState(false);
-  const [guardado, setGuardado] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [solicitudesPendientes, setSolicitudesPendientes] = useState(0);
-  const [modoEdicion, setModoEdicion] = useState(false);
-  const [stats, setStats] = useState<StatsPerfil | null>(null);
-  const [cargandoStats, setCargandoStats] = useState(true);
   const [insignias, setInsignias] = useState<InsigniaObtenidaApi[]>([]);
   const [cargandoInsignias, setCargandoInsignias] = useState(true);
   const [racha, setRacha] = useState<RachaApi | null>(null);
   const [cargandoRacha, setCargandoRacha] = useState(true);
+  // Cambia cada vez que llega la racha al entrar: remonta los fueguitos y repite la ráfaga.
+  const [rafagaFueguitos, setRafagaFueguitos] = useState(0);
 
   const cargarInsignias = useCallback(async () => {
     try {
@@ -91,6 +75,7 @@ export default function PerfilScreen() {
     setCargandoRacha(true);
     try {
       setRacha(await obtenerMiRacha());
+      setRafagaFueguitos((n) => n + 1);
     } catch {
       setRacha(null);
     } finally {
@@ -98,51 +83,25 @@ export default function PerfilScreen() {
     }
   }, [backendUserId]);
 
-  const cargarStats = useCallback(async () => {
+  const cargarSolicitudes = useCallback(async () => {
     let userId: string;
     try {
       userId = resolveBackendUserId(backendUserId);
     } catch {
       setSolicitudesPendientes(0);
-      setStats({ viajes: 0, grupos: 0, amigos: 0, distancia_m: 0 });
-      setCargandoStats(false);
       return;
     }
-
-    setCargandoStats(true);
-    const [estadisticas, grupos, amigos, solicitudes] = await Promise.all([
-      obtenerEstadisticasUsuario(userId).catch(() => null),
-      listarGrupos(userId).catch(() => null),
-      listarAmigos(userId).catch(() => null),
-      listarSolicitudesAmistadPendientes(userId).catch(() => null),
-    ]);
-
-    setStats({
-      viajes: estadisticas?.viajes_finalizados ?? 0,
-      grupos: grupos?.length ?? 0,
-      amigos: amigos?.length ?? 0,
-      distancia_m: estadisticas?.distancia_total_m ?? 0,
-    });
+    const solicitudes = await listarSolicitudesAmistadPendientes(userId).catch(() => null);
     setSolicitudesPendientes(solicitudes?.length ?? 0);
-    setCargandoStats(false);
   }, [backendUserId]);
 
   useFocusEffect(
     useCallback(() => {
-      void cargarStats();
+      void cargarSolicitudes();
       void cargarInsignias();
       void cargarRacha();
-    }, [cargarStats, cargarInsignias, cargarRacha])
+    }, [cargarSolicitudes, cargarInsignias, cargarRacha])
   );
-
-  useEffect(() => {
-    if (profile) {
-      setNombre(profile.nombre);
-      setApellido(profile.apellido);
-      setTelefono(profile.telefono ?? '');
-      setActividad(profile.actividadPreferida);
-    }
-  }, [profile]);
 
   const cerrarSesion = () => {
     meshAlert('Cerrar sesión', '¿Estás seguro que querés cerrar sesión?', [
@@ -163,401 +122,214 @@ export default function PerfilScreen() {
     ]);
   };
 
-  const cancelarEdicion = () => {
-    if (profile) {
-      setNombre(profile.nombre);
-      setApellido(profile.apellido);
-      setTelefono(profile.telefono ?? '');
-      setActividad(profile.actividadPreferida);
-    }
-    setModoEdicion(false);
-  };
-
-  const guardar = () => {
-    if (!nombre.trim() || !apellido.trim()) {
-      meshAlert('Campos requeridos', 'El nombre y apellido no pueden estar vacíos.');
-      return;
-    }
-    meshAlert('Guardar cambios', '¿Estás seguro que querés guardar los cambios?', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Guardar',
-        onPress: async () => {
-          setLoading(true);
-          try {
-            await updateUserProfile({
-              nombre: nombre.trim(),
-              apellido: apellido.trim(),
-              telefono: telefono.trim(),
-              actividadPreferida: actividad,
-            });
-            setGuardado(true);
-            setModoEdicion(false);
-            setTimeout(() => setGuardado(false), 2500);
-          } catch {
-            meshAlert('Error', 'No se pudieron guardar los cambios. Intentá de nuevo.');
-          } finally {
-            setLoading(false);
-          }
-        },
-      },
-    ]);
-  };
-
-  const meDummy = {
-    nombre: nombre || profile?.nombre || 'U',
-    apellido: apellido || profile?.apellido || '',
+  const persona = {
+    nombre: profile?.nombre || 'U',
+    apellido: profile?.apellido || '',
     color: theme.accent,
   };
 
+  const semanasRacha = racha?.semanas_consecutivas ?? 0;
+  const nivel = nivelRacha(semanasRacha);
+
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <TopBar title="Perfil" raiz bordered={false} onAyuda={() => start()} />
+      <FondoMesh
+        color={theme.text}
+        alto={ALTO_FONDO}
+        colorRacha={theme.fire}
+        intensidadRacha={intensidadRacha(semanasRacha)}
+      />
 
-      <ScrollViewAyuda
-        contentContainerStyle={[styles.inner, { paddingBottom: espacioTabBar }]}
-        keyboardShouldPersistTaps="handled"
-        automaticallyAdjustKeyboardInsets
-      >
-        {/* Cabecera del perfil */}
-        <View style={styles.profileHeader}>
-          <Avatar person={meDummy} size="lg" ring />
-          <View style={styles.profileMeta}>
-            <Text style={[styles.profileName, { color: theme.text }]}>
-              {`${nombre} ${apellido}`.trim() || 'Cargando...'}
-            </Text>
-            <Text style={[styles.profileEmail, { color: theme.textDim }]} numberOfLines={1}>
-              {user?.email}
-            </Text>
+      <TopBar
+        title=""
+        raiz
+        bordered={false}
+        transparente
+        right={
+          <View style={styles.acciones}>
+            <BotonAyuda />
+            <PasoAyuda {...AYUDA_PERFIL[0]!}>
+              <Pressable
+                onPress={() => router.push('/editar-perfil')}
+                accessibilityRole="button"
+                accessibilityLabel="Ver y editar datos personales"
+                hitSlop={8}
+                style={({ pressed }) => [
+                  styles.botonLapiz,
+                  {
+                    backgroundColor: pressed ? theme.surface2 : theme.surface,
+                    borderColor: theme.border,
+                  },
+                ]}
+              >
+                <Feather name="edit-2" size={19} color={theme.text} />
+              </Pressable>
+            </PasoAyuda>
           </View>
+        }
+      />
+
+      <ScrollViewAyuda contentContainerStyle={styles.scroll}>
+        <View style={styles.cabecera}>
+          <View style={styles.fundido}>
+            <FundidoMesh color={theme.background} />
+          </View>
+          <Avatar
+            person={persona}
+            size="xl"
+            ring={nivel >= 2}
+            style={nivel >= 2 ? { borderColor: theme.fire } : undefined}
+          />
+          <Text style={[styles.nombre, { color: theme.text }]} numberOfLines={1}>
+            {`${profile?.nombre ?? ''} ${profile?.apellido ?? ''}`.trim() || 'Cargando...'}
+          </Text>
+          <Text style={[styles.email, { color: theme.textDim }]} numberOfLines={1}>
+            {user?.email}
+          </Text>
         </View>
 
-        {/* Bloque de estadísticas */}
-        <PasoAyuda {...AYUDA_PERFIL[0]!}>
-        <View style={[styles.statsCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          {(
-            [
-              {
-                key: 'viajes',
-                label: 'Viajes',
-                value: cargandoStats && !stats ? '·' : String(stats?.viajes ?? 0),
-                onPress: () => router.push('/(tabs)/two'),
-              },
-              {
-                key: 'grupos',
-                label: 'Grupos',
-                value: cargandoStats && !stats ? '·' : String(stats?.grupos ?? 0),
-                onPress: () => router.push('/(tabs)/grupos'),
-              },
-              {
-                key: 'amigos',
-                label: 'Amigos',
-                value: cargandoStats && !stats ? '·' : String(stats?.amigos ?? 0),
-                onPress: () => router.push('/(tabs)/grupos?tab=amigos'),
-              },
-              {
-                key: 'km',
-                label: 'Km',
-                value: cargandoStats && !stats ? '·' : formatKmCompact(stats?.distancia_m ?? 0),
-                onPress: () => router.push('/(tabs)/two'),
-              },
-            ] as const
-          ).map((celdas, index) => (
-            <Pressable
-              key={celdas.key}
-              style={({ pressed }) => [
-                styles.statBox,
-                index > 0 && styles.borderLeft,
-                index > 0 && { borderLeftColor: theme.border },
-                pressed && { opacity: 0.7 },
-              ]}
-              onPress={celdas.onPress}
-              accessibilityRole="button"
-              accessibilityLabel={`${celdas.label}: ${celdas.value}`}
-            >
-              <Text style={[styles.statValue, { color: theme.text }]} numberOfLines={1}>
-                {celdas.value}
-              </Text>
-              <Text style={[styles.statLabel, { color: theme.textMute }]}>{celdas.label}</Text>
-            </Pressable>
-          ))}
-        </View>
-        </PasoAyuda>
-
-        {/* Racha (RN-075, E09) */}
-        <View style={styles.section}>
-          <Text style={[styles.eyebrow, { color: theme.textDim }]}>RACHA</Text>
-          {cargandoRacha ? (
-            <Text style={[styles.insigniasVacio, { color: theme.textMute }]}>Cargando...</Text>
-          ) : (
-            <View style={[styles.rachaCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <Text style={styles.rachaEmoji}>🔥</Text>
-              <View style={styles.rachaTexto}>
-                <Text style={[styles.rachaValor, { color: theme.text }]}>
-                  {racha && racha.semanas_consecutivas > 0
-                    ? `${racha.semanas_consecutivas} semana${racha.semanas_consecutivas === 1 ? '' : 's'} seguidas`
-                    : 'Sin racha activa'}
-                </Text>
-                <Text
+        <View style={[styles.cuerpo, { backgroundColor: theme.background, paddingBottom: espacioTabBar }]}>
+          <View style={styles.resumen}>
+            {/* Racha (RN-075, E09) */}
+            <View style={styles.section}>
+              <Text style={[styles.eyebrow, { color: theme.textDim }]}>RACHA</Text>
+              {cargandoRacha ? (
+                <Text style={[styles.insigniasVacio, { color: theme.textMute }]}>Cargando...</Text>
+              ) : (
+                <View
                   style={[
-                    styles.rachaHint,
-                    { color: racha?.en_riesgo ? theme.danger : theme.textDim },
+                    styles.rachaCard,
+                    {
+                      backgroundColor: nivel >= 2 ? theme.fireWeak : theme.surface,
+                      borderColor: nivel >= 1 ? theme.fire : theme.border,
+                      borderWidth: nivel >= 3 ? 2 : 1,
+                    },
                   ]}
                 >
-                  {racha?.en_riesgo
-                    ? 'Salí esta semana para no perderla'
-                    : racha && racha.semanas_consecutivas > 0
-                      ? 'Completá un viaje cada semana para mantenerla'
-                      : 'Completá un viaje para arrancar una racha'}
-                </Text>
-              </View>
-            </View>
-          )}
-        </View>
-
-        {/* Insignias (RN-074, E09) */}
-        <View style={styles.section}>
-          <Text style={[styles.eyebrow, { color: theme.textDim }]}>INSIGNIAS</Text>
-          {cargandoInsignias ? (
-            <Text style={[styles.insigniasVacio, { color: theme.textMute }]}>Cargando...</Text>
-          ) : insignias.length === 0 ? (
-            <Text style={[styles.insigniasVacio, { color: theme.textMute }]}>
-              Todavía no conseguiste ninguna. Completá un viaje para empezar a ganarlas.
-            </Text>
-          ) : (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.insigniasRow}
-            >
-              {insignias.map((ins) => (
-                <View
-                  key={ins.id}
-                  style={[styles.insigniaChip, { backgroundColor: theme.surface, borderColor: theme.border }]}
-                >
-                  <View style={[styles.insigniaIconWrap, { backgroundColor: theme.accentWeak }]}>
-                    <Feather name={ins.icono as keyof typeof Feather.glyphMap} size={20} color={theme.accent} />
+                  <Text style={{ fontSize: TAMANO_EMOJI_RACHA[nivel] }}>🔥</Text>
+                  <View style={styles.rachaTexto}>
+                    <Text style={[styles.rachaValor, { color: theme.text }]}>
+                      {racha && racha.semanas_consecutivas > 0
+                        ? `${racha.semanas_consecutivas} semana${racha.semanas_consecutivas === 1 ? '' : 's'} seguidas`
+                        : 'Sin racha activa'}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.rachaHint,
+                        { color: racha?.en_riesgo ? theme.danger : theme.textDim },
+                      ]}
+                    >
+                      {racha?.en_riesgo
+                        ? 'Salí esta semana para no perderla'
+                        : racha && racha.semanas_consecutivas > 0
+                          ? 'Completá un viaje cada semana para mantenerla'
+                          : 'Completá un viaje para arrancar una racha'}
+                    </Text>
                   </View>
-                  <Text style={[styles.insigniaNombre, { color: theme.text }]} numberOfLines={2}>
-                    {ins.nombre}
-                  </Text>
                 </View>
-              ))}
-            </ScrollView>
-          )}
-        </View>
-
-        {/* Datos Personales */}
-        <View style={styles.section}>
-          <Text style={[styles.eyebrow, { color: theme.textDim }]}>DATOS PERSONALES</Text>
-          <View style={styles.row}>
-            <View style={styles.half}>
-              <Field
-                label="Nombre"
-                value={nombre}
-                onChangeText={setNombre}
-                autoCapitalize="words"
-                placeholderTextColor={theme.textMute}
-                editable={modoEdicion}
-              />
+              )}
             </View>
-            <View style={styles.half}>
-              <Field
-                label="Apellido"
-                value={apellido}
-                onChangeText={setApellido}
-                autoCapitalize="words"
-                placeholderTextColor={theme.textMute}
-                editable={modoEdicion}
-              />
+
+            {/* Insignias (RN-074, E09) */}
+            <View style={styles.section}>
+              <Text style={[styles.eyebrow, { color: theme.textDim }]}>INSIGNIAS</Text>
+              {cargandoInsignias ? (
+                <Text style={[styles.insigniasVacio, { color: theme.textMute }]}>Cargando...</Text>
+              ) : insignias.length === 0 ? (
+                <Text style={[styles.insigniasVacio, { color: theme.textMute }]}>
+                  Todavía no conseguiste ninguna. Completá un viaje para empezar a ganarlas.
+                </Text>
+              ) : (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.insigniasRow}
+                >
+                  {insignias.map((ins) => (
+                    <View
+                      key={ins.id}
+                      style={[styles.insigniaChip, { backgroundColor: theme.surface, borderColor: theme.border }]}
+                    >
+                      <View style={[styles.insigniaIconWrap, { backgroundColor: theme.accentWeak }]}>
+                        <Feather name={ins.icono as keyof typeof Feather.glyphMap} size={20} color={theme.accent} />
+                      </View>
+                      <Text style={[styles.insigniaNombre, { color: theme.text }]} numberOfLines={2}>
+                        {ins.nombre}
+                      </Text>
+                    </View>
+                  ))}
+                </ScrollView>
+              )}
             </View>
           </View>
 
-          <Field
-            label="Teléfono"
-            leading="phone"
-            value={telefono}
-            onChangeText={setTelefono}
-            keyboardType="phone-pad"
-            placeholderTextColor={theme.textMute}
-            placeholder="ej: 351 123-4567"
-            editable={modoEdicion}
+          <PasoAyuda {...AYUDA_PERFIL[1]!}>
+            <FilaOpcion
+              icono="bar-chart"
+              titulo="Estadísticas"
+              subtitulo="Viajes, grupos, amigos y kilómetros"
+              onPress={() => router.push('/estadisticas')}
+            />
+          </PasoAyuda>
+          <FilaOpcion
+            icono="users"
+            titulo="Mis amigos"
+            subtitulo="Tu lista y solicitudes de amistad"
+            badge={solicitudesPendientes}
+            onPress={() => router.push('/(tabs)/grupos?tab=amigos')}
           />
-        </View>
-
-        {/* Actividad Preferida */}
-        <View style={styles.section}>
-          <Text style={[styles.eyebrow, { color: theme.textDim }]}>ACTIVIDAD PREFERIDA</Text>
-          <ChipRow>
-            {ACTIVIDADES.map(({ valor, etiqueta, icono }) => (
-              <Chip
-                key={valor}
-                icon={icono}
-                active={actividad === valor}
-                onPress={modoEdicion ? () => setActividad(valor === actividad ? '' : valor) : undefined}
-              >
-                {etiqueta}
-              </Chip>
-            ))}
-          </ChipRow>
-        </View>
-
-        {/* Amigos */}
-        <Pressable
-          style={({ pressed }) => [
-            styles.linkAmigos,
-            {
-              backgroundColor: pressed ? theme.surface2 : theme.surface,
-              borderColor: theme.border,
-            },
-          ]}
-          onPress={() => router.push('/(tabs)/grupos?tab=amigos')}
-        >
-          <View style={styles.linkAmigosContent}>
-            <Feather name="users" size={18} color={theme.accent} style={styles.amigosIcon} />
-            <Text style={[styles.linkAmigosText, { color: theme.text }]}>Mis Amigos</Text>
-            {solicitudesPendientes > 0 && (
-              <View style={[styles.badge, { backgroundColor: theme.accent }]}>
-                <Text style={styles.badgeText}>{solicitudesPendientes}</Text>
-              </View>
-            )}
-          </View>
-          <Feather name="chevron-right" size={20} color={theme.textMute} />
-        </Pressable>
-
-        <Pressable
-          style={({ pressed }) => [
-            styles.linkAmigos,
-            {
-              backgroundColor: pressed ? theme.surface2 : theme.surface,
-              borderColor: theme.border,
-              marginTop: 10,
-            },
-          ]}
-          onPress={() => router.push('/(tabs)/rutas')}
-        >
-          <View style={styles.linkAmigosContent}>
-            <Feather name="map" size={18} color={theme.accent} style={styles.amigosIcon} />
-            <Text style={[styles.linkAmigosText, { color: theme.text }]}>Mis rutas</Text>
-          </View>
-          <Feather name="chevron-right" size={20} color={theme.textMute} />
-        </Pressable>
-
-        <Pressable
-          style={({ pressed }) => [
-            styles.linkAmigos,
-            {
-              backgroundColor: pressed ? theme.surface2 : theme.surface,
-              borderColor: theme.border,
-              marginTop: 10,
-            },
-          ]}
-          onPress={() => router.push('/ranking')}
-        >
-          <View style={styles.linkAmigosContent}>
-            <Feather name="bar-chart-2" size={18} color={theme.accent} style={styles.amigosIcon} />
-            <Text style={[styles.linkAmigosText, { color: theme.text }]}>Tabla de posiciones</Text>
-          </View>
-          <Feather name="chevron-right" size={20} color={theme.textMute} />
-        </Pressable>
-
-        <PasoAyuda {...AYUDA_PERFIL[2]!}>
-          <Pressable
-            style={({ pressed }) => [
-              styles.linkAmigos,
-              {
-                backgroundColor: pressed ? theme.surface2 : theme.surface,
-                borderColor: theme.border,
-                marginTop: 10,
-              },
-            ]}
-            onPress={() => router.push('/privacidad')}
-          >
-            <View style={styles.linkAmigosContent}>
-              <Feather name="shield" size={18} color={theme.accent} style={styles.amigosIcon} />
-              <Text style={[styles.linkAmigosText, { color: theme.text }]}>
-                Privacidad y ubicación
-              </Text>
-            </View>
-            <Feather name="chevron-right" size={20} color={theme.textMute} />
-          </Pressable>
-        </PasoAyuda>
-
-        {/* RN-120: entrada al backoffice, solo para superadmins (el backend valida igual). */}
-        {esSuperadmin && (
-          <Pressable
-            style={({ pressed }) => [
-              styles.linkAmigos,
-              {
-                backgroundColor: pressed ? theme.surface2 : theme.surface,
-                borderColor: theme.accent,
-                marginTop: 10,
-              },
-            ]}
-            onPress={() => router.push('/admin')}
-          >
-            <View style={styles.linkAmigosContent}>
-              <Feather name="sliders" size={18} color={theme.accent} style={styles.amigosIcon} />
-              <Text style={[styles.linkAmigosText, { color: theme.text }]}>Administración</Text>
-            </View>
-            <Feather name="chevron-right" size={20} color={theme.textMute} />
-          </Pressable>
-        )}
-
-        {/* Botones de acción */}
-        <PasoAyuda {...AYUDA_PERFIL[1]!}>
-        <View style={styles.actions}>
-          {modoEdicion ? (
-            <>
-              <Btn
-                variant={guardado ? 'outline' : 'primary'}
-                size="lg"
-                block
-                onPress={guardar}
-                loading={loading}
-                icon={guardado ? 'check' : undefined}
-              >
-                {guardado ? 'Cambios guardados' : 'Guardar cambios'}
-              </Btn>
-              <Btn
-                variant="ghost"
-                size="lg"
-                block
-                onPress={cancelarEdicion}
-                disabled={loading}
-              >
-                Cancelar
-              </Btn>
-            </>
-          ) : (
-            <Btn
-              variant="outline"
-              size="lg"
-              block
-              onPress={() => setModoEdicion(true)}
-              icon="edit-2"
-            >
-              Editar datos
-            </Btn>
+          <FilaOpcion
+            icono="map"
+            titulo="Mis rutas"
+            subtitulo="Tus recorridos guardados"
+            onPress={() => router.push('/(tabs)/rutas')}
+          />
+          <FilaOpcion
+            icono="bar-chart-2"
+            titulo="Tabla de posiciones"
+            subtitulo="Rankings de actividades sin motor"
+            onPress={() => router.push('/ranking')}
+          />
+          <PasoAyuda {...AYUDA_PERFIL[2]!}>
+            <FilaOpcion
+              icono="shield"
+              titulo="Privacidad y ubicación"
+              subtitulo="Qué compartís en cada viaje"
+              onPress={() => router.push('/privacidad')}
+            />
+          </PasoAyuda>
+          <FilaOpcion
+            icono="sun"
+            titulo="Apariencia"
+            subtitulo={etiquetaTema(preferenciaTema)}
+            onPress={() => router.push('/apariencia')}
+          />
+          {/* RN-120: entrada al backoffice, solo para superadmins (el backend valida igual). */}
+          {esSuperadmin && (
+            <FilaOpcion
+              icono="sliders"
+              titulo="Administración"
+              subtitulo="Backoffice de la plataforma"
+              onPress={() => router.push('/admin')}
+            />
           )}
-
-          <Btn
-            variant="danger-outline"
-            size="lg"
-            block
-            onPress={cerrarSesion}
+          <FilaOpcion
+            icono="log-out"
+            titulo="Cerrar sesión"
+            peligro
             disabled={loggingOut}
-            icon="log-out"
-          >
-            Cerrar sesión
-          </Btn>
-        </View>
-        </PasoAyuda>
+            onPress={cerrarSesion}
+          />
 
-        <Text style={[styles.footerText, { color: theme.textMute }]}>
-          Mesh · v1.0 — Córdoba, AR
-        </Text>
+          <Text style={[styles.footerText, { color: theme.textMute }]}>
+            Mesh · v1.0 — Córdoba, AR
+          </Text>
+        </View>
       </ScrollViewAyuda>
+
+      {rafagaFueguitos > 0 ? (
+        <FueguitosRacha key={rafagaFueguitos} semanas={semanasRacha} alto={ALTO_FUEGUITOS} />
+      ) : null}
     </View>
   );
 }
@@ -566,54 +338,53 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  inner: {
-    padding: 20,
-    gap: 20,
-  },
-  profileHeader: {
+  acciones: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    gap: 10,
   },
-  profileMeta: {
-    flex: 1,
-  },
-  profileName: {
-    fontSize: 22,
-    fontWeight: '700',
-    letterSpacing: -0.4,
-  },
-  profileEmail: {
-    fontSize: 14,
-    marginTop: 3,
-  },
-  statsCard: {
-    flexDirection: 'row',
-    borderRadius: 16,
+  botonLapiz: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     borderWidth: 1,
-    overflow: 'hidden',
-    paddingVertical: 14,
-  },
-  statBox: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  borderLeft: {
-    borderLeftWidth: 1,
+  scroll: {
+    flexGrow: 1,
   },
-  statValue: {
-    fontSize: 18,
-    fontWeight: '700',
-    fontFamily: 'SpaceMono',
+  cabecera: {
+    alignItems: 'center',
+    paddingTop: 4,
+    paddingBottom: 18,
+    paddingHorizontal: 20,
   },
-  statLabel: {
-    fontSize: 10,
-    fontFamily: 'SpaceMono',
-    fontWeight: '700',
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
+  fundido: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 170,
+  },
+  nombre: {
+    fontSize: 28,
+    fontWeight: '500',
+    letterSpacing: -0.3,
+    marginTop: 16,
+  },
+  email: {
+    fontSize: 15,
     marginTop: 4,
+  },
+  cuerpo: {
+    flexGrow: 1,
+  },
+  resumen: {
+    paddingHorizontal: 20,
+    paddingTop: 6,
+    paddingBottom: 12,
+    gap: 20,
   },
   section: {
     gap: 10,
@@ -635,9 +406,6 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 14,
     borderWidth: 1,
-  },
-  rachaEmoji: {
-    fontSize: 28,
   },
   rachaTexto: {
     flex: 1,
@@ -676,58 +444,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textAlign: 'center',
   },
-  row: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  half: {
-    flex: 1,
-  },
-  linkAmigos: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderWidth: 1.2,
-    marginTop: 8,
-  },
-  linkAmigosContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  amigosIcon: {
-    marginRight: 10,
-  },
-  linkAmigosText: {
-    fontSize: 15.5,
-    fontWeight: '600',
-  },
-  badge: {
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    paddingHorizontal: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 8,
-  },
-  badgeText: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  actions: {
-    gap: 11,
-    marginTop: 10,
-  },
   footerText: {
     textAlign: 'center',
     fontSize: 11.5,
     fontFamily: 'SpaceMono',
-    marginTop: 8,
+    marginTop: 12,
   },
 });
-

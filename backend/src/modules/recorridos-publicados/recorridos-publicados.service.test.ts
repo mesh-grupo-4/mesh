@@ -26,7 +26,27 @@ const FILA = {
   distancia_m: 42500,
   tiempo_seg: 6300,
   publicado_at: new Date('2026-10-23T15:00:00.000Z'),
+  comentario: null,
+  checklist: [] as string[],
   usuario: { id: usuarioId, nombre: 'Ana', apellido: 'Pérez' },
+}
+
+const PLANTILLA = {
+  id: 'p1',
+  nombre: 'Vuelta',
+  tipo_actividad: 'trekking',
+  origen_lat: -31.42,
+  origen_lng: -64.18,
+  origen_nombre: null,
+  destino_lat: -31.45,
+  destino_lng: -64.21,
+  destino_nombre: null,
+  linestring_geojson: {},
+  distancia_planeada_m: 1500,
+  tiempo_estimado_seg: 6300,
+  created_at: new Date('2026-10-30T15:00:00.000Z'),
+  checklist: [] as string[],
+  paradas: [],
 }
 
 function armar(overrides: { viaje?: unknown; metrica?: unknown } = {}) {
@@ -46,7 +66,7 @@ function armar(overrides: { viaje?: unknown; metrica?: unknown } = {}) {
   const updateMany = vi.fn().mockResolvedValue({ count: 1 })
   const findFirst = vi.fn().mockResolvedValue({ ...FILA, segmentos: TRAZA })
   const findMany = vi.fn().mockResolvedValue([FILA])
-  const queryRaw = vi.fn().mockResolvedValue([])
+  const queryRaw = vi.fn().mockResolvedValue([{ id: 'r1' }])
   const plantillaFindUnique = vi.fn().mockResolvedValue(null)
   const plantillaCreate = vi.fn().mockImplementation(({ data }) =>
     Promise.resolve({ id: 'p1', created_at: new Date(), paradas: [], ...data })
@@ -54,11 +74,24 @@ function armar(overrides: { viaje?: unknown; metrica?: unknown } = {}) {
   const valoracionGroupBy = vi.fn().mockResolvedValue([])
   const valoracionFindMany = vi.fn().mockResolvedValue([])
   const valoracionCreate = vi.fn().mockResolvedValue({})
+  const checklistFindMany = vi.fn().mockResolvedValue([{ texto: 'Casco' }, { texto: 'Agua' }])
+  const plantillaUpdate = vi.fn().mockImplementation(({ data }) =>
+    Promise.resolve({ ...PLANTILLA, ...data })
+  )
+  const usuarioFindMany = vi.fn().mockResolvedValue([
+    { id: usuarioId, created_at: new Date('2026-10-01T00:00:00.000Z'), racha: null, insignias: [] },
+  ])
   const prisma = {
+    usuario: { findMany: usuarioFindMany },
     viaje: { findUnique: vi.fn().mockResolvedValue(viaje) },
     metricaViaje: { findUnique: vi.fn().mockResolvedValue(metrica) },
     recorridoPublicado: { upsert, updateMany, findFirst, findMany },
-    rutaPlantilla: { findUnique: plantillaFindUnique, create: plantillaCreate },
+    rutaPlantilla: {
+      findUnique: plantillaFindUnique,
+      create: plantillaCreate,
+      update: plantillaUpdate,
+    },
+    checklistItem: { findMany: checklistFindMany },
     valoracionRecorrido: {
       groupBy: valoracionGroupBy,
       findMany: valoracionFindMany,
@@ -73,8 +106,11 @@ function armar(overrides: { viaje?: unknown; metrica?: unknown } = {}) {
     findFirst,
     findMany,
     queryRaw,
+    usuarioFindMany,
     plantillaFindUnique,
     plantillaCreate,
+    plantillaUpdate,
+    checklistFindMany,
     valoracionGroupBy,
     valoracionFindMany,
     valoracionCreate,
@@ -112,6 +148,27 @@ describe('RecorridosPublicadosService.publicar', () => {
     const args = upsert.mock.calls[0]![0]
     expect(args.create).toMatchObject({ inicio_lat: -31.42, inicio_lng: -64.18 })
     expect(args.update).toMatchObject({ inicio_lat: -31.42, inicio_lng: -64.18 })
+  })
+
+  it('sin opciones no guarda comentario ni lee el checklist', async () => {
+    const { service, upsert, checklistFindMany } = armar()
+    await service.publicar(usuarioId, viajeId)
+    expect(upsert.mock.calls[0]![0].create).toMatchObject({ comentario: null, checklist: [] })
+    expect(checklistFindMany).not.toHaveBeenCalled()
+  })
+
+  it('guarda el comentario y, si se elige, los textos del checklist propio', async () => {
+    const { service, upsert, checklistFindMany } = armar()
+    await service.publicar(usuarioId, viajeId, {
+      comentario: 'Salir temprano',
+      compartirChecklist: true,
+    })
+    expect(checklistFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { viaje_id: viajeId, usuario_id: usuarioId } })
+    )
+    const args = upsert.mock.calls[0]![0]
+    expect(args.create).toMatchObject({ comentario: 'Salir temprano', checklist: ['Casco', 'Agua'] })
+    expect(args.update).toMatchObject({ comentario: 'Salir temprano', checklist: ['Casco', 'Agua'] })
   })
 
   it('nunca expone velocidad (RN-070)', async () => {
@@ -213,17 +270,52 @@ describe('RecorridosPublicadosService.despublicar', () => {
 
 describe('RecorridosPublicadosService lecturas', () => {
   it('listar trae solo activos, filtra por actividad y pagina', async () => {
-    const { service, findMany } = armar()
+    const { service, queryRaw, findMany } = armar()
     const r = await service.listar(usuarioId, { tipoActividad: 'bici', limit: 10, offset: 5 })
-    expect(findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { activo: true, tipo_actividad: 'bici' },
-        take: 10,
-        skip: 5,
-        orderBy: { publicado_at: 'desc' },
-      })
-    )
+    const sql = queryRaw.mock.calls[0]![0] as { sql: string; values: unknown[] }
+    expect(sql.sql).toMatch(/WHERE activo/)
+    expect(sql.sql).toMatch(/LIMIT[\s\S]*OFFSET/)
+    expect(sql.values).toEqual(expect.arrayContaining(['bici', 10, 5]))
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { id: { in: ['r1'] } } }))
     expect(r[0]).not.toHaveProperty('segmentos')
+  })
+
+  it('ordena en la base: muy recomendados primero y después por fecha (RN-082)', async () => {
+    const { service, queryRaw } = armar()
+    await service.listar(usuarioId, { limit: 20, offset: 0 })
+    const sql = queryRaw.mock.calls[0]![0] as { sql: string; values: unknown[] }
+    expect(sql.sql).toMatch(/LEFT JOIN[\s\S]*valoracion_recorrido/)
+    expect(sql.sql).toMatch(/ORDER BY[\s\S]*\) DESC,\s*publicado_at DESC/)
+    // Mínimo de votos y de porcentaje para subir.
+    expect(sql.values).toEqual(expect.arrayContaining([3, 80]))
+    expect(sql.sql).not.toMatch(/velocidad/)
+  })
+
+  it('el listado avisa si hay checklist sin exponer sus ítems', async () => {
+    const { service, findMany } = armar()
+    findMany.mockResolvedValue([{ ...FILA, comentario: 'Linda', checklist: ['Casco'] }])
+    const [r] = await service.listar(usuarioId, { limit: 20, offset: 0 })
+    expect(r).toMatchObject({ comentario: 'Linda', tiene_checklist: true })
+    expect(r).not.toHaveProperty('checklist')
+  })
+
+  it('el listado trae la reputación del autor sin consultar uno por uno', async () => {
+    const { service, queryRaw, findMany, usuarioFindMany } = armar()
+    queryRaw.mockResolvedValue([{ id: 'r1' }, { id: 'r2' }])
+    findMany.mockResolvedValue([FILA, { ...FILA, id: 'r2' }])
+    const r = await service.listar(usuarioId, { limit: 20, offset: 0 })
+    expect(usuarioFindMany).toHaveBeenCalledOnce()
+    expect(usuarioFindMany.mock.calls[0]![0].where).toEqual({ id: { in: [usuarioId] } })
+    expect(r[1]).toMatchObject({
+      reputacion_autor: { racha_semanas: 0, insignias_total: 0, nivel: 'comun' },
+    })
+  })
+
+  it('obtener incluye los ítems del checklist compartido', async () => {
+    const { service, findFirst } = armar()
+    findFirst.mockResolvedValue({ ...FILA, segmentos: TRAZA, checklist: ['Casco'] })
+    const r = await service.obtener(usuarioId, 'r1')
+    expect(r.checklist).toEqual(['Casco'])
   })
 
   it('obtener devuelve la traza; despublicado es 404', async () => {
@@ -243,7 +335,8 @@ describe('RecorridosPublicadosService.listar por zona (SCRUM-62)', () => {
   it('sin zona no usa la consulta espacial', async () => {
     const { service, queryRaw } = armar()
     await service.listar(usuarioId, { limit: 20, offset: 0 })
-    expect(queryRaw).not.toHaveBeenCalled()
+    const sql = queryRaw.mock.calls[0]![0] as { sql: string }
+    expect(sql.sql).not.toMatch(/ST_DWithin/)
   })
 
   it('con zona filtra en PostGIS y respeta el orden de la consulta', async () => {
@@ -265,10 +358,43 @@ describe('RecorridosPublicadosService.listar por zona (SCRUM-62)', () => {
   })
 
   it('sin resultados en la zona no consulta el detalle', async () => {
-    const { service, findMany } = armar()
+    const { service, queryRaw, findMany } = armar()
+    queryRaw.mockResolvedValue([])
     const r = await service.listar(usuarioId, { zona, limit: 20, offset: 0 })
     expect(r).toEqual([])
     expect(findMany).not.toHaveBeenCalled()
+  })
+})
+
+describe('RecorridosPublicadosService.listar por texto', () => {
+  it('busca en la base, sin distinguir acentos, y sin filtro espacial', async () => {
+    const { service, queryRaw, findMany } = armar()
+    queryRaw.mockResolvedValue([{ id: 'r1' }])
+    findMany.mockResolvedValue([FILA])
+
+    const r = await service.listar(usuarioId, { q: 'Córdoba', limit: 20, offset: 0 })
+
+    const sql = queryRaw.mock.calls[0]![0] as { sql: string; values: unknown[] }
+    expect(sql.sql).toMatch(/strpos/)
+    expect(sql.sql).toMatch(/translate/)
+    expect(sql.sql).not.toMatch(/ST_DWithin/)
+    expect(sql.values).toContain('Córdoba')
+    expect(r.map((x) => x.id)).toEqual(['r1'])
+  })
+
+  it('combina texto y zona en la misma consulta', async () => {
+    const { service, queryRaw } = armar()
+    await service.listar(usuarioId, {
+      q: 'dique',
+      zona: { lat: -31.4, lng: -64.2, radioKm: 10 },
+      limit: 20,
+      offset: 0,
+    })
+    expect(queryRaw).toHaveBeenCalledOnce()
+    const sql = queryRaw.mock.calls[0]![0] as { sql: string; values: unknown[] }
+    expect(sql.sql).toMatch(/ST_DWithin/)
+    expect(sql.sql).toMatch(/strpos/)
+    expect(sql.values).toEqual(expect.arrayContaining(['dique', 10000]))
   })
 })
 
@@ -289,6 +415,7 @@ describe('RecorridosPublicadosService.importar (SCRUM-62 / RN-084)', () => {
     tipo_actividad: 'trekking',
     tiempo_seg: 6300,
     segmentos: TRAZA_2_TRAMOS,
+    checklist: ['Casco', 'Agua'],
   }
 
   it('crea una plantilla copia: traza → trazado, extremos → origen y destino', async () => {
@@ -338,22 +465,7 @@ describe('RecorridosPublicadosService.importar (SCRUM-62 / RN-084)', () => {
   it('es idempotente: si ya lo importó devuelve la misma plantilla', async () => {
     const { service, findFirst, plantillaFindUnique, plantillaCreate } = armar()
     findFirst.mockResolvedValue(RECORRIDO)
-    plantillaFindUnique.mockResolvedValue({
-      id: 'p1',
-      nombre: 'Vuelta',
-      tipo_actividad: 'trekking',
-      origen_lat: -31.42,
-      origen_lng: -64.18,
-      origen_nombre: null,
-      destino_lat: -31.45,
-      destino_lng: -64.21,
-      destino_nombre: null,
-      linestring_geojson: {},
-      distancia_planeada_m: 1500,
-      tiempo_estimado_seg: 6300,
-      created_at: new Date(),
-      paradas: [],
-    })
+    plantillaFindUnique.mockResolvedValue(PLANTILLA)
 
     const r = await service.importar(usuarioId, 'r1')
     expect(r.ya_existia).toBe(true)
@@ -385,10 +497,49 @@ describe('RecorridosPublicadosService.importar (SCRUM-62 / RN-084)', () => {
       distancia_planeada_m: null,
       tiempo_estimado_seg: null,
       created_at: new Date(),
+      checklist: [],
       paradas: [],
     })
     const r = await service.importar(usuarioId, 'r1')
     expect(r.ya_existia).toBe(true)
+  })
+
+  it('sin pedirlo no se lleva el checklist del recorrido', async () => {
+    const { service, findFirst, plantillaCreate } = armar()
+    findFirst.mockResolvedValue(RECORRIDO)
+    await service.importar(usuarioId, 'r1')
+    expect(plantillaCreate.mock.calls[0]![0].data.checklist).toEqual([])
+  })
+
+  it('con guardarChecklist copia los ítems a la plantilla', async () => {
+    const { service, findFirst, plantillaCreate } = armar()
+    findFirst.mockResolvedValue(RECORRIDO)
+    const r = await service.importar(usuarioId, 'r1', { guardarChecklist: true })
+    expect(plantillaCreate.mock.calls[0]![0].data.checklist).toEqual(['Casco', 'Agua'])
+    expect(r.plantilla.checklist).toEqual(['Casco', 'Agua'])
+  })
+
+  it('volver a guardar aplica la última elección sobre el checklist', async () => {
+    const { service, findFirst, plantillaFindUnique, plantillaCreate, plantillaUpdate } = armar()
+    findFirst.mockResolvedValue(RECORRIDO)
+    plantillaFindUnique.mockResolvedValue(PLANTILLA)
+
+    const r = await service.importar(usuarioId, 'r1', { guardarChecklist: true })
+
+    expect(plantillaCreate).not.toHaveBeenCalled()
+    expect(plantillaUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'p1' }, data: { checklist: ['Casco', 'Agua'] } })
+    )
+    expect(r.ya_existia).toBe(true)
+    expect(r.plantilla.checklist).toEqual(['Casco', 'Agua'])
+  })
+
+  it('si la elección no cambia, no escribe', async () => {
+    const { service, findFirst, plantillaFindUnique, plantillaUpdate } = armar()
+    findFirst.mockResolvedValue(RECORRIDO)
+    plantillaFindUnique.mockResolvedValue(PLANTILLA)
+    await service.importar(usuarioId, 'r1')
+    expect(plantillaUpdate).not.toHaveBeenCalled()
   })
 
   it('404 si no existe o fue despublicado', async () => {
@@ -406,7 +557,8 @@ describe('RecorridosPublicadosService valoraciones (SCRUM-63 / RN-082)', () => {
   const otroUsuario = '33333333-3333-3333-3333-333333333333'
 
   it('listar adjunta conteos, porcentaje y la valoración propia', async () => {
-    const { service, findMany, valoracionGroupBy, valoracionFindMany } = armar()
+    const { service, queryRaw, findMany, valoracionGroupBy, valoracionFindMany } = armar()
+    queryRaw.mockResolvedValue([{ id: 'r1' }, { id: 'r2' }])
     findMany.mockResolvedValue([FILA, { ...FILA, id: 'r2' }])
     valoracionGroupBy.mockResolvedValue([
       { recorrido_publicado_id: 'r1', recomiendo: true, _count: { _all: 2 } },
@@ -421,6 +573,7 @@ describe('RecorridosPublicadosService valoraciones (SCRUM-63 / RN-082)', () => {
       no_recomiendan: 1,
       total: 3,
       porcentaje_recomienda: 67,
+      muy_recomendado: false,
       mi_valoracion: false,
     })
     // Sin valoraciones: porcentaje null (no "0 %"), para no castigar a un recorrido nuevo.
@@ -429,6 +582,7 @@ describe('RecorridosPublicadosService valoraciones (SCRUM-63 / RN-082)', () => {
       no_recomiendan: 0,
       total: 0,
       porcentaje_recomienda: null,
+      muy_recomendado: false,
       mi_valoracion: null,
     })
     expect(valoracionGroupBy).toHaveBeenCalledOnce()
@@ -437,6 +591,26 @@ describe('RecorridosPublicadosService valoraciones (SCRUM-63 / RN-082)', () => {
         where: { recorrido_publicado_id: { in: ['r1', 'r2'] }, usuario_id: otroUsuario },
       })
     )
+  })
+
+  it('muy recomendado exige 80 % o más y al menos 3 votos', async () => {
+    const conteo = (id: string, si: number, no: number) => [
+      { recorrido_publicado_id: id, recomiendo: true, _count: { _all: si } },
+      { recorrido_publicado_id: id, recomiendo: false, _count: { _all: no } },
+    ]
+    const { service, queryRaw, findMany, valoracionGroupBy } = armar()
+    const ids = ['r1', 'r2', 'r3']
+    queryRaw.mockResolvedValue(ids.map((id) => ({ id })))
+    findMany.mockResolvedValue(ids.map((id) => ({ ...FILA, id })))
+    valoracionGroupBy.mockResolvedValue([
+      ...conteo('r1', 4, 1), // 80 % con 5 votos
+      ...conteo('r2', 2, 0), // 100 % pero solo 2 votos
+      ...conteo('r3', 3, 1), // 75 %
+    ])
+
+    const r = await service.listar(otroUsuario, { limit: 20, offset: 0 })
+
+    expect(r.map((x) => x.valoracion.muy_recomendado)).toEqual([true, false, false])
   })
 
   it('el listado sigue sin exponer velocidad (RN-070)', async () => {
@@ -475,6 +649,7 @@ describe('RecorridosPublicadosService valoraciones (SCRUM-63 / RN-082)', () => {
       no_recomiendan: 0,
       total: 1,
       porcentaje_recomienda: 100,
+      muy_recomendado: false,
       mi_valoracion: true,
     })
   })

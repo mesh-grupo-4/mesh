@@ -8,7 +8,9 @@ export class MeshApiError extends Error {
   constructor(
     public readonly status: number,
     message: string,
-    public readonly code?: string
+    public readonly code?: string,
+    /** RN-030c: viaje en curso que impide iniciar otro (`OTRO_VIAJE_EN_CURSO`). */
+    public readonly viajeEnCursoId?: string
   ) {
     super(message)
     this.name = 'MeshApiError'
@@ -80,14 +82,16 @@ export async function parseJson<T>(res: Response): Promise<T> {
   if (!res.ok) {
     let msg = text
     let code: string | undefined
+    let viajeEnCursoId: string | undefined
     try {
-      const j = JSON.parse(text) as { error?: string; code?: string }
+      const j = JSON.parse(text) as { error?: string; code?: string; viaje_en_curso_id?: string }
       if (j.error) msg = j.error
       code = j.code
+      viajeEnCursoId = j.viaje_en_curso_id
     } catch {
       /* */
     }
-    throw new MeshApiError(res.status, msg || `HTTP ${res.status}`, code)
+    throw new MeshApiError(res.status, msg || `HTTP ${res.status}`, code, viajeEnCursoId)
   }
   return text ? (JSON.parse(text) as T) : (null as T)
 }

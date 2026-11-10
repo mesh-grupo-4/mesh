@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client'
 import type { PrismaClient } from '@prisma/client'
 import type { GeoJsonLineString } from './geo'
 import { assertLineString } from './geo'
-import { filtrosGpsPorActividad } from './gpsFilters'
+import { DISTANCIA_MINIMA_M, filtrosGpsPorActividad, RADIO_QUIETO_M } from './gpsFilters'
 import {
   calcularAltimetria,
   PRECISION_ALTITUD_MAX_M,
@@ -108,6 +108,20 @@ const VELOCIDAD_MIN_SEG = 5
  */
 const VELOCIDAD_SOSTENIDA_MAX_SEG = 30
 
+/**
+ * Piezas compartidas por todo cálculo de movimiento, para que el resumen, los splits,
+ * el perfil de velocidad y el fantasma coincidan. Requieren `usuario_id`, `"timestamp"`,
+ * `geog` y `precision_m` en el CTE de puntos, y `metros` junto a `neto_m` al filtrar.
+ */
+const NETO_M = Prisma.sql`ST_Distance(FIRST_VALUE(geog) OVER neto, LAST_VALUE(geog) OVER neto) AS neto_m`
+const VENTANA_NETO = Prisma.sql`neto AS (
+  PARTITION BY usuario_id ORDER BY "timestamp"
+  RANGE BETWEEN INTERVAL '30 seconds' PRECEDING AND INTERVAL '30 seconds' FOLLOWING
+)`
+// El tramo propio cubre pings espaciados más que la ventana. La precisión declarada sube
+// el radio: con 30 m de error, moverse 25 m no se distingue del ruido.
+const ES_MOVIMIENTO = Prisma.sql`GREATEST(neto_m, metros) >= GREATEST(${RADIO_QUIETO_M}::float8, COALESCE(precision_m, 0))`
+
 async function tipoActividadDelViaje(
   prisma: PrismaClient,
   viajeId: string
@@ -142,6 +156,8 @@ export async function computePerfilVelocidad(
     Prisma.sql`
       WITH puntos AS (
         SELECT
+          usuario_id,
+          precision_m,
           "timestamp",
           ST_SetSRID(ST_MakePoint(lng, lat), 4326)::geography AS geog
         FROM registro_gps
@@ -154,10 +170,13 @@ export async function computePerfilVelocidad(
       ),
       segmentos AS (
         SELECT
+          precision_m,
           FLOOR(EXTRACT(EPOCH FROM (p."timestamp" - m.t0)) / 60.0)::int AS bucket_min,
           ST_Distance(p.geog, LAG(p.geog) OVER (ORDER BY p."timestamp")) AS metros,
-          EXTRACT(EPOCH FROM (p."timestamp" - LAG(p."timestamp") OVER (ORDER BY p."timestamp"))) AS segundos
+          EXTRACT(EPOCH FROM (p."timestamp" - LAG(p."timestamp") OVER (ORDER BY p."timestamp"))) AS segundos,
+          ${NETO_M}
         FROM puntos p, mintime m
+        WINDOW ${VENTANA_NETO}
       )
       SELECT
         (bucket_min * 60)::float8       AS t_seg,
@@ -169,6 +188,7 @@ export async function computePerfilVelocidad(
         AND segundos >= ${VELOCIDAD_MIN_SEG}
         AND segundos <= ${SEGMENTO_MAX_SEG}
         AND (metros / segundos * 3.6) <= ${f.velocidadMaxKmh}
+        AND ${ES_MOVIMIENTO}
       GROUP BY bucket_min
       ORDER BY bucket_min
     `
@@ -298,6 +318,7 @@ export async function computeTrazaFantasma(
     Prisma.sql`
       WITH puntos AS (
         SELECT
+          usuario_id, precision_m,
           lat, lng, "timestamp",
           ST_SetSRID(ST_MakePoint(lng, lat), 4326)::geography AS geog
         FROM registro_gps
@@ -307,11 +328,13 @@ export async function computeTrazaFantasma(
       ),
       segmentos AS (
         SELECT
+          precision_m,
           lat, lng, "timestamp",
           ST_Distance(geog, LAG(geog) OVER w) AS metros,
-          EXTRACT(EPOCH FROM ("timestamp" - LAG("timestamp") OVER w)) AS segundos
+          EXTRACT(EPOCH FROM ("timestamp" - LAG("timestamp") OVER w)) AS segundos,
+          ${NETO_M}
         FROM puntos
-        WINDOW w AS (ORDER BY "timestamp")
+        WINDOW w AS (ORDER BY "timestamp"), ${VENTANA_NETO}
       ),
       acumulado AS (
         SELECT
@@ -321,6 +344,7 @@ export async function computeTrazaFantasma(
               WHEN metros IS NOT NULL AND metros > ${f.segmentoMinM} AND metros <= ${f.segmentoMaxM}
                    AND segundos > 0 AND segundos <= ${SEGMENTO_MAX_SEG}
                    AND (metros / segundos * 3.6) <= ${f.velocidadMaxKmh}
+                   AND ${ES_MOVIMIENTO}
               THEN metros ELSE 0
             END
           ) OVER (ORDER BY "timestamp") AS d_m,
@@ -360,6 +384,8 @@ export async function computeSplitsPorKm(
     Prisma.sql`
       WITH puntos AS (
         SELECT
+          usuario_id,
+          precision_m,
           "timestamp",
           ST_SetSRID(ST_MakePoint(lng, lat), 4326)::geography AS geog
         FROM registro_gps
@@ -369,11 +395,13 @@ export async function computeSplitsPorKm(
       ),
       segmentos AS (
         SELECT
+          precision_m,
           "timestamp",
           ST_Distance(geog, LAG(geog) OVER w) AS metros,
-          EXTRACT(EPOCH FROM ("timestamp" - LAG("timestamp") OVER w)) AS segundos
+          EXTRACT(EPOCH FROM ("timestamp" - LAG("timestamp") OVER w)) AS segundos,
+          ${NETO_M}
         FROM puntos
-        WINDOW w AS (ORDER BY "timestamp")
+        WINDOW w AS (ORDER BY "timestamp"), ${VENTANA_NETO}
       ),
       validos AS (
         SELECT *
@@ -384,6 +412,7 @@ export async function computeSplitsPorKm(
           AND segundos > 0
           AND segundos <= ${SEGMENTO_MAX_SEG}
           AND (metros / segundos * 3.6) <= ${f.velocidadMaxKmh}
+          AND ${ES_MOVIMIENTO}
       ),
       acumulado AS (
         SELECT
@@ -414,6 +443,7 @@ export async function computeMetricasGpsPorUsuario(
       WITH puntos AS (
         SELECT
           usuario_id,
+          precision_m,
           "timestamp",
           velocidad_kmh,
           ST_SetSRID(ST_MakePoint(lng, lat), 4326)::geography AS geog
@@ -424,6 +454,8 @@ export async function computeMetricasGpsPorUsuario(
       segmentos AS (
         SELECT
           usuario_id,
+          precision_m,
+          ${NETO_M},
           ST_Distance(geog, LAG(geog) OVER w) AS metros,
           EXTRACT(EPOCH FROM ("timestamp" - LAG("timestamp") OVER w)) AS segundos,
           -- LEAST ignora NULL en Postgres: sin el CASE, una sola muestra con
@@ -433,7 +465,7 @@ export async function computeMetricasGpsPorUsuario(
             THEN LEAST(velocidad_kmh, LAG(velocidad_kmh) OVER w)
           END AS vel_sostenida_kmh
         FROM puntos
-        WINDOW w AS (PARTITION BY usuario_id ORDER BY "timestamp")
+        WINDOW w AS (PARTITION BY usuario_id ORDER BY "timestamp"), ${VENTANA_NETO}
       ),
       validos AS (
         SELECT *
@@ -444,6 +476,7 @@ export async function computeMetricasGpsPorUsuario(
           AND segundos > 0
           AND segundos <= ${SEGMENTO_MAX_SEG}
           AND (metros / segundos * 3.6) <= ${f.velocidadMaxKmh}
+          AND ${ES_MOVIMIENTO}
       ),
       por_distancia AS (
         SELECT
@@ -482,8 +515,12 @@ export async function computeMetricasGpsPorUsuario(
     `
   )
 
+  // Sin recorrido real no hay fila: mejor "sin datos" que un ritmo inventado sobre ruido.
+  const conRecorrido = metricas.filter((m) => m.distancia_m >= DISTANCIA_MINIMA_M)
+  if (conRecorrido.length === 0) return []
+
   const alturas = await computeAlturasSuavizadasPorUsuario(prisma, viajeId, f.precisionMaxM)
-  return metricas.map((m) => {
+  return conRecorrido.map((m) => {
     const altimetria = calcularAltimetria(alturas.get(m.usuario_id) ?? [])
     return altimetria ? { ...m, ...altimetria } : m
   })

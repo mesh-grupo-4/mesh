@@ -75,6 +75,7 @@ finalizar el viaje, al salir y al recibir `viaje:finalizado`.
 ## Autorización
 
 - Solo el **creador del viaje** (`creador_id`) puede llamar a `POST /iniciar` (RN-030).
+- `POST /iniciar` responde `409 OTRO_VIAJE_EN_CURSO` si esa persona lidera otro viaje en curso o ya se sumó a uno con check-in (RN-030c).
 - Escrituras GPS validadas en backend (`assertPuedeEnviarGps`).
 - **`join_viaje` (Socket.io) valida en el backend** antes de unir el socket a la room `viaje:{viajeId}`, y
   responde por `ack` con `{ ok: false, error }` si el usuario no tiene acceso. Sin este chequeo cualquier

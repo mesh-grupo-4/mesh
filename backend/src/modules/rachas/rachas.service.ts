@@ -17,6 +17,30 @@ function diffSemanas(a: string, b: string): number {
   return Math.round((Date.parse(b) - Date.parse(a)) / MS_SEMANA)
 }
 
+/**
+ * Racha "vigente" al momento de leer, sin mutar nada: si ya pasó una semana completa sin
+ * actividad desde la última registrada, se muestra en 0 aunque la fila en base todavía no se
+ * haya reiniciado (eso lo hace el job diario). Así nunca miente, corra o no el job ese día.
+ */
+export function calcularRachaVigente(
+  fila: { semanas_consecutivas: number; ultima_actividad: Date } | null,
+  ahora: Date
+): { semanas_consecutivas: number; en_riesgo: boolean } {
+  if (!fila || fila.semanas_consecutivas === 0) {
+    return { semanas_consecutivas: 0, en_riesgo: false }
+  }
+
+  const diff = diffSemanas(semanaDe(fila.ultima_actividad), semanaDe(ahora))
+  if (diff >= 2) {
+    return { semanas_consecutivas: 0, en_riesgo: false }
+  }
+  return {
+    semanas_consecutivas: fila.semanas_consecutivas,
+    // diff === 1: la semana pasada tuvo actividad, esta todavía no — si termina sin salir, se corta.
+    en_riesgo: diff === 1,
+  }
+}
+
 export class RachasService {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -74,27 +98,9 @@ export class RachasService {
     })
   }
 
-  /**
-   * Racha "vigente" al momento de leer, sin mutar nada: si ya pasó una semana
-   * completa sin actividad desde la última registrada, se muestra en 0 aunque la
-   * fila en base todavía no se haya reiniciado (eso lo hace el job diario). Así
-   * el perfil nunca miente, corra o no el job ese día.
-   */
   async obtenerRachaVigente(usuarioId: string, ahora: Date = new Date()) {
     const fila = await this.prisma.rachaActividad.findUnique({ where: { usuario_id: usuarioId } })
-    if (!fila || fila.semanas_consecutivas === 0) {
-      return { semanas_consecutivas: 0, en_riesgo: false }
-    }
-
-    const diff = diffSemanas(semanaDe(fila.ultima_actividad), semanaDe(ahora))
-    if (diff >= 2) {
-      return { semanas_consecutivas: 0, en_riesgo: false }
-    }
-    return {
-      semanas_consecutivas: fila.semanas_consecutivas,
-      // diff === 1: la semana pasada tuvo actividad, esta todavía no — si termina sin salir, se corta.
-      en_riesgo: diff === 1,
-    }
+    return calcularRachaVigente(fila, ahora)
   }
 
   async obtenerRachaDeUsuario(usuarioObjetivoId: string) {

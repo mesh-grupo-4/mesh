@@ -33,7 +33,7 @@
 | **Sin texto, por contrato** | El body es `{ recomiendo: boolean }` con Zod `.strict()`: un campo extra como `comentario` es `400` | RN-083: la API no tiene dónde guardar un comentario aunque el cliente lo mande |
 | **Porcentaje entero o `null`** | `porcentaje_recomienda = round(recomiendan / total × 100)`; `null` si nadie valoró | Un recorrido recién publicado no aparece como "0 % lo recomienda" |
 | **Calculado al leer** | Un `groupBy` por `(recorrido, recomiendo)` + la valoración propia, para toda la página del listado en una sola consulta | Nada que se desincronice; el costo es una consulta agregada por request |
-| **El orden no depende de la valoración** | El listado sigue ordenado por fecha de publicación | La red es deliberadamente acotada (RN-080) y no se convierte en un ranking; tampoco en moto (RN-070) |
+| **Los muy recomendados van primero** (cambio del 09/11/2026; antes el orden no dependía de la valoración) | `muy_recomendado` = 80 % o más de "Recomiendo" con al menos 3 valoraciones. El listado los pone primero y, dentro de cada grupo, sigue por fecha de publicación. El orden se resuelve en SQL (`idsOrdenados`) para que la paginación lo respete, y el backend expone el mismo criterio en `valoracion.muy_recomendado` | Pedido del PO para darle más peso social a la valoración. Son dos grupos y no un orden por porcentaje: lo nuevo no queda enterrado y con pocos votos nadie sube. Ordena rutas por la opinión de la comunidad, no personas ni rendimiento: no hay velocidad (RN-070) |
 | **Se conservan al despublicar** | Despublicar es `activo = false`; republicar reactiva la misma fila con sus valoraciones. Mientras está despublicado no se puede valorar (`404`) | Lo que opinó la comunidad sigue siendo válido para el mismo recorrido |
 
 ---
@@ -61,7 +61,8 @@ El listado y el detalle traen ese mismo resumen en `valoracion`.
 ## Interfaz
 
 - **Lista de la comunidad:** cada tarjeta muestra "75 % lo recomienda · 12 valoraciones"
-  o "Sin valoraciones todavía".
+  o "Sin valoraciones todavía". Las "Muy recomendado" llevan cinta y borde dorados y
+  aparecen primero.
 - **Detalle:** tarjeta "Valoración de la comunidad" con el porcentaje y, según el caso,
   los botones **Recomiendo** / **No recomiendo** (con confirmación), "Ya lo valoraste: …"
   o "No podés valorar tu propio recorrido".

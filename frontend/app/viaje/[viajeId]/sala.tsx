@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { AvisoUbicacion, textoPermisoSistema } from '@/components/AvisoUbicacion'
 import { Badge, Btn, TopBar, useTheme } from '@/components/MeshUI'
+import { CodigoViaje } from '@/components/CodigoViaje'
 import { DestinoPicker } from '@/components/viaje-rapido/DestinoPicker'
 import { InvitarGruposAmigosModal } from '@/components/viaje-rapido/InvitarGruposAmigosModal'
 import { useAuth } from '@/context/AuthContext'
@@ -25,8 +26,8 @@ import { useUbicacionActual } from '@/hooks/useUbicacionActual'
 import { useVolverInterno } from '@/hooks/useVolver'
 import { etiquetaActividad } from '@/lib/activityDefaults'
 import { resolveBackendUserId } from '@/lib/apiClient'
-import { arrancarViaje } from '@/lib/arrancarViaje'
-import { buildInviteUrl } from '@/lib/inviteLinks'
+import { arrancarViaje, avisarSiOtroViajeEnCurso } from '@/lib/arrancarViaje'
+import { buildInviteMessage, buildInviteUrl } from '@/lib/inviteLinks'
 import { meshAlert, meshSuccess, meshWarning } from '@/lib/meshAlert'
 import { nombreCompleto } from '@/lib/nombres'
 import { paramTexto } from '@/lib/nuevoViaje'
@@ -147,7 +148,7 @@ export default function SalaEsperaScreen() {
   const compartirLink = async () => {
     try {
       await Share.share({
-        message: `Unite al viaje en Mesh:\n${inviteUrl}`,
+        message: buildInviteMessage(viajeId, viaje?.codigo_invitacion),
         url: Platform.OS === 'ios' ? inviteUrl : undefined,
         title: 'Invitación Mesh',
       })
@@ -196,7 +197,10 @@ export default function SalaEsperaScreen() {
       await arrancarViaje(viaje.id, userId, viaje.nombre ?? null)
       router.replace({ pathname: '/viaje/[viajeId]/live', params: { viajeId: viaje.id } })
     } catch (e) {
-      meshAlert('Error', e instanceof Error ? e.message : 'No se pudo arrancar el viaje.')
+      const avisado = avisarSiOtroViajeEnCurso(e, (otroId) =>
+        router.replace({ pathname: '/viaje/[viajeId]/live', params: { viajeId: otroId } })
+      )
+      if (!avisado) meshAlert('Error', e instanceof Error ? e.message : 'No se pudo arrancar el viaje.')
       setArrancando(false)
     }
   }
@@ -245,8 +249,9 @@ export default function SalaEsperaScreen() {
               <View style={styles.qrInner}>
                 <QRCode value={inviteUrl} size={200} backgroundColor="#ffffff" color="#0f0f0f" />
               </View>
+              <CodigoViaje codigo={viaje?.codigo_invitacion} />
               <Text style={[styles.qrTexto, { color: theme.textDim }]}>
-                Que lo escaneen desde Mesh para sumarse.
+                Que lo escaneen o ingresen el código desde Mesh para sumarse.
               </Text>
               <View style={styles.fila}>
                 <Btn variant="secondary" icon="share-2" onPress={() => void compartirLink()} style={styles.flex}>

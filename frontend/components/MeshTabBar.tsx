@@ -10,6 +10,7 @@ import Animated, {
 } from 'react-native-reanimated'
 
 import { useBlurTargetTab } from '@/components/BlurTargetTab'
+import { DeslizarEntreTabs } from '@/components/DeslizarEntreTabs'
 import Colors from '@/constants/Colors'
 import { TAB_BAR_ALTO, TAB_BAR_MARGEN, useTabBarBottom } from '@/hooks/useEspacioTabBar'
 
@@ -88,7 +89,11 @@ export function MeshTabBar(props: BottomTabBarProps) {
     return next
   }, [props.descriptors, props.state.routes, index, total, ancho, bottom])
 
-  return <BottomTabBar {...props} descriptors={descriptors} />
+  return (
+    <DeslizarEntreTabs navigation={props.navigation}>
+      <BottomTabBar {...props} descriptors={descriptors} />
+    </DeslizarEntreTabs>
+  )
 }
 
 const styles = StyleSheet.create({

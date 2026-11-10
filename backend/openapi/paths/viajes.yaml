@@ -378,6 +378,62 @@ UnirseQr:
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'
 
+UnirseCodigo:
+  post:
+    operationId: unirseCodigo
+    summary: Unirse a un viaje escribiendo su código
+    description: |
+      **RN-015/016:** alternativa a escanear el QR, con las mismas reglas: une
+      directamente, sin aprobación del líder, y **expira al iniciarse el viaje**.
+      El código se acepta en minúsculas y con espacios o guion.
+
+      Es idempotente: si la persona ya figuraba en el viaje, responde 200 con
+      `yaEraParticipante: true` sin duplicar nada.
+    tags:
+      - Viajes
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/UnirsePorCodigoBody'
+          example:
+            codigo: ABCD-2345
+    responses:
+      '200':
+        description: El usuario quedó incorporado al viaje.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/UnionPorQr'
+            example:
+              viajeId: 44444444-4444-4444-4444-444444444444
+              yaEraParticipante: false
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '404':
+        description: Ningún viaje tiene ese código (`VIAJE_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: No encontramos un viaje con ese código
+              code: VIAJE_NOT_FOUND
+      '410':
+        description: El viaje ya arrancó o terminó, así que el código caducó (`QR_EXPIRED`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Este viaje ya ha comenzado. El código QR ha expirado.
+              code: QR_EXPIRED
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
 ResponderInvitacionViaje:
   post:
     operationId: responderInvitacionViaje
@@ -633,6 +689,9 @@ ResumenViajeRecurso:
       El resumen se calcula al finalizar. Si ese cálculo falló —agregar cientos de miles
       de filas GPS puede tardar— o el viaje es anterior a esta funcionalidad, la consulta
       lo recalcula al vuelo de forma transparente.
+
+      Si la persona no se desplazó (solo ruido del GPS, menos de 100 m netos), `mis_metricas`
+      llega con distancia, tiempo y velocidades en `null`.
 
       **RN-070:** `ranking_habilitado` es `false` en modalidades `moto` y `auto`.
     tags:
@@ -1286,6 +1345,9 @@ IniciarViaje:
     description: |
       Transición `planificado` → `en_curso`. **Solo el creador** puede hacerla (RN-030).
 
+      No se puede iniciar si la persona lidera otro viaje `en_curso` o ya se sumó a uno
+      con check-in (RN-030c). Un confirmado sin check-in no bloquea.
+
       Efectos: registra `fecha_inicio_real`, **caduca el QR de invitación** (RN-015),
       habilita el ingreso de GPS y emite `viaje:iniciado` a la sala `viaje:<id>`.
     tags:
@@ -1313,14 +1375,27 @@ IniciarViaje:
       '404':
         $ref: '../components/responses.yaml#/NotFound'
       '409':
-        description: El viaje no está en estado planificado (`INVALID_STATE`).
+        description: |
+          El viaje no está en estado planificado (`INVALID_STATE`) o la persona ya está en
+          otro viaje en curso (`OTRO_VIAJE_EN_CURSO`, RN-030c).
         content:
           application/json:
             schema:
-              $ref: '../components/schemas.yaml#/Error'
-            example:
-              error: El viaje no está en estado planificado
-              code: INVALID_STATE
+              oneOf:
+                - $ref: '../components/schemas.yaml#/Error'
+                - $ref: '../components/schemas.yaml#/ErrorOtroViajeEnCurso'
+            examples:
+              estadoInvalido:
+                summary: El viaje ya no está planificado
+                value:
+                  error: El viaje no está en estado planificado
+                  code: INVALID_STATE
+              otroViajeEnCurso:
+                summary: La persona ya está en otro viaje en curso
+                value:
+                  error: Ya estás en "Sierras", que sigue en curso. Terminalo o salí de ese viaje antes de iniciar otro.
+                  code: OTRO_VIAJE_EN_CURSO
+                  viaje_en_curso_id: 1b8d4c37-6e29-4f05-a3b7-9c2f8e5d0a41
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'
 

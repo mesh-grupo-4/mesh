@@ -18,6 +18,7 @@ import {
   computeTrazaRecorrido,
 } from '../../lib/postgis'
 import { filtrosGpsPorActividad } from '../../lib/gpsFilters'
+import { armarParadasDelResumen } from './viajes.paradas-resumen'
 import { columnasGpsExtra } from '../../lib/datosGpsExtra'
 import { esIntegranteActivo, unirUsuarioAlViaje, WHERE_INTEGRANTE_ACTIVO } from './viajes.membership'
 import type {
@@ -519,6 +520,20 @@ export class ViajesService {
     return { viajeId, yaEraParticipante: result.yaEraParticipante }
   }
 
+  /** RN-015 / RN-016: misma unión que por QR, escribiendo el código del viaje. */
+  async unirsePorCodigo(usuarioId: string, codigo: string) {
+    const viaje = await this.prisma.viaje.findUnique({
+      where: { codigo_invitacion: codigo },
+      select: { id: true },
+    })
+
+    if (!viaje) {
+      throw new HttpError(404, 'No encontramos un viaje con ese código', 'VIAJE_NOT_FOUND')
+    }
+
+    return this.unirsePorQr(usuarioId, viaje.id)
+  }
+
   async obtenerRuta(usuarioId: string, viajeId: string) {
     await this.assertPuedeVerViaje(viajeId, usuarioId)
 
@@ -933,6 +948,38 @@ export class ViajesService {
 
     const inicio = new Date()
     const actualizado = await this.prisma.$transaction(async (tx) => {
+      // RN-030c: el lock por usuario evita que dos inicios simultáneos pasen ambos el chequeo.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${creadorId}::text))`
+      // Un confirmado sin check-in no cuenta: solo dijo que iba (RN-029b).
+      const otroEnCurso = await tx.viaje.findFirst({
+        where: {
+          id: { not: viajeId },
+          estado: 'en_curso',
+          OR: [
+            { creador_id: creadorId },
+            {
+              integrantes: {
+                some: {
+                  usuario_id: creadorId,
+                  estado: 'confirmado',
+                  check_in_at: { not: null },
+                },
+              },
+            },
+          ],
+        },
+        select: { id: true, nombre: true },
+      })
+      if (otroEnCurso) {
+        const cual = otroEnCurso.nombre ? `"${otroEnCurso.nombre}"` : 'otro viaje'
+        throw new HttpError(
+          409,
+          `Ya estás en ${cual}, que sigue en curso. Terminalo o salí de ese viaje antes de iniciar otro.`,
+          'OTRO_VIAJE_EN_CURSO',
+          { viaje_en_curso_id: otroEnCurso.id }
+        )
+      }
+
       const v = await tx.viaje.update({
         where: { id: viajeId },
         data: {
@@ -1453,9 +1500,14 @@ export class ViajesService {
         delCreador?.distancia_m ??
         (metricas.length > 0 ? Math.max(...metricas.map((m) => m.distancia_m)) : null)
 
-      // US3: paradas voluntarias efectivamente registradas durante el viaje.
+      // US3: paradas voluntarias efectivamente registradas durante el viaje. Una grupal
+      // (RN-045) guarda una fila por integrante: se cuenta solo la del líder.
       const cantidadParadasVoluntarias = await tx.parada.count({
-        where: { viaje_id: viajeId, tipo: 'voluntaria' },
+        where: {
+          viaje_id: viajeId,
+          tipo: 'voluntaria',
+          OR: [{ grupal: false }, { usuario_id: viaje.creador_id }],
+        },
       })
 
       const datos = {
@@ -1549,7 +1601,7 @@ export class ViajesService {
       resumen = await this.prisma.resumenViaje.findUnique({ where: { viaje_id: viajeId } })
     }
 
-    const [cantidadIntegrantes, mia, miIntegrante] = await Promise.all([
+    const [cantidadIntegrantes, mia, miIntegrante, filasParadas] = await Promise.all([
       this.contarIntegrantesEfectivos(viajeId, viaje.creador_id),
       this.prisma.metricaViaje.findUnique({
         where: { viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId } },
@@ -1557,6 +1609,20 @@ export class ViajesService {
       this.prisma.viajeIntegrante.findUnique({
         where: { viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId } },
         select: { estado: true, fecha_salida: true },
+      }),
+      this.prisma.parada.findMany({
+        where: { viaje_id: viajeId },
+        select: {
+          id: true,
+          usuario_id: true,
+          tipo: true,
+          categoria: true,
+          inicio: true,
+          fin: true,
+          grupal: true,
+          confirmado_bien: true,
+          usuario: { select: { nombre: true, apellido: true } },
+        },
       }),
     ])
 
@@ -1592,6 +1658,7 @@ export class ViajesService {
         sali_antes: miIntegrante?.estado === 'salido',
         fecha_salida: miIntegrante?.fecha_salida ?? null,
       },
+      paradas: armarParadasDelResumen(filasParadas, usuarioId, viaje.creador_id),
       // RN-070 + RN-072: comparar solo en modo competitivo, y nunca en vehículo motorizado.
       ranking_habilitado: !esMotorizado(viaje.tipo_actividad) && viaje.modo === 'competitivo',
       generado_en: resumen?.generado_en ?? null,

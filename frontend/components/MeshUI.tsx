@@ -438,7 +438,7 @@ interface AvatarProps {
     foto?: string;
     color?: string;
   };
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg' | 'xl';
   ring?: boolean;
   style?: StyleProp<ViewStyle>;
 }
@@ -458,6 +458,8 @@ export function Avatar({ person, size = 'md', ring = false, style }: AvatarProps
         return { size: 34, fontSize: 13 };
       case 'lg':
         return { size: 64, fontSize: 24 };
+      case 'xl':
+        return { size: 128, fontSize: 48 };
       case 'md':
       default:
         return { size: 44, fontSize: 16 };
@@ -613,9 +615,11 @@ interface TopBarProps {
   onAyuda?: () => void;
   /** Pantalla raíz de una pestaña: nunca lleva botón de volver, aunque haya historial de pestañas. */
   raiz?: boolean;
+  /** Deja ver lo que haya detrás de la barra (ej. el fondo de la cabecera del Perfil). */
+  transparente?: boolean;
 }
 
-export function TopBar({ title, sub, onBack, bordered = true, right, onAyuda, raiz = false }: TopBarProps) {
+export function TopBar({ title, sub, onBack, bordered = true, right, onAyuda, raiz = false, transparente = false }: TopBarProps) {
   const theme = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -636,7 +640,7 @@ export function TopBar({ title, sub, onBack, bordered = true, right, onAyuda, ra
       style={[
         styles.topBar,
         {
-          backgroundColor: theme.background,
+          backgroundColor: transparente ? 'transparent' : theme.background,
           borderBottomColor: theme.border,
           borderBottomWidth: bordered ? 1 : 0,
           paddingTop: insets.top + 8,

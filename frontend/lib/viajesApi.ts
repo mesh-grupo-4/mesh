@@ -259,12 +259,26 @@ export async function unirseViajePorQr(
   return parseJson<UnirseQrViajeResponse>(res)
 }
 
+export async function unirseViajePorCodigo(
+  codigo: string,
+  baseUrl: string = API_BASE_URL
+): Promise<UnirseQrViajeResponse> {
+  const res = await meshFetchAuthed(apiUrl('/api/viajes/unirse-codigo', baseUrl), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ codigo }),
+  })
+  return parseJson<UnirseQrViajeResponse>(res)
+}
+
 /** Modo del viaje: recreativo (RN-072), entrenamiento (RN-065) o competitivo (RN-071). */
 export type ModoViajeApi = 'recreativo' | 'competitivo' | 'entrenamiento'
 
 export type ViajeDetalleApi = {
   id: string
   creador_id: string
+  /** RN-015: código para sumarse sin QR. Caduca junto con el QR. */
+  codigo_invitacion: string
   nombre?: string | null
   es_grupal: boolean
   tipo_actividad: string
@@ -526,8 +540,22 @@ export type ResumenViajeApi = {
     sali_antes: boolean
     fecha_salida: string | null
   }
+  paradas: ParadaResumenApi[]
   ranking_habilitado: boolean
   generado_en: string | null
+}
+
+export type ParadaResumenApi = {
+  id: string
+  tipo: 'voluntaria' | 'incidente_detectado'
+  categoria: CategoriaParadaApi | null
+  grupal: boolean
+  inicio: string
+  fin: string | null
+  duracion_seg: number | null
+  nombre: string
+  es_propia: boolean
+  confirmado_bien: boolean | null
 }
 
 export type MetricaIntegranteApi = {

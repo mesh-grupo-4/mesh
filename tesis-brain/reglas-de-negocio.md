@@ -54,7 +54,7 @@ A diferencia de soluciones existentes (Strava, Garmin, Google Maps, Life360) que
 | RN-012 | El líder puede asignar y cambiar roles de otros integrantes. |
 | RN-013 | Si el líder abandona el grupo, el rol se transfiere al siguiente integrante más antiguo; si no hay nadie, el grupo se elimina. |
 | RN-014 | La eliminación de un grupo requiere confirmación explícita. |
-| RN-017 | Las solicitudes de amistad requieren aceptación del receptor. |
+| RN-017 | Las solicitudes de amistad requieren aceptación del receptor. Además de la búsqueda y el perfil público, se pueden enviar desde la lista de integrantes durante el viaje (`GET /api/amistades/relaciones` resuelve la relación con cada persona). |
 | RN-018 | Invitar personas **al grupo** crea registros en `grupo_invitacion` con estado `pendiente`. Fuentes válidas (SCRUM-18): amigos aceptados, búsqueda global de usuarios registrados, o co-miembros de otro grupo del líder. Solo el **líder** del grupo destino puede invitar; se excluye al invitador y a quienes ya son miembros o tienen invitación pendiente. La respuesta de los endpoints de invitables distingue ambos estados con flags separados: `ya_es_miembro` (miembro real) e `invitacion_pendiente` (invitación sin aceptar), de modo que la UI muestre "Ya es miembro" vs "Invitación enviada" correctamente. `grupo_origen_id` es nullable cuando la invitación no proviene de otro grupo. **Reinvitación:** como hay una única fila por `(grupo_id, usuario_id)` (constraint `@@unique`), invitar a alguien que ya tuvo una invitación en otro estado (`aceptada` de una membresía pasada que abandonó, o `rechazada`) **reabre** esa fila a `pendiente` (upsert) en lugar de saltarla; así una persona que se fue del grupo puede volver a ser invitada y la invitación efectivamente llega. **Flujo distinto** de invitar grupos a un viaje (RN-028/RN-029). |
 | RN-019 | El invitado a un grupo puede aceptar o rechazar una invitación pendiente (SCRUM-17). Aceptar la marca como `aceptada` y agrega al usuario como `participante` del grupo; rechazar la marca como `rechazada` sin modificar membresía. Abandonar el grupo elimina la membresía pero conserva la fila `grupo_invitacion` (queda en `aceptada`); una futura reinvitación la reabre a `pendiente` (ver RN-018). |
 | RN-019b | **Pendientes en la tab bar:** la pestaña **Grupos** muestra un badge con la suma de invitaciones a grupos pendientes (RN-018) y solicitudes de amistad recibidas (RN-017); se oculta en 0 y muestra `99+` por encima de 99. Al crear una invitación a grupo o una solicitud de amistad, el backend envía un **push** al destinatario (`data.tipo`: `invitacion_grupo` / `solicitud_amistad`, best-effort, no bloquea la respuesta); con la app abierta el push refresca el badge al instante, y al tocarlo abre Grupos en la sección correspondiente. Como respaldo, el badge se refresca al volver la app a primer plano y cada 60 s. |
@@ -69,8 +69,8 @@ A diferencia de soluciones existentes (Strava, Garmin, Google Maps, Life360) que
 
 | ID | Regla |
 |---|---|
-| RN-015 | El código QR de invitación es único por viaje y expira al iniciar el viaje. |
-| RN-016 | El escaneo del QR agrega al usuario **al viaje** directamente, sin aprobación manual. No modifica la membresía de ningún grupo. |
+| RN-015 | El código QR de invitación es único por viaje y expira al iniciar el viaje. Cada viaje tiene además un **código de invitación** corto (8 caracteres, formato `XXXX-XXXX`, sin 0/O ni 1/I) con la misma vigencia, para sumarse escribiéndolo desde la pantalla de escaneo (`POST /api/viajes/unirse-codigo`). Una vez iniciado o finalizado el viaje, la app deja de ofrecer el QR y el código, y el backend responde 410 `QR_EXPIRED`. |
+| RN-016 | El escaneo del QR o el ingreso del código agrega al usuario **al viaje** directamente, sin aprobación manual (`origen: qr` en ambos casos). No modifica la membresía de ningún grupo. |
 | RN-020 | Un viaje puede ser **individual** (sin invitados iniciales) o **grupal** (con uno o más participantes). |
 | RN-028 | Al crear un viaje grupal, el creador puede invitar por dos vías (UI: dos `Collapsible`, Grupos y Amigos): **(a) grupos** de los que es **miembro**, invitando en bloque a sus integrantes (`origen: grupo`); y **(b) amigos** individuales con amistad **aceptada** (`origen: amigo`, validado en backend con 403 `NOT_FRIEND` si no son amigos). Ambos `grupoIds` y `amigoIds` solo se aceptan en viajes grupales. Si un usuario llega por varios caminos (varios grupos, o grupo + amigo) recibe **una sola invitación** (se prioriza `origen: grupo`). El campo `invitaciones_enviadas` cuenta el total sin duplicar. El viaje se crea con `nombre` obligatorio (1–100) y `fecha_programada` futura definida por el creador. Los `grupoIds` invitados se **persisten** en `viaje_grupo` (RN-027) para trazabilidad y conteo de viajes por grupo. **Después de crear:** el líder puede sumar grupos/amigos con `POST /api/viajes/:viajeId/invitaciones` mientras el viaje esté `planificado` (mismas validaciones; 403 `NOT_CREATOR` si no es el líder, 409 `INVALID_STATE` si ya arrancó, 409 `INDIVIDUAL_TRIP` si es individual). Quien ya figura en el viaje, en cualquier estado, no se vuelve a invitar. |
 | RN-029 | Las invitaciones al viaje (originadas por grupos o por amigos) requieren **confirmación** del invitado (aceptar/rechazar asistencia). El creador del viaje ve la lista de confirmados y rechazados. Distinto de RN-016 (QR al viaje) y de RN-018 (membresía de grupo). |
@@ -90,6 +90,7 @@ A diferencia de soluciones existentes (Strava, Garmin, Google Maps, Life360) que
 |---|---|
 | RN-030 | Solo el **creador del viaje** (`creador_id`) puede iniciar y finalizar un viaje. Esto es independiente del rol de líder en cualquier grupo. |
 | RN-030b | Solo el **creador** puede **eliminar** un viaje en estado `planificado`. La eliminación requiere confirmación explícita en UI y borra en cascada ruta, integrantes e invitaciones (`DELETE /api/viajes/:viajeId`). No se puede eliminar un viaje `en_curso` ni `finalizado`. |
+| RN-030c | **Un solo viaje en curso por persona al iniciar.** No se puede iniciar un viaje si quien lo inicia es líder de otro viaje `en_curso` o ya se sumó a uno con check-in (`409 OTRO_VIAJE_EN_CURSO`, con `viaje_en_curso_id` para que la app ofrezca ir a ese viaje). Un `confirmado` sin check-in no bloquea, porque solo dijo que iba (RN-029b). Quien salió de un viaje (`salido`) tampoco queda bloqueado. Por ahora la regla aplica solo a iniciar: el "Me sumo" a un segundo viaje no se bloquea. |
 | RN-031 | Al iniciar, el sistema recolecta ubicación GPS cada **5 segundos**. |
 | RN-032 | La latencia máxima aceptable de actualización de posición en el mapa es **10 segundos**. |
 | RN-033 | El sistema soporta hasta **150–200 usuarios concurrentes** por viaje. |
@@ -108,6 +109,7 @@ A diferencia de soluciones existentes (Strava, Garmin, Google Maps, Life360) que
 | RN-042 | Las alertas activas pueden pausarse o cancelarse individualmente por el líder. Cancelar o resolver la alerta de un posible incidente (o el pedido de ayuda) cierra el incidente completo (RN-036). |
 | RN-043 | Las alertas automáticas de incidente incluyen la ubicación exacta del evento. |
 | RN-044 | Un integrante puede solicitar una parada al grupo; el líder puede aprobarla o rechazarla. |
+| RN-045 | **Parada grupal.** En un viaje grupal en curso, el líder puede registrar una parada para todo el grupo: se abre una parada voluntaria a cada integrante sumado, todas en el punto del líder (RN-111). A quien ya tiene una parada abierta o un posible incidente no se le modifica. Cuando el líder retoma, se cierran todas las paradas grupales abiertas; un integrante puede retomar antes, solo la suya. Solo el líder puede iniciarla (RN-030). |
 | RN-108 | El líder configura `alertas_solo_lider` (default `true`). Si está desactivado, cualquier integrante confirmado puede crear alertas manuales durante el viaje. |
 
 ### 2.6 Reglas de Interfaz Adaptativa
@@ -140,6 +142,25 @@ Se calcula en PostGIS agregando `registro_gps` segmento a segmento con `ST_Dista
 descartando lecturas con más de 100 m de error declarado, saltos mayores a 500 m y huecos
 temporales de más de 120 s. Por esos filtros el valor difiere en torno a un 2-5 % del contador
 en vivo del dispositivo, que no filtra.
+
+#### Definición operativa: "en movimiento"
+
+Con el teléfono quieto, el GPS devuelve cada lectura unos metros al lado de la anterior. Un
+tramo solo cuenta como movimiento si el desplazamiento neto en una ventana de ±30 s, o el
+propio tramo, alcanza el radio de quietud: 20 m, o la precisión declarada de la lectura si es
+mayor (`RADIO_QUIETO_M`, `backend/src/lib/gpsFilters.ts`). Resumen, splits, perfil de velocidad
+y fantasma usan el mismo criterio.
+
+Quien acumula menos de 100 m (`DISTANCIA_MINIMA_M`) no tiene fila en `metrica_viaje`: el
+resumen lo muestra como "sin movimiento registrado" en vez de calcular un ritmo sobre ruido.
+Las filas de `registro_gps` no se tocan (RN-038).
+
+#### Paradas en el cierre
+
+`GET /resumen` devuelve `paradas`: hora, duración, categoría y quién, en orden cronológico,
+incluidos los posibles incidentes. Una parada grupal (RN-045) guarda una fila por integrante,
+pero se muestra y se cuenta como una sola. No lleva coordenadas: mostrar dónde paró un tercero
+tendría que pasar por `privacidad.acceso` (RN-111).
 
 Las métricas individuales (`metrica_viaje`) cubren hoy distancia, tiempo en movimiento,
 velocidad promedio, velocidad máxima y altimetría (desnivel positivo/negativo, altitud
@@ -182,9 +203,18 @@ coordinar (quién se desvió, quién viene de frente, quién dobló) sin mirar l
 - Es el **último rumbo conocido**: quieto el GPS no da rumbo, y el backend conserva el anterior
   en vez de borrarlo. El cliente oculta la flecha si el integrante está detenido, en posible
   incidente o sin señal (`frontend/components/live/RumboMarker.tsx`).
-- La flecha es un marcador aparte girado con la rotación nativa de Google Maps (bitmap fijo,
-  barato con 200 integrantes). En iOS con Apple Maps, que no la soporta, se gira dentro de la
-  vista en pasos de 10°.
+- La flecha es un marcador aparte y plano, girado dentro de su propia vista en pasos de 10°.
+  No se usa la `rotation` nativa del marcador: en Android con la nueva arquitectura,
+  `react-native-maps` 1.29 solo la aplica al crearlo y la flecha quedaba fija.
+- Con el modo "seguirme" activo, el mapa gira hacia el rumbo propio. Arrastrar el mapa a mano
+  pausa el seguimiento y el giro; el botón de centrar los reactiva. Con Apple Maps el mapa queda
+  con el norte arriba, porque no hay marcadores planos.
+- **Movimiento fluido (solo dibujo):** entre dos pings, cada marcador avanza según la velocidad
+  y el rumbo de sus últimos pings, sobre la ruta planificada si la está siguiendo (a menos de
+  40 m y en el mismo sentido) y en línea recta si no. Se estima hasta 6 s, y a los 9 s sin ping
+  vuelve a la última posición real. Cuando llega un ping, el ajuste se ve como un deslizamiento.
+  Las posiciones estimadas **nunca** se guardan, no se envían al backend ni alimentan el motor
+  de eventos o las métricas (RN-038): todo eso sigue usando solo el GPS real.
 - Altitud y velocidad **nunca** se publican al grupo: la velocidad de terceros en vivo sería
   justamente la comparación que RN-070 prohíbe.
 
@@ -231,11 +261,11 @@ Si el PO prefiere un criterio más conservador, la alternativa es devolver
 | ID | Regla |
 |---|---|
 | RN-080 | La red social es **deliberadamente acotada**: no es una red social generalista. |
-| RN-081 | Los usuarios publican recorridos de su historial; pueden despublicarlos en cualquier momento. **Implementación (SCRUM-61):** se publica un viaje `finalizado` en el que participó (creador o `confirmado`/`salido`) congelando un snapshot de **su** traza GPS, distancia y tiempo en movimiento — nunca velocidad (RN-070). Despublicar es `activo = false`. Botón en el resumen del viaje. Ver [`us-publicar-recorrido.md`](us-publicar-recorrido.md). |
-| RN-082 | La valoración es binaria: "Recomiendo" / "No recomiendo". Un usuario solo puede valorar una vez por recorrido. **Implementación (SCRUM-63):** PK `(recorrido, usuario)`; la valoración es definitiva (`409 VALORACION_EXISTENTE`) y el autor no valora lo propio (`403 VALORACION_PROPIA`). Se muestra el porcentaje entero de recomendaciones (`null` sin votos); no altera el orden del listado. Ver [`us-valorar-recorridos.md`](us-valorar-recorridos.md). |
-| RN-083 | **No se permiten comentarios de texto** para mantener la simplicidad y evitar moderación. **Implementación:** el body de valoración es `{ recomiendo }` con Zod `.strict()`; cualquier otro campo es `400`. |
-| RN-084 | Los recorridos publicados son importables como base para nuevos viajes. **Implementación (SCRUM-62):** importar crea una `RutaPlantilla` en "Mis rutas" (traza → trazado planificado, extremos → origen y destino, sin paradas), idempotente por `(usuario, recorrido)`, y la app abre "Crear viaje" con esa plantilla. El listado se filtra por actividad y por zona (recorridos que **arrancan** dentro de un radio, `ST_DWithin`). Ver [`us-explorar-recorridos.md`](us-explorar-recorridos.md). |
-| RN-085 | El **link de ruta** comparte solo el **snapshot planificado** congelado al generar el token (geometría + postas + tipo de actividad). No comparte integrantes, ubicación en vivo, alertas ni métricas. Distinto del QR de unirse al viaje (RN-015/016). |
+| RN-081 | Los usuarios publican recorridos de su historial; pueden despublicarlos en cualquier momento. **Implementación (SCRUM-61):** se publica un viaje `finalizado` en el que participó (creador o `confirmado`/`salido`) congelando un snapshot de **su** traza GPS, distancia y tiempo en movimiento — nunca velocidad (RN-070). Despublicar es `activo = false`. Botón en el resumen del viaje. Al publicar, el autor puede sumar un comentario (hasta 280 caracteres) y elegir si comparte su checklist de ese viaje; ambos son parte del snapshot. Ver [`us-publicar-recorrido.md`](us-publicar-recorrido.md). |
+| RN-082 | La valoración es binaria: "Recomiendo" / "No recomiendo". Un usuario solo puede valorar una vez por recorrido. **Implementación (SCRUM-63):** PK `(recorrido, usuario)`; la valoración es definitiva (`409 VALORACION_EXISTENTE`) y el autor no valora lo propio (`403 VALORACION_PROPIA`). Se muestra el porcentaje entero de recomendaciones (`null` sin votos). **Orden del listado (cambio del 09/11/2026):** los recorridos "Muy recomendado" (80 % o más de "Recomiendo" con al menos 3 valoraciones) van primero; dentro de cada grupo, el más reciente primero. El orden usa solo la valoración de la comunidad sobre la ruta, nunca velocidad ni rendimiento (RN-070), ni la reputación de quien publicó. Ver [`us-valorar-recorridos.md`](us-valorar-recorridos.md). |
+| RN-083 | **No se permiten comentarios de texto** para mantener la simplicidad y evitar moderación. **Implementación:** el body de valoración es `{ recomiendo }` con Zod `.strict()`; cualquier otro campo es `400`. **Alcance:** la regla aplica a la comunidad. El autor puede dejar una única nota al publicar su recorrido (RN-081); nadie más escribe texto ni hay hilos ni respuestas. Esa nota no pasa por moderación. |
+| RN-084 | Los recorridos publicados son importables como base para nuevos viajes. **Implementación (SCRUM-62):** importar crea una `RutaPlantilla` en "Mis rutas" (traza → trazado planificado, extremos → origen y destino, sin paradas), idempotente por `(usuario, recorrido)`, y la app abre "Crear viaje" con esa plantilla, o la deja guardada sin crear el viaje. Si el autor compartió el checklist, quien guarda elige si se lo lleva: al crear un viaje con esa plantilla los ítems entran como personales en su checklist. El listado se filtra por actividad, por zona (recorridos que **arrancan** dentro de un radio, `ST_DWithin`) y por texto (nombre, comentario o autor, sin distinguir acentos). Ver [`us-explorar-recorridos.md`](us-explorar-recorridos.md). |
+| RN-085 | El **link de ruta** comparte solo el **snapshot planificado** congelado al generar el token (geometría + postas + tipo de actividad). No comparte integrantes, ubicación en vivo, alertas ni métricas. Distinto del QR de unirse al viaje (RN-015/016). Con dominio configurado, tanto este link como el QR son https: abren la app si está instalada y la landing si no (ver [`us-compartir-ruta.md`](us-compartir-ruta.md)). |
 | RN-086 | Importar crea una **plantilla copia** en el perfil del receptor. Editar o eliminar el viaje/ruta fuente **no** altera plantillas ya importadas. El link sigue resolviendo su snapshot aunque se borre la fuente. |
 | RN-087 | Pueden obtener el link los integrantes con estado `confirmado` (incluye al creador). Solo el **creador** del viaje puede **revocar** el token. El link **no expira** al pasar a `en_curso`/`finalizado`. |
 | RN-088 | El token es **opaco** y único por ruta compartida; no se usa el `viajeId` como secreto. Reimportar el mismo link es **idempotente** por `(usuario, ruta_compartida)`. |
@@ -657,6 +687,7 @@ Amistad
 Viaje
 ├── id (PK)
 ├── creador_id (FK → Usuario) — líder del viaje (RN-030)
+├── codigo_invitacion (string, unique) — código corto para sumarse sin QR; lo genera la base (RN-015)
 ├── nombre (string, 1–100) — identificador principal mostrado en listas e invitaciones; nullable en viajes antiguos
 ├── es_grupal (boolean)
 ├── tipo_actividad (enum: moto, auto, bici, running, trekking, otro)
@@ -781,6 +812,8 @@ RecorridoPublicado                                          ← RN-081
 ├── tiempo_seg (en movimiento; nunca velocidad, RN-070)
 ├── segmentos (json [lat, lng][][], snapshot de la traza)
 ├── inicio_lat / inicio_lng (nullable; filtro por zona, SCRUM-62)
+├── comentario (varchar 280, nullable; nota del autor)
+├── checklist (text[]; vacío si el autor no lo compartió)
 ├── publicado_at
 └── activo (boolean)
 
@@ -799,6 +832,7 @@ RutaPlantilla                                               ← RN-084 / RN-086
 ├── recorrido_publicado_id (FK, nullable, SET NULL)  # origen: recorrido de la comunidad
 ├── nombre, tipo_actividad, origen, destino, linestring_geojson
 ├── distancia_planeada_m, tiempo_estimado_seg
+├── checklist (text[]; vacío si no se guardó)
 └── created_at
 
     UNIQUE (usuario_id, ruta_compartida_id)

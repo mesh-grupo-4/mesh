@@ -26,6 +26,7 @@ import { ejecutarUnionPorQr } from '@/lib/joinViajeQr'
 import { TopBar, Btn, useTheme } from '@/components/MeshUI'
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
 import { AYUDA_ESCANEAR_QR } from '@/components/ayuda/contenidoAyuda'
+import { IngresarCodigoViajeModal } from '@/components/IngresarCodigoViajeModal'
 
 export default function EscanearQrScreen() {
   const { backendUserId } = useAuth()
@@ -33,6 +34,7 @@ export default function EscanearQrScreen() {
   const { start } = useCopilot()
   const [permission, requestPermission] = useCameraPermissions()
   const [procesando, setProcesando] = useState(false)
+  const [ingresandoCodigo, setIngresandoCodigo] = useState(false)
 
   // Animated laser line
   const laserY = useSharedValue(10)
@@ -105,8 +107,12 @@ export default function EscanearQrScreen() {
             <Btn variant="ghost" block onPress={() => void Linking.openSettings()}>
               Abrir ajustes del sistema
             </Btn>
+            <Btn variant="secondary" block icon="hash" onPress={() => setIngresandoCodigo(true)}>
+              Ingresar código de viaje
+            </Btn>
           </View>
         </View>
+        <IngresarCodigoViajeModal visible={ingresandoCodigo} onCerrar={() => setIngresandoCodigo(false)} />
       </View>
     )
   }
@@ -119,7 +125,7 @@ export default function EscanearQrScreen() {
         style={styles.camera}
         facing="back"
         barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-        onBarcodeScanned={procesando ? undefined : ({ data }) => void onBarcode(data)}
+        onBarcodeScanned={procesando || ingresandoCodigo ? undefined : ({ data }) => void onBarcode(data)}
       />
 
       <View style={styles.overlayContainer}>
@@ -172,10 +178,16 @@ export default function EscanearQrScreen() {
             <Text style={styles.hintText}>
               {procesando ? 'Procesando código de invitación...' : 'Apuntá la cámara al código QR de Mesh'}
             </Text>
+            {!procesando && (
+              <Btn variant="secondary" icon="hash" onPress={() => setIngresandoCodigo(true)}>
+                Ingresar código de viaje
+              </Btn>
+            )}
           </View>
         </View>
         </PasoAyuda>
       </View>
+      <IngresarCodigoViajeModal visible={ingresandoCodigo} onCerrar={() => setIngresandoCodigo(false)} />
     </View>
   )
 }
@@ -216,6 +228,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     alignItems: 'center',
     paddingTop: 32,
+    gap: 20,
   },
   scanBox: {
     width: 240,

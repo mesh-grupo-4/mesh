@@ -202,6 +202,8 @@ paths:
     $ref: './paths/amistades.yaml#/ListaAmigos'
   /api/amistades/buscar:
     $ref: './paths/amistades.yaml#/BuscarUsuarios'
+  /api/amistades/relaciones:
+    $ref: './paths/amistades.yaml#/RelacionesAmistad'
   /api/amistades/solicitudes/pendientes:
     $ref: './paths/amistades.yaml#/SolicitudesPendientes'
   /api/amistades/solicitar:
@@ -300,6 +302,8 @@ paths:
     $ref: './paths/viajes.yaml#/EstadisticasUsuario'
   /api/viajes/invitaciones/pendientes:
     $ref: './paths/viajes.yaml#/InvitacionesViajePendientes'
+  /api/viajes/unirse-codigo:
+    $ref: './paths/viajes.yaml#/UnirseCodigo'
   /api/viajes/{viajeId}:
     $ref: './paths/viajes.yaml#/ViajePorId'
   /api/viajes/{viajeId}/unirse-qr:

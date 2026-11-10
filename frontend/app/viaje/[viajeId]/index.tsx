@@ -54,6 +54,7 @@ import {
   revocarCompartirRutaViaje,
 } from '@/lib/rutasCompartidasApi'
 import { MeshApiError } from '@/lib/apiClient'
+import { avisarSiOtroViajeEnCurso } from '@/lib/arrancarViaje'
 import { waypointsFromRutaDetalle } from '@/lib/routePayload'
 import { nombreCompleto } from '@/lib/nombres'
 import { ajustarSiQuedoEnPasado, esFechaFutura } from '@/lib/fechaProgramada'
@@ -506,7 +507,10 @@ export default function ViajeDetalleScreen() {
         }).catch((e) => console.warn('Broadcast TRIP_STARTED falló:', e))
       }
     } catch (e) {
-      meshAlert('Error', e instanceof Error ? e.message : 'No se pudo iniciar')
+      const avisado = avisarSiOtroViajeEnCurso(e, (otroId) =>
+        router.push({ pathname: '/viaje/[viajeId]/live', params: { viajeId: otroId } })
+      )
+      if (!avisado) meshAlert('Error', e instanceof Error ? e.message : 'No se pudo iniciar')
     } finally {
       setAccion(false)
     }
@@ -741,15 +745,18 @@ export default function ViajeDetalleScreen() {
         right={
           viaje ? (
             <View style={styles.topBarActions}>
-              <Pressable
-                onPress={() => router.push({ pathname: '/viaje/[viajeId]/qr', params: { viajeId } })}
-                style={({ pressed }) => [
-                  styles.iconBtn,
-                  { backgroundColor: pressed ? theme.surface2 : theme.surface, borderColor: theme.border }
-                ]}
-              >
-                <Feather name="share-2" size={18} color={theme.text} />
-              </Pressable>
+              {/* RN-015: el QR caduca al iniciar el viaje, no se ofrece después. */}
+              {viaje.estado === 'planificado' ? (
+                <Pressable
+                  onPress={() => router.push({ pathname: '/viaje/[viajeId]/qr', params: { viajeId } })}
+                  style={({ pressed }) => [
+                    styles.iconBtn,
+                    { backgroundColor: pressed ? theme.surface2 : theme.surface, borderColor: theme.border }
+                  ]}
+                >
+                  <Feather name="share-2" size={18} color={theme.text} />
+                </Pressable>
+              ) : null}
               {esLider && viaje.estado === 'planificado' ? (
                 <Pressable
                   onPress={confirmarEliminar}

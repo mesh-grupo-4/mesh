@@ -30,12 +30,14 @@ export type RutaPlantillaResumenApi = {
   origen_nombre: string | null
   destino_nombre: string | null
   created_at: string
+  con_checklist: boolean
 }
 
 export type RutaPlantillaDetalleApi = RutaSnapshotPreviewApi & {
   id: string
   nombre: string
   created_at: string
+  checklist: string[]
 }
 
 export type CompartirRutaResponseApi = {

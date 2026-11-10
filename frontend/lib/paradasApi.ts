@@ -28,6 +28,8 @@ export type ParadaApi = {
   duracion_segundos: number | null
   /** RN-036: el integrante confirmó que NO está bien ante un posible incidente. */
   necesita_ayuda?: boolean
+  /** RN-045: el líder la abrió para todo el grupo. */
+  grupal?: boolean
 }
 
 export type SolicitudParadaApi = {
@@ -47,7 +49,7 @@ export type SolicitudParadaApi = {
 
 export async function iniciarParada(
   viajeId: string,
-  input: { lat: number; lng: number; categoria: CategoriaParadaApi }
+  input: { lat: number; lng: number; categoria: CategoriaParadaApi; grupal?: boolean }
 ): Promise<ParadaApi> {
   const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}/paradas`), {
     method: 'POST',

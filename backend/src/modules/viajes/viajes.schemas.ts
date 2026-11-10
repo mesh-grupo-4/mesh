@@ -33,6 +33,14 @@ export const viajeIdParamSchema = z.object({
   viajeId: z.string().uuid('viajeId debe ser un UUID válido'),
 })
 
+/** RN-015: acepta el código como se lo dictaron (minúsculas, espacios o guion). */
+export const unirsePorCodigoSchema = z.object({
+  codigo: z
+    .string()
+    .transform((v) => v.replace(/[\s-]/g, '').toUpperCase())
+    .pipe(z.string().regex(/^[2-9A-HJ-NP-Z]{8}$/, 'El código de viaje no es válido')),
+})
+
 /** Fecha/hora de salida: debe ser estrictamente posterior a ahora (RN-028). */
 const fechaProgramadaFuturaSchema = z.coerce.date().superRefine((d, ctx) => {
   if (Number.isNaN(d.getTime())) {
