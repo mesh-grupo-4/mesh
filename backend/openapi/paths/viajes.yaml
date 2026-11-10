@@ -690,6 +690,9 @@ ResumenViajeRecurso:
       de filas GPS puede tardar— o el viaje es anterior a esta funcionalidad, la consulta
       lo recalcula al vuelo de forma transparente.
 
+      Si la persona no se desplazó (solo ruido del GPS, menos de 100 m netos), `mis_metricas`
+      llega con distancia, tiempo y velocidades en `null`.
+
       **RN-070:** `ranking_habilitado` es `false` en modalidades `moto` y `auto`.
     tags:
       - Viajes
