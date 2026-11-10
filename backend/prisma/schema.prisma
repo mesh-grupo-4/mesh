@@ -267,6 +267,8 @@ model Amistad {
 model Viaje {
   id                          String        @id @default(uuid()) @db.Uuid
   creador_id                  String        @map("creador_id") @db.Uuid
+  /// RN-015: código corto para sumarse escribiéndolo (alternativa al QR). Lo genera la base.
+  codigo_invitacion           String        @unique @default(dbgenerated("generar_codigo_viaje()")) @map("codigo_invitacion")
   nombre                      String?
   es_grupal                   Boolean       @map("es_grupal")
   tipo_actividad              TipoActividad @map("tipo_actividad")

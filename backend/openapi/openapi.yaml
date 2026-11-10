@@ -300,6 +300,8 @@ paths:
     $ref: './paths/viajes.yaml#/EstadisticasUsuario'
   /api/viajes/invitaciones/pendientes:
     $ref: './paths/viajes.yaml#/InvitacionesViajePendientes'
+  /api/viajes/unirse-codigo:
+    $ref: './paths/viajes.yaml#/UnirseCodigo'
   /api/viajes/{viajeId}:
     $ref: './paths/viajes.yaml#/ViajePorId'
   /api/viajes/{viajeId}/unirse-qr:

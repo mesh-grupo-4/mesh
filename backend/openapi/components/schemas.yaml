@@ -1456,6 +1456,12 @@ Viaje:
       type: string
       format: uuid
       description: Líder del viaje. Es quien puede iniciarlo, finalizarlo y configurar la ruta (RN-030).
+    codigo_invitacion:
+      type: string
+      description: |
+        Código único para sumarse sin escanear el QR (RN-015). Lo genera la base y
+        caduca junto con el QR al iniciarse el viaje.
+      example: ABCD2345
     nombre:
       type: string
       nullable: true
@@ -2089,6 +2095,17 @@ UnionPorQr:
       type: boolean
       description: '`true` si la persona ya figuraba en el viaje; escanear de nuevo no duplica nada.'
       example: false
+  additionalProperties: false
+
+UnirsePorCodigoBody:
+  type: object
+  required:
+    - codigo
+  properties:
+    codigo:
+      type: string
+      description: Código del viaje (8 caracteres). Se aceptan minúsculas, espacios y guion.
+      example: ABCD-2345
   additionalProperties: false
 
 InvitacionViajePendiente:

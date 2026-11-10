@@ -519,6 +519,20 @@ export class ViajesService {
     return { viajeId, yaEraParticipante: result.yaEraParticipante }
   }
 
+  /** RN-015 / RN-016: misma unión que por QR, escribiendo el código del viaje. */
+  async unirsePorCodigo(usuarioId: string, codigo: string) {
+    const viaje = await this.prisma.viaje.findUnique({
+      where: { codigo_invitacion: codigo },
+      select: { id: true },
+    })
+
+    if (!viaje) {
+      throw new HttpError(404, 'No encontramos un viaje con ese código', 'VIAJE_NOT_FOUND')
+    }
+
+    return this.unirsePorQr(usuarioId, viaje.id)
+  }
+
   async obtenerRuta(usuarioId: string, viajeId: string) {
     await this.assertPuedeVerViaje(viajeId, usuarioId)
 

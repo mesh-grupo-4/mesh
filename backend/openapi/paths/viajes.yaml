@@ -378,6 +378,62 @@ UnirseQr:
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'
 
+UnirseCodigo:
+  post:
+    operationId: unirseCodigo
+    summary: Unirse a un viaje escribiendo su código
+    description: |
+      **RN-015/016:** alternativa a escanear el QR, con las mismas reglas: une
+      directamente, sin aprobación del líder, y **expira al iniciarse el viaje**.
+      El código se acepta en minúsculas y con espacios o guion.
+
+      Es idempotente: si la persona ya figuraba en el viaje, responde 200 con
+      `yaEraParticipante: true` sin duplicar nada.
+    tags:
+      - Viajes
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/UnirsePorCodigoBody'
+          example:
+            codigo: ABCD-2345
+    responses:
+      '200':
+        description: El usuario quedó incorporado al viaje.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/UnionPorQr'
+            example:
+              viajeId: 44444444-4444-4444-4444-444444444444
+              yaEraParticipante: false
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '404':
+        description: Ningún viaje tiene ese código (`VIAJE_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: No encontramos un viaje con ese código
+              code: VIAJE_NOT_FOUND
+      '410':
+        description: El viaje ya arrancó o terminó, así que el código caducó (`QR_EXPIRED`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Este viaje ya ha comenzado. El código QR ha expirado.
+              code: QR_EXPIRED
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
 ResponderInvitacionViaje:
   post:
     operationId: responderInvitacionViaje
