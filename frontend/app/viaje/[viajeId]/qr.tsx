@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   View,
   Text,
@@ -14,8 +14,11 @@ import * as Sharing from 'expo-sharing'
 import { Feather } from '@expo/vector-icons'
 
 import { useCopilot } from 'react-native-copilot'
-import { buildInviteUrl } from '@/lib/inviteLinks'
-import { TopBar, Btn, Badge, useTheme } from '@/components/MeshUI'
+import { useAuth } from '@/context/AuthContext'
+import { buildInviteMessage, buildInviteUrl } from '@/lib/inviteLinks'
+import { obtenerViaje, type ViajeDetalleApi } from '@/lib/viajesApi'
+import { TopBar, Btn, useTheme } from '@/components/MeshUI'
+import { CodigoViaje } from '@/components/CodigoViaje'
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
 import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda'
 import { AYUDA_VIAJE_QR } from '@/components/ayuda/contenidoAyuda'
@@ -26,6 +29,21 @@ export default function ViajeQrScreen() {
   const theme = useTheme()
   const { start } = useCopilot()
   const shotRef = useRef<ViewShotRef>(null)
+  const { backendUserId } = useAuth()
+  const [viaje, setViaje] = useState<ViajeDetalleApi | null>(null)
+
+  useEffect(() => {
+    if (!viajeId || !backendUserId) return
+    let cancelado = false
+    obtenerViaje(viajeId, backendUserId)
+      .then((v) => {
+        if (!cancelado) setViaje(v)
+      })
+      .catch((e) => console.warn('No se pudo cargar el viaje:', e))
+    return () => {
+      cancelado = true
+    }
+  }, [viajeId, backendUserId])
 
   if (!viajeId) {
     return (
@@ -35,15 +53,31 @@ export default function ViajeQrScreen() {
     )
   }
 
-  const inviteUrl = buildInviteUrl(viajeId)
+  // RN-015: el QR y el código caducan al iniciar el viaje.
+  if (viaje && viaje.estado !== 'planificado') {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        <Stack.Screen options={{ headerShown: false }} />
+        <TopBar title="Invitar al viaje" onBack={() => router.back()} bordered={false} />
+        <View style={styles.center}>
+          <View style={[styles.iconContainer, { backgroundColor: theme.accentWeak }]}>
+            <Feather name="slash" size={28} color={theme.accent} />
+          </View>
+          <Text style={[styles.titulo, { color: theme.text }]}>La invitación ya no está disponible</Text>
+          <Text style={[styles.subtitulo, { color: theme.textDim }]}>
+            Este viaje ya comenzó o finalizó, así que nadie más puede sumarse con el QR o el código.
+          </Text>
+        </View>
+      </View>
+    )
+  }
 
-  // Generate a code representation, e.g. MESH-VIAJE-XXXX where XXXX is last 4 characters of viajeId uppercase
-  const shortCode = `MESH·VIAJE·${viajeId.substring(viajeId.length - 4).toUpperCase()}`
+  const inviteUrl = buildInviteUrl(viajeId)
 
   const compartirLink = async () => {
     try {
       await Share.share({
-        message: `Unite al viaje en Mesh:\n${inviteUrl}`,
+        message: buildInviteMessage(viajeId, viaje?.codigo_invitacion),
         url: Platform.OS === 'ios' ? inviteUrl : undefined,
         title: 'Invitación Mesh',
       })
@@ -90,7 +124,7 @@ export default function ViajeQrScreen() {
 
         <Text style={[styles.titulo, { color: theme.text }]}>¡Viaje listo!</Text>
         <Text style={[styles.subtitulo, { color: theme.textDim }]}>
-          Que escaneen este QR con la cámara o desde la app de Mesh para sumarse a la salida.
+          Que escaneen este QR con la cámara o desde la app de Mesh, o que ingresen el código para sumarse a la salida.
         </Text>
 
         {/* QR Box */}
@@ -104,9 +138,8 @@ export default function ViajeQrScreen() {
           </View>
         </PasoAyuda>
 
-        {/* Short Code Badge */}
         <View style={styles.badgeWrapper}>
-          <Badge tone="mute">{shortCode}</Badge>
+          <CodigoViaje codigo={viaje?.codigo_invitacion} />
         </View>
 
         {/* Actions */}
