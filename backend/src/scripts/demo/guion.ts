@@ -656,6 +656,39 @@ export const RUTAS_GUARDADAS: { viaje: string; conChecklist?: boolean; haceDias:
   { viaje: 'condorito', conChecklist: true, haceDias: 30 },
 ]
 
+// ── Circuitos de entrenamiento ───────────────────────────────────────────────
+
+/**
+ * RN-066: circuitos de la tab Entrenar. Cada uno agrupa sesiones de entrenamiento
+ * de una persona sobre el mismo recorrido, como si las hubiera hecho con "Repetir".
+ */
+export type CircuitoDemo = {
+  nombre: string
+  /** Dueño del circuito: tiene que haber hecho todas las sesiones. */
+  de: string
+  /** Claves de `VIAJES_VITRINA` en modo entrenamiento, de la más vieja a la más nueva. */
+  sesiones: string[]
+  /**
+   * Clave de `VIAJES_PLANIFICADOS` que repite la última sesión: al iniciarlo, el
+   * fantasma de esa sesión aparece solo en el mapa.
+   */
+  repeticionPlanificada?: string
+}
+
+export const CIRCUITOS: CircuitoDemo[] = [
+  {
+    nombre: 'Vuelta al parque',
+    de: 'lucia',
+    sesiones: ['run-s5', 'run-s4', 'run-s3', 'run-s2', 'run-s1', 'trote-hoy'],
+  },
+  {
+    nombre: '10K costanera',
+    de: 'lucia',
+    sesiones: ['run-10k-4', 'run-10k-3', 'run-10k-2', 'run-10k'],
+    repeticionPlanificada: 'plan-run',
+  },
+]
+
 // ── Viajes planificados ──────────────────────────────────────────────────────
 
 export type ViajePlanificado = {

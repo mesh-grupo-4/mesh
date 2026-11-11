@@ -51,6 +51,7 @@ import {
 } from './comun'
 import {
   AMISTADES,
+  CIRCUITOS,
   DOMINIO_DEMO,
   ELENCO,
   GRUPOS,
@@ -646,6 +647,66 @@ async function sembrarPlanificado(p: ViajePlanificado, ctx: Contexto): Promise<s
   return viajeId
 }
 
+/**
+ * RN-066: circuitos de entrenamiento de la tab Entrenar. Se escriben igual que los
+ * deja "Repetir": cada sesión apunta a la anterior (`repite_viaje_id`) y todas quedan
+ * en el circuito de su dueño. Una sesión `opcional` que no se sembró se saltea.
+ */
+async function sembrarCircuitos(
+  ctx: Contexto,
+  vitrina: ViajeSembrado[],
+  planificados: Map<string, string>
+): Promise<number> {
+  let creados = 0
+  for (const c of CIRCUITOS) {
+    const usuarioId = ctx.usuario(c.de)
+    const sesiones = c.sesiones.flatMap((clave) => {
+      const def = VIAJES_VITRINA.find((v) => v.clave === clave)
+      if (!def) throw new Error(`El circuito "${c.nombre}" nombra el viaje "${clave}" que no existe`)
+      if (def.modo !== 'entrenamiento' || ![def.creador, ...def.integrantes].includes(c.de)) {
+        throw new Error(`"${clave}" no es una sesión de entrenamiento de ${c.de} (circuito "${c.nombre}")`)
+      }
+      const sembrado = vitrina.find((v) => v.clave === clave)
+      return sembrado ? [{ ...sembrado, actividad: def.actividad ?? rutaDemo(def.ruta).def.actividad }] : []
+    })
+    const primera = sesiones[0]
+    const ultima = sesiones[sesiones.length - 1]
+    if (!primera || !ultima) continue
+
+    const circuito = await prisma.circuitoEntrenamiento.create({
+      data: {
+        usuario_id: usuarioId,
+        nombre: c.nombre,
+        tipo_actividad: primera.actividad,
+        // El circuito nace con la primera repetición.
+        created_at: (sesiones[1] ?? primera).fin,
+        sesiones: {
+          create: sesiones.map((s) => ({ usuario_id: usuarioId, viaje_id: s.viajeId, created_at: s.fin })),
+        },
+      },
+      select: { id: true },
+    })
+    await Promise.all(
+      sesiones.slice(1).map((s, i) =>
+        prisma.viaje.update({ where: { id: s.viajeId }, data: { repite_viaje_id: sesiones[i]!.viajeId } })
+      )
+    )
+
+    if (c.repeticionPlanificada) {
+      const viajeId = planificados.get(c.repeticionPlanificada)
+      if (!viajeId) {
+        throw new Error(`El circuito "${c.nombre}" nombra el planificado "${c.repeticionPlanificada}" que no existe`)
+      }
+      await prisma.viaje.update({ where: { id: viajeId }, data: { repite_viaje_id: ultima.viajeId } })
+      await prisma.circuitoSesion.create({
+        data: { usuario_id: usuarioId, viaje_id: viajeId, circuito_id: circuito.id },
+      })
+    }
+    creados++
+  }
+  return creados
+}
+
 // ── Cierre: métricas, insignias y rachas ─────────────────────────────────────
 
 async function main() {
@@ -812,8 +873,10 @@ async function main() {
   // Planificados, links de ruta y rutas guardadas (RN-084 a RN-086).
   const compartidas = new RutasCompartidasService(prisma)
   const protagonistaId = ctx.usuario(PROTAGONISTA)
+  const planificados = new Map<string, string>()
   await enParalelo(VIAJES_PLANIFICADOS, 4, async (p) => {
     const viajeId = await sembrarPlanificado(p, ctx)
+    planificados.set(p.clave, viajeId)
     if (!p.compartirRuta) return
     const { token } = await compartidas.compartirRuta(ctx.usuario(p.creador), viajeId)
     if (p.protagonistaGuardaRuta) await compartidas.importarPorToken(protagonistaId, token)
@@ -829,6 +892,10 @@ async function main() {
     })
   }
   log(`${VIAJES_PLANIFICADOS.length} viajes planificados y las rutas guardadas de la protagonista`)
+
+  // Circuitos de entrenamiento (RN-066): necesitan las sesiones cerradas y los planificados.
+  const circuitos = await sembrarCircuitos(ctx, vitrina, planificados)
+  log(`${circuitos} circuitos de entrenamiento`)
 
   // Bitácora del backoffice (RN-121). `demo: true` la distingue de acciones reales.
   const ficha = (clave: string) => ({ email: email(clave), demo: true })
