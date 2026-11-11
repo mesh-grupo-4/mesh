@@ -166,8 +166,8 @@ tags:
   - name: Admin
     description: |
       Backoffice de la plataforma (RN-120 a RN-126). Solo rol `superadmin`: gestión de
-      cuentas (editar, suspender, eliminar, otorgar rol), grupos y viajes, y la
-      auditoría de cada acción. Nunca expone posiciones GPS ni velocidades.
+      cuentas (editar, suspender, eliminar, otorgar rol), grupos y viajes, checklist
+      sugerido (RN-132), catálogo de insignias (RN-133) y la auditoría de cada acción. Nunca expone posiciones GPS ni velocidades.
   - name: Reportes
     description: |
       Reportería de negocio del backoffice (RN-127 a RN-131), solo para `superadmin`.
@@ -450,6 +450,10 @@ paths:
     $ref: './paths/admin.yaml#/ChecklistActividadesAdmin'
   /api/admin/checklist/{tipoActividad}:
     $ref: './paths/admin.yaml#/ChecklistActividadAdmin'
+  /api/admin/insignias:
+    $ref: './paths/admin.yaml#/InsigniasAdmin'
+  /api/admin/insignias/{insigniaId}:
+    $ref: './paths/admin.yaml#/InsigniaAdmin'
   /api/admin/auditoria:
     $ref: './paths/admin.yaml#/AuditoriaAdmin'
 

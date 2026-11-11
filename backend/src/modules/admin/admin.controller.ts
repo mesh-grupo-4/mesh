@@ -1,8 +1,10 @@
 import type { Request, RequestHandler, Response } from 'express'
 import { z } from 'zod'
 import {
+  actualizarInsigniaSchema,
   actualizarUsuarioAdminSchema,
   cambiarRolSistemaSchema,
+  crearInsigniaSchema,
   definirChecklistActividadSchema,
   listarAuditoriaQuery,
   listarGruposQuery,
@@ -105,6 +107,22 @@ export function crearAdminController(service: AdminService) {
     restaurarChecklistActividad: asyncHandler(async (req, res) => {
       const tipo = tipoActividadParam.parse(req.params.tipoActividad)
       res.json(await service.restaurarChecklistActividad(req.userId!, tipo))
+    }),
+
+    // ── Catálogo de insignias (RN-133) ──
+    listarInsignias: asyncHandler(async (_req, res) => {
+      res.json(await service.listarInsignias())
+    }),
+    crearInsignia: asyncHandler(async (req, res) => {
+      const body = crearInsigniaSchema.parse(req.body)
+      res.status(201).json(await service.crearInsignia(req.userId!, body))
+    }),
+    actualizarInsignia: asyncHandler(async (req, res) => {
+      const body = actualizarInsigniaSchema.parse(req.body)
+      res.json(await service.actualizarInsignia(req.userId!, param(req, 'insigniaId'), body))
+    }),
+    eliminarInsignia: asyncHandler(async (req, res) => {
+      res.json(await service.eliminarInsignia(req.userId!, param(req, 'insigniaId')))
     }),
 
     // ── Auditoría ──

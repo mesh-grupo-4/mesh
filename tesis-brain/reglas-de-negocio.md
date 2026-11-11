@@ -399,6 +399,7 @@ Si el PO prefiere un criterio más conservador, la alternativa es devolver
 | RN-125 | **Gestión de grupos y viajes ajenos.** Un superadmin puede, sin ser líder ni creador: reasignar el líder de un grupo (sigue habiendo un único líder), quitar a un integrante (si es el líder aplica RN-013), eliminar un grupo, **forzar la finalización** de un viaje `en_curso` que quedó colgado (mismo cierre que hace el creador, con push a todos los confirmados) y eliminar un viaje `planificado` o `finalizado` (uno `en_curso` primero se finaliza). Como las fechas no se muestran (RN-126), el backend avisa con `posiblemente_colgado` los viajes que llevan más de **24 horas** en curso, y el filtro `en_curso` los ordena del más viejo al más nuevo. Es solo un aviso: no cierra el viaje ni bloquea el cierre forzado. |
 | RN-126 | **El backoffice gestiona, no vigila.** Ningún endpoint de `/api/admin` expone posiciones GPS, ubicaciones vivas, recorridos ni velocidades: el superadmin no se salta las reglas de privacidad (RN-110 a RN-114) ni la exclusión de moto de toda comparación de velocidades (RN-070). Tampoco puede cambiar el consentimiento ni el compartir ubicación de otra persona (RN-111). **Los viajes se ven siempre anónimos:** solo código, actividad, grupal o individual, estado, cantidad de integrantes y el aviso de colgado (RN-125). Nunca nombre, creador, integrantes, grupos, ruta ni fechas, ni se puede buscar un viaje por nombre: no se pueden ver los datos de un viaje de una persona. De una persona solo se ven totales (viajes creados, participaciones). Las estadísticas de viajes se consultan en la reportería, agregadas (RN-127). |
 | RN-132 | **Checklist sugerido editable.** El superadmin puede redefinir, para cada tipo de actividad, la lista de ítems que el sistema sugiere al armar el checklist de preparativos (RN-026): agregar, quitar y reordenar (entre 1 y 30 ítems de hasta 120 caracteres, sin repetidos), o volver a la lista por defecto del sistema. Mientras una actividad no se personalice rige la lista por defecto. El cambio **solo afecta a los checklists que se siembren después**: los ya armados son de cada persona y no se tocan. Guardar y restaurar se auditan (RN-121). |
+| RN-133 | **Catálogo de insignias editable.** El superadmin puede crear, editar, desactivar y eliminar insignias (RN-074) desde el backoffice: nombre, descripción, ícono, rareza (RN-078) y criterios de distancia, tiempo en movimiento y actividad. **Nunca un criterio de velocidad** (RN-070): el backend rechaza cualquier campo que no conozca. El **código** se elige al crearla y no cambia, porque el sistema la referencia por él. Los criterios nuevos solo rigen para los viajes que se finalicen después; **nadie pierde una insignia ya obtenida**. Por eso una insignia que alguien ya obtuvo **no se puede eliminar** (`409 INSIGNIA_OTORGADA`): se desactiva, y así deja de otorgarse y sale del catálogo público pero quien la tiene la conserva. El backoffice ve cuántas personas tiene cada una, nunca quiénes. Crear, editar y eliminar se auditan (RN-121). |
 
 #### Implementación
 
@@ -416,8 +417,11 @@ Si el PO prefiere un criterio más conservador, la alternativa es devolver
   /api/admin/checklist/{tipoActividad}`. Tabla `checklist_actividad` (migración
   `20261106120000_checklist_actividad`); sin fila, `ChecklistService` usa
   `checklistDefaults.ts`.
+- **Catálogo de insignias (RN-133):** `GET` y `POST /api/admin/insignias`, `PATCH` y `DELETE
+  /api/admin/insignias/{insigniaId}`. Sin cambios de esquema: usa `insignia.activa` y el FK de
+  `usuario_insignia` para contar las otorgadas. Ver [`us-insignias.md`](us-insignias.md).
 - **Frontend:** `frontend/lib/adminApi.ts`, pantallas en `frontend/app/admin/` (panel, usuarios,
-  grupos, viajes, checklist, auditoría) y componentes en `frontend/components/admin/AdminUI.tsx`.
+  grupos, viajes, checklist, insignias, auditoría) y componentes en `frontend/components/admin/AdminUI.tsx`.
   `AuthContext` expone `esSuperadmin` y cierra la sesión si el backend responde
   `ACCOUNT_SUSPENDED`.
 
