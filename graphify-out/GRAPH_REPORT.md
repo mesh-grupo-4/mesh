@@ -1,7 +1,7 @@
 # Graph Report - D:\TESIS\mesh  (2026-11-10)
 
 ## Corpus Check
-- 475 files · ~423,984 words
+- 475 files · ~424,087 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
@@ -2662,10 +2662,10 @@ Nodes (1): ref_http
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `get()` connect `Community 8` to `Community 0`, `Community 33`, `Community 2`, `Community 1`, `Community 4`, `Community 5`, `Community 7`, `Community 9`, `Community 11`, `Community 13`, `Community 15`, `Community 18`, `Community 24`?**
-  _High betweenness centrality (0.132) - this node is a cross-community bridge._
-- **Why does `meshAlert()` connect `Community 0` to `Community 9`, `Community 21`, `Community 1`?**
-  _High betweenness centrality (0.050) - this node is a cross-community bridge._
+  _High betweenness centrality (0.145) - this node is a cross-community bridge._
 - **Why does `parseJson()` connect `Community 1` to `Community 8`, `Community 20`, `Community 14`?**
+  _High betweenness centrality (0.045) - this node is a cross-community bridge._
+- **Why does `generarRelleno()` connect `Community 7` to `Community 2`, `Community 5`, `Community 8`, `Community 13`, `Community 23`?**
   _High betweenness centrality (0.042) - this node is a cross-community bridge._
 - **Are the 115 inferred relationships involving `meshFetchAuthed()` (e.g. with `get()` and `enviar()`) actually correct?**
   _`meshFetchAuthed()` has 115 INFERRED edges - model-reasoned connections that need verification._
