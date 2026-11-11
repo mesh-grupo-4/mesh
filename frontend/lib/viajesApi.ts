@@ -39,6 +39,7 @@ export type ViajeFinalizadoApi = {
   creador_id: string
   es_grupal: boolean
   tipo_actividad: TipoActividadApi
+  modo?: ModoViajeApi
   velocidad_esperada: number
   distancia_max_separacion: number
   fecha_programada: string

@@ -37,6 +37,7 @@ import { SelectionActionBar } from '@/components/SelectionActionBar'
 import { BotonSeleccionar, SelectionHeader } from '@/components/SelectionHeader'
 import { useSelectionMode } from '@/hooks/useSelectionMode'
 import { etiquetaActividad } from '@/lib/activityDefaults'
+import { colorModo, ETIQUETA_MODO, TONO_MODO } from '@/lib/modoViaje'
 import { formatDurationHm, formatKm } from '@/lib/format'
 import { aCamposArg, desdeCamposArg, formatearEnArg } from '@/lib/tiempoArg'
 import {
@@ -55,6 +56,7 @@ import {
   listarViajesFinalizados,
   responderInvitacionViaje,
   type InvitacionViajePendienteApi,
+  type ModoViajeApi,
   type ViajePlanificadoApi,
   type ViajeFinalizadoApi,
   type TipoActividadApi,
@@ -171,6 +173,16 @@ function motivoNoEliminable(v: ViajePlanificadoApi): string {
   return 'Este viaje no se puede eliminar.'
 }
 
+/** Modo del viaje (con su color) e individual/grupal, debajo del título de la tarjeta. */
+function InfoViaje({ modo, esGrupal }: { modo: ModoViajeApi; esGrupal: boolean }) {
+  return (
+    <View style={styles.tarjetaInfo}>
+      <Badge tone={TONO_MODO[modo]}>{ETIQUETA_MODO[modo]}</Badge>
+      <Badge tone="mute">{esGrupal ? 'Grupal' : 'Individual'}</Badge>
+    </View>
+  )
+}
+
 function TarjetaViaje({
   v,
   dimmed = false,
@@ -195,10 +207,11 @@ function TarjetaViaje({
   onQuitar?: () => void
 }) {
   const nombre = v.nombre ?? etiquetaActividad(v.tipo_actividad)
+  const modo = v.modo ?? 'recreativo'
   const contenido = (
     <>
       <View style={styles.tarjetaHeader}>
-        <ActivityTile activity={v.tipo_actividad} size={22} />
+        <ActivityTile activity={v.tipo_actividad} size={22} color={colorModo(modo, theme)} />
         <Text
           style={[styles.tarjetaTitulo, { color: dimmed ? theme.textDim : theme.text }]}
           numberOfLines={1}
@@ -216,6 +229,7 @@ function TarjetaViaje({
           <BotonQuitar nombre={nombre} onPress={onQuitar} theme={theme} />
         ) : null}
       </View>
+      <InfoViaje modo={modo} esGrupal={v.es_grupal} />
       <Text style={[styles.tarjetaMeta, { color: dimmed ? theme.textMute : theme.textDim }]}>
         <Feather name="calendar" size={12} />{'  '}{formatearFecha(v.fecha_programada)}
       </Text>
@@ -281,6 +295,7 @@ function TarjetaFinalizado({
   onQuitar?: () => void
 }) {
   const nombre = v.nombre ?? etiquetaActividad(v.tipo_actividad)
+  const modo = v.modo ?? 'recreativo'
   return (
     <SelectableCard
       itemId={v.id}
@@ -293,7 +308,7 @@ function TarjetaFinalizado({
       style={[styles.tarjeta, styles.tarjetaDimmed, { backgroundColor: theme.surface, borderColor: theme.border }]}
     >
       <View style={styles.tarjetaHeader}>
-        <ActivityTile activity={v.tipo_actividad} size={22} />
+        <ActivityTile activity={v.tipo_actividad} size={22} color={colorModo(modo, theme)} />
         <Text style={[styles.tarjetaTitulo, { color: theme.textDim }]} numberOfLines={1}>
           {nombre}
         </Text>
@@ -302,6 +317,7 @@ function TarjetaFinalizado({
           <BotonQuitar nombre={nombre} onPress={onQuitar} theme={theme} />
         ) : null}
       </View>
+      <InfoViaje modo={modo} esGrupal={v.es_grupal} />
       <Text style={[styles.tarjetaMeta, { color: theme.textMute }]}>
         <Feather name="calendar" size={12} />{'  '}{formatearFechaCorta(v.fecha_programada)}
       </Text>
@@ -1065,6 +1081,7 @@ const styles = StyleSheet.create({
   botonQuitar: { padding: 4, marginLeft: 2 },
   tarjetaTitulo: { flex: 1, fontSize: 15.5, fontWeight: '700' },
   tarjetaMeta: { fontSize: 13, lineHeight: 18 },
+  tarjetaInfo: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   tarjetaGrupo: { fontSize: 12.5, fontWeight: '600' },
   tarjetaRol: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.3 },
   tarjetaMetricas: {
