@@ -23,10 +23,14 @@ function actividadValida(raw: string | undefined): TipoActividadApi | null {
   return ACTIVIDADES.some((a) => a.id === raw) ? (raw as TipoActividadApi) : null
 }
 
+function modoValido(raw: string | undefined): ModoViajeApi | null {
+  return raw === 'recreativo' || raw === 'entrenamiento' || raw === 'competitivo' ? raw : null
+}
+
 /**
  * "Viaje YA": modo + actividad → destino (opcional) → se crea el viaje y se pasa a la
- * sala de espera con el QR. Con una ruta de "Mis rutas" (plantilla) no se
- * pregunta ni actividad ni destino: los trae la ruta.
+ * sala de espera con el QR. Con una ruta de "Mis rutas" (plantilla) o al repetir una
+ * sesión de entrenamiento (RN-066) no se pregunta ni actividad ni destino: ya vienen.
  */
 export default function ViajeRapidoScreen() {
   const theme = useTheme()
@@ -35,15 +39,26 @@ export default function ViajeRapidoScreen() {
     plantillaId?: string | string[]
     tipoActividad?: string | string[]
     grupo?: string | string[]
+    modo?: string | string[]
+    repetirViajeId?: string | string[]
+    recorrido?: string | string[]
+    nombre?: string | string[]
   }>()
   const plantillaId = paramTexto(raw.plantillaId) ?? null
   const grupoId = paramTexto(raw.grupo) ?? null
   const actividadPlantilla = actividadValida(paramTexto(raw.tipoActividad))
+  // RN-066: repetir una sesión de entrenamiento; el backend fija modo, actividad y recorrido.
+  const repetirViajeId = paramTexto(raw.repetirViajeId) ?? null
+  const recorridoRepetir = paramTexto(raw.recorrido) === 'planificado' ? 'planificado' : 'real'
+  const nombreRepetir = paramTexto(raw.nombre) ?? null
 
-  const [paso, setPaso] = useState<Paso>(plantillaId ? 'plantilla' : 'actividad')
+  const [paso, setPaso] = useState<Paso>(plantillaId || repetirViajeId ? 'plantilla' : 'actividad')
   const [actividad, setActividad] = useState<TipoActividadApi>(actividadPlantilla ?? 'otro')
   // RN-065: recreativo por defecto, así elegir el modo no suma un toque a quien no le importa.
-  const [modo, setModo] = useState<ModoViajeApi>('recreativo')
+  // Desde la tab Entrenar llega ya en entrenamiento.
+  const [modo, setModo] = useState<ModoViajeApi>(
+    repetirViajeId ? 'entrenamiento' : (modoValido(paramTexto(raw.modo)) ?? 'recreativo')
+  )
   const { ubicacion } = useUbicacionActual()
 
   // Volver desde el destino regresa a elegir actividad; mientras se crea el viaje no se sale.
@@ -59,14 +74,17 @@ export default function ViajeRapidoScreen() {
       const hora = formatearEnArg(new Date(), { hour: '2-digit', minute: '2-digit' })
       const viaje = await crearViaje(
         {
-          nombre: `Viaje rápido · ${etiquetaActividad(tipo)} · ${hora}`,
+          nombre:
+            (repetirViajeId ? nombreRepetir : null) ??
+            `${modo === 'entrenamiento' ? 'Entrenamiento' : 'Viaje rápido'} · ${etiquetaActividad(tipo)} · ${hora}`,
           esGrupal: true,
           grupoIds: grupoId ? [grupoId] : [],
           tipoActividad: tipo,
           inmediato: true,
-          // RN-070: el backend rechaza competitivo en moto/auto; acá nunca se llega a mandarlo.
-          modo: modo === 'competitivo' && esMotorizado(tipo) ? 'recreativo' : modo,
+          // RN-070: el backend rechaza competitivo y entrenamiento en moto/auto; acá nunca se llega a mandarlos.
+          modo: modo !== 'recreativo' && esMotorizado(tipo) ? 'recreativo' : modo,
           rutaPlantillaId: plantillaId,
+          repetir: repetirViajeId ? { viajeId: repetirViajeId, recorrido: recorridoRepetir } : null,
         },
         userId
       )
@@ -137,22 +155,37 @@ export default function ViajeRapidoScreen() {
     return (
       <View style={[styles.container, { backgroundColor: theme.background }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <TopBar title="Viaje YA" bordered={false} />
+        <TopBar title={repetirViajeId ? 'Repetir entrenamiento' : 'Viaje YA'} bordered={false} />
         <View style={styles.plantilla}>
           <ActivityTile activity={actividad} size={84} />
-          <Text style={[styles.titulo, { color: theme.text }]}>Salís ahora con tu ruta</Text>
-          <Text style={[styles.sub, { color: theme.textDim }]}>
-            Usamos el recorrido guardado ({etiquetaActividad(actividad)}). Después invitás desde la sala de
-            espera.
-          </Text>
-          <View style={styles.modoPlantilla}>
-            <SelectorModo
-              modo={modo}
-              onChange={setModo}
-              puedeCompetir={!esMotorizado(actividad)}
-              motorizado={esMotorizado(actividad)}
-            />
-          </View>
+          {repetirViajeId ? (
+            <>
+              <Text style={[styles.titulo, { color: theme.text }]}>
+                {nombreRepetir ?? 'Salís ahora con tu recorrido'}
+              </Text>
+              <Text style={[styles.sub, { color: theme.textDim }]}>
+                Repetís {recorridoRepetir === 'planificado' ? 'la ruta planificada' : 'lo que hiciste'} en esa
+                sesión. En el mapa vas a ver tu sesión anterior como fantasma. Si querés, invitás desde la sala
+                de espera.
+              </Text>
+            </>
+          ) : (
+            <>
+              <Text style={[styles.titulo, { color: theme.text }]}>Salís ahora con tu ruta</Text>
+              <Text style={[styles.sub, { color: theme.textDim }]}>
+                Usamos el recorrido guardado ({etiquetaActividad(actividad)}). Después invitás desde la sala de
+                espera.
+              </Text>
+              <View style={styles.modoPlantilla}>
+                <SelectorModo
+                  modo={modo !== 'recreativo' && esMotorizado(actividad) ? 'recreativo' : modo}
+                  onChange={setModo}
+                  puedeCompetir={!esMotorizado(actividad)}
+                  motorizado={esMotorizado(actividad)}
+                />
+              </View>
+            </>
+          )}
         </View>
         <View style={styles.footer}>
           <Btn block size="xl" icon="zap" onPress={() => void crear(actividad, null)}>
@@ -170,15 +203,16 @@ export default function ViajeRapidoScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={[styles.etiqueta, { color: theme.textDim }]}>Modo</Text>
         <SelectorModo modo={modo} onChange={setModo} puedeCompetir />
-        {modo === 'competitivo' ? (
+        {modo !== 'recreativo' ? (
           <Text style={[styles.aviso, { color: theme.textDim }]}>
-            En moto y auto no hay modo competitivo (seguridad vial).
+            En moto y auto no hay modo {modo === 'competitivo' ? 'competitivo' : 'entrenamiento'} (seguridad
+            vial).
           </Text>
         ) : null}
 
         <Text style={[styles.titulo, { color: theme.text }]}>¿Qué van a hacer?</Text>
         <ActividadGrid
-          deshabilitada={(a) => modo === 'competitivo' && esMotorizado(a)}
+          deshabilitada={(a) => modo !== 'recreativo' && esMotorizado(a)}
           onElegir={(a) => {
             setActividad(a)
             setPaso('destino')

@@ -107,6 +107,8 @@ export async function crearViaje(
     /** RN-107: "Viaje YA". El backend usa la hora actual como fecha programada. */
     inmediato?: boolean
     rutaPlantillaId?: string | null
+    /** RN-066: repetir una sesión de entrenamiento (el backend fija modo, actividad y recorrido). */
+    repetir?: { viajeId: string; recorrido: 'planificado' | 'real' } | null
   } & ParametrosViajeInput,
   userId: string,
   baseUrl: string = API_BASE_URL
@@ -126,6 +128,7 @@ export async function crearViaje(
       fechaProgramada: input.inmediato ? undefined : input.fechaProgramada?.toISOString(),
       inmediato: input.inmediato ? true : undefined,
       rutaPlantillaId: input.rutaPlantillaId ?? undefined,
+      repetir: input.repetir ?? undefined,
       // RN-025: solo viajan si el líder los tocó; si no, el backend aplica los defaults.
       velocidadEsperada: input.velocidadEsperada,
       distanciaMaxSeparacion: input.distanciaMaxSeparacion,
@@ -297,6 +300,8 @@ export type ViajeDetalleApi = {
   fecha_programada: string
   fecha_inicio_real: string | null
   fecha_fin_real: string | null
+  /** RN-066: sesión de entrenamiento que este viaje repite; su traza es el fantasma automático. */
+  repite_viaje_id?: string | null
   created_at: string
   creador: { id: string; nombre: string; apellido: string | null; email: string }
   ruta: { id: string; distancia_planeada_m: number | null } | null

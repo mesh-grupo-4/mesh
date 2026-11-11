@@ -1,34 +1,43 @@
-import { StyleSheet, Text, View } from 'react-native'
-import { Pressable } from '@/components/Pressable'
-import { Feather } from '@expo/vector-icons'
 import { router, useLocalSearchParams } from 'expo-router'
-import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
-import { DragToDismiss } from '@/components/DragToDismiss'
-import { useTheme } from '@/components/MeshUI'
+import { HojaOpciones, OpcionHoja } from '@/components/viaje-nuevo/HojaOpciones'
 import { paramTexto, type NuevoViajeParams } from '@/lib/nuevoViaje'
 
 /**
  * "Nuevo viaje": pregunta si salís ya o si lo planificás. Se presenta como
  * modal transparente sobre la pantalla desde la que se abrió y reenvía su
- * contexto (plantilla de ruta, grupo) a la opción elegida.
+ * contexto (plantilla de ruta, grupo, modo, sesión a repetir) a la opción elegida.
+ * Desde la tab Entrenar llega con `modo=entrenamiento` y cambia los textos.
  */
 export default function NuevoViajeScreen() {
-  const theme = useTheme()
-  const insets = useSafeAreaInsets()
   const raw = useLocalSearchParams<{
     plantillaId?: string | string[]
     tipoActividad?: string | string[]
     grupo?: string | string[]
+    modo?: string | string[]
+    repetirViajeId?: string | string[]
+    recorrido?: string | string[]
+    nombre?: string | string[]
   }>()
 
   const params: NuevoViajeParams = {}
   const plantillaId = paramTexto(raw.plantillaId)
   const tipoActividad = paramTexto(raw.tipoActividad)
   const grupo = paramTexto(raw.grupo)
+  const modo = paramTexto(raw.modo)
+  const repetirViajeId = paramTexto(raw.repetirViajeId)
+  const recorrido = paramTexto(raw.recorrido)
+  const nombre = paramTexto(raw.nombre)
   if (plantillaId) params.plantillaId = plantillaId
   if (tipoActividad) params.tipoActividad = tipoActividad
   if (grupo) params.grupo = grupo
+  if (modo) params.modo = modo
+  if (repetirViajeId) params.repetirViajeId = repetirViajeId
+  if (recorrido) params.recorrido = recorrido
+  if (nombre) params.nombre = nombre
+
+  const repite = Boolean(repetirViajeId)
+  const entrena = repite || modo === 'entrenamiento'
 
   const ir = (opcion: 'rapido' | 'planificar') => {
     if (opcion === 'rapido') router.replace({ pathname: '/viaje/rapido', params })
@@ -36,120 +45,39 @@ export default function NuevoViajeScreen() {
   }
 
   return (
-    <View style={styles.root}>
-      <Pressable
-        feedback={false}
-        style={[StyleSheet.absoluteFill, { backgroundColor: theme.scrim }]}
-        onPress={() => router.back()}
-        accessibilityLabel="Cerrar"
-      />
-
-      <DragToDismiss
-        onDismiss={() => router.back()}
-        style={[
-          styles.sheet,
-          { backgroundColor: theme.background, borderColor: theme.border, paddingBottom: insets.bottom + 20 },
-        ]}
-      >
-        <View style={[styles.grabber, { backgroundColor: theme.borderStrong }]} />
-        <View style={styles.encabezado}>
-          <Text style={[styles.titulo, { color: theme.text }]}>Nuevo viaje</Text>
-          <Text style={[styles.subtitulo, { color: theme.textDim }]}>
-            ¿Salen ahora o lo dejás armado para otro momento?
-          </Text>
-        </View>
-
-        <Opcion
-          icon="zap"
-          titulo="Viaje YA"
-          detalle="Arrancan ahora. Elegí la actividad y, si querés, un destino; después compartís el QR y salen."
-          destacada
-          onPress={() => ir('rapido')}
-        />
-        <Opcion
-          icon="calendar"
-          titulo="Planificar viaje"
-          detalle="Para otro día. Definí fecha y hora, el recorrido con paradas, los parámetros del grupo y a quién invitar."
-          onPress={() => ir('planificar')}
-        />
-      </DragToDismiss>
-    </View>
-  )
-}
-
-function Opcion({
-  icon,
-  titulo,
-  detalle,
-  destacada = false,
-  onPress,
-}: {
-  icon: keyof typeof Feather.glyphMap
-  titulo: string
-  detalle: string
-  destacada?: boolean
-  onPress: () => void
-}) {
-  const theme = useTheme()
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      style={({ pressed }) => [
-        styles.opcion,
-        destacada
-          ? { backgroundColor: theme.accent, borderColor: theme.accent }
-          : { backgroundColor: theme.surface, borderColor: theme.border },
-        pressed && { opacity: 0.85 },
-      ]}
+    <HojaOpciones
+      titulo={repite ? 'Repetir entrenamiento' : entrena ? 'Nuevo entrenamiento' : 'Nuevo viaje'}
+      subtitulo={
+        entrena
+          ? '¿Salís ahora o lo dejás armado para otro momento?'
+          : '¿Salen ahora o lo dejás armado para otro momento?'
+      }
     >
-      <View
-        style={[
-          styles.opcionIcono,
-          { backgroundColor: destacada ? 'rgba(255,255,255,0.2)' : theme.accentWeak },
-        ]}
-      >
-        <Feather name={icon} size={26} color={destacada ? theme.onAccent : theme.accent} />
-      </View>
-      <View style={styles.opcionTexto}>
-        <Text style={[styles.opcionTitulo, { color: destacada ? theme.onAccent : theme.text }]}>
-          {titulo}
-        </Text>
-        <Text style={[styles.opcionDetalle, { color: destacada ? theme.onAccent : theme.textDim }]}>
-          {detalle}
-        </Text>
-      </View>
-      <Feather name="chevron-right" size={22} color={destacada ? theme.onAccent : theme.textMute} />
-    </Pressable>
+      <OpcionHoja
+        icon="zap"
+        titulo={entrena ? 'Salir ahora' : 'Viaje YA'}
+        detalle={
+          repite
+            ? 'Arrancás ahora con el mismo recorrido y tu sesión anterior como fantasma.'
+            : entrena
+              ? 'Arrancás ahora. Elegí la actividad y, si querés, un destino.'
+              : 'Arrancan ahora. Elegí la actividad y, si querés, un destino; después compartís el QR y salen.'
+        }
+        destacada
+        onPress={() => ir('rapido')}
+      />
+      <OpcionHoja
+        icon="calendar"
+        titulo={entrena ? 'Planificar' : 'Planificar viaje'}
+        detalle={
+          repite
+            ? 'Para otro día. Elegí fecha y hora y, si querés, a quién invitar; el recorrido ya está.'
+            : entrena
+              ? 'Para otro día. Definí fecha y hora, el recorrido y, si querés, a quién invitar.'
+              : 'Para otro día. Definí fecha y hora, el recorrido con paradas, los parámetros del grupo y a quién invitar.'
+        }
+        onPress={() => ir('planificar')}
+      />
+    </HojaOpciones>
   )
 }
-
-const styles = StyleSheet.create({
-  root: { flex: 1, justifyContent: 'flex-end' },
-  sheet: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderWidth: 1,
-    borderBottomWidth: 0,
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    gap: 12,
-  },
-  grabber: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, marginBottom: 6 },
-  encabezado: { gap: 2, marginBottom: 4 },
-  titulo: { fontSize: 22, fontWeight: '800' },
-  subtitulo: { fontSize: 15, lineHeight: 20 },
-  opcion: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    padding: 16,
-    borderRadius: 18,
-    borderWidth: 1.5,
-    minHeight: 88,
-  },
-  opcionIcono: { width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  opcionTexto: { flex: 1, gap: 2 },
-  opcionTitulo: { fontSize: 19, fontWeight: '800' },
-  opcionDetalle: { fontSize: 14, lineHeight: 19 },
-})

@@ -11,11 +11,28 @@ export type NuevoViajeParams = {
   tipoActividad?: string
   /** Grupo desde el que se abrió. */
   grupo?: string
+  /** RN-065: abre el flujo con ese modo ya elegido (tab Entrenar → `entrenamiento`). */
+  modo?: string
+  /** RN-066: sesión de entrenamiento a repetir y qué recorrido usar. */
+  repetirViajeId?: string
+  recorrido?: string
+  /** Nombre sugerido para el viaje (el de la sesión que se repite). */
+  nombre?: string
 }
 
 /** Abre el selector "Viaje YA / Planificar viaje". Toda entrada a crear un viaje pasa por acá. */
 export function abrirNuevoViaje(params: NuevoViajeParams = {}) {
   router.push({ pathname: '/nuevo-viaje', params })
+}
+
+/** Tab Entrenar: mismo selector "salir ahora / planificar", ya en modo entrenamiento. */
+export function abrirNuevoEntrenamiento() {
+  abrirNuevoViaje({ modo: 'entrenamiento' })
+}
+
+/** RN-066: abre "Repetir" sobre una sesión de entrenamiento propia. */
+export function abrirRepetirEntrenamiento(viajeId: string) {
+  router.push({ pathname: '/repetir-entrenamiento', params: { viajeId } })
 }
 
 /** Lee un parámetro de ruta que puede venir como string o string[]. */

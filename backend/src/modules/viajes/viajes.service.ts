@@ -52,6 +52,10 @@ import {
 } from '../privacidad/privacidad.acceso'
 import { InsigniasService } from '../insignias/insignias.service'
 import { RachasService } from '../rachas/rachas.service'
+import {
+  EntrenamientosService,
+  type RepeticionPreparada,
+} from '../entrenamientos/entrenamientos.service'
 
 /** Orden de la lista de participantes: quienes van al viaje primero, quienes rechazaron al final. */
 const ORDEN_ESTADO_INTEGRANTE: Record<EstadoViajeIntegrante, number> = {
@@ -75,6 +79,7 @@ export class ViajesService {
   private readonly motor: MotorEventosService
   private readonly insignias: InsigniasService
   private readonly rachas: RachasService
+  private readonly entrenamientos: EntrenamientosService
 
   constructor(private readonly prisma: PrismaClient) {
     this.rutasCompartidas = new RutasCompartidasService(prisma)
@@ -82,6 +87,7 @@ export class ViajesService {
     this.motor = obtenerMotorEventos(prisma)
     this.insignias = new InsigniasService(prisma)
     this.rachas = new RachasService(prisma)
+    this.entrenamientos = new EntrenamientosService(prisma)
   }
 
   /**
@@ -210,8 +216,25 @@ export class ViajesService {
       tipoActividad = plantilla.tipo_actividad
     }
 
+    // RN-066: repetir una sesión trae su actividad y siempre es un entrenamiento.
+    let repeticion: RepeticionPreparada | null = null
+    if (input.repetir) {
+      repeticion = await this.entrenamientos.prepararRepeticion(creadorId, input.repetir)
+      tipoActividad = repeticion.origen.tipo_actividad
+    }
+    const modo = repeticion ? 'entrenamiento' : (input.modo ?? 'recreativo')
+
+    // RN-065 / RN-070: sin entrenamiento en vehículos motorizados.
+    if (modo === 'entrenamiento' && esMotorizado(tipoActividad)) {
+      throw new HttpError(
+        400,
+        'Las modalidades motorizadas (moto, auto) no admiten modo entrenamiento (RN-070)',
+        'MODO_INVALIDO'
+      )
+    }
+
     // RN-071 / RN-070 / RN-072: competir exige grupo y nunca en vehículo motorizado.
-    if (input.modo === 'competitivo') {
+    if (modo === 'competitivo') {
       if (!input.esGrupal) {
         throw new HttpError(400, 'El modo competitivo requiere un viaje grupal', 'MODO_INVALIDO')
       }
@@ -233,7 +256,8 @@ export class ViajesService {
           nombre: input.nombre,
           es_grupal: input.esGrupal,
           tipo_actividad: tipoActividad,
-          modo: input.modo ?? 'recreativo',
+          modo,
+          repite_viaje_id: repeticion?.origen.id ?? null,
           // RN-025: el líder puede ajustar los parámetros; si no, defaults de la actividad (RN-021).
           velocidad_esperada: input.velocidadEsperada ?? params.velocidadEsperada,
           distancia_max_separacion: input.distanciaMaxSeparacion ?? params.distanciaMaxSeparacion,
@@ -279,6 +303,19 @@ export class ViajesService {
           viaje.id,
           input.rutaPlantillaId
         )
+        ruta_precargada = true
+        // RN-066: los entrenamientos que salen de la misma ruta guardada forman un circuito.
+        if (modo === 'entrenamiento') {
+          await this.entrenamientos.sumarAlCircuitoDePlantilla(
+            tx,
+            creadorId,
+            viaje.id,
+            input.rutaPlantillaId
+          )
+        }
+      }
+      if (repeticion) {
+        await this.entrenamientos.aplicarRepeticion(tx, creadorId, viaje.id, repeticion)
         ruta_precargada = true
       }
 

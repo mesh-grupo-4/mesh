@@ -14,10 +14,10 @@
 
 ## Flujo
 
-1. **Inicio** es la pestaña del medio de la barra (Viajes · Grupos · **Inicio** · Rutas · Perfil). Muestra el mapa (Google Maps, `MeshMapView`) centrado en la ubicación del dispositivo; esa ubicación es solo local, no se publica (RN-110/111).
+1. **Inicio** es la pestaña del medio de la barra (Viajes · Entrenar · Grupos · **Inicio** · Rutas · Perfil; Entrenar se sumó con RN-066, ver [[us-entrenamientos]]). Muestra el mapa (Google Maps, `MeshMapView`) centrado en la ubicación del dispositivo; esa ubicación es solo local, no se publica (RN-110/111).
 2. Arriba a la derecha está **"Viaje YA"**. Además, **toda** entrada a "Nuevo viaje" (mantener y deslizar el botón del medio, tab Viajes, detalle de grupo, Mis rutas, recorridos publicados) abre primero el selector **Viaje YA / Planificar viaje** (`app/nuevo-viaje.tsx`), que le pasa a la opción elegida el contexto con el que se abrió (plantilla, grupo).
 3. **Viaje YA** (`app/viaje/rapido.tsx`):
-   - Elegir **modo** (RN-065): `recreativo` por defecto, `entrenamiento` o `competitivo`. Con competitivo, moto y auto quedan bloqueados en la grilla de actividades (RN-070, vía `esMotorizado()`).
+   - Elegir **modo** (RN-065): `recreativo` por defecto, `entrenamiento` o `competitivo`. Con competitivo o entrenamiento, moto y auto quedan bloqueados en la grilla de actividades (RN-070, vía `esMotorizado()`). Desde la tab Entrenar llega ya en `entrenamiento` y el nombre automático es `Entrenamiento · <Actividad> · <HH:MM>`.
    - Elegir actividad (`moto`, `auto`, `bici`, `running`, `trekking`, `otro`).
    - Destino **opcional**: mover el mapa o buscar un lugar, o "Saltear". Si se elige, la ruta (ubicación actual → destino, sin paradas) la calcula el backend (`/api/routing/calcular`).
    - Con una ruta de "Mis rutas" (plantilla) no se pregunta actividad ni destino: los trae la plantilla. El modo se elige en la misma pantalla de confirmación (sin competitivo si la actividad es motorizada).

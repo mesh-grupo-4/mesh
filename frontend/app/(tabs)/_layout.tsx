@@ -41,12 +41,20 @@ export default function TabLayout() {
         tabBarInactiveTintColor: '#ffffff',
       }}
     >
-      {/* Orden: Viajes · Grupos · [Inicio] · Rutas · Perfil. Inicio va al medio. */}
+      {/* Orden: Viajes · Entrenar · Grupos · [Inicio] · Rutas · Perfil. */}
       <Tabs.Screen
         name="two"
         options={{
           title: 'Viajes',
           tabBarIcon: ({ color }) => <TabBarIcon name="map" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="entrenar"
+        options={{
+          // RN-066: entrenamientos como serie (circuitos y sesiones).
+          title: 'Entrenar',
+          tabBarIcon: ({ color }) => <TabBarIcon name="heartbeat" color={color} />,
         }}
       />
       <Tabs.Screen

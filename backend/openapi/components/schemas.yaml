@@ -129,6 +129,11 @@ ErrorCode:
     - MODO_INVALIDO
     - FANTASMA_NO_DISPONIBLE
     - FANTASMA_SIN_TRAZA
+    # Entrenamientos: sesiones, circuitos y repetición (RN-066, src/modules/entrenamientos/)
+    - SESION_NOT_FOUND
+    - SESION_NO_REPETIBLE
+    - SIN_RECORRIDO
+    - CIRCUITO_NOT_FOUND
     - CLIMA_TIMEOUT
     - CLIMA_UPSTREAM_ERROR
     # Login de la documentación (src/docs/login.ts) — fuera del contrato de la app
@@ -327,8 +332,9 @@ ModoViaje:
   type: string
   description: |
     Modo del viaje. `recreativo` (RN-072) sin rankings ni comparaciones;
-    `entrenamiento` (RN-065) con métricas de sesión; `competitivo` (RN-071) con
-    leaderboard en vivo y recap con puestos. Solo grupal y no motorizado (moto/auto) para competir.
+    `entrenamiento` (RN-065) con métricas de sesión, nunca en moto ni auto (RN-070);
+    `competitivo` (RN-071) con leaderboard en vivo y recap con puestos. Solo grupal
+    y no motorizado (moto/auto) para competir.
   enum: [recreativo, competitivo, entrenamiento]
 
 EstadoViaje:
@@ -1634,6 +1640,7 @@ Viaje:
     - fecha_programada
     - fecha_inicio_real
     - fecha_fin_real
+    - repite_viaje_id
     - created_at
   properties:
     id:
@@ -1734,6 +1741,15 @@ Viaje:
       format: date-time
       nullable: true
       description: Se completa al finalizar el viaje.
+    repite_viaje_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: |
+        RN-066. Sesión de entrenamiento que este viaje repite; `null` si no es una
+        repetición. El cliente carga solo el fantasma del creador con su traza en
+        esa sesión (`GET /fantasma?viajeRef=`).
+      example: null
     created_at:
       type: string
       format: date-time
@@ -2016,8 +2032,10 @@ CrearViajeRequest:
         - $ref: '#/ModoViaje'
       description: |
         RN-065. `entrenamiento` habilita el panel de ritmo en vivo y las métricas
-        de sesión al cerrar. `competitivo` (RN-071) exige viaje grupal y no motorizado
-        (moto/auto, RN-070); si no, `400 MODO_INVALIDO`. Por defecto `recreativo`.
+        de sesión al cerrar; no existe en moto ni auto (RN-070). `competitivo`
+        (RN-071) exige viaje grupal y no motorizado. Si no se cumple,
+        `400 MODO_INVALIDO`. Por defecto `recreativo`. Con `repetir` se ignora:
+        el viaje nace en `entrenamiento`.
     fechaProgramada:
       type: string
       format: date-time
@@ -2038,7 +2056,32 @@ CrearViajeRequest:
       type: string
       format: uuid
       nullable: true
-      description: Plantilla propia desde la que precargar la ruta (RN-084).
+      description: |
+        Plantilla propia desde la que precargar la ruta (RN-084). En modo
+        `entrenamiento`, los viajes que salen de la misma plantilla quedan en un
+        mismo circuito de quien los crea (RN-066). No se combina con `repetir`.
+    repetir:
+      type: object
+      description: |
+        RN-066. Repite una sesión de entrenamiento propia (un viaje finalizado en
+        modo `entrenamiento` donde quien crea tiene métricas). El viaje nuevo nace
+        en `entrenamiento`, toma la actividad de esa sesión, copia su recorrido y
+        queda en el mismo circuito. `tipoActividad` y `modo` se sobrescriben.
+      required:
+        - viajeId
+        - recorrido
+      properties:
+        viajeId:
+          type: string
+          format: uuid
+          description: Sesión a repetir.
+        recorrido:
+          type: string
+          enum: [planificado, real]
+          description: |
+            `planificado` copia la ruta que se había armado para esa sesión (con
+            sus paradas). `real` usa la traza GPS que recorrió quien repite.
+      additionalProperties: false
     velocidadEsperada:
       type: number
       minimum: 1
@@ -6631,3 +6674,186 @@ InsigniaEliminadaAdmin:
     accion:
       type: string
       enum: [eliminada]
+
+SesionEntrenamiento:
+  type: object
+  description: |
+    RN-066. Una sesión de entrenamiento de quien consulta: un viaje `finalizado`
+    en modo `entrenamiento`, no motorizado, donde tiene métricas (lo haya creado
+    o haya participado). Los números son los suyos, tomados de `metrica_viaje`.
+  required:
+    - viaje_id
+    - nombre
+    - tipo_actividad
+    - fecha_fin_real
+    - es_creador
+    - distancia_m
+    - tiempo_movimiento_seg
+    - velocidad_promedio_kmh
+    - pace_min_km
+    - circuito
+    - repetir
+  properties:
+    viaje_id:
+      type: string
+      format: uuid
+    nombre:
+      type: string
+      example: Vuelta al lago
+    tipo_actividad:
+      $ref: '#/TipoActividad'
+    fecha_fin_real:
+      type: string
+      format: date-time
+      nullable: true
+    es_creador:
+      type: boolean
+      description: En `false` fue un entrenamiento armado por otra persona.
+    distancia_m:
+      type: number
+      example: 8200
+    tiempo_movimiento_seg:
+      type: integer
+      example: 2558
+    velocidad_promedio_kmh:
+      type: number
+      nullable: true
+      example: 11.5
+    pace_min_km:
+      type: number
+      nullable: true
+      description: Ritmo en minutos por kilómetro; `null` sin distancia o sin tiempo en movimiento.
+      example: 5.2
+    circuito:
+      type: object
+      nullable: true
+      description: Circuito propio al que pertenece la sesión; `null` si está suelta.
+      required: [id, nombre]
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+          example: Vuelta al lago
+    repetir:
+      type: object
+      description: Qué recorridos se pueden ofrecer al repetir esta sesión.
+      required: [planificado, real]
+      properties:
+        planificado:
+          type: boolean
+          description: La sesión tenía una ruta planificada.
+        real:
+          type: boolean
+          description: Quien consulta tiene traza GPS en la sesión.
+  additionalProperties: false
+
+CircuitoEntrenamiento:
+  type: object
+  description: |
+    RN-066. Circuito de quien consulta: sus sesiones de un mismo recorrido,
+    agrupadas al repetir una sesión o al salir desde la misma ruta guardada.
+    Cada persona tiene sus propios circuitos y nombres.
+  required:
+    - id
+    - nombre
+    - tipo_actividad
+    - ruta_plantilla_id
+    - total_sesiones
+    - mejor_pace_min_km
+    - mejor_distancia_m
+    - ultima_sesion_viaje_id
+    - ultima_sesion_fecha
+    - evolucion
+  properties:
+    id:
+      type: string
+      format: uuid
+    nombre:
+      type: string
+      example: Vuelta al lago
+    tipo_actividad:
+      $ref: '#/TipoActividad'
+    ruta_plantilla_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: Ruta guardada que origina el circuito; `null` si nació de "Repetir".
+    total_sesiones:
+      type: integer
+      description: Sesiones finalizadas del circuito.
+      example: 6
+    mejor_pace_min_km:
+      type: number
+      nullable: true
+      example: 5.03
+    mejor_distancia_m:
+      type: number
+      nullable: true
+      example: 8300
+    ultima_sesion_viaje_id:
+      type: string
+      format: uuid
+      nullable: true
+      description: La sesión más reciente; es la que se repite desde la tarjeta del circuito.
+    ultima_sesion_fecha:
+      type: string
+      format: date-time
+      nullable: true
+    evolucion:
+      type: array
+      description: Últimas 6 sesiones, de la más vieja a la más nueva.
+      items:
+        type: object
+        required:
+          - viaje_id
+          - nombre
+          - fecha_fin_real
+          - distancia_m
+          - tiempo_movimiento_seg
+          - pace_min_km
+        properties:
+          viaje_id:
+            type: string
+            format: uuid
+          nombre:
+            type: string
+          fecha_fin_real:
+            type: string
+            format: date-time
+            nullable: true
+          distancia_m:
+            type: number
+          tiempo_movimiento_seg:
+            type: integer
+          pace_min_km:
+            type: number
+            nullable: true
+        additionalProperties: false
+  additionalProperties: false
+
+CircuitoRenombrado:
+  type: object
+  required: [id, nombre, tipo_actividad]
+  properties:
+    id:
+      type: string
+      format: uuid
+    nombre:
+      type: string
+      example: Vuelta al lago
+    tipo_actividad:
+      $ref: '#/TipoActividad'
+  additionalProperties: false
+
+RenombrarCircuitoRequest:
+  type: object
+  required: [nombre]
+  properties:
+    nombre:
+      type: string
+      minLength: 1
+      maxLength: 100
+      example: Vuelta al lago
+  additionalProperties: false

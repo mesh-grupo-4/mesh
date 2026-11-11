@@ -10,6 +10,11 @@ type Options = {
   /** Metros que llevo recorridos (useTripMetrics). */
   miDistanciaM: number
   habilitado: boolean
+  /**
+   * RN-066: fantasma que se carga solo si todavía no se eligió ninguno (la sesión
+   * que este viaje repite). Si la persona lo quita, no vuelve a aparecer.
+   */
+  refAutomatica?: string | null
 }
 
 export type EstadoFantasma = {
@@ -32,6 +37,9 @@ export type EstadoFantasma = {
 function claveStorage(viajeId: string) {
   return `mesh:fantasma:${viajeId}`
 }
+
+/** Marca guardada al quitar el fantasma: evita que el automático reaparezca. */
+const SIN_FANTASMA = 'ninguno'
 
 /** Interpola lat/lng/d_m para un instante t (seg) de la traza. */
 function estadoEn(puntos: PuntoFantasmaApi[], t: number): { lat: number; lng: number; d: number } {
@@ -75,7 +83,13 @@ function tiempoEnDistancia(puntos: PuntoFantasmaApi[], d: number): number {
  * RN-073 (SCRUM-49): anima un recorrido histórico contra el reloj del viaje y
  * dice si voy adelante o atrás. Se puede pausar (congela su reloj) o quitar.
  */
-export function useFantasma({ viajeId, fechaInicioReal, miDistanciaM, habilitado }: Options) {
+export function useFantasma({
+  viajeId,
+  fechaInicioReal,
+  miDistanciaM,
+  habilitado,
+  refAutomatica = null,
+}: Options) {
   const [fantasma, setFantasma] = useState<FantasmaApi | null>(null)
   const [cargando, setCargando] = useState(false)
   const [pausado, setPausado] = useState(false)
@@ -90,13 +104,17 @@ export function useFantasma({ viajeId, fechaInicioReal, miDistanciaM, habilitado
     let cancelado = false
     void (async () => {
       try {
-        const ref = await AsyncStorage.getItem(claveStorage(viajeId))
+        const guardada = await AsyncStorage.getItem(claveStorage(viajeId))
+        if (guardada === SIN_FANTASMA) return
+        const ref = guardada ?? refAutomatica
         if (!ref || cancelado) return
         setCargando(true)
         const f = await obtenerFantasma(viajeId, ref)
-        if (!cancelado) setFantasma(f)
+        if (cancelado) return
+        setFantasma(f)
+        if (!guardada) await AsyncStorage.setItem(claveStorage(viajeId), ref)
       } catch {
-        /* sin fantasma previo o sin red: se elige a mano */
+        /* sin fantasma previo, sin red o sin traza en esa sesión: se elige a mano */
       } finally {
         if (!cancelado) setCargando(false)
       }
@@ -104,7 +122,7 @@ export function useFantasma({ viajeId, fechaInicioReal, miDistanciaM, habilitado
     return () => {
       cancelado = true
     }
-  }, [viajeId, habilitado])
+  }, [viajeId, habilitado, refAutomatica])
 
   useEffect(() => {
     if (!fantasma || pausado) return
@@ -133,7 +151,7 @@ export function useFantasma({ viajeId, fechaInicioReal, miDistanciaM, habilitado
   const quitar = useCallback(() => {
     setFantasma(null)
     setPausado(false)
-    void AsyncStorage.removeItem(claveStorage(viajeId))
+    void AsyncStorage.setItem(claveStorage(viajeId), SIN_FANTASMA)
   }, [viajeId])
 
   const alternarPausa = useCallback(() => {

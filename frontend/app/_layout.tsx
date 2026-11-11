@@ -120,6 +120,10 @@ function AppStack() {
         name="nuevo-viaje"
         options={{ presentation: 'transparentModal', animation: 'fade', headerShown: false }}
       />
+      <Stack.Screen
+        name="repetir-entrenamiento"
+        options={{ presentation: 'transparentModal', animation: 'fade', headerShown: false }}
+      />
       <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
     </Stack>
   );
