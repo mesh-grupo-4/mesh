@@ -1,12 +1,12 @@
 # Graph Report - D:\TESIS\mesh  (2026-11-11)
 
 ## Corpus Check
-- 485 files · ~443,201 words
+- 493 files · ~459,426 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 2469 nodes · 3445 edges · 418 communities detected
-- Extraction: 73% EXTRACTED · 27% INFERRED · 0% AMBIGUOUS · INFERRED: 931 edges (avg confidence: 0.8)
+- 2513 nodes · 3558 edges · 418 communities detected
+- Extraction: 72% EXTRACTED · 28% INFERRED · 0% AMBIGUOUS · INFERRED: 984 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Community Hubs (Navigation)
@@ -435,101 +435,101 @@
 3. `parseJson()` - 111 edges
 4. `meshAlert()` - 60 edges
 5. `ViajesService` - 54 edges
-6. `get()` - 42 edges
+6. `get()` - 46 edges
 7. `AdminService` - 30 edges
 8. `ParadasService` - 29 edges
 9. `GruposService` - 26 edges
-10. `useTheme()` - 19 edges
+10. `main()` - 19 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `nombreVisible()` --calls--> `nombreDe()`  [INFERRED]
   D:\TESIS\mesh\backend\src\lib\nombres.ts → D:\TESIS\mesh\backend\src\modules\tabla-posiciones\tabla-posiciones.service.ts
-- `fechaCorta()` --calls--> `formatearEnArg()`  [INFERRED]
-  D:\TESIS\mesh\frontend\app\(tabs)\entrenar.tsx → D:\TESIS\mesh\frontend\lib\tiempoArg.ts
-- `sacarDelCircuito()` --calls--> `meshConfirmDestructive()`  [INFERRED]
-  D:\TESIS\mesh\frontend\app\(tabs)\entrenar.tsx → D:\TESIS\mesh\frontend\lib\meshAlert.ts
-- `formatearFecha()` --calls--> `formatearEnArg()`  [INFERRED]
-  D:\TESIS\mesh\frontend\app\(tabs)\grupos.tsx → D:\TESIS\mesh\frontend\lib\tiempoArg.ts
-- `restaurar()` --calls--> `meshConfirmDestructive()`  [INFERRED]
-  D:\TESIS\mesh\frontend\app\admin\checklist.tsx → D:\TESIS\mesh\frontend\lib\meshAlert.ts
+- `nombreDePila()` --calls--> `mergeBackendProfile()`  [INFERRED]
+  D:\TESIS\mesh\frontend\lib\nombres.ts → D:\TESIS\mesh\frontend\context\AuthContext.tsx
+- `eliminar()` --calls--> `meshConfirmDestructive()`  [INFERRED]
+  D:\TESIS\mesh\frontend\app\admin\insignia\[insigniaId].tsx → D:\TESIS\mesh\frontend\lib\meshAlert.ts
+- `buscarCercaMio()` --calls--> `buscarLugaresCercanos()`  [INFERRED]
+  D:\TESIS\mesh\frontend\app\viaje\[viajeId]\live.tsx → D:\TESIS\mesh\frontend\lib\lugaresApi.ts
+- `distanciaHastaLugar()` --calls--> `haversineDistanceM()`  [INFERRED]
+  D:\TESIS\mesh\frontend\app\viaje\[viajeId]\live.tsx → D:\TESIS\mesh\frontend\lib\geo\haversine.ts
 
 ## Communities
 
 ### Community 0 - "Community 0"
 Cohesion: 0.02
-Nodes (111): etiquetaActividad(), guardar(), cargar(), emitir(), marcarAlertasVistas(), persistir(), confirmarEliminarSeleccionados(), ejecutarEliminarBulk() (+103 more)
+Nodes (125): etiquetaActividad(), guardar(), cargar(), emitir(), marcarAlertasVistas(), persistir(), confirmarEliminarSeleccionados(), ejecutarEliminarBulk() (+117 more)
 
 ### Community 1 - "Community 1"
 Cohesion: 0.04
-Nodes (128): cambiarEstadoAlerta(), crearAlerta(), listarAlertas(), buscarUsuariosAmistad(), eliminarAmigo(), listarAmigos(), listarRelacionesAmistad(), listarSolicitudesAmistadPendientes() (+120 more)
+Nodes (131): cambiarEstadoAlerta(), crearAlerta(), listarAlertas(), buscarUsuariosAmistad(), eliminarAmigo(), listarAmigos(), listarRelacionesAmistad(), listarSolicitudesAmistadPendientes() (+123 more)
 
 ### Community 2 - "Community 2"
-Cohesion: 0.02
-Nodes (49): actividadInicialDesdePerfil(), actividadValida(), esMotorizado(), parametrosPorActividad(), textoParametrosActividad(), textoSeparacion(), toleranciaAtrasoEfectiva(), AlertasService (+41 more)
+Cohesion: 0.03
+Nodes (46): esMotorizado(), toleranciaAtrasoEfectiva(), atrasoMetros(), identificarBloquePrincipal(), mediana(), toleranciaAtrasoMetros(), columnasGpsExtra(), FantasmaService (+38 more)
 
 ### Community 3 - "Community 3"
-Cohesion: 0.07
-Nodes (21): usuarioAfectadoDesdeMensaje(), useAlertasVistas(), atrasoMetros(), identificarBloquePrincipal(), mediana(), toleranciaAtrasoMetros(), sendExpoPush(), gravedadDeAlerta() (+13 more)
+Cohesion: 0.02
+Nodes (89): API de tiempo real — Socket.io, Autenticación del handshake, Conexión, CORS, Escala, Eventos del cliente al servidor, Eventos del servidor al cliente, `join_viaje` (+81 more)
 
 ### Community 4 - "Community 4"
 Cohesion: 0.03
-Nodes (65): 1. Spec-first modular, no generación desde el código, 2. Un test de contrato como garantía, no la disciplina del equipo, 3. El spec bundleado viaja como JSON dentro de `src/`, 4. Los WebSockets se documentan en Markdown, 5. Contrato de errores uniforme, ADR — Documentación de la API: spec-first con test de contrato, Alternativas descartadas, Consecuencias (+57 more)
+Nodes (48): ActividadGrid(), diaAdmin(), fechaAdmin(), useListadoAdmin(), AparienciaScreen(), BarraFiltros(), useTemaAyuda(), fmtNum() (+40 more)
 
 ### Community 5 - "Community 5"
-Cohesion: 0.03
-Nodes (69): API de tiempo real — Socket.io, Autenticación del handshake, Conexión, CORS, Escala, Eventos del cliente al servidor, Eventos del servidor al cliente, `join_viaje` (+61 more)
+Cohesion: 0.05
+Nodes (57): actividadInicialDesdePerfil(), actividadValida(), parametrosPorActividad(), textoParametrosActividad(), textoSeparacion(), enParalelo(), filasRuta(), momento() (+49 more)
 
 ### Community 6 - "Community 6"
-Cohesion: 0.05
-Nodes (39): ClimaService, codigoImplicaLluvia(), descripcionCodigoTiempo(), fechaIso(), fraccionEnTrazado(), IngresarCodigoViaje(), debeMostrarIntro(), entroPorLink() (+31 more)
+Cohesion: 0.03
+Nodes (65): 1. Spec-first modular, no generación desde el código, 2. Un test de contrato como garantía, no la disciplina del equipo, 3. El spec bundleado viaja como JSON dentro de `src/`, 4. Los WebSockets se documentan en Markdown, 5. Contrato de errores uniforme, ADR — Documentación de la API: spec-first con test de contrato, Alternativas descartadas, Consecuencias (+57 more)
 
 ### Community 7 - "Community 7"
-Cohesion: 0.03
-Nodes (32): ActividadGrid(), useListadoAdmin(), AparienciaScreen(), BarraFiltros(), useTemaAyuda(), fmtNum(), fmtPct(), Leyenda() (+24 more)
+Cohesion: 0.05
+Nodes (46): confirmar(), elegirResultado(), formatDistanceKm(), haversineDistanceM(), toRad(), handleCenterOnMe(), irALugar(), fitBoundsToCoords() (+38 more)
 
 ### Community 8 - "Community 8"
 Cohesion: 0.05
-Nodes (46): confirmar(), elegirResultado(), formatDistanceKm(), haversineDistanceM(), toRad(), handleCenterOnMe(), irALugar(), fitBoundsToCoords() (+38 more)
+Nodes (37): extraerDatosGpsExtra(), finito(), velocidadImplicitaKmh(), dequeueGpsSample(), enqueueCheckIn(), enqueueGpsSample(), flushCheckIns(), flushGpsQueue() (+29 more)
 
 ### Community 9 - "Community 9"
 Cohesion: 0.03
 Nodes (58): 10. Glosario, 11. Metodología de Desarrollo, 12. Competencia y Diferenciación, 1.1 Público objetivo, 1.2 Actores del sistema, 1. ¿Qué es Mesh?, 2.10 Reglas de Asistencia IA, 2.11 Reglas de Información de Ruta Externa (+50 more)
 
 ### Community 10 - "Community 10"
-Cohesion: 0.05
-Nodes (32): diaAdmin(), fechaAdmin(), AlertaMapPickModal(), avanzar(), editarPaso(), elegirActividad(), fechaPorDefecto(), formatearFechaHora() (+24 more)
+Cohesion: 0.09
+Nodes (11): AlertasService, nombreDe(), usuarioAfectadoDesdeMensaje(), useAlertasVistas(), sendExpoPush(), afectadoPorIncidente(), duracionSeg(), nombreDe() (+3 more)
 
 ### Community 11 - "Community 11"
-Cohesion: 0.07
-Nodes (43): actualizarInsigniaAdmin(), cambiarRolSistemaAdmin(), crearInsigniaAdmin(), definirChecklistActividadAdmin(), eliminarGrupoAdmin(), eliminarInsigniaAdmin(), eliminarUsuarioAdmin(), eliminarViajeAdmin() (+35 more)
-
-### Community 12 - "Community 12"
 Cohesion: 0.06
 Nodes (20): obtenerRelacion(), extractBearerToken(), socketRequireUser(), InsigniasService, assertPuedeVerLogros(), puedeVerLogros(), sonAmigos(), calcularRachaVigente() (+12 more)
 
-### Community 13 - "Community 13"
-Cohesion: 0.06
-Nodes (22): fechaCorta(), formatKm(), guardarNombre(), sacarDelCircuito(), conPuntoDeMiles(), enmascararMonto(), formatDurationHm(), formatHoraCorta() (+14 more)
-
-### Community 14 - "Community 14"
+### Community 12 - "Community 12"
 Cohesion: 0.05
 Nodes (15): avColor(), byId(), fechaCorta(), fechaLarga(), fullName(), hora(), initials(), LiveScreen() (+7 more)
 
-### Community 15 - "Community 15"
-Cohesion: 0.04
-Nodes (45): 1. Seguridad vial — RN-070 (IRREVOCABLE), 2. Offline-first — RN-038, 3. Autorización en backend — RN-030, 4. Dos roles, sin excepciones — RN-011, 5. Secretos y `.env`, 6. Mocks y datos ficticios, 7. Documentación Swagger/OpenAPI obligatoria (backend), Actores del sistema (+37 more)
-
-### Community 16 - "Community 16"
+### Community 13 - "Community 13"
 Cohesion: 0.14
 Nodes (26): armarMatrizCohortes(), clavesSerie(), completarSerie(), diaArg(), granularidadPorDefecto(), inicioBalde(), inicioDiaArg(), kpi() (+18 more)
 
-### Community 17 - "Community 17"
+### Community 14 - "Community 14"
+Cohesion: 0.08
+Nodes (36): actualizarInsigniaAdmin(), cambiarRolSistemaAdmin(), crearInsigniaAdmin(), definirChecklistActividadAdmin(), eliminarGrupoAdmin(), eliminarInsigniaAdmin(), eliminarUsuarioAdmin(), eliminarViajeAdmin() (+28 more)
+
+### Community 15 - "Community 15"
 Cohesion: 0.07
 Nodes (9): AdminService, codigoDuplicado(), desconectarSockets(), esViolacionUnique(), filtroTexto(), insigniaOtorgada(), paginar(), viajeAnonimo() (+1 more)
 
-### Community 18 - "Community 18"
+### Community 16 - "Community 16"
+Cohesion: 0.07
+Nodes (22): authHeaders(), bearerAuthHeaders(), getFirebaseIdToken(), MeshApiError, meshFetch(), timeoutHint(), displayNombre(), loadProfile() (+14 more)
+
+### Community 17 - "Community 17"
 Cohesion: 0.09
-Nodes (17): authHeaders(), bearerAuthHeaders(), getFirebaseIdToken(), MeshApiError, meshFetch(), timeoutHint(), useAuth(), aplicarToken() (+9 more)
+Nodes (10): aResumen(), esUniqueViolation(), RecorridosPublicadosService, resumenValoracion(), buildRouteShareLink(), mapPlantilla(), nuevoToken(), parseSnapshot() (+2 more)
+
+### Community 18 - "Community 18"
+Cohesion: 0.07
+Nodes (19): formatKm(), conPuntoDeMiles(), enmascararMonto(), formatDurationHm(), formatHoraCorta(), formatKm(), formatKmCompact(), formatMonto() (+11 more)
 
 ### Community 19 - "Community 19"
 Cohesion: 0.12
@@ -540,28 +540,28 @@ Cohesion: 0.07
 Nodes (26): Advertencias críticas, Agregar imports necesarios, Ampliar `cargar()` para cargar stats en paralelo, Archivos a modificar (en orden de dependencia), Cambio conceptual, Componente `ViajeCard` (inline en el archivo), Estado local necesario, Estructura del componente (+18 more)
 
 ### Community 21 - "Community 21"
+Cohesion: 0.08
+Nodes (25): Autenticación, Comandos, Comandos, Comandos correctos, Contrato de errores, Convenciones, Cómo se mantiene sincronizada, Documentación de la API (+17 more)
+
+### Community 22 - "Community 22"
+Cohesion: 0.15
+Nodes (17): arrancarViaje(), avisarSiOtroViajeEnCurso(), ejecutarIniciar(), emitir(), refrescarPendientes(), setInvitacionesPendientesCount(), setSolicitudesPendientesCount(), subscribe() (+9 more)
+
+### Community 23 - "Community 23"
 Cohesion: 0.11
 Nodes (9): buildRoutePointsPayload(), linestringToLatLng(), toPutRutaBody(), waypointsFromRutaDetalle(), waypointTieneCoords(), snapshotToMap(), formatDistance(), formatDuration() (+1 more)
 
-### Community 22 - "Community 22"
+### Community 24 - "Community 24"
 Cohesion: 0.22
 Nodes (2): ChecklistService, itemsSugeridos()
 
-### Community 23 - "Community 23"
+### Community 25 - "Community 25"
 Cohesion: 0.23
 Nodes (4): calcularLiquidacion(), GastosService, nombreDe(), round2()
 
-### Community 24 - "Community 24"
+### Community 26 - "Community 26"
 Cohesion: 0.11
 Nodes (17): 0. Tu tarea, 1. Qué es Mesh (para la apertura), 2.1 Sprints ejecutados, 2.2 Estado del backlog por tier (67 historias en Jira), 2.3 Historias por épica (detalle para el slide de producto o el apéndice), 2. Cronograma: dónde estamos (datos de Jira, 16/09/2026), 3.1 Números del repositorio, 3.2 Stack (slide de arquitectura) (+9 more)
-
-### Community 25 - "Community 25"
-Cohesion: 0.17
-Nodes (6): buildRouteShareLink(), mapPlantilla(), nuevoToken(), parseSnapshot(), previewFromSnapshot(), RutasCompartidasService
-
-### Community 26 - "Community 26"
-Cohesion: 0.2
-Nodes (12): emitir(), refrescarPendientes(), setInvitacionesPendientesCount(), setSolicitudesPendientesCount(), subscribe(), getSupabase(), isSupabaseConfigured(), channelName() (+4 more)
 
 ### Community 27 - "Community 27"
 Cohesion: 0.12
@@ -572,48 +572,48 @@ Cohesion: 0.12
 Nodes (16): 1. Pantalla de Bienvenida y Onboarding, 2. Tablero de Inicio / Dashboard Principal, 3. Pestaña de Historial y Lista de Viajes, 4. Asistente para la Creación de Viajes (Wizard), 5. Tablero de Control y Mapa en Tiempo Real (Live Tracking), Implementación de Nuevas Funcionalidades (Fase 2), Manual Verification, [MODIFY] [crear.tsx](file:///Users/joaquinpenafort/Documents/mesh/frontend/app/viaje/crear.tsx) (+8 more)
 
 ### Community 29 - "Community 29"
-Cohesion: 0.22
-Nodes (14): extraerDatosGpsExtra(), finito(), dequeueGpsSample(), enqueueCheckIn(), enqueueGpsSample(), flushCheckIns(), flushGpsQueue(), migrarColumnasExtra() (+6 more)
-
-### Community 30 - "Community 30"
 Cohesion: 0.16
 Nodes (1): AmistadesService
 
-### Community 31 - "Community 31"
-Cohesion: 0.16
-Nodes (8): quitar(), alternarGuardado(), limpiarFiltros(), marcarGuardado(), usarMiUbicacion(), verTodas(), confirmarQuitarGuardada(), quitar()
-
-### Community 32 - "Community 32"
+### Community 30 - "Community 30"
 Cohesion: 0.26
 Nodes (1): GeocodingService
 
-### Community 33 - "Community 33"
+### Community 31 - "Community 31"
 Cohesion: 0.14
 Nodes (4): uiConfigPorActividad(), CercaMioButton(), feedbackEvento(), vibracionAvisosActiva()
 
-### Community 34 - "Community 34"
+### Community 32 - "Community 32"
 Cohesion: 0.21
 Nodes (8): aCsv(), compartirCsv(), pct(), tablasAdopcion(), tablasCrecimiento(), tablasResumen(), tablasSeguridad(), tablasViajes()
 
-### Community 35 - "Community 35"
+### Community 33 - "Community 33"
+Cohesion: 0.26
+Nodes (5): ClimaService, codigoImplicaLluvia(), descripcionCodigoTiempo(), fechaIso(), fraccionEnTrazado()
+
+### Community 34 - "Community 34"
 Cohesion: 0.21
 Nodes (2): EntrenamientosService, paceMinKm()
 
-### Community 36 - "Community 36"
+### Community 35 - "Community 35"
 Cohesion: 0.17
 Nodes (5): navigateCrear(), NuevoViajeScreen(), abrirNuevoEntrenamiento(), abrirNuevoViaje(), paramTexto()
 
-### Community 37 - "Community 37"
+### Community 36 - "Community 36"
 Cohesion: 0.29
 Nodes (7): avance(), bordeDerechoM(), cabeza(), centroM(), escalaM(), salida(), suave()
 
-### Community 38 - "Community 38"
+### Community 37 - "Community 37"
 Cohesion: 0.24
 Nodes (7): armar(), armarFirebase(), armarPrisma(), correr(), fila(), horasAtras(), requireSuperadmin()
 
-### Community 39 - "Community 39"
+### Community 38 - "Community 38"
 Cohesion: 0.33
 Nodes (8): assertOk(), calcularConGoogle(), calcularConOsrm(), calcularConValhalla(), distanciaHaversineKm(), fetchConTimeout(), RoutingService, timeoutParaRuta()
+
+### Community 39 - "Community 39"
+Cohesion: 0.22
+Nodes (5): AlertaMapPickModal(), getMapStyle(), elegir(), publicar(), useCapaMapa()
 
 ### Community 40 - "Community 40"
 Cohesion: 0.22
@@ -681,11 +681,11 @@ Nodes (2): PasoAyuda(), useRegistroScrollAyuda()
 
 ### Community 56 - "Community 56"
 Cohesion: 0.47
-Nodes (5): mensajeAlertaVisible(), metaTipoAlerta(), AlertMarker(), alertMarkerKey(), alertMarkerPopup()
+Nodes (3): avisarEnSegundoPlano(), ensureNotifications(), registerForPushNotificationsAsync()
 
 ### Community 57 - "Community 57"
 Cohesion: 0.47
-Nodes (3): avisarEnSegundoPlano(), ensureNotifications(), registerForPushNotificationsAsync()
+Nodes (5): mensajeAlertaVisible(), metaTipoAlerta(), AlertMarker(), alertMarkerKey(), alertMarkerPopup()
 
 ### Community 58 - "Community 58"
 Cohesion: 0.33
@@ -736,16 +736,16 @@ Cohesion: 0.5
 Nodes (0): 
 
 ### Community 70 - "Community 70"
-Cohesion: 0.67
-Nodes (2): integrante(), usuario()
-
-### Community 71 - "Community 71"
 Cohesion: 0.5
 Nodes (1): MainApplication
 
-### Community 72 - "Community 72"
+### Community 71 - "Community 71"
 Cohesion: 0.83
 Nodes (3): hoyArg(), rangoDe(), restarDias()
+
+### Community 72 - "Community 72"
+Cohesion: 0.5
+Nodes (0): 
 
 ### Community 73 - "Community 73"
 Cohesion: 0.5
@@ -760,128 +760,128 @@ Cohesion: 0.5
 Nodes (0): 
 
 ### Community 76 - "Community 76"
-Cohesion: 0.5
-Nodes (0): 
-
-### Community 77 - "Community 77"
 Cohesion: 0.67
 Nodes (1): HttpError
 
-### Community 78 - "Community 78"
+### Community 77 - "Community 77"
 Cohesion: 1.0
 Nodes (2): asyncHandler(), crearAlertasController()
 
-### Community 79 - "Community 79"
+### Community 78 - "Community 78"
 Cohesion: 1.0
 Nodes (2): asyncHandler(), crearAmistadesController()
 
-### Community 80 - "Community 80"
+### Community 79 - "Community 79"
 Cohesion: 1.0
 Nodes (2): asyncHandler(), crearChecklistController()
 
-### Community 81 - "Community 81"
+### Community 80 - "Community 80"
 Cohesion: 1.0
 Nodes (2): asyncHandler(), crearClimaController()
 
-### Community 82 - "Community 82"
+### Community 81 - "Community 81"
 Cohesion: 1.0
 Nodes (2): asyncHandler(), crearEntrenamientosController()
 
-### Community 83 - "Community 83"
+### Community 82 - "Community 82"
 Cohesion: 1.0
 Nodes (2): asyncHandler(), crearFantasmaController()
 
-### Community 84 - "Community 84"
+### Community 83 - "Community 83"
 Cohesion: 1.0
 Nodes (2): asyncHandler(), crearGastosController()
 
-### Community 85 - "Community 85"
+### Community 84 - "Community 84"
 Cohesion: 1.0
 Nodes (2): asyncHandler(), crearGeocodingController()
 
-### Community 86 - "Community 86"
+### Community 85 - "Community 85"
 Cohesion: 1.0
 Nodes (2): asyncHandler(), crearGruposController()
 
-### Community 87 - "Community 87"
+### Community 86 - "Community 86"
 Cohesion: 1.0
 Nodes (2): asyncHandler(), crearInsigniasController()
 
-### Community 88 - "Community 88"
+### Community 87 - "Community 87"
 Cohesion: 1.0
 Nodes (2): asyncHandler(), crearLugaresController()
 
-### Community 89 - "Community 89"
+### Community 88 - "Community 88"
 Cohesion: 0.67
 Nodes (0): 
 
-### Community 90 - "Community 90"
+### Community 89 - "Community 89"
 Cohesion: 1.0
 Nodes (2): asyncHandler(), crearParadasController()
 
-### Community 91 - "Community 91"
+### Community 90 - "Community 90"
 Cohesion: 1.0
 Nodes (2): asyncHandler(), crearPrivacidadController()
 
-### Community 92 - "Community 92"
+### Community 91 - "Community 91"
 Cohesion: 1.0
 Nodes (2): asyncHandler(), crearRachasController()
 
-### Community 93 - "Community 93"
+### Community 92 - "Community 92"
 Cohesion: 0.67
 Nodes (0): 
 
-### Community 94 - "Community 94"
+### Community 93 - "Community 93"
 Cohesion: 1.0
 Nodes (2): asyncHandler(), crearRecorridosPublicadosController()
 
-### Community 95 - "Community 95"
+### Community 94 - "Community 94"
 Cohesion: 0.67
 Nodes (0): 
 
-### Community 96 - "Community 96"
+### Community 95 - "Community 95"
 Cohesion: 1.0
 Nodes (2): asyncHandler(), crearReportesController()
 
-### Community 97 - "Community 97"
+### Community 96 - "Community 96"
 Cohesion: 0.67
 Nodes (0): 
 
-### Community 98 - "Community 98"
+### Community 97 - "Community 97"
 Cohesion: 1.0
 Nodes (2): asyncHandler(), crearRoutingController()
 
-### Community 99 - "Community 99"
+### Community 98 - "Community 98"
 Cohesion: 1.0
 Nodes (2): asyncHandler(), crearRutasCompartidasController()
 
-### Community 100 - "Community 100"
+### Community 99 - "Community 99"
 Cohesion: 1.0
 Nodes (2): asyncHandler(), crearTablaPosicionesController()
 
-### Community 101 - "Community 101"
+### Community 100 - "Community 100"
 Cohesion: 1.0
 Nodes (2): asyncHandler(), crearUsuariosController()
 
-### Community 102 - "Community 102"
+### Community 101 - "Community 101"
 Cohesion: 1.0
 Nodes (2): armarPrisma(), conVisibilidad()
 
-### Community 103 - "Community 103"
+### Community 102 - "Community 102"
 Cohesion: 0.67
 Nodes (0): 
 
-### Community 104 - "Community 104"
+### Community 103 - "Community 103"
 Cohesion: 1.0
 Nodes (2): asyncHandler(), crearViajesController()
 
-### Community 105 - "Community 105"
+### Community 104 - "Community 104"
 Cohesion: 0.67
 Nodes (0): 
 
-### Community 106 - "Community 106"
+### Community 105 - "Community 105"
 Cohesion: 1.0
 Nodes (2): armarParticipante(), armarPrisma()
+
+### Community 106 - "Community 106"
+Cohesion: 0.67
+Nodes (0): 
 
 ### Community 107 - "Community 107"
 Cohesion: 0.67
@@ -953,11 +953,11 @@ Nodes (0):
 
 ### Community 124 - "Community 124"
 Cohesion: 0.67
-Nodes (0): 
+Nodes (2): Estructura del repositorio — Mesh, Notas
 
 ### Community 125 - "Community 125"
-Cohesion: 0.67
-Nodes (2): Estructura del repositorio — Mesh, Notas
+Cohesion: 1.0
+Nodes (0): 
 
 ### Community 126 - "Community 126"
 Cohesion: 1.0
@@ -2130,299 +2130,301 @@ Nodes (1): ref_http
 ## Knowledge Gaps
 - **313 isolated node(s):** `expo-haptics`, `react-native-gesture-handler`, `Expo (Managed Workflow)`, `Expo Router`, `React Native Reanimated` (+308 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **Thin community `Community 126`** (2 nodes): `createApp()`, `app.ts`
+- **Thin community `Community 125`** (2 nodes): `createApp()`, `app.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 127`** (2 nodes): `googleMaps.ts`, `googleMapsApiKey()`
+- **Thin community `Community 126`** (2 nodes): `googleMaps.ts`, `googleMapsApiKey()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 128`** (2 nodes): `rachasJob.ts`, `iniciarJobRachas()`
+- **Thin community `Community 127`** (2 nodes): `rachasJob.ts`, `iniciarJobRachas()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 129`** (2 nodes): `esMotorizado()`, `actividad.ts`
+- **Thin community `Community 128`** (2 nodes): `esMotorizado()`, `actividad.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 130`** (2 nodes): `calcularAltimetria()`, `altimetria.ts`
+- **Thin community `Community 129`** (2 nodes): `calcularAltimetria()`, `altimetria.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 131`** (2 nodes): `m()`, `bloquePrincipal.test.ts`
+- **Thin community `Community 130`** (2 nodes): `m()`, `bloquePrincipal.test.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 132`** (2 nodes): `postgis.test.ts`, `armarPrisma()`
+- **Thin community `Community 131`** (2 nodes): `postgis.test.ts`, `armarPrisma()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 133`** (2 nodes): `errorHandler.ts`, `errorHandler()`
+- **Thin community `Community 132`** (2 nodes): `errorHandler.ts`, `errorHandler()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 134`** (2 nodes): `armarPrisma()`, `alertas.service.test.ts`
+- **Thin community `Community 133`** (2 nodes): `armarPrisma()`, `alertas.service.test.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 135`** (2 nodes): `fantasma.service.test.ts`, `armar()`
+- **Thin community `Community 134`** (2 nodes): `fantasma.service.test.ts`, `armar()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 136`** (2 nodes): `grupos.membership.ts`, `unirUsuarioAlGrupo()`
+- **Thin community `Community 135`** (2 nodes): `grupos.membership.ts`, `unirUsuarioAlGrupo()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 137`** (2 nodes): `insignias.service.test.ts`, `armarPrisma()`
+- **Thin community `Community 136`** (2 nodes): `insignias.service.test.ts`, `armarPrisma()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 138`** (2 nodes): `logros.acceso.test.ts`, `armarPrisma()`
+- **Thin community `Community 137`** (2 nodes): `logros.acceso.test.ts`, `armarPrisma()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 139`** (2 nodes): `privacidad.acceso.test.ts`, `armarPrisma()`
+- **Thin community `Community 138`** (2 nodes): `privacidad.acceso.test.ts`, `armarPrisma()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 140`** (2 nodes): `privacidad.service.test.ts`, `armarPrisma()`
+- **Thin community `Community 139`** (2 nodes): `privacidad.service.test.ts`, `armarPrisma()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 141`** (2 nodes): `rutas-compartidas.service.test.ts`, `createMockPrisma()`
+- **Thin community `Community 140`** (2 nodes): `rutas-compartidas.service.test.ts`, `createMockPrisma()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 142`** (2 nodes): `tabla-posiciones.service.test.ts`, `armarPrisma()`
+- **Thin community `Community 141`** (2 nodes): `tabla-posiciones.service.test.ts`, `armarPrisma()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 143`** (2 nodes): `usuarios.service.test.ts`, `errorP2002()`
+- **Thin community `Community 142`** (2 nodes): `usuarios.service.test.ts`, `errorP2002()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 144`** (2 nodes): `viajes.check-in.test.ts`, `armarPrisma()`
+- **Thin community `Community 143`** (2 nodes): `viajes.check-in.test.ts`, `armarPrisma()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 145`** (2 nodes): `viajes.eliminar.test.ts`, `createMockPrisma()`
+- **Thin community `Community 144`** (2 nodes): `viajes.eliminar.test.ts`, `createMockPrisma()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 146`** (2 nodes): `viajes.entrenamiento.test.ts`, `armar()`
+- **Thin community `Community 145`** (2 nodes): `viajes.entrenamiento.test.ts`, `armar()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 147`** (2 nodes): `viajes.estadisticas.test.ts`, `armarPrisma()`
+- **Thin community `Community 146`** (2 nodes): `viajes.estadisticas.test.ts`, `armarPrisma()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 148`** (2 nodes): `viajes.finalizar.test.ts`, `armarPrisma()`
+- **Thin community `Community 147`** (2 nodes): `viajes.finalizar.test.ts`, `armarPrisma()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 149`** (2 nodes): `viajes.iniciar.test.ts`, `armarPrisma()`
+- **Thin community `Community 148`** (2 nodes): `viajes.iniciar.test.ts`, `armarPrisma()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 150`** (2 nodes): `viajes.invitar.test.ts`, `createMockPrisma()`
+- **Thin community `Community 149`** (2 nodes): `viajes.invitar.test.ts`, `createMockPrisma()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 151`** (2 nodes): `viajes.liderazgo.test.ts`, `armarPrisma()`
+- **Thin community `Community 150`** (2 nodes): `viajes.liderazgo.test.ts`, `armarPrisma()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 152`** (2 nodes): `viajes.metricas-grupales.test.ts`, `armarPrisma()`
+- **Thin community `Community 151`** (2 nodes): `viajes.metricas-grupales.test.ts`, `armarPrisma()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 153`** (2 nodes): `viajes.ocultar.test.ts`, `armarPrisma()`
+- **Thin community `Community 152`** (2 nodes): `viajes.ocultar.test.ts`, `armarPrisma()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 154`** (2 nodes): `viajes.parametros.test.ts`, `armarCrear()`
+- **Thin community `Community 153`** (2 nodes): `viajes.parametros.test.ts`, `armarCrear()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 155`** (2 nodes): `viajes.resumen.test.ts`, `armarPrisma()`
+- **Thin community `Community 154`** (2 nodes): `viajes.resumen.test.ts`, `armarPrisma()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 156`** (2 nodes): `viajes.schemas.ts`, `extraOpcional()`
+- **Thin community `Community 155`** (2 nodes): `viajes.schemas.ts`, `extraOpcional()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 157`** (2 nodes): `viajes.unirse-qr.test.ts`, `createMockPrisma()`
+- **Thin community `Community 156`** (2 nodes): `viajes.unirse-qr.test.ts`, `createMockPrisma()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 158`** (2 nodes): `promover-superadmin.ts`, `main()`
+- **Thin community `Community 157`** (2 nodes): `index.ts`, `registerSocketHandlers()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 159`** (2 nodes): `index.ts`, `registerSocketHandlers()`
+- **Thin community `Community 158`** (2 nodes): `hostDeLinks()`, `app.config.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 160`** (2 nodes): `hostDeLinks()`, `app.config.ts`
+- **Thin community `Community 159`** (2 nodes): `+html.tsx`, `Root()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 161`** (2 nodes): `+html.tsx`, `Root()`
+- **Thin community `Community 160`** (2 nodes): `+not-found.tsx`, `NotFoundScreen()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 162`** (2 nodes): `+not-found.tsx`, `NotFoundScreen()`
+- **Thin community `Community 161`** (2 nodes): `mis-rutas.tsx`, `MisRutasRedirect()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 163`** (2 nodes): `mis-rutas.tsx`, `MisRutasRedirect()`
+- **Thin community `Community 162`** (2 nodes): `modal.tsx`, `ModalScreen()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 164`** (2 nodes): `modal.tsx`, `ModalScreen()`
+- **Thin community `Community 163`** (2 nodes): `repetir-entrenamiento.tsx`, `continuar()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 165`** (2 nodes): `repetir-entrenamiento.tsx`, `continuar()`
+- **Thin community `Community 164`** (2 nodes): `_layout.tsx`, `primero()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 166`** (2 nodes): `_layout.tsx`, `primero()`
+- **Thin community `Community 165`** (2 nodes): `_layout.tsx`, `AuthLayout()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 167`** (2 nodes): `_layout.tsx`, `AuthLayout()`
+- **Thin community `Community 166`** (2 nodes): `_layout.tsx`, `TabBarIcon()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 168`** (2 nodes): `_layout.tsx`, `TabBarIcon()`
+- **Thin community `Community 167`** (2 nodes): `objetivo()`, `auditoria.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 169`** (2 nodes): `objetivo()`, `auditoria.tsx`
+- **Thin community `Community 168`** (2 nodes): `[grupoId].tsx`, `AdminGrupoScreen()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 170`** (2 nodes): `[grupoId].tsx`, `AdminGrupoScreen()`
+- **Thin community `Community 169`** (2 nodes): `index.tsx`, `AmigosRedirect()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 171`** (2 nodes): `index.tsx`, `AmigosRedirect()`
+- **Thin community `Community 170`** (2 nodes): `_layout.tsx`, `ConfigurarRutaLayout()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 172`** (2 nodes): `_layout.tsx`, `ConfigurarRutaLayout()`
+- **Thin community `Community 171`** (2 nodes): `[viajeId].tsx`, `GrupoViajeQrRedirect()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 173`** (2 nodes): `[viajeId].tsx`, `GrupoViajeQrRedirect()`
+- **Thin community `Community 172`** (2 nodes): `alertaCerrada()`, `alertas.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 174`** (2 nodes): `alertaCerrada()`, `alertas.tsx`
+- **Thin community `Community 173`** (2 nodes): `textoPermisoSistema()`, `AvisoUbicacion.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 175`** (2 nodes): `textoPermisoSistema()`, `AvisoUbicacion.tsx`
+- **Thin community `Community 174`** (2 nodes): `toggle()`, `Collapsible.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 176`** (2 nodes): `toggle()`, `Collapsible.tsx`
+- **Thin community `Community 175`** (2 nodes): `DragToDismiss.tsx`, `DragToDismiss()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 177`** (2 nodes): `DragToDismiss.tsx`, `DragToDismiss()`
+- **Thin community `Community 176`** (2 nodes): `EditScreenInfo.tsx`, `EditScreenInfo()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 178`** (2 nodes): `EditScreenInfo.tsx`, `EditScreenInfo()`
+- **Thin community `Community 177`** (2 nodes): `ExternalLink.tsx`, `ExternalLink()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 179`** (2 nodes): `ExternalLink.tsx`, `ExternalLink()`
+- **Thin community `Community 178`** (2 nodes): `ParametrosGrupoCard.tsx`, `clamp()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 180`** (2 nodes): `ParametrosGrupoCard.tsx`, `clamp()`
+- **Thin community `Community 179`** (2 nodes): `Pressable.tsx`, `estiloAndroid()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 181`** (2 nodes): `Pressable.tsx`, `estiloAndroid()`
+- **Thin community `Community 180`** (2 nodes): `SegmentTabs.tsx`, `SegmentTabs()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 182`** (2 nodes): `SegmentTabs.tsx`, `SegmentTabs()`
+- **Thin community `Community 181`** (2 nodes): `StyledText.tsx`, `MonoText()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 183`** (2 nodes): `StyledText.tsx`, `MonoText()`
+- **Thin community `Community 182`** (2 nodes): `Toast.tsx`, `Toast()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 184`** (2 nodes): `Toast.tsx`, `Toast()`
+- **Thin community `Community 183`** (2 nodes): `useClientOnlyValue.ts`, `useClientOnlyValue()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 185`** (2 nodes): `useClientOnlyValue.ts`, `useClientOnlyValue()`
+- **Thin community `Community 184`** (2 nodes): `useClientOnlyValue.web.ts`, `useClientOnlyValue()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 186`** (2 nodes): `useClientOnlyValue.web.ts`, `useClientOnlyValue()`
+- **Thin community `Community 185`** (2 nodes): `GastosCierrePanel.tsx`, `abrirGastos()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 187`** (2 nodes): `GastosCierrePanel.tsx`, `abrirGastos()`
+- **Thin community `Community 186`** (2 nodes): `elegir()`, `CategoriaParadaSheet.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 188`** (2 nodes): `elegir()`, `CategoriaParadaSheet.tsx`
+- **Thin community `Community 187`** (2 nodes): `EstoyBienBanner.tsx`, `transcurrido()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 189`** (2 nodes): `EstoyBienBanner.tsx`, `transcurrido()`
+- **Thin community `Community 188`** (2 nodes): `LeaderboardPanel.tsx`, `gap()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 190`** (2 nodes): `LeaderboardPanel.tsx`, `gap()`
+- **Thin community `Community 189`** (2 nodes): `MemberMarker.tsx`, `memberMarkerKey()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 191`** (2 nodes): `MemberMarker.tsx`, `memberMarkerKey()`
+- **Thin community `Community 190`** (2 nodes): `ParadaActionsBar.tsx`, `transcurrido()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 192`** (2 nodes): `ParadaActionsBar.tsx`, `transcurrido()`
+- **Thin community `Community 191`** (2 nodes): `ParadaVoluntariaBanner.tsx`, `ParadaVoluntariaBanner()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 193`** (2 nodes): `ParadaVoluntariaBanner.tsx`, `ParadaVoluntariaBanner()`
+- **Thin community `Community 192`** (2 nodes): `SolicitudParadaBanner.tsx`, `SolicitudParadaBanner()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 194`** (2 nodes): `SolicitudParadaBanner.tsx`, `SolicitudParadaBanner()`
+- **Thin community `Community 193`** (2 nodes): `TripMetricsPanel.tsx`, `formatEtaLabel()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 195`** (2 nodes): `TripMetricsPanel.tsx`, `formatEtaLabel()`
+- **Thin community `Community 194`** (2 nodes): `PinMarker.tsx`, `PinMarker()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 196`** (2 nodes): `PinMarker.tsx`, `PinMarker()`
+- **Thin community `Community 195`** (2 nodes): `SelectorCapaMapa.tsx`, `cerrar()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 197`** (2 nodes): `SelectorCapaMapa.tsx`, `cerrar()`
+- **Thin community `Community 196`** (2 nodes): `SelectorModo.tsx`, `detalleModo()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 198`** (2 nodes): `SelectorModo.tsx`, `detalleModo()`
+- **Thin community `Community 197`** (2 nodes): `Typography.ts`, `tamanoOutdoor()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 199`** (2 nodes): `Typography.ts`, `tamanoOutdoor()`
+- **Thin community `Community 198`** (2 nodes): `MeshDialogContext.tsx`, `mapButtons()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 200`** (2 nodes): `MeshDialogContext.tsx`, `mapButtons()`
+- **Thin community `Community 199`** (2 nodes): `useAvanceRuta.ts`, `useAvanceRuta()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 201`** (2 nodes): `useAvanceRuta.ts`, `useAvanceRuta()`
+- **Thin community `Community 200`** (2 nodes): `useLeaderboard.ts`, `useLeaderboard()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 202`** (2 nodes): `useLeaderboard.ts`, `useLeaderboard()`
+- **Thin community `Community 201`** (2 nodes): `useNextStopEta.ts`, `useNextStopEta()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 203`** (2 nodes): `useNextStopEta.ts`, `useNextStopEta()`
+- **Thin community `Community 202`** (2 nodes): `useUbicacionActual.ts`, `useUbicacionActual()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 204`** (2 nodes): `useUbicacionActual.ts`, `useUbicacionActual()`
+- **Thin community `Community 203`** (2 nodes): `firebase.ts`, `createAuth()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 205`** (2 nodes): `firebase.ts`, `createAuth()`
+- **Thin community `Community 204`** (2 nodes): `modoViaje.ts`, `colorModo()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 206`** (2 nodes): `modoViaje.ts`, `colorModo()`
+- **Thin community `Community 205`** (1 nodes): `prisma.config.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 207`** (1 nodes): `prisma.config.ts`
+- **Thin community `Community 206`** (1 nodes): `vitest.config.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 208`** (1 nodes): `vitest.config.ts`
+- **Thin community `Community 207`** (1 nodes): `index.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 209`** (1 nodes): `index.ts`
+- **Thin community `Community 208`** (1 nodes): `firebase.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 210`** (1 nodes): `firebase.ts`
+- **Thin community `Community 209`** (1 nodes): `prisma.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 211`** (1 nodes): `prisma.ts`
+- **Thin community `Community 210`** (1 nodes): `timezone.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 212`** (1 nodes): `timezone.ts`
+- **Thin community `Community 211`** (1 nodes): `index.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 213`** (1 nodes): `index.ts`
+- **Thin community `Community 212`** (1 nodes): `router.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 214`** (1 nodes): `router.ts`
+- **Thin community `Community 213`** (1 nodes): `actividad.test.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 215`** (1 nodes): `actividad.test.ts`
+- **Thin community `Community 214`** (1 nodes): `altimetria.test.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 216`** (1 nodes): `altimetria.test.ts`
+- **Thin community `Community 215`** (1 nodes): `gravedadAlerta.test.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 217`** (1 nodes): `gravedadAlerta.test.ts`
+- **Thin community `Community 216`** (1 nodes): `nombres.test.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 218`** (1 nodes): `nombres.test.ts`
+- **Thin community `Community 217`** (1 nodes): `qrInvite.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 219`** (1 nodes): `qrInvite.ts`
+- **Thin community `Community 218`** (1 nodes): `admin.router.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 220`** (1 nodes): `admin.router.ts`
+- **Thin community `Community 219`** (1 nodes): `admin.schemas.insignias.test.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 221`** (1 nodes): `admin.schemas.insignias.test.ts`
+- **Thin community `Community 220`** (1 nodes): `admin.schemas.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 222`** (1 nodes): `admin.schemas.ts`
+- **Thin community `Community 221`** (1 nodes): `alertas.router.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 223`** (1 nodes): `alertas.router.ts`
+- **Thin community `Community 222`** (1 nodes): `alertas.schemas.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 224`** (1 nodes): `alertas.schemas.ts`
+- **Thin community `Community 223`** (1 nodes): `amistades.router.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 225`** (1 nodes): `amistades.router.ts`
+- **Thin community `Community 224`** (1 nodes): `amistades.schemas.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 226`** (1 nodes): `amistades.schemas.ts`
+- **Thin community `Community 225`** (1 nodes): `amistades.service.test.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 227`** (1 nodes): `amistades.service.test.ts`
+- **Thin community `Community 226`** (1 nodes): `checklist.router.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 228`** (1 nodes): `checklist.router.ts`
+- **Thin community `Community 227`** (1 nodes): `checklist.schemas.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 229`** (1 nodes): `checklist.schemas.ts`
+- **Thin community `Community 228`** (1 nodes): `checklistDefaults.test.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 230`** (1 nodes): `checklistDefaults.test.ts`
+- **Thin community `Community 229`** (1 nodes): `clima.router.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 231`** (1 nodes): `clima.router.ts`
+- **Thin community `Community 230`** (1 nodes): `entrenamientos.router.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 232`** (1 nodes): `entrenamientos.router.ts`
+- **Thin community `Community 231`** (1 nodes): `entrenamientos.schemas.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 233`** (1 nodes): `entrenamientos.schemas.ts`
+- **Thin community `Community 232`** (1 nodes): `fantasma.router.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 234`** (1 nodes): `fantasma.router.ts`
+- **Thin community `Community 233`** (1 nodes): `gastos.router.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 235`** (1 nodes): `gastos.router.ts`
+- **Thin community `Community 234`** (1 nodes): `gastos.schemas.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 236`** (1 nodes): `gastos.schemas.ts`
+- **Thin community `Community 235`** (1 nodes): `geocoding.router.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 237`** (1 nodes): `geocoding.router.ts`
+- **Thin community `Community 236`** (1 nodes): `geocoding.schemas.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 238`** (1 nodes): `geocoding.schemas.ts`
+- **Thin community `Community 237`** (1 nodes): `grupos.membership.test.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 239`** (1 nodes): `grupos.membership.test.ts`
+- **Thin community `Community 238`** (1 nodes): `grupos.router.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 240`** (1 nodes): `grupos.router.ts`
+- **Thin community `Community 239`** (1 nodes): `grupos.schemas.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 241`** (1 nodes): `grupos.schemas.ts`
+- **Thin community `Community 240`** (1 nodes): `insignias.router.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 242`** (1 nodes): `insignias.router.ts`
+- **Thin community `Community 241`** (1 nodes): `lugares.router.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 243`** (1 nodes): `lugares.router.ts`
+- **Thin community `Community 242`** (1 nodes): `lugares.schemas.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 244`** (1 nodes): `lugares.schemas.ts`
+- **Thin community `Community 243`** (1 nodes): `paradas.router.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 245`** (1 nodes): `paradas.router.ts`
+- **Thin community `Community 244`** (1 nodes): `paradas.schemas.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 246`** (1 nodes): `paradas.schemas.ts`
+- **Thin community `Community 245`** (1 nodes): `privacidad.router.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 247`** (1 nodes): `privacidad.router.ts`
+- **Thin community `Community 246`** (1 nodes): `privacidad.schemas.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 248`** (1 nodes): `privacidad.schemas.ts`
+- **Thin community `Community 247`** (1 nodes): `rachas.router.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 249`** (1 nodes): `rachas.router.ts`
+- **Thin community `Community 248`** (1 nodes): `recorridos-publicados.router.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 250`** (1 nodes): `recorridos-publicados.router.ts`
+- **Thin community `Community 249`** (1 nodes): `recorridos-publicados.schemas.test.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 251`** (1 nodes): `recorridos-publicados.schemas.test.ts`
+- **Thin community `Community 250`** (1 nodes): `recorridos-publicados.schemas.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 252`** (1 nodes): `recorridos-publicados.schemas.ts`
+- **Thin community `Community 251`** (1 nodes): `reportes.periodo.test.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 253`** (1 nodes): `reportes.periodo.test.ts`
+- **Thin community `Community 252`** (1 nodes): `reportes.router.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 254`** (1 nodes): `reportes.router.ts`
+- **Thin community `Community 253`** (1 nodes): `reportes.schemas.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 255`** (1 nodes): `reportes.schemas.ts`
+- **Thin community `Community 254`** (1 nodes): `routing.router.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 256`** (1 nodes): `routing.router.ts`
+- **Thin community `Community 255`** (1 nodes): `routing.schemas.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 257`** (1 nodes): `routing.schemas.ts`
+- **Thin community `Community 256`** (1 nodes): `rutas-compartidas.router.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 258`** (1 nodes): `rutas-compartidas.router.ts`
+- **Thin community `Community 257`** (1 nodes): `rutas-compartidas.schemas.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 259`** (1 nodes): `rutas-compartidas.schemas.ts`
+- **Thin community `Community 258`** (1 nodes): `tabla-posiciones.router.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 260`** (1 nodes): `tabla-posiciones.router.ts`
+- **Thin community `Community 259`** (1 nodes): `tabla-posiciones.schemas.test.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 261`** (1 nodes): `tabla-posiciones.schemas.test.ts`
+- **Thin community `Community 260`** (1 nodes): `tabla-posiciones.schemas.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 262`** (1 nodes): `tabla-posiciones.schemas.ts`
+- **Thin community `Community 261`** (1 nodes): `usuarios.router.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 263`** (1 nodes): `usuarios.router.ts`
+- **Thin community `Community 262`** (1 nodes): `usuarios.schemas.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 264`** (1 nodes): `usuarios.schemas.ts`
+- **Thin community `Community 263`** (1 nodes): `activityDefaults.test.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 265`** (1 nodes): `activityDefaults.test.ts`
+- **Thin community `Community 264`** (1 nodes): `leaderboard.test.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 266`** (1 nodes): `leaderboard.test.ts`
+- **Thin community `Community 265`** (1 nodes): `ranking.test.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 267`** (1 nodes): `ranking.test.ts`
+- **Thin community `Community 266`** (1 nodes): `viajes.fecha-programada.test.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 268`** (1 nodes): `viajes.fecha-programada.test.ts`
+- **Thin community `Community 267`** (1 nodes): `viajes.gps-extra.schemas.test.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 269`** (1 nodes): `viajes.gps-extra.schemas.test.ts`
+- **Thin community `Community 268`** (1 nodes): `viajes.historial.test.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 270`** (1 nodes): `viajes.historial.test.ts`
+- **Thin community `Community 269`** (1 nodes): `viajes.router.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 271`** (1 nodes): `viajes.router.ts`
+- **Thin community `Community 270`** (1 nodes): `index.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 272`** (1 nodes): `index.ts`
+- **Thin community `Community 271`** (1 nodes): `guion.ts`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 272`** (1 nodes): `rutas.catalogo.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 273`** (1 nodes): `express.d.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
@@ -2718,12 +2720,12 @@ Nodes (1): ref_http
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `get()` connect `Community 6` to `Community 0`, `Community 1`, `Community 2`, `Community 3`, `Community 8`, `Community 12`, `Community 16`, `Community 19`, `Community 23`, `Community 29`?**
-  _High betweenness centrality (0.093) - this node is a cross-community bridge._
-- **Why does `ViajesService` connect `Community 2` to `Community 17`, `Community 3`, `Community 12`?**
+- **Why does `get()` connect `Community 5` to `Community 0`, `Community 33`, `Community 2`, `Community 1`, `Community 4`, `Community 7`, `Community 8`, `Community 11`, `Community 13`, `Community 17`, `Community 19`, `Community 25`?**
+  _High betweenness centrality (0.119) - this node is a cross-community bridge._
+- **Why does `meshAlert()` connect `Community 0` to `Community 8`, `Community 1`, `Community 14`, `Community 22`?**
+  _High betweenness centrality (0.050) - this node is a cross-community bridge._
+- **Why does `generarRelleno()` connect `Community 5` to `Community 24`, `Community 2`, `Community 13`, `Community 39`?**
   _High betweenness centrality (0.046) - this node is a cross-community bridge._
-- **Why does `parseJson()` connect `Community 1` to `Community 18`, `Community 11`, `Community 6`?**
-  _High betweenness centrality (0.039) - this node is a cross-community bridge._
 - **Are the 120 inferred relationships involving `meshFetchAuthed()` (e.g. with `get()` and `enviar()`) actually correct?**
   _`meshFetchAuthed()` has 120 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 120 inferred relationships involving `apiUrl()` (e.g. with `get()` and `enviar()`) actually correct?**
