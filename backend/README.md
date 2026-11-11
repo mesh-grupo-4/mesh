@@ -126,6 +126,8 @@ Crear un `.env` en `backend/` con los valores del entorno.
 | `DOCS_ENABLED` | no | `false` apaga Swagger UI en `/api/docs`, el login incluido |
 | `FIREBASE_WEB_API_KEY` | no | Habilita `POST /api/docs/login`. Es la Web API key del proyecto Firebase, la misma que ya viaja en el bundle del frontend (pública por diseño). Sin ella el login responde 503 |
 | `GOOGLE_MAPS_API_KEY` | no | Key de Google Maps Platform con **Routes API**, **Places API (New)** y **Geocoding API** habilitadas. Si está, `/api/routing/calcular` y `/api/geocoding/*` usan Google primero; sin ella (o si Google falla) se usan OSRM/Valhalla/Nominatim. Restringirla por IP del servidor, nunca exponerla al frontend |
+| `SUPABASE_URL` | no | URL del proyecto Supabase (`https://<ref>.supabase.co`). Junto con la siguiente habilita las fotos de perfil (Storage) |
+| `SUPABASE_SERVICE_ROLE_KEY` | no | Secret key del proyecto (`sb_secret_...`, Project Settings → API Keys → *Publishable and secret API keys*) o la `service_role` de la pestaña *Legacy API Keys*. Solo backend, nunca al frontend. Sin ella los endpoints de foto responden 503. Después de cargarla, correr `npm run storage:setup` para crear el bucket `avatares` |
 
 ### Supabase (entorno del equipo)
 

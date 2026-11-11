@@ -71,7 +71,7 @@ export function TransferirLiderazgoModal({
                   onPress={() => onSeleccionar(item.id)}
                   disabled={procesando}
                 >
-                  <AvatarFallback nombre={item.nombre} />
+                  <AvatarFallback nombre={item.nombre} usuarioId={item.id} />
                   <View style={styles.filaContenido}>
                     <Text style={[styles.nombre, { color: theme.text }]}>{item.nombre}</Text>
                     <Text style={[styles.email, { color: theme.textDim }]}>{item.email}</Text>

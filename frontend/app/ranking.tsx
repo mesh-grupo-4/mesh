@@ -139,7 +139,7 @@ export default function TablaPosicionesScreen() {
                     ]}
                   >
                     <Text style={styles.medalla}>{MEDALLAS[fila.puesto - 1]}</Text>
-                    <AvatarFallback nombre={fila.nombre} size={32} />
+                    <AvatarFallback nombre={fila.nombre} size={32} usuarioId={fila.usuario_id} />
                     <Text style={[styles.nombreFila, { color: theme.text }]} numberOfLines={1}>
                       {fila.nombre}
                       {esYo ? ' (Vos)' : ''}

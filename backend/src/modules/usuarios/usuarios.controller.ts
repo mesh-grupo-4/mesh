@@ -1,6 +1,12 @@
 import type { Request, RequestHandler, Response } from 'express'
-import { pushTokenSchema, syncUsuarioSchema } from './usuarios.schemas'
+import {
+  confirmarFotoSchema,
+  consultarFotosSchema,
+  pushTokenSchema,
+  syncUsuarioSchema,
+} from './usuarios.schemas'
 import type { UsuariosService } from './usuarios.service'
+import type { FotosPerfilService } from './usuarios.fotos'
 
 function asyncHandler(fn: (req: Request, res: Response) => Promise<void>): RequestHandler {
   return (req, res, next) => {
@@ -8,7 +14,7 @@ function asyncHandler(fn: (req: Request, res: Response) => Promise<void>): Reque
   }
 }
 
-export function crearUsuariosController(service: UsuariosService) {
+export function crearUsuariosController(service: UsuariosService, fotos: FotosPerfilService) {
   return {
     getMe: asyncHandler(async (req, res) => {
       const usuario = await service.getMe(req.userId!)
@@ -29,6 +35,24 @@ export function crearUsuariosController(service: UsuariosService) {
       const { token } = pushTokenSchema.parse(req.body)
       await service.upsertPushToken(req.userId!, token)
       res.json({ ok: true })
+    }),
+
+    crearSubidaFoto: asyncHandler(async (req, res) => {
+      res.json(await fotos.crearSubida(req.userId!))
+    }),
+
+    confirmarFoto: asyncHandler(async (req, res) => {
+      const { path } = confirmarFotoSchema.parse(req.body)
+      res.json(await fotos.confirmar(req.userId!, path))
+    }),
+
+    eliminarFoto: asyncHandler(async (req, res) => {
+      res.json(await fotos.eliminar(req.userId!))
+    }),
+
+    consultarFotos: asyncHandler(async (req, res) => {
+      const { ids } = consultarFotosSchema.parse(req.body)
+      res.json({ fotos: await fotos.fotosDe(ids) })
     }),
 
     perfilPublico: asyncHandler(async (req, res) => {

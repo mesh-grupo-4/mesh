@@ -28,6 +28,7 @@ UsuarioActual:
               telefono: '+54 351 555 1234'
               actividad_preferida: bici
               rol_sistema: usuario
+              foto_perfil: null
       '401':
         $ref: '../components/responses.yaml#/Unauthorized'
       '404':
@@ -140,6 +141,7 @@ PerfilPublicoUsuario:
               nombre: Martina
               apellido: Gómez
               actividad_preferida: bici
+              foto_perfil: https://ddmnzklvxbijpcpckwez.supabase.co/storage/v1/object/public/avatares/9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d/1792000000000.jpg
               es_yo: false
               relacion_amistad: amigo
               visibilidad_logros: amigos
@@ -173,5 +175,177 @@ PerfilPublicoUsuario:
             example:
               error: Usuario no encontrado
               code: USER_NOT_FOUND
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+SubidaFotoPerfil:
+  post:
+    operationId: crearSubidaFotoPerfil
+    summary: Preparar la subida de la foto de perfil
+    description: |
+      Paso 1 de 3. El backend elige la ruta dentro de la carpeta del usuario y
+      devuelve una URL firmada de Supabase Storage para subir ahí un JPEG.
+      Los bytes van directo del dispositivo a Storage, sin pasar por el servidor.
+
+      Paso 2: `PUT {upload_url}` con el JPEG (`Content-Type: image/jpeg`, hasta 2 MB).
+      Paso 3: `PUT /api/usuarios/me/foto` con el `path` para confirmarla.
+    tags:
+      - Usuarios
+    responses:
+      '200':
+        description: URL firmada lista para subir.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/SubidaFotoPerfil'
+            example:
+              path: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d/1792000000000.jpg
+              upload_url: https://ddmnzklvxbijpcpckwez.supabase.co/storage/v1/object/upload/sign/avatares/9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d/1792000000000.jpg?token=eyJhbGciOi
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '502':
+        description: Supabase Storage no respondió (`FOTO_SUBIDA_FALLIDA`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: No se pudo preparar la subida de la foto
+              code: FOTO_SUBIDA_FALLIDA
+      '503':
+        description: Storage no está configurado en este entorno (`FOTOS_NO_DISPONIBLES`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Las fotos de perfil no están disponibles
+              code: FOTOS_NO_DISPONIBLES
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+FotoPerfil:
+  put:
+    operationId: confirmarFotoPerfil
+    summary: Confirmar la foto de perfil subida
+    description: |
+      Paso 3 de 3. Verifica que el archivo exista en la carpeta del propio
+      usuario y que sea un JPEG de hasta 2 MB (RN-030: el backend valida, no la
+      app). Si es válido lo guarda como foto de perfil y borra la anterior y
+      cualquier subida que nunca se confirmó. Si no, lo borra y responde 400.
+    tags:
+      - Usuarios
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/ConfirmarFotoPerfilRequest'
+          example:
+            path: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d/1792000000000.jpg
+    responses:
+      '200':
+        description: Foto guardada.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/FotoPerfilResponse'
+            example:
+              foto_perfil: https://ddmnzklvxbijpcpckwez.supabase.co/storage/v1/object/public/avatares/9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d/1792000000000.jpg
+      '400':
+        description: Ruta ajena o inválida (`FOTO_PATH_INVALIDO`), archivo no subido (`FOTO_NO_SUBIDA`) o que no es un JPEG de hasta 2 MB (`FOTO_INVALIDA`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: La foto tiene que ser un JPEG de hasta 2 MB
+              code: FOTO_INVALIDA
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '502':
+        description: Supabase Storage no respondió (`FOTO_SUBIDA_FALLIDA`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: No se pudo verificar la foto
+              code: FOTO_SUBIDA_FALLIDA
+      '503':
+        description: Storage no está configurado en este entorno (`FOTOS_NO_DISPONIBLES`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Las fotos de perfil no están disponibles
+              code: FOTOS_NO_DISPONIBLES
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+  delete:
+    operationId: eliminarFotoPerfil
+    summary: Quitar la foto de perfil
+    description: Vuelve a las iniciales y borra el archivo de Storage.
+    tags:
+      - Usuarios
+    responses:
+      '200':
+        description: Foto quitada.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/FotoPerfilResponse'
+            example:
+              foto_perfil: null
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '404':
+        description: Usuario no encontrado (`USER_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Usuario no encontrado
+              code: USER_NOT_FOUND
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+FotosUsuarios:
+  post:
+    operationId: consultarFotosUsuarios
+    summary: Fotos de perfil de varios usuarios
+    description: |
+      Devuelve en una sola llamada las fotos de hasta 200 usuarios: la app junta
+      los avatares de una pantalla y los pide juntos. Es `POST` para no armar una
+      URL con 200 UUID. Solo devuelve la URL pública de la foto, ningún otro dato.
+    tags:
+      - Usuarios
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/ConsultarFotosRequest'
+          example:
+            ids:
+              - 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d
+              - 2c9a7d61-4e83-4b2f-9a17-6d0e5b8c1f23
+    responses:
+      '200':
+        description: Fotos encontradas.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ConsultarFotosResponse'
+            example:
+              fotos:
+                9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d: https://ddmnzklvxbijpcpckwez.supabase.co/storage/v1/object/public/avatares/9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d/1792000000000.jpg
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'

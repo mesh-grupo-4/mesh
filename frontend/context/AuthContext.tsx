@@ -46,6 +46,8 @@ interface AuthContextValue {
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   updateUserProfile: (data: Partial<ProfileData>) => Promise<void>;
+  /** La foto ya quedó guardada en el backend: solo se refleja en el perfil local. */
+  setFotoPerfilLocal: (url: string | null) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -62,8 +64,8 @@ async function saveProfile(uid: string, data: ProfileData): Promise<void> {
   await AsyncStorage.setItem(profileKey(uid), JSON.stringify(data));
 }
 
-// Mezcla en el perfil local los campos que vienen de la BD (teléfono y actividad
-// preferida) conservando los que solo viven en el dispositivo (apellido, foto).
+// Mezcla en el perfil local los campos que vienen de la BD (teléfono, actividad
+// preferida y foto) conservando los que solo viven en el dispositivo (apellido).
 function mergeBackendProfile(
   base: ProfileData | null,
   backend: UsuarioPerfilResponse
@@ -77,7 +79,8 @@ function mergeBackendProfile(
   return {
     nombre,
     apellido,
-    photoUri: base?.photoUri ?? null,
+    // La foto vive en Supabase Storage: la URL del backend es la fuente de verdad.
+    photoUri: backend.foto_perfil,
     telefono: backend.telefono ?? '',
     actividadPreferida: backend.actividad_preferida ?? '',
   };
@@ -270,6 +273,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await guardarUsuarioBackend(user, updated);
   };
 
+  const setFotoPerfilLocal = async (url: string | null) => {
+    if (!user || !profile) return;
+    const updated: ProfileData = { ...profile, photoUri: url };
+    await saveProfile(user.uid, updated);
+    setProfile(updated);
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -284,6 +294,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout,
         resetPassword,
         updateUserProfile,
+        setFotoPerfilLocal,
       }}
     >
       {children}

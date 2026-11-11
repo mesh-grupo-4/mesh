@@ -131,6 +131,7 @@ export default function PerfilScreen() {
     nombre: profile?.nombre || 'U',
     apellido: profile?.apellido || '',
     color: theme.accent,
+    foto: profile?.photoUri,
   };
 
   const semanasRacha = racha?.semanas_consecutivas ?? 0;

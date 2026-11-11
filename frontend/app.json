@@ -68,7 +68,15 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Mesh necesita la cámara para escanear códigos QR de invitación a viajes."
+          "cameraPermission": "Mesh usa la cámara para escanear códigos QR de invitación a viajes y para sacarte la foto de perfil."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Mesh accede a tus fotos para que elijas tu foto de perfil.",
+          "cameraPermission": "Mesh usa la cámara para escanear códigos QR de invitación a viajes y para sacarte la foto de perfil.",
+          "microphonePermission": false
         }
       ],
       [

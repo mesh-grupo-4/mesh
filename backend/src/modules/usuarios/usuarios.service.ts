@@ -103,6 +103,7 @@ export class UsuariosService {
         telefono: true,
         actividad_preferida: true,
         rol_sistema: true,
+        foto_perfil: true,
       },
     })
   }
@@ -136,6 +137,7 @@ export class UsuariosService {
         telefono: true,
         actividad_preferida: true,
         rol_sistema: true,
+        foto_perfil: true,
       },
     })
   }
@@ -156,6 +158,7 @@ export class UsuariosService {
         apellido: true,
         actividad_preferida: true,
         visibilidad_logros: true,
+        foto_perfil: true,
       },
     })
     if (!usuario) {
@@ -177,6 +180,7 @@ export class UsuariosService {
       nombre: usuario.nombre,
       apellido: usuario.apellido,
       actividad_preferida: usuario.actividad_preferida,
+      foto_perfil: usuario.foto_perfil,
       es_yo: esYo,
       relacion_amistad: relacionAmistad,
       visibilidad_logros: usuario.visibilidad_logros,

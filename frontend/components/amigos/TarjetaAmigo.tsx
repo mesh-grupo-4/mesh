@@ -44,7 +44,11 @@ export function TarjetaAmigo({
       ]}
     >
       <View style={styles.contenido}>
-        <AvatarFallback nombre={amigo.nombre} size={Math.min(64, Math.round(ancho * 0.5))} />
+        <AvatarFallback
+          nombre={amigo.nombre}
+          size={Math.min(64, Math.round(ancho * 0.5))}
+          usuarioId={amigo.id}
+        />
         <Text style={[styles.nombre, { color: theme.text }]} numberOfLines={2}>
           {amigo.nombre}
         </Text>

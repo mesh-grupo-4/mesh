@@ -1,4 +1,6 @@
-import { Text, View, StyleSheet } from 'react-native';
+import { useState } from 'react';
+import { Image, Text, View, StyleSheet } from 'react-native';
+import { useFotoPerfil } from '@/lib/fotosPerfilStore';
 
 const AVATAR_COLORS = [
   '#4a9eff',
@@ -29,11 +31,18 @@ export function inicialesDe(nombre: string): string {
 type Props = {
   nombre: string;
   size?: number;
+  /**
+   * Con id, muestra la foto de perfil si la persona tiene. Sin id, solo
+   * iniciales: así quedan a propósito el mapa y la barra del viaje en vivo.
+   */
+  usuarioId?: string | null;
 };
 
-export function AvatarFallback({ nombre, size = 44 }: Props) {
+export function AvatarFallback({ nombre, size = 44, usuarioId }: Props) {
   const backgroundColor = colorFromName(nombre);
   const fontSize = size * 0.38;
+  const foto = useFotoPerfil(usuarioId);
+  const [fotoRota, setFotoRota] = useState<string | null>(null);
 
   return (
     <View
@@ -48,6 +57,15 @@ export function AvatarFallback({ nombre, size = 44 }: Props) {
       ]}
     >
       <Text style={[styles.iniciales, { fontSize }]}>{inicialesDe(nombre)}</Text>
+      {/* La foto tapa las iniciales: mientras carga o si falla, se ven ellas. */}
+      {foto && foto !== fotoRota ? (
+        <Image
+          source={{ uri: foto }}
+          style={[StyleSheet.absoluteFill, { borderRadius: size / 2 }]}
+          onError={() => setFotoRota(foto)}
+          accessibilityIgnoresInvertColors
+        />
+      ) : null}
     </View>
   );
 }
@@ -56,6 +74,7 @@ const styles = StyleSheet.create({
   avatar: {
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   iniciales: {
     color: '#fff',

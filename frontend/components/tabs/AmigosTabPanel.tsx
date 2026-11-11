@@ -375,7 +375,7 @@ export function AmigosTabPanel({ solicitudesAbiertas, onCerrarSolicitudes, onAbr
       style={[styles.fila, { backgroundColor: theme.surface, borderColor: theme.border }]}
       onPress={() => verPerfil(item.id)}
     >
-      <AvatarFallback nombre={item.nombre} />
+      <AvatarFallback nombre={item.nombre} usuarioId={item.id} />
       <View style={styles.filaContenido}>
         <Text style={[styles.nombre, { color: theme.text }]}>{item.nombre}</Text>
         <Text style={[styles.email, { color: theme.textDim }]}>{item.email}</Text>
@@ -538,6 +538,7 @@ export function AmigosTabPanel({ solicitudesAbiertas, onCerrarSolicitudes, onAbr
             <FilaNotificacion
               key={s.id}
               nombre={s.solicitante.nombre}
+              usuarioId={s.solicitante.id}
               mensaje={
                 <>
                   <Destacado>{s.solicitante.nombre}</Destacado> quiere agregarte como amigo

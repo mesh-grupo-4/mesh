@@ -998,7 +998,7 @@ export default function ViajeDetalleScreen() {
                             pressed && !esYo && { opacity: 0.85 },
                           ]}
                         >
-                          <Avatar person={dummyPerson} size="sm" />
+                          <Avatar person={dummyPerson} size="sm" usuarioId={part.usuario.id} />
                           <Text style={[styles.participantName, { color: theme.text }]} numberOfLines={1}>
                             {part.usuario.nombre}
                             {esYo ? ' (vos)' : ''}

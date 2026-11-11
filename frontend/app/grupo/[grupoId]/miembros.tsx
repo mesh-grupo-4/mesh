@@ -144,7 +144,7 @@ export default function MiembrosGrupoScreen() {
           pressed && !esYo && { opacity: 0.85 },
         ]}
       >
-        <Avatar person={dummyPerson} size="sm" ring={item.rol === 'lider'} />
+        <Avatar person={dummyPerson} size="sm" ring={item.rol === 'lider'} usuarioId={item.id} />
         
         <View style={styles.filaContenido}>
           <View style={styles.filaTitulo}>
