@@ -122,6 +122,7 @@ Crear un `.env` en `backend/` con los valores del entorno.
 | `PORT` | no | `3000` por defecto |
 | `HOST` | no | `0.0.0.0` por defecto |
 | `CORS_ORIGIN` | no | Origen permitido en producción. Solo aplica a Socket.io |
+| `LINKS_BASE_URL` | no | Dominio https de la landing para los links de ruta. Sin ella se generan links `mesh://` |
 | `DOCS_ENABLED` | no | `false` apaga Swagger UI en `/api/docs`, el login incluido |
 | `FIREBASE_WEB_API_KEY` | no | Habilita `POST /api/docs/login`. Es la Web API key del proyecto Firebase, la misma que ya viaja en el bundle del frontend (pública por diseño). Sin ella el login responde 503 |
 | `GOOGLE_MAPS_API_KEY` | no | Key de Google Maps Platform con **Routes API**, **Places API (New)** y **Geocoding API** habilitadas. Si está, `/api/routing/calcular` y `/api/geocoding/*` usan Google primero; sin ella (o si Google falla) se usan OSRM/Valhalla/Nominatim. Restringirla por IP del servidor, nunca exponerla al frontend |

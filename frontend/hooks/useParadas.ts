@@ -48,6 +48,8 @@ export type ParadaEntrante = {
   lng: number
   categoria: CategoriaParadaApi | null
   inicio: string
+  /** RN-045: el líder detuvo a todo el grupo. */
+  grupal?: boolean
 }
 
 export type SeguirParadaActiva = {
@@ -247,6 +249,64 @@ export function useParadas({
           )
         }
 
+        // RN-045: el líder detuvo a todo el grupo; un solo aviso, el suyo.
+        const onGrupalIniciada = (p: {
+          viajeId: string
+          liderId: string
+          nombre: string
+          lat: number
+          lng: number
+          categoria: CategoriaParadaApi | null
+          inicio: string
+          paradas: { paradaId: string; usuarioId: string }[]
+        }) => {
+          if (p.viajeId !== viajeId) return
+          const yo = userIdRef.current
+          const mia = p.paradas.find((x) => x.usuarioId === yo)
+          if (mia) {
+            setParadaActiva({
+              id: mia.paradaId,
+              viaje_id: viajeId,
+              usuario_id: yo,
+              lat: p.lat,
+              lng: p.lng,
+              categoria: p.categoria,
+              tipo: 'voluntaria',
+              inicio: p.inicio,
+              fin: null,
+              duracion_segundos: null,
+              grupal: true,
+            })
+          }
+          const delLider = p.paradas.find((x) => x.usuarioId === p.liderId)
+          if (p.liderId === yo || !delLider) return
+          const entrante: ParadaEntrante = {
+            paradaId: delLider.paradaId,
+            usuarioId: p.liderId,
+            nombre: p.nombre,
+            lat: p.lat,
+            lng: p.lng,
+            categoria: p.categoria,
+            inicio: p.inicio,
+            grupal: true,
+          }
+          setParadasEntrantes((prev) =>
+            prev.some((x) => x.paradaId === entrante.paradaId) ? prev : [...prev, entrante]
+          )
+        }
+
+        const onGrupalFinalizada = (p: {
+          viajeId: string
+          liderId: string
+          paradas: { paradaId: string; usuarioId: string }[]
+        }) => {
+          if (p.viajeId !== viajeId) return
+          if (p.paradas.some((x) => x.usuarioId === userIdRef.current)) setParadaActiva(null)
+          const cerradas = new Set(p.paradas.map((x) => x.paradaId))
+          setParadasEntrantes((prev) => prev.filter((x) => !cerradas.has(x.paradaId)))
+          setSeguirParada((prev) => (prev && cerradas.has(prev.paradaId) ? null : prev))
+        }
+
         // Lo que pasó durante una caída del socket (solicitudes, resoluciones,
         // un incidente detectado sobre uno mismo) se recupera por REST al reconectar.
         const offReconnect = onMeshSocketConnect(() => void refrescar())
@@ -255,8 +315,12 @@ export function useParadas({
         sock.on('viaje:solicitud_parada_resuelta', onResuelta)
         sock.on('viaje:parada_iniciada', onParadaIniciada)
         sock.on('viaje:parada_finalizada', onParadaFinalizada)
+        sock.on('viaje:parada_grupal_iniciada', onGrupalIniciada)
+        sock.on('viaje:parada_grupal_finalizada', onGrupalFinalizada)
         cleanup = () => {
           offReconnect()
+          sock.off('viaje:parada_grupal_iniciada', onGrupalIniciada)
+          sock.off('viaje:parada_grupal_finalizada', onGrupalFinalizada)
           sock.off('viaje:solicitud_parada', onSolicitud)
           sock.off('viaje:solicitud_parada_resuelta', onResuelta)
           sock.off('viaje:parada_iniciada', onParadaIniciada)
@@ -329,10 +393,10 @@ export function useParadas({
 
   /** US1 */
   const registrarParada = useCallback(
-    async (categoria: CategoriaParadaApi, pos: { lat: number; lng: number }) => {
+    async (categoria: CategoriaParadaApi, pos: { lat: number; lng: number }, grupal = false) => {
       setEnviando(true)
       try {
-        const parada = await iniciarParada(viajeId, { ...pos, categoria })
+        const parada = await iniciarParada(viajeId, { ...pos, categoria, ...(grupal ? { grupal } : {}) })
         setParadaActiva(parada)
         return parada
       } finally {

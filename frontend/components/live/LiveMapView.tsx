@@ -1,18 +1,29 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { StyleSheet, View } from 'react-native'
 
+import Colors from '@/constants/Colors'
 import { getMapStyle, type MapStyleId } from '@/components/route-config/mapStyles'
 import { PinMarker, PIN_ANCHOR } from '@/components/maps/PinMarker'
 import {
+  DURACION_ANIMACION_MS,
   MeshMapView,
-  ROTACION_NATIVA_MARCADORES,
+  SOPORTA_MARCADOR_PLANO,
   zoomFromLatDelta,
+  type MovimientoMarcador,
   type PolylineSpec,
   type MeshMapViewHandle,
   type MarkerSpec,
 } from '@/components/maps/MeshMapView'
+import { useCapaMapa } from '@/hooks/useCapaMapa'
 import type { MemberLocation } from '@/hooks/useLiveLocations'
 import type { AlertaApi } from '@/lib/alertasApi'
+import {
+  acercarAngulo,
+  acercarPosicion,
+  actualizarSeguimiento,
+  posicionEstimada,
+  type Seguimiento,
+} from '@/lib/geo/movimientoVisual'
 
 import { AlertMarker, alertMarkerKey, alertMarkerPopup } from './AlertMarker'
 import { GHOST_TRAIL_COLOR, GhostMarker } from './GhostMarker'
@@ -25,11 +36,25 @@ import { motivoParadaLegible } from '@/lib/paradasApi'
 /** Zoom con el que se centra el mapa en tu posición al entrar. */
 const ZOOM_INICIAL = 17
 const COLOR_GUIA_LUGAR = '#0e7490'
+/** Naranja de la app: el recorrido tiene que leerse claro sobre cualquier capa, también de noche. */
+const COLOR_RECORRIDO = Colors.light.accent
+const ANCHO_RECORRIDO = 7
+
+/** Cadencia de tu marcador y de la cámara. */
+const TICK_MOVIMIENTO_MS = 100
+/** Los demás integrantes se reparten un presupuesto fijo de comandos al mapa nativo. */
+const MS_POR_INTEGRANTE = 10
+/** Debajo de este cambio (≈ 0,3 m) no vale la pena mandar nada al mapa. */
+const UMBRAL_MOVIMIENTO_GRADOS = 0.000003
+const UMBRAL_GIRO_GRADOS = 0.2
+/** Cada cuánto se estira la punta de la traza hasta tu marcador. */
+const COLA_CADA_MS = 500
+const COLA_MIN_GRADOS = 0.00005
 
 export type LiveMapViewHandle = {
   focusOnCoordinate: (lat: number, lng: number) => void
   fitBoundsToCoords: (coords: [number, number][]) => void
-  /** Recentra sin tocar el zoom — para el modo "seguirme". */
+  /** Recentra sin tocar el zoom y orienta el mapa hacia donde vas. */
   panTo: (lat: number, lng: number) => void
 }
 
@@ -54,9 +79,16 @@ type Props = {
   fantasma?: { lat: number; lng: number; nombre: string; pausado: boolean; traza: [number, number][] } | null
   currentUserId: string
   initialCenter: { latitude: number; longitude: number } | null
-  mapStyle: MapStyleId
+  /** Si no se pasa, usa la vista de mapa elegida por el usuario. */
+  mapStyle?: MapStyleId
   /** El usuario arrastró el mapa a mano — señal para pausar el modo "seguirme". */
   onUserDrag?: () => void
+  /** Solo pantalla en vivo: entre pings los marcadores avanzan en vez de saltar. */
+  movimientoFluido?: boolean
+  /** Ruta planificada completa: los marcadores estimados avanzan sobre ella. */
+  rutaCompleta?: [number, number][] | null
+  /** Con `movimientoFluido`: la cámara te sigue y gira hacia donde vas. */
+  siguiendo?: boolean
   /** false = mapa de solo lectura (sin arrastre ni zoom), p. ej. una miniatura. */
   interactive?: boolean
   onReady?: () => void
@@ -76,15 +108,37 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
     initialCenter,
     mapStyle,
     onUserDrag,
+    movimientoFluido = false,
+    rutaCompleta = null,
+    siguiendo = false,
     interactive = true,
     onReady,
   },
   ref
 ) {
   const mapRef = useRef<MeshMapViewHandle>(null)
-  const capa = getMapStyle(mapStyle)
+  const [capaElegida] = useCapaMapa()
+  const capa = getMapStyle(mapStyle ?? capaElegida)
   const centeredOnce = useRef(false)
   const [mapaListo, setMapaListo] = useState(false)
+  /** Tramo entre el último ping y tu marcador, para que la traza no quede atrás. */
+  const [cola, setCola] = useState<[number, number][] | null>(null)
+
+  const seguimientos = useRef(new Map<string, Seguimiento>())
+  const dibujadas = useRef(new Map<string, { lat: number; lng: number }>())
+  const orientacionRef = useRef<number | null>(null)
+  const pausaCamaraRef = useRef(0)
+  const ultimaCamaraRef = useRef<{ lat: number; lng: number; heading: number | null } | null>(null)
+
+  // El bucle de movimiento lee lo último sin tener que reiniciarse.
+  const siguiendoRef = useRef(siguiendo)
+  siguiendoRef.current = siguiendo
+  const rutaRef = useRef(rutaCompleta)
+  rutaRef.current = rutaCompleta
+  const finTrazaRef = useRef<[number, number] | null>(null)
+  finTrazaRef.current = breadcrumb?.at(-1)?.at(-1) ?? null
+  const periodoRestoRef = useRef(TICK_MOVIMIENTO_MS)
+  periodoRestoRef.current = Math.max(TICK_MOVIMIENTO_MS, members.length * MS_POR_INTEGRANTE)
 
   useImperativeHandle(ref, () => ({
     focusOnCoordinate(lat, lng) {
@@ -97,7 +151,12 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
       )
     },
     panTo(lat, lng) {
-      mapRef.current?.panTo({ latitude: lat, longitude: lng })
+      const rumbo = SOPORTA_MARCADOR_PLANO ? (seguimientos.current.get(currentUserId)?.rumbo ?? null) : null
+      if (rumbo != null) orientacionRef.current = rumbo
+      const pos = dibujadas.current.get(currentUserId) ?? { lat, lng }
+      // Deja terminar la animación: el seguimiento continuo la cortaría de golpe.
+      pausaCamaraRef.current = Date.now() + DURACION_ANIMACION_MS + 50
+      mapRef.current?.panTo({ latitude: pos.lat, longitude: pos.lng }, rumbo ?? undefined)
     },
   }))
 
@@ -106,8 +165,124 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
   useEffect(() => {
     if (!initialCenter || !mapaListo || centeredOnce.current) return
     centeredOnce.current = true
+    pausaCamaraRef.current = Date.now() + DURACION_ANIMACION_MS + 50
     mapRef.current?.animateTo(initialCenter, ZOOM_INICIAL)
   }, [initialCenter, mapaListo])
+
+  // Cada ping (real) reinicia la estimación de ese integrante.
+  useEffect(() => {
+    if (!movimientoFluido) return
+    const ahora = Date.now()
+    const presentes = new Set<string>()
+    for (const m of members) {
+      presentes.add(m.usuarioId)
+      seguimientos.current.set(
+        m.usuarioId,
+        actualizarSeguimiento(
+          seguimientos.current.get(m.usuarioId) ?? null,
+          {
+            lat: m.lat,
+            lng: m.lng,
+            rumbo: m.rumbo,
+            enMovimiento: m.estado === 'en_movimiento' && !m.isStale,
+          },
+          ahora,
+          rutaRef.current
+        )
+      )
+    }
+    for (const id of seguimientos.current.keys()) {
+      if (presentes.has(id)) continue
+      seguimientos.current.delete(id)
+      dibujadas.current.delete(id)
+    }
+  }, [members, movimientoFluido])
+
+  // Bucle de dibujo: mueve marcadores y cámara directo en el mapa nativo, sin
+  // renderizar React. Tu marcador va siempre a tope; el resto, según cuántos sean.
+  useEffect(() => {
+    if (!movimientoFluido) return
+    let ultimoPropio = Date.now()
+    let ultimoResto = ultimoPropio
+    let ultimaCola = 0
+
+    const moverCamara = (
+      rumbo: number | null,
+      pos: { lat: number; lng: number },
+      ahora: number,
+      dt: number
+    ) => {
+      if (!siguiendoRef.current || ahora < pausaCamaraRef.current) return
+      const objetivo = SOPORTA_MARCADOR_PLANO ? rumbo : null
+      const center = { latitude: pos.lat, longitude: pos.lng }
+
+      if (objetivo != null && orientacionRef.current == null) {
+        // Primer rumbo conocido: gira animando en vez de pegar el salto.
+        orientacionRef.current = objetivo
+        pausaCamaraRef.current = ahora + DURACION_ANIMACION_MS + 50
+        mapRef.current?.panTo(center, objetivo)
+        return
+      }
+      if (objetivo != null && orientacionRef.current != null) {
+        orientacionRef.current = acercarAngulo(orientacionRef.current, objetivo, dt)
+      }
+
+      const heading = orientacionRef.current
+      const previa = ultimaCamaraRef.current
+      if (
+        previa &&
+        Math.abs(previa.lat - pos.lat) + Math.abs(previa.lng - pos.lng) < UMBRAL_MOVIMIENTO_GRADOS &&
+        (heading == null || previa.heading == null || Math.abs(previa.heading - heading) < UMBRAL_GIRO_GRADOS)
+      ) {
+        return
+      }
+      ultimaCamaraRef.current = { lat: pos.lat, lng: pos.lng, heading }
+      mapRef.current?.seguir(center, heading ?? undefined)
+    }
+
+    const tick = () => {
+      const ahora = Date.now()
+      const dtPropio = ahora - ultimoPropio
+      ultimoPropio = ahora
+      const dtResto = ahora - ultimoResto
+      const tocaResto = dtResto >= periodoRestoRef.current
+      if (tocaResto) ultimoResto = ahora
+
+      const cambios: MovimientoMarcador[] = []
+      for (const [id, seguimiento] of seguimientos.current) {
+        const esYo = id === currentUserId
+        if (!esYo && !tocaResto) continue
+        const objetivo = posicionEstimada(seguimiento, ahora, rutaRef.current)
+        const actual = dibujadas.current.get(id)
+        const siguiente = actual ? acercarPosicion(actual, objetivo, esYo ? dtPropio : dtResto) : objetivo
+        dibujadas.current.set(id, siguiente)
+        if (
+          actual &&
+          Math.abs(actual.lat - siguiente.lat) + Math.abs(actual.lng - siguiente.lng) < UMBRAL_MOVIMIENTO_GRADOS
+        ) {
+          continue
+        }
+        cambios.push({ id, ...siguiente }, { id: `rumbo-${id}`, ...siguiente })
+      }
+      if (cambios.length > 0) mapRef.current?.moverMarcadores(cambios)
+
+      const yo = seguimientos.current.get(currentUserId)
+      const posYo = dibujadas.current.get(currentUserId)
+      if (!yo || !posYo) return
+      moverCamara(yo.rumbo, posYo, ahora, dtPropio)
+
+      if (ahora - ultimaCola >= COLA_CADA_MS) {
+        ultimaCola = ahora
+        const fin = finTrazaRef.current
+        const separados =
+          fin != null && Math.abs(fin[0] - posYo.lat) + Math.abs(fin[1] - posYo.lng) > COLA_MIN_GRADOS
+        setCola(fin && separados ? [fin, [posYo.lat, posYo.lng]] : null)
+      }
+    }
+
+    const id = setInterval(tick, TICK_MOVIMIENTO_MS)
+    return () => clearInterval(id)
+  }, [movimientoFluido, currentUserId])
 
   const fallbackCenter = initialCenter ?? { latitude: -31.4167, longitude: -64.1833 }
   const fallbackZoom = zoomFromLatDelta(initialCenter ? 0.04 : 0.08)
@@ -120,29 +295,24 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
       content: <MemberMarker member={m} isMe={m.usuarioId === currentUserId} />,
       contentKey: memberMarkerKey({ member: m, isMe: m.usuarioId === currentUserId }),
       zIndex: m.usuarioId === currentUserId ? 1000 : 1,
+      posicionDibujada: () => dibujadas.current.get(m.usuarioId),
     }))
 
-    // Flecha de rumbo de cada integrante en movimiento, justo debajo de su
-    // avatar. Con Google Maps el bitmap no cambia y el giro es la `rotation`
-    // nativa; sin ella (Apple Maps) la flecha se gira dentro de su vista.
+    // Flecha de rumbo de cada integrante en movimiento, justo debajo de su avatar.
+    // Marcador plano: apunta bien respecto del mapa aunque el mapa esté girado.
     const rumbos: MarkerSpec[] = members.filter(mostrarRumbo).map((m) => {
       const isMe = m.usuarioId === currentUserId
       const color = rumboColor(m, isMe)
-      const base = { id: `rumbo-${m.usuarioId}`, lat: m.lat, lng: m.lng, zIndex: isMe ? 999 : 0 }
-      if (ROTACION_NATIVA_MARCADORES) {
-        return {
-          ...base,
-          content: <RumboMarker color={color} />,
-          contentKey: color,
-          rotation: m.rumbo,
-          flat: true,
-        }
-      }
       const giro = rumboEnPasos(m.rumbo)
       return {
-        ...base,
+        id: `rumbo-${m.usuarioId}`,
+        lat: m.lat,
+        lng: m.lng,
+        zIndex: isMe ? 999 : 0,
         content: <RumboMarker color={color} giro={giro} />,
         contentKey: `${color}|${giro}`,
+        flat: true,
+        posicionDibujada: () => dibujadas.current.get(m.usuarioId),
       }
     })
 
@@ -229,25 +399,25 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
     ]
   }, [members, alertasEnMapa, guiaParada, guiaAlerta, guiaLugar, fantasma, currentUserId])
 
-  const polylines = useMemo((): PolylineSpec[] => {
+  const polylinesBase = useMemo((): PolylineSpec[] => {
     const list: PolylineSpec[] = []
     if (breadcrumb) {
       for (const segmento of breadcrumb) {
         if (segmento.length < 2) continue
         list.push({
           coords: segmento,
-          color: capa.routeStrokeColor,
-          width: 4,
-          opacity: 0.55,
+          color: COLOR_RECORRIDO,
+          width: ANCHO_RECORRIDO,
+          opacity: 1,
         })
       }
     }
     if (routeRemaining && routeRemaining.length > 1) {
       list.push({
         coords: routeRemaining,
-        color: capa.routeStrokeColor,
-        width: 5,
-        opacity: 0.95,
+        color: COLOR_RECORRIDO,
+        width: ANCHO_RECORRIDO,
+        opacity: 1,
       })
     }
     if (guiaParada && guiaParada.coords.length > 1) {
@@ -278,7 +448,16 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
       list.push({ coords: fantasma.traza, color: GHOST_TRAIL_COLOR, width: 3, opacity: 0.35 })
     }
     return list
-  }, [breadcrumb, routeRemaining, guiaParada, guiaAlerta, guiaLugar, fantasma, capa.routeStrokeColor])
+  }, [breadcrumb, routeRemaining, guiaParada, guiaAlerta, guiaLugar, fantasma])
+
+  // Va al final y aparte: así, cuando solo cambia la punta, no se redibuja el resto.
+  const polylines = useMemo(
+    () =>
+      cola
+        ? [...polylinesBase, { coords: cola, color: COLOR_RECORRIDO, width: ANCHO_RECORRIDO, opacity: 1 }]
+        : polylinesBase,
+    [polylinesBase, cola]
+  )
 
   return (
     <View style={styles.container}>

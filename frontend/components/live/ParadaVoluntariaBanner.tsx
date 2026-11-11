@@ -7,6 +7,8 @@ type Props = {
   motivo: string | null
   restantes: number
   ocupado: boolean
+  /** RN-045: el líder detuvo a todo el grupo. */
+  grupal?: boolean
   onSeguir: () => void
   onIgnorar: () => void
 }
@@ -16,12 +18,13 @@ export function ParadaVoluntariaBanner({
   motivo,
   restantes,
   ocupado,
+  grupal = false,
   onSeguir,
   onIgnorar,
 }: Props) {
   return (
     <View style={styles.banner}>
-      <Text style={styles.titulo}>{nombre} se detuvo</Text>
+      <Text style={styles.titulo}>{grupal ? `${nombre} detuvo al grupo` : `${nombre} se detuvo`}</Text>
       {motivo ? <Text style={styles.motivo}>Para {motivo}</Text> : null}
       {restantes > 1 ? (
         <Text style={styles.restantes}>+{restantes - 1} parada(s) más en espera</Text>

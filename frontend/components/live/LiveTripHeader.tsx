@@ -28,6 +28,10 @@ type Props = {
 }
 
 const MAX_AVATARES_COMPACTOS = 4
+const ICONO_VOLVER_TAM = 18
+
+/** Alto del header cerrado sin contar el safe area: los flotantes del mapa arrancan debajo. */
+export const ALTO_HEADER_COMPACTO = 37
 
 export function LiveTripHeader({
   tripName,
@@ -39,12 +43,12 @@ export function LiveTripHeader({
   onExpandedChange,
   tipoActividad = 'otro',
 }: Props) {
-  const { altoContraste, escalaBotones } = uiConfigPorActividad(tipoActividad)
+  const { altoContraste } = uiConfigPorActividad(tipoActividad)
   const theme = useTheme(altoContraste)
-  const backBtnSize = Math.round(40 * escalaBotones)
   const insets = useSafeAreaInsets()
   const [expandido, setExpandido] = useState(false)
   const [showEta, setShowEta] = useState(false)
+  const [listaAbierta, setListaAbierta] = useState(false)
 
   useEffect(() => {
     onExpandedChange?.(expandido)
@@ -57,10 +61,11 @@ export function LiveTripHeader({
   }, [expandido])
 
   useEffect(() => {
-    if (!expandido) return
+    // La lista de integrantes vive dentro del panel: cerrarlo la cerraría a ella también.
+    if (!expandido || listaAbierta) return
     const id = setTimeout(() => setExpandido(false), 8000)
     return () => clearTimeout(id)
-  }, [expandido])
+  }, [expandido, listaAbierta])
 
   const etaLine = !hasRoute
     ? 'Sin ruta configurada'
@@ -80,7 +85,7 @@ export function LiveTripHeader({
       style={[
         styles.wrap,
         {
-          paddingTop: insets.top + 8,
+          paddingTop: insets.top + 2,
           backgroundColor: theme.surface,
           borderBottomColor: theme.border,
         },
@@ -99,19 +104,12 @@ export function LiveTripHeader({
               e.stopPropagation?.()
               onBack()
             }}
-            style={({ pressed }) => [
-              styles.backBtn,
-              {
-                width: backBtnSize,
-                height: backBtnSize,
-                borderRadius: backBtnSize / 2,
-                backgroundColor: pressed ? theme.surface2 : theme.surface,
-                borderColor: theme.border,
-              },
-            ]}
+            // La flecha es chica, pero el área táctil sigue siendo cómoda (RN-052).
+            hitSlop={14}
+            style={({ pressed }) => [styles.backBtn, pressed && styles.backBtnPressed]}
             accessibilityLabel="Volver"
           >
-            <Feather name={ICONO_VOLVER} size={Math.round(20 * escalaBotones)} color={theme.text} />
+            <Feather name={ICONO_VOLVER} size={ICONO_VOLVER_TAM} color={theme.text} />
           </Pressable>
 
           <View style={styles.titleCenter}>
@@ -213,7 +211,11 @@ export function LiveTripHeader({
               {etaLine}
             </Text>
             {members.length > 0 ? (
-              <LiveMembersBar members={members} currentUserId={currentUserId} />
+              <LiveMembersBar
+                members={members}
+                currentUserId={currentUserId}
+                onListaAbiertaChange={setListaAbierta}
+              />
             ) : null}
           </Animated.View>
         ) : null}
@@ -233,11 +235,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   bar: {
-    paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingHorizontal: 12,
+    paddingBottom: 4,
   },
   barExpanded: {
-    paddingBottom: 14,
+    paddingBottom: 12,
   },
   barPressed: {
     opacity: 0.96,
@@ -246,13 +248,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    minHeight: 40,
+    minHeight: 30,
   },
   backBtn: {
-    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 6,
+    marginRight: 4,
+  },
+  backBtnPressed: {
+    opacity: 0.6,
   },
   trailing: {
     width: 24,
@@ -262,7 +266,7 @@ const styles = StyleSheet.create({
   titleCenter: {
     flex: 1,
     minWidth: 0,
-    minHeight: 32,
+    minHeight: 28,
     justifyContent: 'center',
   },
   mainTitle: {
@@ -272,7 +276,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
   },
   mainTitleCompact: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
     textAlign: 'left',
     letterSpacing: -0.2,

@@ -5,10 +5,11 @@
 PrivacidadUsuario:
   get:
     operationId: getPrivacidadUsuario
-    summary: Obtener mi configuración de privacidad de ubicación
+    summary: Obtener mi configuración de privacidad
     description: |
-      Consentimiento informado de geolocalización (RN-110) y valor por defecto con el
-      que arranca el compartir en cada viaje nuevo (RN-111).
+      Consentimiento informado de geolocalización (RN-110), valor por defecto con el
+      que arranca el compartir en cada viaje nuevo (RN-111) y quién puede ver mis
+      logros en el perfil (RN-077).
 
       La app usa `consentimiento_vigente` para decidir si tiene que volver a mostrar el
       texto: queda en `false` cuando se publica una versión nueva, aunque la persona ya
@@ -30,6 +31,7 @@ PrivacidadUsuario:
               consentimiento_version: '2026-09-15'
               version_vigente: '2026-09-15'
               ventana_registro_accesos_min: 10
+              visibilidad_logros: todos
       '401':
         $ref: '../components/responses.yaml#/Unauthorized'
       '404':
@@ -42,7 +44,8 @@ PrivacidadUsuario:
     summary: Otorgar o revocar el consentimiento y fijar el default
     description: |
       Registra el consentimiento informado de geolocalización con la versión vigente,
-      lo revoca, o cambia el valor por defecto del compartir.
+      lo revoca, cambia el valor por defecto del compartir o la visibilidad de los
+      logros del perfil (`visibilidad_logros`, RN-077).
 
       **Revocar tiene efecto inmediato (RN-113):** además de dejar de publicar, borra
       las posiciones vivas ya publicadas en todos los viajes y emite
@@ -78,6 +81,7 @@ PrivacidadUsuario:
               consentimiento_version: '2026-09-15'
               version_vigente: '2026-09-15'
               ventana_registro_accesos_min: 10
+              visibilidad_logros: todos
       '400':
         $ref: '../components/responses.yaml#/BadRequest'
       '401':

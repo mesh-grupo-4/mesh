@@ -112,7 +112,6 @@ export function MiniMapaEnCurso({
         members={miembros}
         currentUserId={userId}
         initialCenter={null}
-        mapStyle="standard"
         interactive={false}
         onReady={() => setMapaListo(true)}
       />

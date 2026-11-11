@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@prisma/client'
 import { nombreVisible } from '../../lib/nombres'
 import { HttpError } from '../../lib/httpError'
+import { gravedadDeAlerta } from '../../lib/gravedadAlerta'
 import { getIo } from '../../realtime/ioRegistry'
 import { ParadasService, afectadoPorIncidente } from '../paradas/paradas.service'
 import { esIntegranteActivo, WHERE_INTEGRANTE_ACTIVO } from '../viajes/viajes.membership'
@@ -298,6 +299,7 @@ export class AlertasService {
           body: mensaje ?? undefined,
           data: { viajeId, tipo: 'alerta' },
           sound: 'default' as const,
+          gravedad: gravedadDeAlerta(tipo),
         }))
       )
     } catch (e) {

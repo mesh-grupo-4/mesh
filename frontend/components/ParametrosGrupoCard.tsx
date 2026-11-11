@@ -16,6 +16,7 @@ type Props = {
   editable: boolean
   guardando: boolean
   onGuardar: (input: ParametrosViajeInput) => void
+  inicialAbierto?: boolean
 }
 
 function clamp(v: number, min: number, max: number): number {
@@ -26,9 +27,9 @@ function clamp(v: number, min: number, max: number): number {
  * SCRUM-26 / RN-025: velocidad esperada, separación máxima y tolerancia de atraso
  * del grupo. Nacen con los defaults de la actividad; el líder los ajusta acá.
  */
-export function ParametrosGrupoCard({ viaje, editable, guardando, onGuardar }: Props) {
+export function ParametrosGrupoCard({ viaje, editable, guardando, onGuardar, inicialAbierto = false }: Props) {
   const theme = useTheme()
-  const [abierto, setAbierto] = useState(false)
+  const [abierto, setAbierto] = useState(inicialAbierto)
 
   const filas: {
     key: keyof ParametrosViajeInput

@@ -90,6 +90,34 @@ Migraciones: `20260821170000_alertas`, `20260828190000_alertas_solo_lider`, `202
 **Push** (RN-040): a todos los integrantes confirmados salvo el autor. El título sale del tipo
 ("Carga de combustible", "Desvío en la ruta", …) y el cuerpo es el mensaje, si escribió uno.
 
+**Gravedad y vibración.** Cada aviso del viaje tiene una gravedad, que decide cómo vibra. Vibra en
+**todas** las actividades (moto y auto incluidas); running y trekking repiten el patrón de lo
+importante y lo crítico porque no miran la pantalla (RN-052).
+
+| Gravedad | Qué incluye | Patrón (ms) | Canal Android |
+|---|---|---|---|
+| `critica` | alerta `peligro`, posible incidente, pedido de ayuda, accidente | 3 pulsos largos `[0,700,200,700,200,700]` | `alertas-criticas` (MAX) |
+| `importante` | `parada`, `combustible`, `desvio`, `atraso`, paradas del grupo y solicitudes | 2 pulsos `[0,350,150,350]` | `viajes` (HIGH) |
+| `informativa` | alerta `informacion`, pedido de ayuda cancelado | 1 pulso `[0,200]` | `avisos` (DEFAULT) |
+
+- Con la app abierta vibra el dispositivo (`frontend/lib/haptics.ts`, `useHapticaAlEntrar` en la
+  pantalla del viaje). La llegada a destino usa un patrón propio (`exito`).
+- Con la app cerrada vibra la push: el backend manda `channelId` y `priority` según la gravedad
+  (`backend/src/lib/gravedadAlerta.ts` → `expoPush.ts`) y los canales los crea
+  `frontend/hooks/usePushNotifications.ts`. La gravedad viaja también en `data.gravedad`.
+- Android no deja cambiar la vibración de un canal ya creado: en un dispositivo que ya tenía el
+  canal `viajes` hay que reinstalar la app para ver el patrón nuevo.
+- **"¿Estás bien?" insiste.** Mientras la persona tiene un posible incidente abierto y no
+  respondió, el patrón crítico se repite cada **5 s** (`useHapticaCriticaRepetida`). Corta al
+  tocar "Estoy bien" o "Necesito ayuda".
+- **Sin doble aviso.** Con la pantalla del viaje abierta, las push de ese mismo viaje no suenan ni
+  muestran banner (quedan en la bandeja): el aviso ya se ve y vibra en la app. La pantalla lo
+  declara con `marcarViajeEnPantalla`; aplica solo a las push que traen `data.gravedad`.
+- **Preferencia "Vibración de avisos"** (Perfil, guardada en el dispositivo,
+  `frontend/lib/vibracionPrefs.ts`): apagarla silencia lo informativo y lo importante con la app
+  abierta. Lo **crítico vibra siempre**. Las push con la app cerrada se silencian por canal desde
+  los ajustes de notificaciones de Android.
+
 ---
 
 ## Interfaz
@@ -97,8 +125,9 @@ Migraciones: `20260821170000_alertas`, `20260828190000_alertas_solo_lider`, `202
 **US1** — En el mapa en vivo: campana con contador y botón `+` para quien puede crear.
 Al componer: tipo → mensaje predeterminado editable → opcional "Marcar en el mapa".
 La alerta entrante aparece como banner sobre el mapa; con ubicación: **Seguir** / **Ignorar**.
-Sin ubicación: **Entendido**. La pantalla `/viaje/[viajeId]/alertas` lista todo con color
-por tipo y hora en UTC-3 (RN-105).
+Sin ubicación: **Entendido**. La pantalla `/viaje/[viajeId]/alertas` separa en dos pestañas:
+**Activas** (activa y pausada, con color por tipo) y **Resueltas** (resuelta y cancelada, en gris).
+Hora en UTC-3 (RN-105).
 
 En detalle del viaje (grupal): toggle **Solo el líder crea alertas** junto a la config de incidente.
 

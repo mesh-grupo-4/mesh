@@ -127,6 +127,21 @@ enum EstadoAmistad {
   rechazada
 }
 
+/// RN-077: quién puede ver los logros (estadísticas, racha e insignias) de un perfil.
+enum VisibilidadLogros {
+  todos
+  amigos
+  solo_yo
+}
+
+/// RN-078: rareza de una insignia, fija por catálogo. Solo cambia cómo se ve.
+enum RarezaInsignia {
+  comun
+  rara
+  epica
+  legendaria
+}
+
 enum EstadoViajeIntegrante {
   pendiente
   confirmado
@@ -156,11 +171,13 @@ model Usuario {
   push_token          String?        @map("push_token")
 
   /// RN-110: consentimiento informado de geolocalización. Null = todavía no lo dio.
-  consentimiento_ubicacion_at      DateTime? @map("consentimiento_ubicacion_at")
+  consentimiento_ubicacion_at      DateTime?         @map("consentimiento_ubicacion_at")
   /// Versión del texto aceptado: si se publica una nueva, hay que volver a pedirlo.
-  consentimiento_ubicacion_version String?   @map("consentimiento_ubicacion_version")
+  consentimiento_ubicacion_version String?           @map("consentimiento_ubicacion_version")
   /// RN-111: valor con el que arranca `privacidad_viaje` en cada viaje nuevo.
-  comparte_ubicacion_default       Boolean   @default(true) @map("comparte_ubicacion_default")
+  comparte_ubicacion_default       Boolean           @default(true) @map("comparte_ubicacion_default")
+  /// RN-077: quién ve estadísticas, racha e insignias en el perfil público.
+  visibilidad_logros               VisibilidadLogros @default(todos) @map("visibilidad_logros")
 
   /// RN-120: rol de plataforma. Solo un superadmin puede cambiarlo (RN-122).
   rol_sistema       RolSistema @default(usuario) @map("rol_sistema")
@@ -267,6 +284,8 @@ model Amistad {
 model Viaje {
   id                          String        @id @default(uuid()) @db.Uuid
   creador_id                  String        @map("creador_id") @db.Uuid
+  /// RN-015: código corto para sumarse escribiéndolo (alternativa al QR). Lo genera la base.
+  codigo_invitacion           String        @unique @default(dbgenerated("generar_codigo_viaje()")) @map("codigo_invitacion")
   nombre                      String?
   es_grupal                   Boolean       @map("es_grupal")
   tipo_actividad              TipoActividad @map("tipo_actividad")
@@ -384,18 +403,18 @@ model ViajeGrupo {
 }
 
 model ViajeIntegrante {
-  viaje_id        String                @map("viaje_id") @db.Uuid
-  usuario_id      String                @map("usuario_id") @db.Uuid
-  estado          EstadoViajeIntegrante
-  origen          OrigenViajeIntegrante
-  grupo_origen_id String?               @map("grupo_origen_id") @db.Uuid
-  created_at      DateTime              @default(now()) @map("created_at")
-  fecha_salida    DateTime?             @map("fecha_salida")
+  viaje_id            String                @map("viaje_id") @db.Uuid
+  usuario_id          String                @map("usuario_id") @db.Uuid
+  estado              EstadoViajeIntegrante
+  origen              OrigenViajeIntegrante
+  grupo_origen_id     String?               @map("grupo_origen_id") @db.Uuid
+  created_at          DateTime              @default(now()) @map("created_at")
+  fecha_salida        DateTime?             @map("fecha_salida")
   /// El participante quitó el viaje finalizado de su historial. Solo afecta su lista.
-  oculto_en_historial Boolean           @default(false) @map("oculto_en_historial")
+  oculto_en_historial Boolean               @default(false) @map("oculto_en_historial")
   /// RN-029b: momento en que se sumó al viaje en curso ("Me sumo"). Sin check-in no hay
   /// tracking, motor de eventos ni alertas en vivo para esta persona.
-  check_in_at     DateTime?             @map("check_in_at")
+  check_in_at         DateTime?             @map("check_in_at")
 
   viaje        Viaje   @relation(fields: [viaje_id], references: [id], onDelete: Cascade)
   usuario      Usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
@@ -490,6 +509,8 @@ model RutaPlantilla {
   linestring_geojson     Json          @map("linestring_geojson")
   distancia_planeada_m   Float?        @map("distancia_planeada_m")
   tiempo_estimado_seg    Int?          @map("tiempo_estimado_seg")
+  /// Ítems que se copian al checklist de quien crea un viaje con esta plantilla. Vacío si no se guardó.
+  checklist              String[]      @default([])
   created_at             DateTime      @default(now()) @map("created_at")
 
   usuario             Usuario               @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
@@ -563,6 +584,8 @@ model Parada {
   fin             DateTime?
   /// RN-036: el integrante confirmó que está bien tras un posible incidente.
   confirmado_bien Boolean?         @map("confirmado_bien")
+  /// RN-045: la abrió el líder para todo el grupo; al retomar él, se cierran juntas.
+  grupal          Boolean          @default(false)
 
   viaje   Viaje   @relation(fields: [viaje_id], references: [id], onDelete: Cascade)
   usuario Usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
@@ -652,6 +675,8 @@ model Insignia {
   descripcion           String?
   /// Nombre de ícono de @expo/vector-icons/Feather.
   icono                 String
+  /// RN-078: define el estilo visual (color, marco, brillo). No afecta el otorgamiento.
+  rareza                RarezaInsignia @default(comun)
   criterio_distancia_m  Float?         @map("criterio_distancia_m")
   criterio_duracion_seg Int?           @map("criterio_duracion_seg")
   criterio_actividad    TipoActividad? @map("criterio_actividad")
@@ -819,6 +844,10 @@ model RecorridoPublicado {
   /// Primer punto de la traza: el filtro por zona (SCRUM-62) usa ST_DWithin sobre él.
   inicio_lat     Float?        @map("inicio_lat")
   inicio_lng     Float?        @map("inicio_lng")
+  /// Nota del autor al publicar. No son comentarios de la comunidad (RN-083).
+  comentario     String?       @db.VarChar(280)
+  /// Textos del checklist propio, solo si el autor eligió compartirlo. Vacío si no.
+  checklist      String[]      @default([])
   activo         Boolean       @default(true)
   publicado_at   DateTime      @default(now()) @map("publicado_at")
 

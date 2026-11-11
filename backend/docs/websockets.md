@@ -284,6 +284,20 @@ El cliente refresca el detalle del viaje: desde ese momento las acciones de líd
 (iniciar, finalizar, aprobar paradas) son del nuevo líder. Al nuevo líder le llega además
 una notificación push.
 
+### `viaje:actualizado`
+
+Emitido por `ViajesService.actualizarViaje()` (`PATCH /api/viajes/{viajeId}`) cada vez que
+el líder cambia la fecha, los parámetros del grupo (RN-025) o la configuración de alertas.
+
+```jsonc
+{
+  "viajeId": "3f2c9a10-..."
+}
+```
+
+No lleva los valores: el cliente vuelve a pedir el detalle (`GET /api/viajes/{viajeId}`).
+El motor de eventos no depende de este evento, relee el viaje en cada ping.
+
 ### `viaje:ubicacion_oculta`
 
 Emitido por `PrivacidadService` cuando alguien apaga el compartir ubicación en un viaje
@@ -406,6 +420,32 @@ descarga la traza histórica por REST y la anima localmente.
 | `viaje:parada_finalizada` | Retomar viaje (US3), confirmar "Estoy bien" (RN-036) o el líder cancela/resuelve la alerta del incidente (RN-042) |
 | `viaje:solicitud_parada` | Solicitud de parada al líder (US2) |
 | `viaje:solicitud_parada_resuelta` | El líder aprueba o rechaza la solicitud |
+| `viaje:parada_grupal_iniciada` | El líder detiene a todo el grupo (RN-045) |
+| `viaje:parada_grupal_finalizada` | El líder retoma una parada grupal (RN-045) |
+
+Las paradas grupales emiten un único evento con la lista de integrantes, no uno por persona (RN-033):
+
+```jsonc
+// viaje:parada_grupal_iniciada
+{
+  "viajeId": "...",
+  "liderId": "...",
+  "nombre": "Leo Díaz",
+  "lat": -31.4201,   // punto del líder, igual para todos (RN-111)
+  "lng": -64.1888,
+  "categoria": "descanso",
+  "inicio": "2026-08-21T17:05:00.000Z",
+  "paradas": [{ "paradaId": "...", "usuarioId": "..." }]
+}
+
+// viaje:parada_grupal_finalizada
+{
+  "viajeId": "...",
+  "liderId": "...",
+  "fin": "2026-08-21T17:25:00.000Z",
+  "paradas": [{ "paradaId": "...", "usuarioId": "..." }]
+}
+```
 
 Payload de `viaje:parada_iniciada` cuando el motor detecta detención sospechosa:
 
@@ -440,6 +480,7 @@ Para paradas voluntarias, `estado` es `detenido_voluntario`. El frontend en `liv
 | `viaje:participante_salio` | servidor → sala | — | — |
 | `viaje:participante_sumado` | servidor → sala | — | solo la propia persona la dispara |
 | `viaje:lider_cambiado` | servidor → sala | — | solo el líder la dispara |
+| `viaje:actualizado` | servidor → sala | — | solo el líder la dispara |
 | `viaje:ubicacion_oculta` | servidor → sala | — | solo la propia persona la dispara |
 | `viaje:alerta` | servidor → sala | — | — |
 | `viaje:alerta_actualizada` | servidor → sala | — | — |
@@ -448,6 +489,8 @@ Para paradas voluntarias, `estado` es `detenido_voluntario`. El frontend en `liv
 | `viaje:parada_finalizada` | servidor → sala | — | — |
 | `viaje:solicitud_parada` | servidor → sala | — | — |
 | `viaje:solicitud_parada_resuelta` | servidor → sala | — | — |
+| `viaje:parada_grupal_iniciada` | servidor → sala | — | solo el líder la dispara |
+| `viaje:parada_grupal_finalizada` | servidor → sala | — | solo el líder la dispara |
 
 ## Escala
 

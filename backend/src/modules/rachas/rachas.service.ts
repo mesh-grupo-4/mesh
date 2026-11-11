@@ -1,5 +1,5 @@
 import type { PrismaClient } from '@prisma/client'
-import { HttpError } from '../../lib/httpError'
+import { assertPuedeVerLogros } from '../privacidad/logros.acceso'
 import { diaArg, inicioBalde } from '../reportes/reportes.periodo'
 
 /** RN-075: hitos que disparan una notificación de logro. */
@@ -15,6 +15,30 @@ function semanaDe(instante: Date): string {
 /** Diferencia en semanas completas entre dos claves de `semanaDe` (b - a). */
 function diffSemanas(a: string, b: string): number {
   return Math.round((Date.parse(b) - Date.parse(a)) / MS_SEMANA)
+}
+
+/**
+ * Racha "vigente" al momento de leer, sin mutar nada: si ya pasó una semana completa sin
+ * actividad desde la última registrada, se muestra en 0 aunque la fila en base todavía no se
+ * haya reiniciado (eso lo hace el job diario). Así nunca miente, corra o no el job ese día.
+ */
+export function calcularRachaVigente(
+  fila: { semanas_consecutivas: number; ultima_actividad: Date } | null,
+  ahora: Date
+): { semanas_consecutivas: number; en_riesgo: boolean } {
+  if (!fila || fila.semanas_consecutivas === 0) {
+    return { semanas_consecutivas: 0, en_riesgo: false }
+  }
+
+  const diff = diffSemanas(semanaDe(fila.ultima_actividad), semanaDe(ahora))
+  if (diff >= 2) {
+    return { semanas_consecutivas: 0, en_riesgo: false }
+  }
+  return {
+    semanas_consecutivas: fila.semanas_consecutivas,
+    // diff === 1: la semana pasada tuvo actividad, esta todavía no — si termina sin salir, se corta.
+    en_riesgo: diff === 1,
+  }
 }
 
 export class RachasService {
@@ -74,37 +98,14 @@ export class RachasService {
     })
   }
 
-  /**
-   * Racha "vigente" al momento de leer, sin mutar nada: si ya pasó una semana
-   * completa sin actividad desde la última registrada, se muestra en 0 aunque la
-   * fila en base todavía no se haya reiniciado (eso lo hace el job diario). Así
-   * el perfil nunca miente, corra o no el job ese día.
-   */
   async obtenerRachaVigente(usuarioId: string, ahora: Date = new Date()) {
     const fila = await this.prisma.rachaActividad.findUnique({ where: { usuario_id: usuarioId } })
-    if (!fila || fila.semanas_consecutivas === 0) {
-      return { semanas_consecutivas: 0, en_riesgo: false }
-    }
-
-    const diff = diffSemanas(semanaDe(fila.ultima_actividad), semanaDe(ahora))
-    if (diff >= 2) {
-      return { semanas_consecutivas: 0, en_riesgo: false }
-    }
-    return {
-      semanas_consecutivas: fila.semanas_consecutivas,
-      // diff === 1: la semana pasada tuvo actividad, esta todavía no — si termina sin salir, se corta.
-      en_riesgo: diff === 1,
-    }
+    return calcularRachaVigente(fila, ahora)
   }
 
-  async obtenerRachaDeUsuario(usuarioObjetivoId: string) {
-    const usuario = await this.prisma.usuario.findUnique({
-      where: { id: usuarioObjetivoId },
-      select: { id: true },
-    })
-    if (!usuario) {
-      throw new HttpError(404, 'Usuario no encontrado', 'USER_NOT_FOUND')
-    }
+  /** Racha de otra persona, respetando su visibilidad de logros (RN-077). */
+  async obtenerRachaDeUsuario(usuarioObjetivoId: string, solicitanteId: string) {
+    await assertPuedeVerLogros(this.prisma, usuarioObjetivoId, solicitanteId)
     return this.obtenerRachaVigente(usuarioObjetivoId)
   }
 

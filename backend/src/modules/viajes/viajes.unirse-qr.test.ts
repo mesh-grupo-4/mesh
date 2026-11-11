@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import type { PrismaClient } from '@prisma/client'
 import { ViajesService } from './viajes.service'
+import { unirsePorCodigoSchema } from './viajes.schemas'
 import { QR_EXPIRED_MESSAGE } from '../../lib/qrInvite'
 
 const usuarioId = '22222222-2222-2222-2222-222222222222'
@@ -172,5 +173,90 @@ describe('ViajesService.unirsePorQr', () => {
       code: 'QR_EXPIRED',
       message: QR_EXPIRED_MESSAGE,
     })
+  })
+
+  it('lanza 410 si el viaje ya finalizó (RN-015)', async () => {
+    const { prisma, viajeFindUnique, viajeIntegranteCreate } = createMockPrisma()
+
+    viajeFindUnique.mockResolvedValue({ id: viajeId, estado: 'finalizado' })
+
+    const service = new ViajesService(prisma)
+
+    await expect(service.unirsePorQr(usuarioId, viajeId)).rejects.toMatchObject({
+      status: 410,
+      code: 'QR_EXPIRED',
+    })
+    expect(viajeIntegranteCreate).not.toHaveBeenCalled()
+  })
+})
+
+describe('ViajesService.unirsePorCodigo', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('agrega al usuario al viaje dueño del código (RN-015/016)', async () => {
+    const { prisma, viajeFindUnique, viajeIntegranteFindUnique, viajeIntegranteCreate } =
+      createMockPrisma()
+
+    viajeFindUnique
+      .mockResolvedValueOnce({ id: viajeId })
+      .mockResolvedValueOnce({
+        id: viajeId,
+        estado: 'planificado',
+        es_grupal: true,
+        creador_id: creadorId,
+      })
+    viajeIntegranteFindUnique.mockResolvedValue(null)
+    viajeIntegranteCreate.mockResolvedValue({})
+
+    const service = new ViajesService(prisma)
+    const result = await service.unirsePorCodigo(usuarioId, 'ABCD2345')
+
+    expect(viajeFindUnique).toHaveBeenNthCalledWith(1, {
+      where: { codigo_invitacion: 'ABCD2345' },
+      select: { id: true },
+    })
+    expect(result).toEqual({ viajeId, yaEraParticipante: false })
+    expect(viajeIntegranteCreate).toHaveBeenCalledOnce()
+  })
+
+  it('lanza 404 si ningún viaje tiene ese código', async () => {
+    const { prisma, viajeFindUnique, viajeIntegranteCreate } = createMockPrisma()
+
+    viajeFindUnique.mockResolvedValue(null)
+
+    const service = new ViajesService(prisma)
+
+    await expect(service.unirsePorCodigo(usuarioId, 'ABCD2345')).rejects.toMatchObject({
+      status: 404,
+      code: 'VIAJE_NOT_FOUND',
+    })
+    expect(viajeIntegranteCreate).not.toHaveBeenCalled()
+  })
+
+  it('lanza 410 si el viaje del código ya no está planificado', async () => {
+    const { prisma, viajeFindUnique } = createMockPrisma()
+
+    viajeFindUnique
+      .mockResolvedValueOnce({ id: viajeId })
+      .mockResolvedValueOnce({ id: viajeId, estado: 'finalizado' })
+
+    const service = new ViajesService(prisma)
+
+    await expect(service.unirsePorCodigo(usuarioId, 'ABCD2345')).rejects.toMatchObject({
+      status: 410,
+      code: 'QR_EXPIRED',
+    })
+  })
+})
+
+describe('unirsePorCodigoSchema', () => {
+  it('normaliza minúsculas, espacios y guion', () => {
+    expect(unirsePorCodigoSchema.parse({ codigo: ' abcd-2345 ' })).toEqual({ codigo: 'ABCD2345' })
+  })
+
+  it.each(['ABC', 'ABCD23456', 'ABCD234O', 'ABCD2341'])('rechaza %s', (codigo) => {
+    expect(unirsePorCodigoSchema.safeParse({ codigo }).success).toBe(false)
   })
 })

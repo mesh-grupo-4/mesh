@@ -202,6 +202,8 @@ paths:
     $ref: './paths/amistades.yaml#/ListaAmigos'
   /api/amistades/buscar:
     $ref: './paths/amistades.yaml#/BuscarUsuarios'
+  /api/amistades/relaciones:
+    $ref: './paths/amistades.yaml#/RelacionesAmistad'
   /api/amistades/solicitudes/pendientes:
     $ref: './paths/amistades.yaml#/SolicitudesPendientes'
   /api/amistades/solicitar:
@@ -246,6 +248,10 @@ paths:
   # ── Geocoding ──────────────────────────────────────────────────────────────
   /api/geocoding/buscar:
     $ref: './paths/geocoding.yaml#/BuscarLugares'
+  /api/geocoding/autocompletar:
+    $ref: './paths/geocoding.yaml#/AutocompletarLugares'
+  /api/geocoding/lugares/{placeId}:
+    $ref: './paths/geocoding.yaml#/DetalleLugar'
   /api/geocoding/reverse:
     $ref: './paths/geocoding.yaml#/ReverseGeocoding'
 
@@ -300,6 +306,8 @@ paths:
     $ref: './paths/viajes.yaml#/EstadisticasUsuario'
   /api/viajes/invitaciones/pendientes:
     $ref: './paths/viajes.yaml#/InvitacionesViajePendientes'
+  /api/viajes/unirse-codigo:
+    $ref: './paths/viajes.yaml#/UnirseCodigo'
   /api/viajes/{viajeId}:
     $ref: './paths/viajes.yaml#/ViajePorId'
   /api/viajes/{viajeId}/unirse-qr:
@@ -342,6 +350,8 @@ paths:
     $ref: './paths/viajes.yaml#/CheckInViaje'
   /api/viajes/{viajeId}/liderazgo:
     $ref: './paths/viajes.yaml#/CederLiderazgoViaje'
+  /api/viajes/{viajeId}/avisar-faltantes:
+    $ref: './paths/viajes.yaml#/AvisarFaltantesViaje'
 
   # ── Rutas compartidas y plantillas ─────────────────────────────────────────
   /api/viajes/{viajeId}/ruta/compartir:

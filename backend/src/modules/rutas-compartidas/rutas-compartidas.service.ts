@@ -3,8 +3,14 @@ import type { CategoriaParada, Prisma, PrismaClient, TipoActividad } from '@pris
 import { HttpError } from '../../lib/httpError'
 import { rutaSnapshotSchema, type RutaSnapshot } from './rutas-compartidas.schemas'
 
+/**
+ * Con `LINKS_BASE_URL` es un link https: abre la app si está instalada y la landing si no.
+ * Sin esa variable (dev, o mientras no haya dominio) queda el esquema `mesh://`.
+ */
 export function buildRouteShareLink(token: string): string {
-  return `mesh://ruta?token=${encodeURIComponent(token)}`
+  const base = process.env.LINKS_BASE_URL?.trim().replace(/\/$/, '')
+  const query = `token=${encodeURIComponent(token)}`
+  return base ? `${base}/ruta?${query}` : `mesh://ruta?${query}`
 }
 
 export function nombreDesdeSnapshot(snapshot: RutaSnapshot): string {
@@ -293,19 +299,32 @@ export class RutasCompartidasService {
         origen_nombre: true,
         destino_nombre: true,
         created_at: true,
+        checklist: true,
+        recorrido_publicado: { select: { usuario_id: true } },
+        ruta_compartida: {
+          select: { ruta: { select: { viaje: { select: { creador_id: true } } } } },
+        },
       },
     })
 
-    return rows.map((r) => ({
-      id: r.id,
-      nombre: r.nombre,
-      tipo_actividad: r.tipo_actividad,
-      distancia_planeada_m: r.distancia_planeada_m,
-      tiempo_estimado_seg: r.tiempo_estimado_seg,
-      origen_nombre: r.origen_nombre,
-      destino_nombre: r.destino_nombre,
-      created_at: r.created_at,
-    }))
+    return rows.map((r) => {
+      // Autor de la ruta de origen: quien publicó el recorrido o creó el viaje compartido.
+      // Si el origen ya no existe no se puede saber, y cuenta como de otro usuario.
+      const autorId =
+        r.recorrido_publicado?.usuario_id ?? r.ruta_compartida?.ruta?.viaje.creador_id ?? null
+      return {
+        id: r.id,
+        nombre: r.nombre,
+        tipo_actividad: r.tipo_actividad,
+        distancia_planeada_m: r.distancia_planeada_m,
+        tiempo_estimado_seg: r.tiempo_estimado_seg,
+        origen_nombre: r.origen_nombre,
+        destino_nombre: r.destino_nombre,
+        created_at: r.created_at,
+        con_checklist: r.checklist.length > 0,
+        creada_por_mi: autorId === usuarioId,
+      }
+    })
   }
 
   async obtenerPlantilla(usuarioId: string, plantillaId: string) {
@@ -374,6 +393,20 @@ export class RutasCompartidasService {
       })
     }
 
+    // Entran como personales, igual que al importar de otro viaje: no obligan al grupo.
+    if (plantilla.checklist.length > 0) {
+      await tx.checklistItem.createMany({
+        data: plantilla.checklist.map((texto, orden) => ({
+          viaje_id: viajeId,
+          usuario_id: usuarioId,
+          texto,
+          origen: 'personal' as const,
+          orden,
+        })),
+        skipDuplicates: true,
+      })
+    }
+
     return { tipo_actividad: plantilla.tipo_actividad }
   }
 }
@@ -393,6 +426,7 @@ export function mapPlantilla(plantilla: {
   distancia_planeada_m: number | null
   tiempo_estimado_seg: number | null
   created_at: Date
+  checklist: string[]
   paradas: Array<{
     orden: number
     lat: number
@@ -419,6 +453,7 @@ export function mapPlantilla(plantilla: {
     distancia_planeada_m: plantilla.distancia_planeada_m,
     tiempo_estimado_seg: plantilla.tiempo_estimado_seg,
     created_at: plantilla.created_at,
+    checklist: plantilla.checklist,
     paradas: plantilla.paradas.map((p) => ({
       orden: p.orden,
       lat: p.lat,

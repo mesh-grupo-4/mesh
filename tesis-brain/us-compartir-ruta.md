@@ -125,6 +125,54 @@ sequenceDiagram
 
 Ver `reglas-de-negocio.md` §2.9. Contrato: `backend/openapi/rutas-compartidas.yaml`.
 
+## Links https y landing
+
+El link de ruta y el QR de unirse al viaje se abren igual: si la app está instalada entra
+directo a la pantalla, y si no, el navegador muestra la landing. Ya no existe la opción de
+pegar un link dentro de la app.
+
+| Pieza | Valor |
+|---|---|
+| Formato | `https://<dominio>/ruta?token=...` y `https://<dominio>/unirse?viajeId=...` |
+| Backend | variable `LINKS_BASE_URL` (arma el link de ruta) |
+| App | variable `EXPO_PUBLIC_LINKS_BASE_URL` (arma el QR y registra App Links / Universal Links en el build) |
+| Sin variables | se siguen generando `mesh://...`, que solo abren si la app está instalada |
+
+Los links `mesh://` ya emitidos siguen funcionando. Sin sesión iniciada, la app guarda el
+destino y lo retoma después del login, tanto para la ruta como para el QR.
+
+**Pendiente para activarlo** (requiere la landing publicada):
+
+1. Definir el dominio y cargar las dos variables. Las de la app se leen al compilar: hace falta un build nuevo.
+2. La landing debe responder en `/ruta` y `/unirse` con el contenido para instalar la app.
+3. Publicar `https://<dominio>/.well-known/assetlinks.json` (Android), con `Content-Type: application/json` y sin redirecciones:
+
+```json
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.frangiorda1.frontend",
+    "sha256_cert_fingerprints": ["<SHA-256 del certificado de firma>"]
+  }
+}]
+```
+
+4. Publicar `https://<dominio>/.well-known/apple-app-site-association` (iOS), sin extensión:
+
+```json
+{
+  "applinks": {
+    "details": [{
+      "appIDs": ["<TEAM_ID>.com.frangiorda1.frontend"],
+      "components": [{ "/": "/ruta*" }, { "/": "/unirse*" }]
+    }]
+  }
+}
+```
+
+---
+
 ### Notas técnicas
 
 - Tablas: `ruta_compartida` (snapshot congelado + token), `ruta_plantilla`, `ruta_plantilla_parada`.

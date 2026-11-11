@@ -4,6 +4,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated'
 import {
   ActivityIndicator,
   Platform,
@@ -17,6 +18,7 @@ import { meshAlert, meshConfirmDestructive } from '@/lib/meshAlert';
 
 import { AlertaGrupalBanner } from '@/components/live/AlertaGrupalBanner'
 import { AlertasButton } from '@/components/live/AlertasButton'
+import { AjustesViajeSheet } from '@/components/live/AjustesViajeSheet'
 import { CategoriaParadaSheet } from '@/components/live/CategoriaParadaSheet'
 import { CrearAlertaSheet } from '@/components/live/CrearAlertaSheet'
 import { CenterLocationButton } from '@/components/live/CenterLocationButton'
@@ -32,9 +34,9 @@ import { LeaderboardPanel } from '@/components/live/LeaderboardPanel'
 import { LiveBottomPanel } from '@/components/live/LiveBottomPanel'
 import { LiveMapView, type LiveMapViewHandle } from '@/components/live/LiveMapView'
 import type { LiveMember } from '@/components/live/LiveMembersBar'
-import { LiveTripHeader } from '@/components/live/LiveTripHeader'
+import { ALTO_HEADER_COMPACTO, LiveTripHeader } from '@/components/live/LiveTripHeader'
 import { MapStylePicker } from '@/components/route-config/MapStylePicker'
-import type { MapStyleId } from '@/components/route-config/mapStyles'
+import { useCapaMapa } from '@/hooks/useCapaMapa'
 import { useTheme } from '@/components/MeshUI'
 import { BotonAyuda } from '@/components/ayuda/BotonAyuda'
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
@@ -58,16 +60,16 @@ import { haversineDistanceM } from '@/lib/geo/haversine'
 import { buscarLugaresCercanos, type CategoriaLugar, type LugarSugerido } from '@/lib/lugaresApi'
 import { calcularGuiaHastaDestino } from '@/lib/osrmGuia'
 import { dividirRutaPorAvance } from '@/lib/geo/routeProgress'
-import { useHapticaAlEntrar } from '@/lib/haptics'
+import { useHapticaAlEntrar, useHapticaCriticaRepetida } from '@/lib/haptics'
+import { marcarViajeEnPantalla } from '@/hooks/usePushNotifications'
 import { formatPaceMinKm, formatSpeedKmh } from '@/lib/format'
 import { nombreCompleto } from '@/lib/nombres'
-import type { TipoAlertaApi } from '@/lib/alertasApi'
+import { gravedadAlerta, type TipoAlertaApi } from '@/lib/alertasApi'
 import type { CategoriaParadaApi } from '@/lib/paradasApi'
 import { motivoParadaLegible } from '@/lib/paradasApi'
 import { waypointTieneCoords } from '@/components/route-config/routeTypes'
 import { linestringToLatLng, waypointsFromRutaDetalle } from '@/lib/routePayload'
 import { connectMeshSocket, joinViajeRoom } from '@/lib/meshSocket'
-import { isSupabaseConfigured } from '@/lib/supabase'
 import {
   checkInPendienteLocal,
   detenerTrackingViaje,
@@ -123,13 +125,14 @@ export default function ViajeLiveScreen() {
   const [siguiendo, setSiguiendo] = useState(true)
   const [fg, setFg] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
-  const [mapStyle, setMapStyle] = useState<MapStyleId>('standard')
+  const [mapStyle, setMapStyle] = useCapaMapa()
   const [headerExpandido, setHeaderExpandido] = useState(false)
   const [accion, setAccion] = useState(false)
   const [eligiendoCategoria, setEligiendoCategoria] = useState(false)
   const [componiendoAlerta, setComponiendoAlerta] = useState(false)
   const [eligiendoFantasma, setEligiendoFantasma] = useState(false)
   const [buscandoCerca, setBuscandoCerca] = useState(false)
+  const [ajustando, setAjustando] = useState(false)
   const [guiaLugar, setGuiaLugar] = useState<{
     coords: [number, number][]
     destino: { lat: number; lng: number; nombre: string }
@@ -138,6 +141,10 @@ export default function ViajeLiveScreen() {
   const [altoBanners, setAltoBanners] = useState(0)
   /** Alto real de la botonera inferior, que creció con la fila de paradas. */
   const [altoBotonera, setAltoBotonera] = useState(0)
+  /** Alto de la pantalla del viaje: junto con `topPanel` da cuánto asoma el panel inferior. */
+  const [altoRaiz, setAltoRaiz] = useState(0)
+  /** Borde superior del panel inferior, cuadro a cuadro (-1 = todavía no se midió). */
+  const topPanel = useSharedValue(-1)
 
   const nameByUserId = useMemo(() => {
     const map: Record<string, string> = {}
@@ -152,7 +159,7 @@ export default function ViajeLiveScreen() {
     return map
   }, [viaje, participantes])
 
-  const { memberList, staleByUserId, realtimeOk } = useLiveLocations({
+  const { memberList, staleByUserId } = useLiveLocations({
     viajeId: viajeId ?? '',
     userId,
     nameByUserId,
@@ -165,14 +172,6 @@ export default function ViajeLiveScreen() {
     if (initialCenter) return { lat: initialCenter.latitude, lng: initialCenter.longitude }
     return null
   }, [memberList, userId, initialCenter])
-
-  // Modo "seguirme": recentra (sin tocar el zoom) cada vez que se actualiza tu
-  // posición, mientras `siguiendo` esté activo. Se pausa solo al arrastrar el
-  // mapa a mano (`onUserDrag`, ver más abajo) y se reactiva con el botón centrar.
-  useEffect(() => {
-    if (!siguiendo || !myPosition) return
-    mapRef.current?.panTo(myPosition.lat, myPosition.lng)
-  }, [siguiendo, myPosition])
 
   const nextStop = useNextStopEta({
     currentPos: myPosition,
@@ -337,12 +336,19 @@ export default function ViajeLiveScreen() {
     if (!myPosition) return
     const coords = await calcularGuiaHastaDestino(myPosition, lugar, tipoActividad)
     setGuiaLugar({ coords, destino: { lat: lugar.lat, lng: lugar.lng, nombre: lugar.nombre } })
+    // El encuadre de la guía es deliberado: como un arrastre manual, pausa el "seguirme".
+    setSiguiendo(false)
     mapRef.current?.fitBoundsToCoords(coords)
   }
 
   const puedeCrearAlertas =
     viaje?.estado === 'en_curso' &&
     (esLider || (sumado && (viaje?.alertas_solo_lider ?? true) === false))
+
+  // RN-030: el backend valida ambos; acá solo se decide qué accesos mostrar.
+  const puedeGastos = viaje?.estado === 'en_curso' && viaje.es_grupal && sumado
+  // RN-025: el líder corrige en vivo parámetros que disparan alertas de más.
+  const puedeAjustar = viaje?.estado === 'en_curso' && viaje.es_grupal && esLider
 
   const centroMapaAlerta = useMemo(() => {
     if (myPosition) return { latitude: myPosition.lat, longitude: myPosition.lng }
@@ -533,14 +539,17 @@ export default function ViajeLiveScreen() {
             setViaje(v)
             setParticipantes(parts)
           })
-          .catch((e) => console.warn('[live] no se pudo refrescar el líder:', e))
+          .catch((e) => console.warn('[live] no se pudo refrescar el viaje:', e))
       }
 
       sock.on('viaje:finalizado', onFin)
       sock.on('viaje:participante_salio', onSalio)
       sock.on('viaje:participante_sumado', onSumado)
       sock.on('viaje:lider_cambiado', onLiderCambiado)
+      // El líder ajustó parámetros o alertas (RN-025): mismo refresco del detalle.
+      sock.on('viaje:actualizado', onLiderCambiado)
       cleanup = () => {
+        sock.off('viaje:actualizado', onLiderCambiado)
         sock.off('viaje:finalizado', onFin)
         sock.off('viaje:participante_salio', onSalio)
         sock.off('viaje:participante_sumado', onSumado)
@@ -694,7 +703,7 @@ export default function ViajeLiveScreen() {
 
   const handleDetenerse = () => setEligiendoCategoria(true)
 
-  const handleCategoriaElegida = (categoria: CategoriaParadaApi) => {
+  const handleCategoriaElegida = (categoria: CategoriaParadaApi, grupal: boolean) => {
     setEligiendoCategoria(false)
     void (async () => {
       const pos = await posicionActual()
@@ -706,7 +715,7 @@ export default function ViajeLiveScreen() {
         return
       }
       try {
-        await registrarParada(categoria, pos)
+        await registrarParada(categoria, pos, grupal)
       } catch (e) {
         meshAlert('No se pudo registrar la parada', mensajeDeError(e))
       }
@@ -849,19 +858,54 @@ export default function ViajeLiveScreen() {
     router.push({ pathname: '/viaje/[viajeId]/alertas', params: { viajeId: viajeId ?? '' } })
 
   /** Los flotantes arrancan bajo el header compacto y se corren si hay banners visibles. */
-  const TOP_OVERLAYS = 96
+  const TOP_OVERLAYS = insets.top + ALTO_HEADER_COMPACTO
   const topFlotantes = TOP_OVERLAYS + (altoBanners > 0 ? altoBanners + 10 : 0)
   // Sin medir, el botón de centrar quedaba debajo de la botonera al aparecer
   // la fila de paradas.
   const incidentePropio = paradaActiva?.tipo === 'incidente_detectado'
 
-  // Trekking/running priorizan la vibración sobre mirar la pantalla (RN-052).
-  useHapticaAlEntrar(Boolean(alertaEntrante), tipoActividad, 'alerta')
-  useHapticaAlEntrar(Boolean(paradaEntrante), tipoActividad, 'alerta')
-  useHapticaAlEntrar(Boolean(llegada), tipoActividad, 'exito')
-  useHapticaAlEntrar(incidentePropio, tipoActividad, 'alerta')
+  // Todas las actividades vibran y el patrón depende de la gravedad;
+  // trekking/running además lo repiten (RN-052).
+  useHapticaAlEntrar(
+    alertaEntrante?.id ?? null,
+    tipoActividad,
+    alertaEntrante ? gravedadAlerta(alertaEntrante.tipo) : 'importante'
+  )
+  useHapticaAlEntrar(paradaEntrante?.paradaId ?? null, tipoActividad, 'importante')
+  useHapticaAlEntrar(llegada ? 'llegada' : null, tipoActividad, 'exito')
+  // Solicitudes de parada: al líder cuando entra una, al solicitante cuando se resuelve.
+  useHapticaAlEntrar(
+    esLider ? (pendientes[0]?.solicitudId ?? null) : null,
+    tipoActividad,
+    'importante'
+  )
+  useHapticaAlEntrar(
+    miSolicitud && (miSolicitud.estado === 'aprobada' || miSolicitud.estado === 'rechazada')
+      ? `${miSolicitud.id}:${miSolicitud.estado}`
+      : null,
+    tipoActividad,
+    'importante'
+  )
+  // "¿Estás bien?": insiste cada 5 s hasta que la persona responde.
+  useHapticaCriticaRepetida(incidentePropio && !paradaActiva?.necesita_ayuda)
+
+  // Con esta pantalla abierta los avisos del viaje ya se ven y vibran acá:
+  // la push del mismo viaje no vuelve a sonar.
+  useEffect(() => {
+    if (!viajeId) return
+    marcarViajeEnPantalla(viajeId)
+    return () => marcarViajeEnPantalla(null)
+  }, [viajeId])
   const bottomCentrar = (altoBotonera || 130) + 12
-  const bottomCentrarMapa = bottomCentrar + (incidentePropio ? 236 : 0)
+  const extraIncidente = incidentePropio ? 236 : 0
+  const altoFlotantesInferiores = Math.round(48 * uiConfig.escalaBotones)
+  // Los botones de centrar y de ayuda acompañan al panel inferior mientras se
+  // arrastra: antes se reubicaban recién al soltar y quedaban colgados en el medio.
+  const estiloFlotantesInferiores = useAnimatedStyle(() => {
+    const sobrePanel =
+      topPanel.value >= 0 && altoRaiz > 0 ? altoRaiz - topPanel.value + 12 : bottomCentrar
+    return { transform: [{ translateY: -(sobrePanel + extraIncidente) }] }
+  }, [altoRaiz, bottomCentrar, extraIncidente])
 
   /** Reactiva el modo "seguirme" y centra ya mismo con la posición que ya tenemos
    * en memoria — sin pedir una lectura GPS nueva y aislada. */
@@ -889,13 +933,19 @@ export default function ViajeLiveScreen() {
   }
 
   return (
-    <View style={[styles.root, { backgroundColor: theme.background }]}>
+    <View
+      style={[styles.root, { backgroundColor: theme.background }]}
+      onLayout={(e) => setAltoRaiz(e.nativeEvent.layout.height)}
+    >
       <Stack.Screen options={{ headerShown: false }} />
       <StatusBar hidden={uiConfig.pantallaCompleta} />
       <PasoAyuda {...AYUDA_VIAJE_LIVE[0]!} estilo={styles.flex1}>
         <LiveMapView
           ref={mapRef}
           routeRemaining={routeRemaining}
+          rutaCompleta={routeLine}
+          movimientoFluido
+          siguiendo={siguiendo}
           breadcrumb={breadcrumb}
           members={memberList}
           alertasEnMapa={alertasEnMapa}
@@ -931,16 +981,11 @@ export default function ViajeLiveScreen() {
         />
       </PasoAyuda>
 
-      <BotonAyuda
-        altoContraste={uiConfig.altoContraste}
-        size={Math.round(44 * uiConfig.escalaBotones)}
-        style={[styles.botonAyudaLive, { bottom: bottomCentrarMapa }]}
-      />
 
       {/* Pila de banners: se apilan solos y su alto real corre a los botones
           flotantes, que antes quedaban tapados debajo de estos avisos. */}
       <View
-        style={styles.bannerStack}
+        style={[styles.bannerStack, { top: TOP_OVERLAYS + 6 }]}
         pointerEvents="box-none"
         onLayout={(e) => setAltoBanners(e.nativeEvent.layout.height)}
       >
@@ -948,14 +993,6 @@ export default function ViajeLiveScreen() {
           <View style={[styles.warnBanner, { backgroundColor: theme.dangerWeak }]}>
             <Text style={[styles.warnTxt, { color: theme.danger, fontSize: tamanoOutdoor(13) }]}>
               Ubicación desconocida: tu posición no se compartirá hasta que otorgues permisos.
-            </Text>
-          </View>
-        ) : null}
-
-        {!realtimeOk && isSupabaseConfigured() ? (
-          <View style={[styles.infoBanner, { backgroundColor: theme.accentWeak }]}>
-            <Text style={[styles.infoTxt, { color: theme.text, fontSize: tamanoOutdoor(12) }]}>
-              Realtime Supabase desconectado; usamos WebSocket y refresco cada 15 s.
             </Text>
           </View>
         ) : null}
@@ -993,6 +1030,7 @@ export default function ViajeLiveScreen() {
             motivo={motivoParadaLegible(paradaEntrante.categoria)}
             restantes={paradasEntrantes.length}
             ocupado={calculandoSeguir}
+            grupal={paradaEntrante.grupal}
             onSeguir={handleSeguirParada}
             onIgnorar={ignorarParadaEntrante}
           />
@@ -1041,12 +1079,22 @@ export default function ViajeLiveScreen() {
         </>
       ) : null}
 
-      <CenterLocationButton
-        onPress={handleCenterOnMe}
-        bottomOffset={bottomCentrarMapa}
-        siguiendo={siguiendo}
-        tipoActividad={tipoActividad}
-      />
+      <Animated.View
+        style={[styles.flotantesInferiores, { height: altoFlotantesInferiores }, estiloFlotantesInferiores]}
+        pointerEvents="box-none"
+      >
+        <BotonAyuda
+          altoContraste={uiConfig.altoContraste}
+          size={Math.round(44 * uiConfig.escalaBotones)}
+          style={styles.botonAyudaLive}
+        />
+        <CenterLocationButton
+          onPress={handleCenterOnMe}
+          bottomOffset={0}
+          siguiendo={siguiendo}
+          tipoActividad={tipoActividad}
+        />
+      </Animated.View>
 
       {incidentePropio && paradaActiva ? (
         <EstoyBienBanner
@@ -1112,6 +1160,7 @@ export default function ViajeLiveScreen() {
           accion={!!accion}
           paradaDesde={paradaActiva?.inicio ?? null}
           esIncidenteDetectado={paradaActiva?.tipo === 'incidente_detectado'}
+          retomaElGrupo={esLider && Boolean(paradaActiva?.grupal)}
           puedeSolicitar={puedeSolicitarParada}
           solicitudPendiente={miSolicitud?.estado === 'pendiente'}
           paradaEnCurso={paradaEnCurso}
@@ -1121,7 +1170,14 @@ export default function ViajeLiveScreen() {
           onSolicitar={handleSolicitar}
           onFinalizar={confirmarFinalizar}
           onSalir={confirmarSalir}
+          onGastos={
+            puedeGastos
+              ? () => router.push({ pathname: '/viaje/[viajeId]/gastos', params: { viajeId: viajeId ?? '' } })
+              : undefined
+          }
+          onAjustes={puedeAjustar ? () => setAjustando(true) : undefined}
           onHeightChange={setAltoBotonera}
+          posicionAnimada={topPanel}
           tipoActividad={tipoActividad}
         />
       </PasoAyuda>
@@ -1145,6 +1201,7 @@ export default function ViajeLiveScreen() {
         visible={eligiendoCategoria}
         onSeleccionar={handleCategoriaElegida}
         onCancelar={() => setEligiendoCategoria(false)}
+        puedeDetenerGrupo={esLider && viaje?.es_grupal === true}
         tipoActividad={tipoActividad}
       />
 
@@ -1166,6 +1223,16 @@ export default function ViajeLiveScreen() {
         onElegir={handleElegirFantasma}
         onCerrar={() => setEligiendoFantasma(false)}
       />
+
+      {viaje && puedeAjustar ? (
+        <AjustesViajeSheet
+          visible={ajustando}
+          viaje={viaje}
+          userId={userId}
+          onActualizado={(a) => setViaje((prev) => (prev ? { ...prev, ...a } : prev))}
+          onCerrar={() => setAjustando(false)}
+        />
+      ) : null}
 
       <CrearAlertaSheet
         visible={componiendoAlerta}
@@ -1213,9 +1280,16 @@ const styles = StyleSheet.create({
   zIndexAlertas: {
     zIndex: 20,
   },
+  flotantesInferiores: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
   botonAyudaLive: {
     position: 'absolute',
     right: 16,
+    bottom: 0,
   },
   center: {
     flex: 1,
@@ -1228,7 +1302,6 @@ const styles = StyleSheet.create({
   },
   bannerStack: {
     position: 'absolute',
-    top: 96,
     left: 12,
     right: 12,
     gap: 8,

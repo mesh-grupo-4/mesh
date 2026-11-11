@@ -3,7 +3,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
   StyleSheet,
+  Switch,
   Text,
+  TextInput,
   View,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -15,6 +17,9 @@ import { ActivityTile, Badge, Btn, TopBar, useTheme } from '@/components/MeshUI'
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
 import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda'
 import { AYUDA_VIAJE_RESUMEN } from '@/components/ayuda/contenidoAyuda'
+import { GastosCierrePanel } from '@/components/gastos/GastosCierrePanel'
+import { ParadasResumen } from '@/components/resumen/ParadasResumen'
+import { SegmentTabs } from '@/components/SegmentTabs'
 import { StatCard, StatCardRow } from '@/components/StatCard'
 import { DEV_USER_ID } from '@/constants/Config'
 import { useAuth } from '@/context/AuthContext'
@@ -28,6 +33,7 @@ import {
 } from '@/lib/format'
 import { meshError } from '@/lib/meshAlert'
 import { esMotorizado } from '@/lib/activityDefaults'
+import { listarChecklist } from '@/lib/checklistApi'
 import {
   despublicarRecorrido,
   listarMisViajesPublicados,
@@ -41,6 +47,9 @@ import {
   type MetricasGrupalesApi,
   type ResumenViajeApi,
 } from '@/lib/viajesApi'
+
+/** Mismo tope que valida el backend para la nota del autor. */
+const COMENTARIO_MAX = 280
 
 export default function ViajeResumenScreen() {
   const router = useRouter()
@@ -74,6 +83,10 @@ export default function ViajeResumenScreen() {
   // `null` mientras se consulta.
   const [publicado, setPublicado] = useState<boolean | null>(null)
   const [publicando, setPublicando] = useState(false)
+  const [comentario, setComentario] = useState('')
+  const [compartirChecklist, setCompartirChecklist] = useState(false)
+  const [itemsChecklist, setItemsChecklist] = useState(0)
+  const [pestania, setPestania] = useState<'resumen' | 'gastos'>('resumen')
   // Solo se publica el recorrido propio: si se abrió el resumen de otro usuario
   // (`?userId=`), la tarjeta no aparece. El backend igual publica solo lo de quien llama.
   const esPropio = !params.userId || userId === backendUserId
@@ -144,6 +157,22 @@ export default function ViajeResumenScreen() {
     }
   }, [viajeId, esPropio])
 
+  useEffect(() => {
+    if (!viajeId || !esPropio) return
+    let cancelado = false
+    void listarChecklist(viajeId)
+      .then((items) => {
+        if (!cancelado) setItemsChecklist(items.length)
+      })
+      .catch(() => {
+        // Sin checklist legible no se ofrece compartirlo; publicar sigue disponible.
+        if (!cancelado) setItemsChecklist(0)
+      })
+    return () => {
+      cancelado = true
+    }
+  }, [viajeId, esPropio])
+
   const alternarPublicacion = async () => {
     if (!viajeId || publicado === null) return
     setPublicando(true)
@@ -152,7 +181,10 @@ export default function ViajeResumenScreen() {
         await despublicarRecorrido(viajeId)
         setPublicado(false)
       } else {
-        await publicarRecorrido(viajeId)
+        await publicarRecorrido(viajeId, {
+          comentario: comentario.trim() || undefined,
+          compartirChecklist: itemsChecklist > 0 && compartirChecklist,
+        })
         setPublicado(true)
       }
     } catch (e) {
@@ -183,6 +215,8 @@ export default function ViajeResumenScreen() {
   const esMoto = esMotorizado(resumen?.viaje.tipo_actividad)
   const totales = resumen?.totales
   const mias = resumen?.mis_metricas
+  // Sin fila en metrica_viaje: el GPS no registró un desplazamiento real.
+  const sinMovimiento = mias?.distancia_m == null
   // Mismas condiciones que valida el backend (RECORRIDO_SIN_TRAZA): métricas propias y
   // al menos dos puntos de traza.
   const puedePublicar =
@@ -207,19 +241,39 @@ export default function ViajeResumenScreen() {
         sub={resumen ? (esGrupal ? 'Salida grupal' : 'Salida individual') : 'Cargando...'}
         onBack={volverAlInicio}
         bordered={false}
-        onAyuda={() => start()}
+        // El tour recorre la pestaña de resumen: desde gastos no tendría a qué apuntar.
+        onAyuda={pestania === 'resumen' ? () => start() : undefined}
       />
+
+      {esGrupal ? (
+        <SegmentTabs
+          tabs={[
+            { key: 'resumen', label: 'Resumen' },
+            { key: 'gastos', label: 'Gastos compartidos' },
+          ]}
+          active={pestania}
+          onChange={(key) => setPestania(key as 'resumen' | 'gastos')}
+          theme={theme}
+          style={styles.tabs}
+        />
+      ) : null}
+
+      {pestania === 'gastos' ? <GastosCierrePanel viajeId={viajeId} /> : null}
 
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator color={theme.accent} size="large" />
         </View>
       ) : (
+        // Oculta en vez de desmontada: así el mapa no se recarga en cada cambio de pestaña.
+        <View style={[styles.container, pestania === 'gastos' && styles.oculta]}>
         <ScrollViewAyuda
           contentContainerStyle={[
             styles.content,
             { paddingBottom: Math.max(insets.bottom, 16) + 16 },
           ]}
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
         >
           {resumen ? (
             <View style={styles.hero}>
@@ -290,26 +344,26 @@ export default function ViajeResumenScreen() {
                 </StatCardRow>
               </PasoAyuda>
 
-              {totales.cantidad_paradas > 0 ? (
-                <StatCardRow>
-                  <StatCard
-                    icon="map-pin"
-                    value={String(totales.cantidad_paradas)}
-                    label="Paradas"
-                  />
-                </StatCardRow>
-              ) : null}
-
               {comparativa ? (
                 <Text style={[styles.comparativa, { color: theme.textDim }]}>{comparativa}</Text>
               ) : null}
             </>
           ) : null}
 
+          {/* ── Paradas (solo si las hubo) ── */}
+          {resumen ? <ParadasResumen paradas={resumen.paradas} esGrupal={esGrupal} /> : null}
+
           {/* ── Tu recorrido (métricas individuales) ── */}
           {mias ? (
             <>
               <Text style={[styles.seccion, { color: theme.text }]}>Tu recorrido</Text>
+              {sinMovimiento ? (
+                <Text style={[styles.nota, { color: theme.textDim }]}>
+                  No registramos movimiento tuyo en este viaje, así que no hay distancia, ritmo ni
+                  velocidad para mostrar.
+                </Text>
+              ) : (
+              <>
               <StatCardRow>
                 <StatCard icon="map-pin" value={formatKm(mias.distancia_m)} label="Tu distancia" />
                 <StatCard
@@ -368,6 +422,8 @@ export default function ViajeResumenScreen() {
                   />
                 </StatCardRow>
               ) : null}
+              </>
+              )}
 
               {mias.sali_antes ? (
                 <Text style={[styles.nota, { color: theme.textDim }]}>
@@ -448,6 +504,44 @@ export default function ViajeResumenScreen() {
                     ? 'Tu recorrido está publicado: cualquiera en Mesh puede verlo y usarlo como base de un viaje.'
                     : 'Publicá tu recorrido para que otros lo vean y lo usen como base de sus viajes. Se comparte tu traza, la distancia y el tiempo; nunca tu velocidad.'}
                 </Text>
+                {publicado === false ? (
+                  <>
+                    <TextInput
+                      style={[
+                        styles.comentarioInput,
+                        {
+                          backgroundColor: theme.background,
+                          borderColor: theme.border,
+                          color: theme.text,
+                        },
+                      ]}
+                      placeholder="Sumá un comentario (opcional)"
+                      placeholderTextColor={theme.textMute}
+                      value={comentario}
+                      onChangeText={setComentario}
+                      maxLength={COMENTARIO_MAX}
+                      multiline
+                      accessibilityLabel="Comentario del recorrido"
+                    />
+                    <Text style={[styles.contador, { color: theme.textMute }]}>
+                      {comentario.length}/{COMENTARIO_MAX}
+                    </Text>
+                    {itemsChecklist > 0 ? (
+                      <View style={styles.compartirChecklist}>
+                        <Text style={[styles.compartirTexto, { color: theme.text }]}>
+                          Compartir también mi checklist ({itemsChecklist}{' '}
+                          {itemsChecklist === 1 ? 'ítem' : 'ítems'})
+                        </Text>
+                        <Switch
+                          value={compartirChecklist}
+                          onValueChange={setCompartirChecklist}
+                          trackColor={{ true: theme.accent, false: theme.border }}
+                          accessibilityLabel="Compartir también mi checklist"
+                        />
+                      </View>
+                    ) : null}
+                  </>
+                ) : null}
                 <Btn
                   variant={publicado ? 'outline' : 'secondary'}
                   block
@@ -466,6 +560,7 @@ export default function ViajeResumenScreen() {
             Volver al inicio
           </Btn>
         </ScrollViewAyuda>
+        </View>
       )}
     </View>
   )
@@ -517,6 +612,13 @@ function IntegranteRow({ integrante, rankingHabilitado, tipoActividad }: Integra
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  oculta: {
+    display: 'none',
+  },
+  tabs: {
+    marginHorizontal: 20,
+    marginBottom: 8,
   },
   center: {
     flex: 1,
@@ -579,6 +681,30 @@ const styles = StyleSheet.create({
   publicarTitulo: {
     fontSize: 15,
     fontWeight: '700',
+  },
+  comentarioInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    minHeight: 72,
+    fontSize: 15,
+    textAlignVertical: 'top',
+  },
+  contador: {
+    fontSize: 12,
+    textAlign: 'right',
+  },
+  compartirChecklist: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  compartirTexto: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '600',
   },
   grupoCard: {
     borderWidth: 1.2,

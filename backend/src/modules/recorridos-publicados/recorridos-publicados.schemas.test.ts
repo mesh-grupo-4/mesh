@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { listarRecorridosQuery, valorarRecorridoBody } from './recorridos-publicados.schemas'
+import {
+  importarRecorridoBody,
+  listarRecorridosQuery,
+  publicarRecorridoBody,
+  valorarRecorridoBody,
+} from './recorridos-publicados.schemas'
 
 describe('listarRecorridosQuery (SCRUM-62)', () => {
   it('sin zona: zona undefined y paginación por defecto', () => {
@@ -45,5 +50,40 @@ describe('valorarRecorridoBody (SCRUM-63)', () => {
   it('rechaza comentarios de texto (RN-083)', () => {
     const r = valorarRecorridoBody.safeParse({ recomiendo: true, comentario: 'Muy linda' })
     expect(r.success).toBe(false)
+  })
+})
+
+describe('publicarRecorridoBody', () => {
+  it('sin cuerpo publica sin comentario ni checklist', () => {
+    expect(publicarRecorridoBody.parse({})).toEqual({ comentario: null, compartirChecklist: false })
+  })
+
+  it('recorta el comentario y lo vacío cuenta como ausente', () => {
+    expect(publicarRecorridoBody.parse({ comentario: '  Linda vuelta ' }).comentario).toBe(
+      'Linda vuelta'
+    )
+    expect(publicarRecorridoBody.parse({ comentario: '   ' }).comentario).toBeNull()
+  })
+
+  it('rechaza un comentario largo y los campos desconocidos', () => {
+    expect(publicarRecorridoBody.safeParse({ comentario: 'x'.repeat(281) }).success).toBe(false)
+    expect(publicarRecorridoBody.safeParse({ otro: true }).success).toBe(false)
+  })
+})
+
+describe('importarRecorridoBody', () => {
+  it('por defecto no guarda el checklist', () => {
+    expect(importarRecorridoBody.parse({})).toEqual({ guardarChecklist: false })
+  })
+})
+
+describe('listarRecorridosQuery.q', () => {
+  it('lo recorta y lo vacío equivale a no enviarlo', () => {
+    expect(listarRecorridosQuery.parse({ q: ' dique ' }).q).toBe('dique')
+    expect(listarRecorridosQuery.parse({ q: '  ' }).q).toBeUndefined()
+  })
+
+  it('rechaza búsquedas de más de 60 caracteres', () => {
+    expect(listarRecorridosQuery.safeParse({ q: 'x'.repeat(61) }).success).toBe(false)
   })
 })

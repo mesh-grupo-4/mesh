@@ -124,6 +124,49 @@ describe('RutasCompartidasService', () => {
     expect(buildRouteShareLink(token)).not.toContain('unirse')
   })
 
+  it('listarPlantillas marca creada_por_mi según el autor de la ruta de origen', async () => {
+    const { prisma, rutaPlantillaFindMany } = createMockPrisma()
+    const service = new RutasCompartidasService(prisma)
+    const base = {
+      nombre: 'Ruta',
+      tipo_actividad: 'bici',
+      distancia_planeada_m: null,
+      tiempo_estimado_seg: null,
+      origen_nombre: null,
+      destino_nombre: null,
+      created_at: new Date('2026-11-01T12:00:00.000Z'),
+      checklist: [],
+    }
+    rutaPlantillaFindMany.mockResolvedValue([
+      { ...base, id: 'recorrido-propio', recorrido_publicado: { usuario_id: usuarioId }, ruta_compartida: null },
+      { ...base, id: 'recorrido-ajeno', recorrido_publicado: { usuario_id: otroUsuarioId }, ruta_compartida: null },
+      {
+        ...base,
+        id: 'link-propio',
+        recorrido_publicado: null,
+        ruta_compartida: { ruta: { viaje: { creador_id: usuarioId } } },
+      },
+      {
+        ...base,
+        id: 'link-ajeno',
+        recorrido_publicado: null,
+        ruta_compartida: { ruta: { viaje: { creador_id: otroUsuarioId } } },
+      },
+      // El viaje de origen se borró: ya no se sabe quién la creó.
+      { ...base, id: 'origen-borrado', recorrido_publicado: null, ruta_compartida: { ruta: null } },
+    ])
+
+    const lista = await service.listarPlantillas(usuarioId)
+
+    expect(lista.map((p) => [p.id, p.creada_por_mi])).toEqual([
+      ['recorrido-propio', true],
+      ['recorrido-ajeno', false],
+      ['link-propio', true],
+      ['link-ajeno', false],
+      ['origen-borrado', false],
+    ])
+  })
+
   it('nombreDesdeSnapshot usa origen y destino', () => {
     expect(nombreDesdeSnapshot(snapshot)).toBe('Córdoba → Carlos Paz')
   })
@@ -285,6 +328,42 @@ describe('RutasCompartidasService', () => {
     await expect(service.revocarCompartir(usuarioId, viajeId)).rejects.toBeInstanceOf(HttpError)
     await expect(service.revocarCompartir(usuarioId, viajeId)).rejects.toMatchObject({
       code: 'NOT_CREATOR',
+    })
+  })
+
+  it('con LINKS_BASE_URL el link es https, sin barra doble', () => {
+    vi.stubEnv('LINKS_BASE_URL', 'https://mesh.example/')
+    expect(buildRouteShareLink(token)).toBe(`https://mesh.example/ruta?token=${token}`)
+    vi.unstubAllEnvs()
+  })
+
+  it('copiarPlantillaAViaje copia el checklist guardado como ítems personales', async () => {
+    const { prisma, rutaPlantillaFindUnique } = createMockPrisma()
+    const service = new RutasCompartidasService(prisma)
+    const createMany = vi.fn().mockResolvedValue({ count: 2 })
+    const tx = {
+      rutaPlantilla: { findUnique: rutaPlantillaFindUnique },
+      ruta: { create: vi.fn().mockResolvedValue({ id: 'ruta-1' }) },
+      paradaIntermedia: { createMany: vi.fn() },
+      checklistItem: { createMany },
+    }
+    rutaPlantillaFindUnique.mockResolvedValue({
+      id: plantillaId,
+      usuario_id: usuarioId,
+      tipo_actividad: 'bici',
+      linestring_geojson: {},
+      checklist: ['Casco', 'Agua'],
+      paradas: [],
+    })
+
+    await service.copiarPlantillaAViaje(tx as never, usuarioId, viajeId, plantillaId)
+
+    expect(createMany).toHaveBeenCalledWith({
+      data: [
+        { viaje_id: viajeId, usuario_id: usuarioId, texto: 'Casco', origen: 'personal', orden: 0 },
+        { viaje_id: viajeId, usuario_id: usuarioId, texto: 'Agua', origen: 'personal', orden: 1 },
+      ],
+      skipDuplicates: true,
     })
   })
 

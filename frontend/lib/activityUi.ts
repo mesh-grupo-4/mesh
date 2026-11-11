@@ -8,7 +8,7 @@ export type UiConfigActividad = {
   altoContraste: boolean
   /** Multiplicador de tamaño para botones y objetivos táctiles principales. */
   escalaBotones: number
-  /** Prioriza vibración sobre feedback visual en eventos del viaje. */
+  /** Repite la vibración de los eventos que piden atención: no se mira la pantalla en movimiento. */
   hapticaPrioritaria: boolean
 }
 
@@ -24,7 +24,7 @@ const UI_POR_ACTIVIDAD: Record<TipoActividadApi, UiConfigActividad> = {
   moto: { pantallaCompleta: true, altoContraste: true, escalaBotones: 1.3, hapticaPrioritaria: false },
   auto: { pantallaCompleta: true, altoContraste: true, escalaBotones: 1.3, hapticaPrioritaria: false },
   bici: DEFAULT,
-  // Sin mirar la pantalla en movimiento: la vibración reemplaza al feedback visual.
+  // Sin mirar la pantalla en movimiento: la vibración se repite (todas las actividades vibran).
   running: { ...DEFAULT, hapticaPrioritaria: true },
   trekking: { ...DEFAULT, hapticaPrioritaria: true },
   otro: DEFAULT,

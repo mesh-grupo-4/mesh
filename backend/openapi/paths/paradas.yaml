@@ -22,6 +22,10 @@ ParadasColeccion:
       Si `categoria` es `accidente` (RN-022), además crea una alerta de peligro
       (`tipo: peligro`, `origen: integrante`) con la ubicación de la parada,
       la emite por `viaje:alerta` y manda push "Accidente reportado" al grupo.
+
+      Con `grupal: true` (RN-045, solo el líder en viajes grupales) abre una parada a cada
+      integrante sumado que no tenga otra abierta, todas en el punto del líder, y emite
+      un único `viaje:parada_grupal_iniciada` en lugar de `viaje:parada_iniciada`.
     tags:
       - Paradas
     parameters:
@@ -44,7 +48,7 @@ ParadasColeccion:
       '401':
         $ref: '../components/responses.yaml#/Unauthorized'
       '403':
-        description: No participa del viaje (`FORBIDDEN`).
+        description: No participa del viaje, o pide una parada grupal sin ser líder (`FORBIDDEN`).
         content:
           application/json:
             schema:
@@ -55,7 +59,7 @@ ParadasColeccion:
       '404':
         $ref: '../components/responses.yaml#/NotFound'
       '409':
-        description: El viaje no está en curso (`INVALID_STATE`), o ya hay una parada abierta (`PARADA_ABIERTA`).
+        description: El viaje no está en curso (`INVALID_STATE`), ya hay una parada abierta (`PARADA_ABIERTA`), o se pidió una parada grupal en un viaje individual (`INDIVIDUAL_TRIP`).
         content:
           application/json:
             schema:
@@ -69,6 +73,10 @@ ParadasColeccion:
                 value:
                   error: Ya tenés una parada en curso
                   code: PARADA_ABIERTA
+              viajeIndividual:
+                value:
+                  error: Este viaje no tiene grupo que detener
+                  code: INDIVIDUAL_TRIP
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'
 
@@ -79,6 +87,10 @@ FinalizarParada:
     description: |
       Cierra la parada abierta del consultante, calcula `duracion_segundos` y emite
       `viaje:parada_finalizada` con el paso a `en_movimiento`.
+
+      Si es el líder y su parada es grupal (RN-045), cierra todas las paradas grupales
+      abiertas del viaje y emite un único `viaje:parada_grupal_finalizada`. Un integrante
+      que retoma solo cierra únicamente la suya.
     tags:
       - Paradas
     parameters:

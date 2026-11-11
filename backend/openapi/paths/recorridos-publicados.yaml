@@ -17,10 +17,24 @@ PublicarRecorrido:
       Congela un snapshot de la traza y las métricas **propias** de quien publica.
       Idempotente: republicar un recorrido ya publicado (o despublicado) refresca el
       snapshot y lo deja activo.
+
+      El cuerpo es opcional. `comentario` es una nota del autor y `compartirChecklist`
+      copia al snapshot los textos de **su** checklist de ese viaje. Ambos se reemplazan
+      al republicar. La nota es única y solo la escribe el autor: la comunidad sigue sin
+      poder comentar (RN-083).
     tags:
       - RecorridosPublicados
     parameters:
       - $ref: '../components/parameters.yaml#/ViajeId'
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/PublicarRecorridoRequest'
+          example:
+            comentario: Conviene salir temprano, a la tarde se llena de gente.
+            compartirChecklist: true
     responses:
       '201':
         description: Recorrido publicado.
@@ -36,12 +50,16 @@ PublicarRecorrido:
               distancia_m: 42500
               tiempo_seg: 6300
               publicado_at: '2026-10-23T15:00:00.000Z'
+              comentario: Conviene salir temprano, a la tarde se llena de gente.
+              tiene_checklist: true
               autor:
                 id: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d
                 nombre: Ana
                 apellido: Pérez
       '400':
-        description: '`viajeId` no es un UUID (`VALIDATION_ERROR`).'
+        description: |
+          `viajeId` no es un UUID, el comentario supera los 280 caracteres o se envió
+          un campo desconocido (`VALIDATION_ERROR`).
         content:
           application/json:
             schema:
@@ -141,15 +159,24 @@ RecorridosPublicadosColeccion:
     operationId: listarRecorridosPublicados
     summary: Explorar los recorridos publicados por la comunidad
     description: |
-      Visibles para cualquier usuario autenticado. Más reciente primero. No incluye
-      la traza (usar `GET /recorridos-publicados/{recorridoId}` para el mapa). Cada
-      recorrido trae su valoración de la comunidad (SCRUM-63); el orden nunca depende
-      de la valoración ni del rendimiento (RN-070).
+      Visibles para cualquier usuario autenticado. No incluye la traza (usar
+      `GET /recorridos-publicados/{recorridoId}` para el mapa). Cada recorrido trae su
+      valoración de la comunidad (SCRUM-63) y la reputación de quien lo publicó
+      (`reputacion_autor`: antigüedad, racha e insignias), que la app usa para
+      destacar la tarjeta.
+
+      **Orden (RN-082):** primero los muy recomendados (`valoracion.muy_recomendado`:
+      80 % o más de "Recomiendo" con al menos 3 valoraciones) y, dentro de cada grupo,
+      el más reciente primero. La paginación respeta ese orden. Nunca depende de la
+      reputación del autor ni de la velocidad o el rendimiento (RN-070).
 
       **Zona geográfica (SCRUM-62):** con `lat` + `lng` (y opcionalmente `radioKm`)
       devuelve solo los recorridos que **arrancan** dentro de ese radio. El cálculo
       lo hace PostGIS (`ST_DWithin` sobre `geography`). `lat` y `lng` van juntos;
       `radioKm` sin centro es `400`.
+
+      **Búsqueda:** `q` busca en el nombre, el comentario y el nombre del autor, sin
+      distinguir mayúsculas ni acentos. Se combina con los demás filtros.
     tags:
       - RecorridosPublicados
     parameters:
@@ -159,6 +186,14 @@ RecorridosPublicadosColeccion:
         description: Filtra por tipo de actividad.
         schema:
           $ref: '../components/schemas.yaml#/TipoActividad'
+      - name: q
+        in: query
+        required: false
+        description: Texto a buscar en nombre, comentario y autor. Vacío equivale a no enviarlo.
+        schema:
+          type: string
+          maxLength: 60
+        example: dique
       - name: lat
         in: query
         required: false
@@ -219,6 +254,8 @@ RecorridosPublicadosColeccion:
                 distancia_m: 42500
                 tiempo_seg: 6300
                 publicado_at: '2026-10-23T15:00:00.000Z'
+                comentario: Conviene salir temprano, a la tarde se llena de gente.
+                tiene_checklist: true
                 autor:
                   id: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d
                   nombre: Ana
@@ -228,7 +265,23 @@ RecorridosPublicadosColeccion:
                   no_recomiendan: 3
                   total: 12
                   porcentaje_recomienda: 75
+                  muy_recomendado: false
                   mi_valoracion: null
+                reputacion_autor:
+                  miembro_desde: '2025-08-14T12:00:00.000Z'
+                  racha_semanas: 6
+                  insignias_total: 5
+                  insignias_destacadas:
+                    - codigo: centurion_bici
+                      nombre: Centurión
+                      icono: award
+                      rara: true
+                    - codigo: cincuenta_k_bici
+                      nombre: 50K en bici
+                      icono: zap
+                      rara: false
+                  nivel: leyenda
+                mi_plantilla_id: null
       '400':
         description: |
           Parámetros de consulta inválidos (`VALIDATION_ERROR`): fuera de rango, `lat`
@@ -307,6 +360,8 @@ RecorridoPublicadoPorId:
               distancia_m: 42500
               tiempo_seg: 6300
               publicado_at: '2026-10-23T15:00:00.000Z'
+              comentario: Conviene salir temprano, a la tarde se llena de gente.
+              tiene_checklist: true
               autor:
                 id: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d
                 nombre: Ana
@@ -316,10 +371,15 @@ RecorridoPublicadoPorId:
                 no_recomiendan: 3
                 total: 12
                 porcentaje_recomienda: 75
+                muy_recomendado: false
                 mi_valoracion: true
+              mi_plantilla_id: 7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d
               segmentos:
                 - - [-31.4201, -64.1888]
                   - [-31.4215, -64.1902]
+              checklist:
+                - Casco
+                - Cámara de repuesto
       '400':
         description: '`recorridoId` no es un UUID (`VALIDATION_ERROR`).'
         content:
@@ -364,10 +424,23 @@ ImportarRecorridoPublicado:
 
       Idempotente por `(usuario, recorrido)`: la segunda vez responde `200` con la
       misma plantilla.
+
+      El cuerpo es opcional. Con `guardarChecklist: true` la plantilla se queda con el
+      checklist que compartió el autor, y al crear un viaje con esa plantilla los ítems
+      entran como personales en el checklist de quien lo crea. Al volver a importar se
+      aplica la última elección.
     tags:
       - RecorridosPublicados
     parameters:
       - $ref: '../components/parameters.yaml#/RecorridoPublicadoId'
+    requestBody:
+      required: false
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/ImportarRecorridoRequest'
+          example:
+            guardarChecklist: true
     responses:
       '200':
         description: El usuario ya lo había importado; se devuelve la plantilla existente.
@@ -390,6 +463,9 @@ ImportarRecorridoPublicado:
                 distancia_planeada_m: 198.4
                 tiempo_estimado_seg: 6300
                 created_at: '2026-10-30T15:00:00.000Z'
+                checklist:
+                  - Casco
+                  - Cámara de repuesto
                 paradas: []
               ya_existia: true
       '201':
@@ -413,10 +489,13 @@ ImportarRecorridoPublicado:
                 distancia_planeada_m: 198.4
                 tiempo_estimado_seg: 6300
                 created_at: '2026-10-30T15:00:00.000Z'
+                checklist:
+                  - Casco
+                  - Cámara de repuesto
                 paradas: []
               ya_existia: false
       '400':
-        description: '`recorridoId` no es un UUID (`VALIDATION_ERROR`).'
+        description: '`recorridoId` no es un UUID o se envió un campo desconocido (`VALIDATION_ERROR`).'
         content:
           application/json:
             schema:
@@ -494,6 +573,7 @@ ValorarRecorridoPublicado:
               no_recomiendan: 3
               total: 13
               porcentaje_recomienda: 77
+              muy_recomendado: false
               mi_valoracion: true
       '400':
         description: |

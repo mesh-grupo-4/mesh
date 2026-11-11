@@ -8,6 +8,7 @@ import { Btn, TopBar, useTheme } from '@/components/MeshUI'
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
 import { AYUDA_VIAJE_ALERTAS } from '@/components/ayuda/contenidoAyuda'
 import { CrearAlertaSheet } from '@/components/live/CrearAlertaSheet'
+import { SegmentTabs } from '@/components/SegmentTabs'
 import { DEV_USER_ID } from '@/constants/Config'
 import { useAuth } from '@/context/AuthContext'
 import { useAlertas } from '@/hooks/useAlertas'
@@ -24,6 +25,13 @@ import {
 import { meshAlert } from '@/lib/meshAlert'
 import { formatearEnArg } from '@/lib/tiempoArg'
 import { obtenerViaje, type ViajeDetalleApi } from '@/lib/viajesApi'
+
+type PestanaAlertas = 'activas' | 'resueltas'
+
+/** Una alerta cerrada ya no admite transiciones: va a la pestaña Resueltas, en gris. */
+function alertaCerrada(alerta: AlertaApi): boolean {
+  return alerta.estado === 'cancelada' || alerta.estado === 'resuelta'
+}
 
 /** US1: historial de alertas del viaje, y creación para el líder. */
 export default function AlertasViajeScreen() {
@@ -42,6 +50,7 @@ export default function AlertasViajeScreen() {
   const userId = backendUserId || DEV_USER_ID || ''
   const [viaje, setViaje] = useState<ViajeDetalleApi | null>(null)
   const [componiendo, setComponiendo] = useState(false)
+  const [pestana, setPestana] = useState<PestanaAlertas>('activas')
 
   const { alertas, cargando, enviando, publicar, cambiarEstado, refrescar, marcarTodasVistas } =
     useAlertas({
@@ -49,6 +58,11 @@ export default function AlertasViajeScreen() {
       userId,
       habilitado: Boolean(viajeId && userId.trim()),
     })
+
+  const alertasVisibles = useMemo(
+    () => alertas.filter((a) => alertaCerrada(a) === (pestana === 'resueltas')),
+    [alertas, pestana]
+  )
 
   // Lo que aparece en el historial ya se vio: la campanita del mapa baja a cero,
   // y también las que lleguen por socket mientras la pantalla está abierta.
@@ -128,6 +142,18 @@ export default function AlertasViajeScreen() {
         onAyuda={() => start()}
       />
 
+      <View style={styles.pestanas}>
+        <SegmentTabs
+          tabs={[
+            { key: 'activas', label: 'Activas' },
+            { key: 'resueltas', label: 'Resueltas' },
+          ]}
+          active={pestana}
+          onChange={(key) => setPestana(key as PestanaAlertas)}
+          theme={theme}
+        />
+      </View>
+
       <PasoAyuda {...AYUDA_VIAJE_ALERTAS[0]!} estilo={styles.flex1}>
       <ScrollView
         contentContainerStyle={[styles.lista, { paddingBottom: insets.bottom + 96 }]}
@@ -139,18 +165,22 @@ export default function AlertasViajeScreen() {
           <ActivityIndicator style={styles.spinner} color={theme.accent} />
         ) : null}
 
-        {!cargando && alertas.length === 0 ? (
+        {!cargando && alertasVisibles.length === 0 ? (
           <View style={styles.vacio}>
-            <Text style={[styles.vacioTitulo, { color: theme.textDim }]}>Sin alertas todavía</Text>
+            <Text style={[styles.vacioTitulo, { color: theme.textDim }]}>
+              {pestana === 'activas' ? 'Sin alertas activas' : 'Sin alertas resueltas'}
+            </Text>
             <Text style={[styles.vacioTxt, { color: theme.textMute }]}>
-              {puedeCrear
-                ? 'Creá una alerta para avisarle algo al grupo durante el viaje.'
-                : 'Las alertas del viaje van a aparecer acá.'}
+              {pestana === 'resueltas'
+                ? 'Las alertas resueltas o canceladas van a aparecer acá.'
+                : puedeCrear
+                  ? 'Creá una alerta para avisarle algo al grupo durante el viaje.'
+                  : 'Las alertas del viaje van a aparecer acá.'}
             </Text>
           </View>
         ) : null}
 
-        {alertas.map((a) => (
+        {alertasVisibles.map((a) => (
           <TarjetaAlerta
             key={a.id}
             alerta={a}
@@ -194,18 +224,19 @@ function TarjetaAlerta({
 }) {
   const meta = metaTipoAlerta(alerta.tipo)
   const mensaje = mensajeAlertaVisible(alerta.mensaje)
-  const cerrada = alerta.estado === 'cancelada' || alerta.estado === 'resuelta'
+  const cerrada = alertaCerrada(alerta)
+  const colorTipo = cerrada ? theme.textDim : meta.color
   const transiciones = gestionable ? TRANSICIONES_ALERTA[alerta.estado] : []
   return (
     <View
       style={[
         styles.tarjeta,
-        { backgroundColor: theme.surface, borderColor: theme.border, borderLeftColor: meta.color },
+        { backgroundColor: theme.surface, borderColor: theme.border, borderLeftColor: colorTipo },
       ]}
     >
       <View style={styles.tarjetaHeader}>
-        <Text style={[styles.emoji, { color: meta.color }]}>{meta.emoji}</Text>
-        <Text style={[styles.tipo, { color: meta.color }]}>{meta.label}</Text>
+        <Text style={[styles.emoji, { color: colorTipo }]}>{meta.emoji}</Text>
+        <Text style={[styles.tipo, { color: colorTipo }]}>{meta.label}</Text>
         {alerta.estado !== 'activa' ? (
           <Text
             style={[
@@ -228,7 +259,7 @@ function TarjetaAlerta({
       </View>
 
       {mensaje ? (
-        <Text style={[styles.mensaje, { color: theme.text }]}>{mensaje}</Text>
+        <Text style={[styles.mensaje, { color: cerrada ? theme.textDim : theme.text }]}>{mensaje}</Text>
       ) : null}
 
       <Text
@@ -262,6 +293,10 @@ const styles = StyleSheet.create({
   },
   flex1: {
     flex: 1,
+  },
+  pestanas: {
+    paddingHorizontal: 14,
+    paddingTop: 12,
   },
   centro: {
     flex: 1,

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { StyleSheet, Text, TextInput, View } from 'react-native'
+import { ActivityIndicator, Keyboard, StyleSheet, Text, TextInput, View } from 'react-native'
 import { Pressable } from '@/components/Pressable'
 import { Feather, Ionicons } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -8,7 +8,9 @@ import { Btn, useTheme } from '@/components/MeshUI'
 import { MeshMapView, type LatLng, type MeshMapViewHandle } from '@/components/maps/MeshMapView'
 import { getMapStyle } from '@/components/route-config/mapStyles'
 import { REGION_FALLBACK } from '@/components/route-config/routeTypes'
-import { buscarLugares, reverseGeocode, type LugarHit } from '@/lib/nominatim'
+import { useCapaMapa } from '@/hooks/useCapaMapa'
+import { useSugerenciasLugares } from '@/hooks/useSugerenciasLugares'
+import { reverseGeocode, type LugarSugerencia } from '@/lib/nominatim'
 import type { PuntoDestino } from '@/lib/rutaRapida'
 
 type Props = {
@@ -23,18 +25,23 @@ type Props = {
   guardando?: boolean
 }
 
-const ESTILO_MAPA = getMapStyle('standard')
-const MS_DEBOUNCE_BUSQUEDA = 400
-
 /** Mapa a pantalla completa con un pin fijo al centro: se mueve el mapa o se busca un lugar. */
 export function DestinoPicker({ titulo, origen, onConfirm, onSkip, onCancel, guardando = false }: Props) {
   const theme = useTheme()
   const insets = useSafeAreaInsets()
+  const [capaMapa] = useCapaMapa()
   const mapRef = useRef<MeshMapViewHandle>(null)
   const centradoRef = useRef(false)
   const [centro, setCentro] = useState<LatLng | null>(origen)
   const [query, setQuery] = useState('')
-  const [resultados, setResultados] = useState<LugarHit[]>([])
+  const {
+    sugerencias: resultados,
+    buscando,
+    error: errorBusqueda,
+    resolver,
+  } = useSugerenciasLugares(query, {
+    cerca: origen ? { lat: origen.latitude, lng: origen.longitude } : null,
+  })
   /** Nombre del lugar buscado; se descarta si el usuario mueve el mapa a mano. */
   const [nombreElegido, setNombreElegido] = useState<string | null>(null)
   const [resolviendo, setResolviendo] = useState(false)
@@ -47,30 +54,14 @@ export function DestinoPicker({ titulo, origen, onConfirm, onSkip, onCancel, gua
     }
   }, [origen])
 
-  useEffect(() => {
-    const q = query.trim()
-    if (q.length < 3) {
-      setResultados([])
-      return
-    }
-    let cancelado = false
-    const t = setTimeout(() => {
-      buscarLugares(q)
-        .then((r) => !cancelado && setResultados(r.slice(0, 5)))
-        .catch(() => !cancelado && setResultados([]))
-    }, MS_DEBOUNCE_BUSQUEDA)
-    return () => {
-      cancelado = true
-      clearTimeout(t)
-    }
-  }, [query])
-
-  const elegirResultado = (hit: LugarHit) => {
+  const elegirResultado = async (sugerencia: LugarSugerencia) => {
+    Keyboard.dismiss()
+    const hit = await resolver(sugerencia)
+    if (!hit) return
     const punto = { latitude: hit.lat, longitude: hit.lng }
     setNombreElegido(hit.nombre)
     setCentro(punto)
     setQuery('')
-    setResultados([])
     mapRef.current?.animateTo(punto, 15)
   }
 
@@ -93,7 +84,7 @@ export function DestinoPicker({ titulo, origen, onConfirm, onSkip, onCancel, gua
         style={StyleSheet.absoluteFill}
         initialCenter={origen ?? { latitude: REGION_FALLBACK.latitude, longitude: REGION_FALLBACK.longitude }}
         initialZoom={origen ? 15 : 12}
-        mapStyle={ESTILO_MAPA}
+        mapStyle={getMapStyle(capaMapa)}
         userLocation={origen}
         onRegionChangeComplete={setCentro}
         onUserDrag={() => setNombreElegido(null)}
@@ -142,6 +133,7 @@ export function DestinoPicker({ titulo, origen, onConfirm, onSkip, onCancel, gua
             style={[styles.searchInput, { color: theme.text }]}
             returnKeyType="search"
           />
+          {buscando && <ActivityIndicator size="small" color={theme.textMute} />}
           {query.length > 0 && (
             <Pressable onPress={() => setQuery('')} hitSlop={10}>
               <Feather name="x-circle" size={18} color={theme.textMute} />
@@ -149,12 +141,18 @@ export function DestinoPicker({ titulo, origen, onConfirm, onSkip, onCancel, gua
           )}
         </View>
 
-        {resultados.length > 0 && (
+        {errorBusqueda ? (
+          <View style={[styles.resultados, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <Text style={[styles.errorBusqueda, { color: theme.danger }]}>{errorBusqueda}</Text>
+          </View>
+        ) : null}
+
+        {!errorBusqueda && resultados.length > 0 && (
           <View style={[styles.resultados, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             {resultados.map((r, i) => (
               <Pressable
-                key={`${r.lat},${r.lng},${i}`}
-                onPress={() => elegirResultado(r)}
+                key={r.placeId ?? `${r.lat},${r.lng},${i}`}
+                onPress={() => void elegirResultado(r)}
                 style={({ pressed }) => [
                   styles.resultado,
                   { borderTopColor: theme.border, borderTopWidth: i === 0 ? 0 : StyleSheet.hairlineWidth },
@@ -239,6 +237,7 @@ const styles = StyleSheet.create({
   resultados: { borderRadius: 14, borderWidth: 1, overflow: 'hidden' },
   resultado: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14 },
   resultadoTexto: { flex: 1, fontSize: 15 },
+  errorBusqueda: { padding: 14, fontSize: 15 },
   bottom: { position: 'absolute', left: 16, right: 16, bottom: 0, gap: 10 },
   elegido: {
     fontSize: 15,

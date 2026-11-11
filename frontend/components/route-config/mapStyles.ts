@@ -1,22 +1,27 @@
+import { Platform } from 'react-native'
 import type { MapStyleElement, MapType } from 'react-native-maps'
 
-import Colors from '@/constants/Colors'
-
-export type MapStyleId = 'standard' | 'dark' | 'satellite' | 'terrain'
+export type MapStyleId = 'light' | 'dark' | 'satellite' | 'terrain'
 
 export type MapStyleConfig = {
   id: MapStyleId
   label: string
   /** Nombre de ícono Feather (@expo/vector-icons) */
-  icon: 'map' | 'moon' | 'globe' | 'layers'
+  icon: 'sun' | 'moon' | 'globe' | 'layers'
   /** Tipo de mapa base de Google Maps (Maps SDK for Android/iOS). */
   mapType: MapType
+  /** Esquema de color del mapa base, fijo: no sigue al tema del sistema. */
+  esquema: 'light' | 'dark'
   /** Estilo JSON de Google Maps aplicado sobre `mapType: 'standard'`. */
   customMapStyle?: MapStyleElement[]
   routeStrokeColor: string
 }
 
-/** Estilo "noche" de Google Maps (paleta oficial de ejemplo de la documentación). */
+/**
+ * Estilo "noche" de Google Maps (paleta oficial de ejemplo de la documentación).
+ * Solo Android: ahí el esquema de color nativo se fija al crear el mapa y no se
+ * puede cambiar en caliente; en iOS se usa el modo oscuro nativo del mapa.
+ */
 const ESTILO_OSCURO: MapStyleElement[] = [
   { elementType: 'geometry', stylers: [{ color: '#242f3e' }] },
   { elementType: 'labels.text.stroke', stylers: [{ color: '#242f3e' }] },
@@ -41,10 +46,11 @@ const ESTILO_OSCURO: MapStyleElement[] = [
 /** Capas base de Google Maps. La atribución la dibuja el propio SDK (logo de Google). */
 export const MAP_STYLES: MapStyleConfig[] = [
   {
-    id: 'standard',
-    label: 'Mapa',
-    icon: 'map',
+    id: 'light',
+    label: 'Claro',
+    icon: 'sun',
     mapType: 'standard',
+    esquema: 'light',
     routeStrokeColor: '#2563eb',
   },
   {
@@ -52,7 +58,8 @@ export const MAP_STYLES: MapStyleConfig[] = [
     label: 'Oscuro',
     icon: 'moon',
     mapType: 'standard',
-    customMapStyle: ESTILO_OSCURO,
+    esquema: 'dark',
+    customMapStyle: Platform.OS === 'android' ? ESTILO_OSCURO : undefined,
     routeStrokeColor: '#60a5fa',
   },
   {
@@ -61,6 +68,7 @@ export const MAP_STYLES: MapStyleConfig[] = [
     icon: 'globe',
     // Híbrido: imagen satelital con nombres de calles, más útil para orientarse.
     mapType: 'hybrid',
+    esquema: 'light',
     routeStrokeColor: '#fbbf24',
   },
   {
@@ -68,29 +76,11 @@ export const MAP_STYLES: MapStyleConfig[] = [
     label: 'Terreno',
     icon: 'layers',
     mapType: 'terrain',
+    esquema: 'light',
     routeStrokeColor: '#dc2626',
   },
 ]
 
-/** Mapa oscuro de Inicio, con los grises del tema oscuro de la app. */
-export const ESTILO_MAPA_OSCURO_INICIO: MapStyleConfig = {
-  id: 'dark',
-  label: 'Oscuro',
-  icon: 'moon',
-  mapType: 'standard',
-  routeStrokeColor: Colors.dark.accent,
-  customMapStyle: [
-    { elementType: 'geometry', stylers: [{ color: Colors.dark.surface }] },
-    { elementType: 'labels.text.fill', stylers: [{ color: Colors.dark.textDim }] },
-    { elementType: 'labels.text.stroke', stylers: [{ color: Colors.dark.background }] },
-    { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: Colors.dark.surface2 }] },
-    { featureType: 'road', elementType: 'geometry', stylers: [{ color: Colors.dark.borderStrong }] },
-    { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: Colors.dark.textMute }] },
-    { featureType: 'transit', elementType: 'geometry', stylers: [{ color: Colors.dark.surface2 }] },
-    { featureType: 'water', elementType: 'geometry', stylers: [{ color: Colors.dark.background }] },
-  ],
-}
-
 export function getMapStyle(id: MapStyleId): MapStyleConfig {
-  return MAP_STYLES.find((s) => s.id === id) ?? MAP_STYLES[0]
+  return MAP_STYLES.find((s) => s.id === id) ?? MAP_STYLES[0]!
 }

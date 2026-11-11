@@ -67,6 +67,39 @@ BuscarUsuarios:
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'
 
+RelacionesAmistad:
+  get:
+    operationId: listarRelacionesAmistad
+    summary: Listar las relaciones de amistad vigentes del usuario
+    description: |
+      Devuelve, en una sola consulta, la relación del usuario autenticado con cada
+      persona con la que tiene una amistad o una solicitud pendiente. Alimenta la
+      lista de integrantes durante el viaje, donde hay que resolver a muchas
+      personas a la vez.
+
+      Quien no aparece en la respuesta no tiene relación con el usuario, así que
+      se le puede enviar una solicitud.
+    tags:
+      - Amistades
+    responses:
+      '200':
+        description: Relaciones vigentes del usuario autenticado.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/RelacionAmistadUsuario'
+            example:
+              - usuario_id: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d
+                relacion: amigo
+              - usuario_id: 2c9a7d61-4e83-4b2f-9a17-6d0e5b8c1f23
+                relacion: solicitud_enviada
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
 SolicitudesPendientes:
   get:
     operationId: solicitudesPendientes

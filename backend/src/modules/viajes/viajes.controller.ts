@@ -7,6 +7,7 @@ import {
   putRutaSchema,
   responderInvitacionViajeSchema,
   salirViajeSchema,
+  unirsePorCodigoSchema,
   checkInSchema,
   cederLiderazgoSchema,
   upsertUbicacionVivaSchema,
@@ -162,6 +163,12 @@ export function crearViajesController(service: ViajesService) {
       res.json(result)
     }),
 
+    avisarFaltantes: asyncHandler(async (req, res) => {
+      const { viajeId } = viajeIdParamSchema.parse(req.params)
+      const result = await service.avisarFaltantes(req.userId!, viajeId)
+      res.json(result)
+    }),
+
     cederLiderazgo: asyncHandler(async (req, res) => {
       const { viajeId } = viajeIdParamSchema.parse(req.params)
       const { nuevo_lider_id } = cederLiderazgoSchema.parse(req.body)
@@ -196,6 +203,12 @@ export function crearViajesController(service: ViajesService) {
     unirseQr: asyncHandler(async (req, res) => {
       const { viajeId } = viajeIdParamSchema.parse(req.params)
       const result = await service.unirsePorQr(req.userId!, viajeId)
+      res.json(result)
+    }),
+
+    unirseCodigo: asyncHandler(async (req, res) => {
+      const { codigo } = unirsePorCodigoSchema.parse(req.body)
+      const result = await service.unirsePorCodigo(req.userId!, codigo)
       res.json(result)
     }),
   }

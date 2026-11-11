@@ -1,11 +1,12 @@
 import { Feather } from '@expo/vector-icons'
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { Pressable } from '@/components/Pressable'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { AvatarFallback } from '@/components/AvatarFallback'
-import { useTheme } from '@/components/MeshUI'
+import { Badge, Btn, useTheme } from '@/components/MeshUI'
+import { listarRelacionesAmistad, solicitarAmistad, type RelacionAmistad } from '@/lib/amistadesApi'
 
 export type LiveMember = {
   id: string
@@ -37,17 +38,79 @@ function estadoDe(m: LiveMember): { texto: string; tono: 'good' | 'dim' | 'mute'
 type Props = {
   members: LiveMember[]
   currentUserId: string
+  /** Avisa al header que la lista está abierta, para que no se cierre solo con ella adentro. */
+  onListaAbiertaChange?: (abierta: boolean) => void
 }
 
-export function LiveMembersBar({ members, currentUserId }: Props) {
+export function LiveMembersBar({ members, currentUserId, onListaAbiertaChange }: Props) {
   const theme = useTheme()
   const insets = useSafeAreaInsets()
   const [modalOpen, setModalOpen] = useState(false)
+  // null hasta saber la relación con cada uno: sin eso no se ofrece agregar.
+  const [relaciones, setRelaciones] = useState<Map<string, RelacionAmistad> | null>(null)
+  const [enviandoA, setEnviandoA] = useState<string | null>(null)
+  const [errorAmistad, setErrorAmistad] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!modalOpen) return
+    onListaAbiertaChange?.(true)
+    return () => onListaAbiertaChange?.(false)
+  }, [modalOpen, onListaAbiertaChange])
+
+  const cargarRelaciones = useCallback(async () => {
+    try {
+      const lista = await listarRelacionesAmistad()
+      setRelaciones(new Map(lista.map((r) => [r.usuario_id, r.relacion])))
+    } catch {
+      // Sin red la lista sigue sirviendo para ver al grupo, solo no ofrece agregar.
+    }
+  }, [])
+
+  const abrirLista = () => {
+    setErrorAmistad(null)
+    setModalOpen(true)
+    void cargarRelaciones()
+  }
+
+  const agregarAmigo = async (usuarioId: string) => {
+    setEnviandoA(usuarioId)
+    setErrorAmistad(null)
+    try {
+      await solicitarAmistad(usuarioId, currentUserId)
+      setRelaciones((prev) => new Map(prev).set(usuarioId, 'solicitud_enviada'))
+    } catch (e: unknown) {
+      // Se muestra acá porque un meshAlert, que es otro Modal, no se apila sobre este en iOS.
+      setErrorAmistad(e instanceof Error ? e.message : 'No se pudo enviar la solicitud.')
+      void cargarRelaciones()
+    } finally {
+      setEnviandoA(null)
+    }
+  }
+
+  const renderAmistad = (usuarioId: string) => {
+    if (usuarioId === currentUserId || !relaciones) return null
+    const relacion = relaciones.get(usuarioId) ?? null
+    if (relacion === 'amigo') return <Badge tone="good">Amigos</Badge>
+    if (relacion === 'solicitud_enviada') return <Badge tone="mute">Solicitud enviada</Badge>
+    if (relacion === 'solicitud_recibida') return <Badge tone="accent">Te envió solicitud</Badge>
+    return (
+      <Btn
+        variant="secondary"
+        size="sm"
+        icon="user-plus"
+        onPress={() => void agregarAmigo(usuarioId)}
+        loading={enviandoA === usuarioId}
+        disabled={enviandoA !== null}
+      >
+        Agregar
+      </Btn>
+    )
+  }
 
   return (
     <>
       <Pressable
-        onPress={() => setModalOpen(true)}
+        onPress={abrirLista}
         style={({ pressed }) => [styles.row, pressed && { opacity: 0.85 }]}
         accessibilityLabel="Ver integrantes del viaje"
       >
@@ -107,33 +170,39 @@ export function LiveMembersBar({ members, currentUserId }: Props) {
             <Text style={[styles.modalHint, { color: theme.textDim }]}>
               Cada color identifica a una persona en el mapa.
             </Text>
+            {errorAmistad ? (
+              <Text style={[styles.errorAmistad, { color: theme.danger }]}>{errorAmistad}</Text>
+            ) : null}
 
-            {members.map((m) => {
-              const estado = estadoDe(m)
-              const colorEstado =
-                estado.tono === 'good'
-                  ? theme.good
-                  : estado.tono === 'danger'
-                    ? theme.danger
-                    : estado.tono === 'dim'
-                      ? theme.textDim
-                      : theme.textMute
-              return (
-                <View
-                  key={m.id}
-                  style={[styles.memberRow, { borderBottomColor: theme.border }]}
-                >
-                  <AvatarFallback nombre={m.nombre} size={40} />
-                  <View style={styles.memberInfo}>
-                    <Text style={[styles.memberName, { color: theme.text }]} numberOfLines={1}>
-                      {m.nombre}
-                      {m.id === currentUserId ? ' (vos)' : ''}
-                    </Text>
-                    <Text style={[styles.memberStatus, { color: colorEstado }]}>{estado.texto}</Text>
+            <ScrollView style={styles.memberList}>
+              {members.map((m) => {
+                const estado = estadoDe(m)
+                const colorEstado =
+                  estado.tono === 'good'
+                    ? theme.good
+                    : estado.tono === 'danger'
+                      ? theme.danger
+                      : estado.tono === 'dim'
+                        ? theme.textDim
+                        : theme.textMute
+                return (
+                  <View
+                    key={m.id}
+                    style={[styles.memberRow, { borderBottomColor: theme.border }]}
+                  >
+                    <AvatarFallback nombre={m.nombre} size={40} />
+                    <View style={styles.memberInfo}>
+                      <Text style={[styles.memberName, { color: theme.text }]} numberOfLines={1}>
+                        {m.nombre}
+                        {m.id === currentUserId ? ' (vos)' : ''}
+                      </Text>
+                      <Text style={[styles.memberStatus, { color: colorEstado }]}>{estado.texto}</Text>
+                    </View>
+                    {renderAmistad(m.id)}
                   </View>
-                </View>
-              )
-            })}
+                )
+              })}
+            </ScrollView>
 
             <Pressable
               onPress={() => setModalOpen(false)}
@@ -215,6 +284,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginBottom: 14,
     lineHeight: 18,
+  },
+  errorAmistad: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 10,
+    lineHeight: 18,
+  },
+  memberList: {
+    flexGrow: 0,
+    flexShrink: 1,
   },
   memberRow: {
     flexDirection: 'row',

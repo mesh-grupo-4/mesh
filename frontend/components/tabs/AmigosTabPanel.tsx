@@ -3,7 +3,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
-  TextInput,
   StyleSheet,
   FlatList,
   ActivityIndicator,
@@ -13,6 +12,12 @@ import { Pressable } from '@/components/Pressable';
 import { SELECCION_CON_PULSACION_LARGA } from '@/lib/plataforma';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { AvatarFallback } from '@/components/AvatarFallback';
+import {
+  BarraFiltros,
+  BuscadorFiltros,
+  ChipFiltro,
+  FilaChipsFiltro,
+} from '@/components/BarraFiltros';
 import { SelectableCard } from '@/components/SelectableCard';
 import { SelectionActionBar } from '@/components/SelectionActionBar';
 import { BotonSeleccionar, SelectionHeader } from '@/components/SelectionHeader';
@@ -38,9 +43,13 @@ import {
   type SolicitudAmistadPendienteApi,
   type UsuarioBusquedaAmistadApi,
 } from '@/lib/amistadesApi';
+import { coincideBusqueda, normalizarBusqueda } from '@/lib/busqueda';
 import { setSolicitudesPendientesCount } from '@/lib/pendientesStore';
 
 type TabAmigos = 'amigos' | 'solicitudes';
+
+/** Desde cuántas letras el buscador también busca otros usuarios en el servidor. */
+const MIN_LETRAS_OTROS_USUARIOS = 2;
 
 export function AmigosTabPanel() {
   const espacioTabBar = useEspacioTabBar()
@@ -106,8 +115,9 @@ export function AmigosTabPanel() {
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
+    // Los otros usuarios solo se buscan en "Mis amigos"; en Solicitudes el buscador filtra local.
     const q = busqueda.trim();
-    if (q.length < 2) {
+    if (tab !== 'amigos' || q.length < MIN_LETRAS_OTROS_USUARIOS) {
       setResultadosBusqueda([]);
       setBuscando(false);
       return;
@@ -131,7 +141,7 @@ export function AmigosTabPanel() {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [busqueda, backendUserId]);
+  }, [busqueda, backendUserId, tab]);
 
   const obtenerRelacion = (usuario: UsuarioBusquedaAmistadApi): RelacionAmistad => {
     return relacionesLocales.get(usuario.id) ?? usuario.relacion;
@@ -155,16 +165,36 @@ export function AmigosTabPanel() {
     }
   };
 
+  const consulta = normalizarBusqueda(busqueda);
+  const buscaOtrosUsuarios =
+    tab === 'amigos' && busqueda.trim().length >= MIN_LETRAS_OTROS_USUARIOS;
+  const amigosVisibles = amigos.filter((a) => coincideBusqueda(consulta, [a.nombre, a.email]));
+  const solicitudesVisibles = solicitudes.filter((s) =>
+    coincideBusqueda(consulta, [s.solicitante.nombre, s.solicitante.email])
+  );
+  // Los que ya son amigos aparecen arriba, en la lista filtrada: acá no se repiten.
+  const otrosUsuarios = resultadosBusqueda.filter((u) => obtenerRelacion(u) !== 'amigo');
+
+  // Escribir o cambiar de chip sale del modo selección: así nunca queda seleccionado un amigo oculto.
+  const cambiarBusqueda = (texto: string) => {
+    selection.exit();
+    setBusqueda(texto);
+  };
+  const cambiarTab = (nuevo: TabAmigos) => {
+    selection.exit();
+    setTab(nuevo);
+  };
+
   const amigosSeleccionados = amigos.filter((a) => selection.isSelected(a.id));
   const todosSeleccionados =
-    amigos.length > 0 && amigos.every((a) => selection.isSelected(a.id));
+    amigosVisibles.length > 0 && amigosVisibles.every((a) => selection.isSelected(a.id));
 
   const toggleSeleccionarTodos = () => {
     if (todosSeleccionados) {
       selection.clear();
       return;
     }
-    selection.selectAll(amigos.map((a) => a.id));
+    selection.selectAll(amigosVisibles.map((a) => a.id));
   };
 
   const confirmarEliminarSeleccionados = () => {
@@ -224,8 +254,6 @@ export function AmigosTabPanel() {
     }
   };
 
-  const enModoBusqueda = tab === 'amigos' && busqueda.trim().length >= 2;
-
   const renderBotonAgregar = (usuario: UsuarioBusquedaAmistadApi) => {
     const relacion = obtenerRelacion(usuario);
     const solicitando = solicitandoId === usuario.id;
@@ -281,8 +309,9 @@ export function AmigosTabPanel() {
     </SelectableCard>
   );
 
-  const renderFilaBusqueda = ({ item }: { item: UsuarioBusquedaAmistadApi }) => (
+  const renderFilaBusqueda = (item: UsuarioBusquedaAmistadApi) => (
     <Pressable
+      key={item.id}
       style={[styles.fila, { backgroundColor: theme.surface, borderColor: theme.border }]}
       onPress={() => verPerfil(item.id)}
     >
@@ -335,193 +364,166 @@ export function AmigosTabPanel() {
     );
   };
 
-  const listaAmigosCargando = enModoBusqueda ? buscando : loading;
+  const refresh = (
+    <RefreshControl
+      refreshing={refreshing}
+      onRefresh={() => void cargarDatos(true)}
+      tintColor={theme.accent}
+    />
+  );
+
+  const encabezadoAmigos =
+    amigos.length > 0 ? (
+      <View>
+        <View style={styles.encabezadoFila}>
+          <Text style={[styles.eyebrow, { color: theme.textDim }]}>
+            TUS AMIGOS ({amigosVisibles.length})
+          </Text>
+          <BotonSeleccionar
+            visible={!selection.active && amigosVisibles.length > 0}
+            onPress={() => selection.enter()}
+          />
+        </View>
+        <SelectionHeader
+          visible={selection.active}
+          allSelected={todosSeleccionados}
+          onToggleAll={toggleSeleccionarTodos}
+          onCancel={selection.exit}
+        />
+      </View>
+    ) : null;
+
+  const vacioAmigos = !consulta ? (
+    <Text style={[styles.vacio, { color: theme.textMute }]}>
+      No tenés amigos todavía. Buscá usuarios por nombre o email y enviá solicitudes de amistad.
+      {SELECCION_CON_PULSACION_LARGA
+        ? '\n\nMantené apretado un contacto para seleccionar y eliminar.'
+        : ''}
+    </Text>
+  ) : amigos.length > 0 ? (
+    <Text style={[styles.vacioCompacto, { color: theme.textMute }]}>
+      Ninguno de tus amigos coincide con la búsqueda.
+    </Text>
+  ) : null;
+
+  // Resultados del servidor para agregar gente nueva, debajo de los amigos filtrados.
+  const seccionOtrosUsuarios = buscaOtrosUsuarios ? (
+    <View style={styles.seccionOtros}>
+      <Text style={[styles.eyebrow, { color: theme.textDim }]}>OTROS USUARIOS</Text>
+      {buscando ? (
+        <ActivityIndicator color={theme.accent} style={styles.cargandoOtros} />
+      ) : otrosUsuarios.length === 0 ? (
+        <Text style={[styles.vacioCompacto, { color: theme.textMute }]}>
+          No se encontraron otros usuarios.
+        </Text>
+      ) : (
+        otrosUsuarios.map(renderFilaBusqueda)
+      )}
+    </View>
+  ) : consulta ? (
+    <Text style={[styles.vacioCompacto, { color: theme.textMute }]}>
+      Escribí al menos {MIN_LETRAS_OTROS_USUARIOS} letras para buscar otros usuarios.
+    </Text>
+  ) : null;
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-        <View style={[styles.tabs, { borderColor: theme.border }]}>
-          <Pressable
-            style={[
-              styles.tab,
-              { backgroundColor: theme.surface },
-              tab === 'amigos' && { backgroundColor: theme.accentWeak },
-            ]}
-            onPress={() => {
-              selection.exit();
-              setTab('amigos');
-            }}
-          >
-            <Text style={[styles.tabTexto, { color: tab === 'amigos' ? theme.accent : theme.textDim }]}>
-              Mis Amigos
-            </Text>
-          </Pressable>
-          <Pressable
-            style={[
-              styles.tab,
-              { backgroundColor: theme.surface },
-              tab === 'solicitudes' && { backgroundColor: theme.accentWeak },
-            ]}
-            onPress={() => {
-              selection.exit();
-              setTab('solicitudes');
-            }}
-          >
-            <Text style={[styles.tabTexto, { color: tab === 'solicitudes' ? theme.accent : theme.textDim }]}>
-              Solicitudes{solicitudes.length > 0 ? ` (${solicitudes.length})` : ''}
-            </Text>
-          </Pressable>
-        </View>
-
-        {tab === 'amigos' && !enModoBusqueda ? (
-          <BotonSeleccionar
-            visible={!selection.active && amigos.length > 0}
-            onPress={() => selection.enter()}
-          />
-        ) : null}
-
-        {tab === 'amigos' && !enModoBusqueda ? (
-          <SelectionHeader
-            visible={selection.active}
-            allSelected={todosSeleccionados}
-            onToggleAll={toggleSeleccionarTodos}
-            onCancel={selection.exit}
-          />
-        ) : null}
-
-        {tab === 'amigos' && (
-          <>
-            <TextInput
-              style={[
-                styles.buscador,
-                { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text },
-              ]}
-              placeholder="Buscar por nombre o email..."
-              placeholderTextColor={theme.textMute}
-              value={busqueda}
-              onChangeText={(text) => {
-                if (text.trim().length >= 2) selection.exit();
-                setBusqueda(text);
-              }}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-
-            {listaAmigosCargando ? (
-              <ActivityIndicator color={theme.accent} size="large" style={styles.centrado} />
-            ) : enModoBusqueda ? (
-              <FlatList
-                data={resultadosBusqueda}
-                keyExtractor={(item) => item.id}
-                renderItem={renderFilaBusqueda}
-                keyboardShouldPersistTaps="handled"
-                automaticallyAdjustKeyboardInsets
-                contentContainerStyle={[
-                  resultadosBusqueda.length === 0 ? styles.listaVacia : undefined,
-                  { paddingBottom: espacioTabBar },
-                ]}
-                ListEmptyComponent={
-                  <Text style={[styles.vacio, { color: theme.textMute }]}>No se encontraron usuarios.</Text>
-                }
-                refreshControl={
-                  <RefreshControl
-                    refreshing={refreshing}
-                    onRefresh={() => void cargarDatos(true)}
-                    tintColor={theme.accent}
-                  />
-                }
-              />
-            ) : (
-              <FlatList
-                data={amigos}
-                keyExtractor={(item) => item.id}
-                renderItem={renderFilaAmigo}
-                keyboardShouldPersistTaps="handled"
-                automaticallyAdjustKeyboardInsets
-                contentContainerStyle={[
-                  amigos.length === 0 ? styles.listaVacia : undefined,
-                  { paddingBottom: espacioTabBar + (selection.active ? 88 : 0) },
-                ]}
-                ListEmptyComponent={
-                  <Text style={[styles.vacio, { color: theme.textMute }]}>
-                    No tenés amigos todavía. Buscá usuarios y enviá solicitudes de amistad.
-                    {SELECCION_CON_PULSACION_LARGA
-                      ? '\n\nMantené apretado un contacto para seleccionar y eliminar.'
-                      : ''}
-                  </Text>
-                }
-                refreshControl={
-                  <RefreshControl
-                    refreshing={refreshing}
-                    onRefresh={() => void cargarDatos(true)}
-                    tintColor={theme.accent}
-                  />
-                }
-              />
-            )}
-          </>
-        )}
-
-        {tab === 'solicitudes' && (
-          loading ? (
-            <ActivityIndicator color={theme.accent} size="large" style={styles.centrado} />
-          ) : (
-            <FlatList
-              data={solicitudes}
-              keyExtractor={(item) => item.id}
-              renderItem={renderSolicitud}
-              contentContainerStyle={[
-                solicitudes.length === 0 ? styles.listaVacia : undefined,
-                { paddingBottom: espacioTabBar },
-              ]}
-              ListEmptyComponent={
-                <Text style={[styles.vacio, { color: theme.textMute }]}>No tenés solicitudes pendientes.</Text>
-              }
-              refreshControl={
-                <RefreshControl
-                  refreshing={refreshing}
-                  onRefresh={() => void cargarDatos(true)}
-                  tintColor={theme.accent}
-                />
-              }
-            />
-          )
-        )}
-
-        <SelectionActionBar
-          visible={selection.active && tab === 'amigos' && !enModoBusqueda}
-          count={selection.count}
-          deleting={eliminandoBulk}
-          onCancel={selection.exit}
-          onDelete={confirmarEliminarSeleccionados}
+      {/* Barra de búsqueda y filtros (fija, no scrollea): mismo diseño que Viajes y Rutas. */}
+      <BarraFiltros>
+        <BuscadorFiltros
+          value={busqueda}
+          onChangeText={cambiarBusqueda}
+          placeholder={
+            tab === 'amigos' ? 'Buscar amigos o usuarios por nombre o email' : 'Buscar por nombre o email'
+          }
+          accessibilityLabel={tab === 'amigos' ? 'Buscar amigos o usuarios' : 'Buscar solicitudes'}
+          maxLength={60}
         />
-      </View>
+        <FilaChipsFiltro>
+          <ChipFiltro
+            label="Mis amigos"
+            activo={tab === 'amigos'}
+            onPress={() => cambiarTab('amigos')}
+          />
+          <ChipFiltro
+            label={`Solicitudes${solicitudes.length > 0 ? ` (${solicitudes.length})` : ''}`}
+            activo={tab === 'solicitudes'}
+            onPress={() => cambiarTab('solicitudes')}
+          />
+        </FilaChipsFiltro>
+      </BarraFiltros>
+
+      {loading ? (
+        <ActivityIndicator color={theme.accent} size="large" style={styles.centrado} />
+      ) : tab === 'amigos' ? (
+        <FlatList
+          data={amigosVisibles}
+          keyExtractor={(item) => item.id}
+          renderItem={renderFilaAmigo}
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
+          ListHeaderComponent={encabezadoAmigos}
+          ListEmptyComponent={vacioAmigos}
+          ListFooterComponent={seccionOtrosUsuarios}
+          contentContainerStyle={[
+            styles.lista,
+            amigos.length === 0 && !consulta ? styles.listaVacia : undefined,
+            { paddingBottom: espacioTabBar + (selection.active ? 88 : 0) },
+          ]}
+          refreshControl={refresh}
+        />
+      ) : (
+        <FlatList
+          data={solicitudesVisibles}
+          keyExtractor={(item) => item.id}
+          renderItem={renderSolicitud}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={[
+            styles.lista,
+            solicitudesVisibles.length === 0 ? styles.listaVacia : undefined,
+            { paddingBottom: espacioTabBar },
+          ]}
+          ListEmptyComponent={
+            <Text style={[styles.vacio, { color: theme.textMute }]}>
+              {consulta && solicitudes.length > 0
+                ? 'Ninguna solicitud coincide con la búsqueda.'
+                : 'No tenés solicitudes pendientes.'}
+            </Text>
+          }
+          refreshControl={refresh}
+        />
+      )}
+
+      <SelectionActionBar
+        visible={selection.active && tab === 'amigos'}
+        count={selection.count}
+        deleting={eliminandoBulk}
+        onCancel={selection.exit}
+        onDelete={confirmarEliminarSeleccionados}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 20 },
-  tabs: {
-    flexDirection: 'row',
-    marginBottom: 16,
-    borderRadius: 10,
-    overflow: 'hidden',
-    borderWidth: 1,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  tabTexto: { fontSize: 14, fontWeight: '600' },
-  buscador: {
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    borderWidth: 1,
-    marginBottom: 16,
-  },
+  container: { flex: 1 },
+  lista: { paddingHorizontal: 20, paddingTop: 12 },
   listaVacia: { flexGrow: 1, justifyContent: 'center' },
+  encabezadoFila: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+    minHeight: 24,
+  },
+  eyebrow: {
+    fontSize: 11,
+    fontFamily: 'SpaceMono',
+    fontWeight: '700',
+    letterSpacing: 1.2,
+  },
+  seccionOtros: { marginTop: 14, gap: 10 },
+  cargandoOtros: { marginVertical: 16 },
   fila: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -571,4 +573,5 @@ const styles = StyleSheet.create({
   botonRechazarTexto: { fontSize: 14, fontWeight: '600' },
   centrado: { marginTop: 48 },
   vacio: { fontSize: 14, lineHeight: 20, textAlign: 'center' },
+  vacioCompacto: { fontSize: 14, lineHeight: 20, textAlign: 'center', marginVertical: 12 },
 });

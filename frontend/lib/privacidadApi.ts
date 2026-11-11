@@ -1,5 +1,8 @@
 import { apiUrl, meshFetchAuthed, parseJson } from './apiClient'
 
+/** RN-077: quién ve estadísticas, racha e insignias en el perfil público. */
+export type VisibilidadLogrosApi = 'todos' | 'amigos' | 'solo_yo'
+
 export type PrivacidadUsuarioApi = {
   comparte_ubicacion_default: boolean
   consentimiento_otorgado: boolean
@@ -9,6 +12,7 @@ export type PrivacidadUsuarioApi = {
   consentimiento_version: string | null
   version_vigente: string
   ventana_registro_accesos_min: number
+  visibilidad_logros: VisibilidadLogrosApi
 }
 
 export type PrivacidadViajeApi = {
@@ -43,6 +47,7 @@ export async function obtenerMiPrivacidad(): Promise<PrivacidadUsuarioApi> {
 export async function actualizarMiPrivacidad(body: {
   comparte_ubicacion_default?: boolean
   consentimiento_ubicacion?: boolean
+  visibilidad_logros?: VisibilidadLogrosApi
 }): Promise<PrivacidadUsuarioApi> {
   const res = await meshFetchAuthed(apiUrl('/api/usuarios/me/privacidad'), {
     method: 'PUT',

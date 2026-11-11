@@ -11,6 +11,13 @@ const ESQUEMA: Record<PreferenciaTema, ColorSchemeName> = {
   oscuro: 'dark',
 }
 
+/**
+ * Tema del teléfono al abrir la app, antes de aplicar la preferencia guardada. El splash
+ * nativo sale con este tema: no conoce la elección hecha dentro de la app.
+ */
+export const esquemaDelSplash: 'light' | 'dark' =
+  Appearance.getColorScheme() === 'dark' ? 'dark' : 'light'
+
 let actual: PreferenciaTema = 'sistema'
 const oyentes = new Set<() => void>()
 

@@ -378,6 +378,62 @@ UnirseQr:
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'
 
+UnirseCodigo:
+  post:
+    operationId: unirseCodigo
+    summary: Unirse a un viaje escribiendo su código
+    description: |
+      **RN-015/016:** alternativa a escanear el QR, con las mismas reglas: une
+      directamente, sin aprobación del líder, y **expira al iniciarse el viaje**.
+      El código se acepta en minúsculas y con espacios o guion.
+
+      Es idempotente: si la persona ya figuraba en el viaje, responde 200 con
+      `yaEraParticipante: true` sin duplicar nada.
+    tags:
+      - Viajes
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/UnirsePorCodigoBody'
+          example:
+            codigo: ABCD-2345
+    responses:
+      '200':
+        description: El usuario quedó incorporado al viaje.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/UnionPorQr'
+            example:
+              viajeId: 44444444-4444-4444-4444-444444444444
+              yaEraParticipante: false
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '404':
+        description: Ningún viaje tiene ese código (`VIAJE_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: No encontramos un viaje con ese código
+              code: VIAJE_NOT_FOUND
+      '410':
+        description: El viaje ya arrancó o terminó, así que el código caducó (`QR_EXPIRED`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Este viaje ya ha comenzado. El código QR ha expirado.
+              code: QR_EXPIRED
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
 ResponderInvitacionViaje:
   post:
     operationId: responderInvitacionViaje
@@ -634,6 +690,9 @@ ResumenViajeRecurso:
       de filas GPS puede tardar— o el viaje es anterior a esta funcionalidad, la consulta
       lo recalcula al vuelo de forma transparente.
 
+      Si la persona no se desplazó (solo ruido del GPS, menos de 100 m netos), `mis_metricas`
+      llega con distancia, tiempo y velocidades en `null`.
+
       **RN-070:** `ranking_habilitado` es `false` en modalidades `moto` y `auto`.
     tags:
       - Viajes
@@ -857,6 +916,8 @@ ViajePorId:
       **Solo el creador** puede hacerlo (RN-030). La fecha solo se edita en estado
       `planificado` y debe ser futura (RN-107). La config de alertas de incidente
       solo aplica a viajes grupales, en `planificado` o `en_curso`.
+
+      Emite `viaje:actualizado` a la sala para que el resto refresque el detalle.
     tags:
       - Viajes
     parameters:
@@ -1286,6 +1347,9 @@ IniciarViaje:
     description: |
       Transición `planificado` → `en_curso`. **Solo el creador** puede hacerla (RN-030).
 
+      No se puede iniciar si la persona lidera otro viaje `en_curso` o ya se sumó a uno
+      con check-in (RN-030c). Un confirmado sin check-in no bloquea.
+
       Efectos: registra `fecha_inicio_real`, **caduca el QR de invitación** (RN-015),
       habilita el ingreso de GPS y emite `viaje:iniciado` a la sala `viaje:<id>`.
     tags:
@@ -1313,14 +1377,27 @@ IniciarViaje:
       '404':
         $ref: '../components/responses.yaml#/NotFound'
       '409':
-        description: El viaje no está en estado planificado (`INVALID_STATE`).
+        description: |
+          El viaje no está en estado planificado (`INVALID_STATE`) o la persona ya está en
+          otro viaje en curso (`OTRO_VIAJE_EN_CURSO`, RN-030c).
         content:
           application/json:
             schema:
-              $ref: '../components/schemas.yaml#/Error'
-            example:
-              error: El viaje no está en estado planificado
-              code: INVALID_STATE
+              oneOf:
+                - $ref: '../components/schemas.yaml#/Error'
+                - $ref: '../components/schemas.yaml#/ErrorOtroViajeEnCurso'
+            examples:
+              estadoInvalido:
+                summary: El viaje ya no está planificado
+                value:
+                  error: El viaje no está en estado planificado
+                  code: INVALID_STATE
+              otroViajeEnCurso:
+                summary: La persona ya está en otro viaje en curso
+                value:
+                  error: Ya estás en "Sierras", que sigue en curso. Terminalo o salí de ese viaje antes de iniciar otro.
+                  code: OTRO_VIAJE_EN_CURSO
+                  viaje_en_curso_id: 1b8d4c37-6e29-4f05-a3b7-9c2f8e5d0a41
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'
 
@@ -1574,6 +1651,80 @@ CheckInViaje:
             example:
               error: El viaje no está en curso
               code: INVALID_STATE
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+AvisarFaltantesViaje:
+  post:
+    operationId: avisarFaltantesViaje
+    summary: Avisar por push a los que confirmaron y todavía no están
+    description: |
+      RN-029e: el **líder** les manda una notificación push a los integrantes que
+      dijeron que iban pero todavía no están.
+
+      - Viaje `planificado`: va a todos los `confirmado` ("Estamos por salir").
+      - Viaje `en_curso`: va solo a los `confirmado` sin check-in ("Ya arrancamos",
+        con la invitación a tocar "Me sumo", RN-029b).
+
+      El texto es fijo (no admite mensaje libre) y no incluye la ubicación de nadie.
+      El líder nunca se avisa a sí mismo. Hay una espera de 2 minutos entre avisos
+      por viaje; si no hay a quién avisar (`faltantes: 0`) la espera no se consume.
+
+      `avisados` puede ser menor que `faltantes`: cuenta solo a quienes tienen las
+      notificaciones push activas en su dispositivo.
+
+      Al iniciar el viaje (`POST /iniciar`) el backend ya manda este mismo aviso de
+      forma automática, sin consumir la espera.
+    tags:
+      - Viajes
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '200':
+        description: Aviso enviado (o no había a quién avisar).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/AvisoFaltantes'
+            example:
+              viaje_id: 11111111-1111-1111-1111-111111111111
+              faltantes: 3
+              avisados: 2
+              espera_seg: 120
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: Solo el líder del viaje puede avisar (`NOT_CREATOR`, RN-030).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Solo el líder puede avisar a los que faltan
+              code: NOT_CREATOR
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '409':
+        description: El viaje ya finalizó (`INVALID_STATE`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: El viaje ya finalizó
+              code: INVALID_STATE
+      '429':
+        description: |
+          Ya se mandó un aviso hace menos de 2 minutos (`AVISO_RECIENTE`). El cuerpo
+          trae `reintentar_en_seg` con lo que falta para poder avisar de nuevo.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ErrorAvisoReciente'
+            example:
+              error: Ya les avisaste recién. Podés volver a avisar en 85 s.
+              code: AVISO_RECIENTE
+              reintentar_en_seg: 85
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'
 

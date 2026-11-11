@@ -114,12 +114,16 @@ PerfilPublicoUsuario:
     operationId: obtenerPerfilPublico
     summary: Ver el perfil de un usuario de la comunidad
     description: |
-      Perfil público de cualquier usuario: no hace falta ser amigos ni
-      compartir un viaje, solo estar autenticado. Compone nombre y actividad
-      preferida, estadísticas agregadas (equivalente genérico de
-      `GET /viajes/estadisticas`, sin velocidad por RN-070), insignias
-      (RN-074), racha de semanas consecutivas (RN-075) y, si no es el propio
-      usuario, la relación de amistad con quien consulta.
+      Perfil de cualquier usuario autenticado. Siempre incluye nombre,
+      actividad preferida y, si no es el propio usuario, la relación de
+      amistad con quien consulta (para poder mandar la solicitud).
+
+      Los logros —estadísticas agregadas (equivalente genérico de
+      `GET /viajes/estadisticas`, sin velocidad por RN-070), insignias con su
+      rareza (RN-074/RN-078) y racha (RN-075)— se incluyen solo si la persona
+      los comparte con quien consulta (RN-077). Si no, `logros_visibles` es
+      `false` y esos tres campos vuelven en `null`: no es un error, el perfil
+      se muestra igual.
     tags:
       - Usuarios
     parameters:
@@ -138,6 +142,8 @@ PerfilPublicoUsuario:
               actividad_preferida: bici
               es_yo: false
               relacion_amistad: amigo
+              visibilidad_logros: amigos
+              logros_visibles: true
               racha:
                 semanas_consecutivas: 4
                 en_riesgo: false
@@ -153,6 +159,7 @@ PerfilPublicoUsuario:
                   nombre: 10K
                   descripcion: Corriste 10 km o más en un mismo viaje.
                   icono: zap
+                  rareza: rara
                   viaje_id: 3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d
                   obtenida_at: '2026-10-20T12:00:00.000Z'
       '401':

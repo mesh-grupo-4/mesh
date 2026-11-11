@@ -32,7 +32,8 @@
 | **Lectura siempre recalculada, nunca mentida** | `obtenerRachaVigente()` no solo lee la fila: si ya pasó una semana calendario completa sin actividad, devuelve `0` aunque la fila en base siga con el número viejo | El perfil no puede mostrar una racha que la persona ya perdió solo porque el job diario todavía no corrió. Mismo principio que "un gráfico con huecos miente" de la reportería |
 | **Job diario solo para notificar, no para la verdad del dato** | `src/jobs/rachasJob.ts` (sin librería externa, `setTimeout` + `setInterval` de 24 h) escanea rachas activas y manda el push de rotura el mismo día que se detecta, antes de que la persona vuelva a salir | Es la primera pieza de scheduling del backend (decisión explícita con el usuario: se evaluó no tener cron y notificar recién en el próximo viaje, pero se prefirió avisar el mismo día). Al no ser la fuente de verdad, si el proceso se reinicia o el job tarda un día de más, la lectura del perfil sigue siendo correcta — solo se atrasa el push |
 | **Sin notificación duplicada** | Si el job ya reinició una racha a 0 por inactividad, el siguiente viaje finalizado la arranca en 1 sin volver a notificar la rotura (ya se avisó); si en cambio el usuario finaliza un viaje el mismo día que se cumplen 2 semanas de hueco, antes de que corra el job, es `registrarActividad()` quien nota el hueco, notifica y reinicia — el job no vuelve a notificar esa misma fila porque ya quedó en la semana actual | Evita el caso molesto de "me llegaron dos avisos de que perdí la misma racha" |
-| **Pública en el perfil, como las insignias** | `GET /rachas/usuario/{usuarioId}` y el campo `racha` dentro de `PerfilPublico` no exigen amistad ni viaje en común | Mismo criterio ya sentado por RN-074: son logros, no datos sensibles |
+| **El perfil propio se enciende con la racha** | Los logotipos del fondo se vuelven naranjas de a poco (proporción e intensidad = semanas / 10, tope 1). Al llegar a cada hito (3/5/10) aumentan los fueguitos de la ráfaga al entrar (6/10/16), y cambian el borde de la tarjeta y el tamaño del ícono; desde 5 semanas, además, el anillo del avatar | Refuerzo progresivo de la constancia. Una sola ráfaga por entrada, sin animación infinita, y respeta "reducir movimiento". No usa velocidad (RN-070) |
+| **Visible según lo que elija cada persona, como las insignias (RN-077)** | `GET /rachas/usuario/{usuarioId}` y el campo `racha` de `PerfilPublico` pasan por el mismo control de visibilidad de logros (`todos` por defecto, `amigos` o `solo_yo`). Sin permiso: `403 LOGROS_PRIVADOS` / `racha: null` | Un único selector para estadísticas, racha e insignias (ver [[us-insignias]]) |
 
 ---
 
@@ -60,8 +61,8 @@ Migración: `20261023130000_rachas_actividad`.
 | Método | Ruta | Quién |
 |---|---|---|
 | `GET` | `/api/rachas/mia` | Cualquier usuario autenticado — racha propia |
-| `GET` | `/api/rachas/usuario/{usuarioId}` | Cualquier usuario autenticado — racha de cualquier otro |
-| `GET` | `/api/usuarios/{usuarioId}/perfil` | Incluye `racha` junto con estadísticas e insignias (ver [[us-insignias]]) |
+| `GET` | `/api/rachas/usuario/{usuarioId}` | Cualquier usuario autenticado, si la persona comparte sus logros con quien consulta (RN-077); si no, `403 LOGROS_PRIVADOS` |
+| `GET` | `/api/usuarios/{usuarioId}/perfil` | Incluye `racha` junto con estadísticas e insignias, o `null` si no los comparte (ver [[us-insignias]]) |
 
 No existe un endpoint para escribir la racha a mano: solo la actualiza
 `ViajesService.generarResumen()` al finalizar un viaje, y el job diario la
@@ -82,9 +83,14 @@ reinicia cuando detecta inactividad.
   el bloque de estadísticas y las insignias. Si `en_riesgo` es true (hubo
   actividad la semana pasada pero todavía no esta), el texto de ayuda cambia a
   rojo: "Salí esta semana para no perderla".
-- **Perfil ajeno** (`app/usuario/[usuarioId].tsx`): misma tarjeta, sin el
-  mensaje motivacional completo (solo "En riesgo esta semana" si corresponde) —
-  no tiene sentido decirle a otra persona qué hacer con su propia racha.
+- **Perfil ajeno** (`app/usuario/[usuarioId].tsx`): la misma tarjeta
+  (`components/perfil/TarjetaRacha.tsx`, compartida) y el mismo efecto por
+  nivel que el perfil propio: fondo que se vuelve naranja, ráfaga de
+  fueguitos al entrar y anillo del avatar desde 5 semanas. En lugar del
+  consejo para mantenerla muestra el nivel ("Racha encendida" / "ardiente" /
+  "legendaria") o "En riesgo esta semana": no tiene sentido decirle a otra
+  persona qué hacer con su propia racha. Si no comparte sus logros (RN-077),
+  no se muestra nada de esto.
 
 Pendiente: el frontend no reacciona todavía a las notificaciones push de
 racha (no hay deep link ni pantalla dedicada al evento); por ahora llegan como

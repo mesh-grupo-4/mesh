@@ -6,12 +6,13 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { resolveBackendUserId } from '@/lib/apiClient';
 import {
+  avisarFaltantes,
   listarParticipantesViaje,
   obtenerViaje,
   type ViajeParticipanteApi,
 } from '@/lib/viajesApi';
 import { useCopilot } from 'react-native-copilot';
-import { TopBar, Avatar, Badge, useTheme } from '@/components/MeshUI';
+import { TopBar, Avatar, Badge, Btn, useTheme } from '@/components/MeshUI';
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda';
 import { AYUDA_VIAJE_MIEMBROS } from '@/components/ayuda/contenidoAyuda';
 import { Feather } from '@expo/vector-icons';
@@ -49,6 +50,8 @@ export default function MiembrosViajeScreen() {
 
   const [miembros, setMiembros] = useState<ViajeParticipanteApi[]>([]);
   const [viajeNombre, setViajeNombre] = useState<string | null>(null);
+  const [viaje, setViaje] = useState<Awaited<ReturnType<typeof obtenerViaje>> | null>(null);
+  const [avisando, setAvisando] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,6 +70,7 @@ export default function MiembrosViajeScreen() {
           listarParticipantesViaje(viajeId, userId),
         ]);
         setViajeNombre(detalle.nombre ?? null);
+        setViaje(detalle);
         setMiembros(lista);
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : 'No se pudieron cargar los miembros.';
@@ -83,6 +87,50 @@ export default function MiembrosViajeScreen() {
   useEffect(() => {
     void cargar();
   }, [cargar]);
+
+  // RN-029e: el líder avisa a los que confirmaron y todavía no están. Antes de
+  // iniciar nadie hizo check-in, así que son todos los confirmados. El backend
+  // valida el rol y vuelve a calcular a quién le llega.
+  const puedeAvisar =
+    viaje != null &&
+    viaje.creador_id === backendUserId &&
+    viaje.es_grupal &&
+    viaje.estado !== 'finalizado';
+  const faltantes = miembros.filter(
+    (m) =>
+      m.usuario.id !== backendUserId &&
+      m.estado === 'confirmado' &&
+      m.check_in_at == null &&
+      !m.union_efectiva
+  ).length;
+
+  const avisar = async () => {
+    if (!viajeId || avisando) return;
+    setAvisando(true);
+    try {
+      const r = await avisarFaltantes(viajeId);
+      if (r.faltantes === 0) {
+        meshAlert('No falta nadie', 'Todos los que confirmaron ya están en el viaje.');
+        void cargar(true);
+      } else if (r.avisados === 0) {
+        meshAlert(
+          'No se pudo avisar',
+          'Los que faltan no tienen las notificaciones activadas en su teléfono.'
+        );
+      } else {
+        meshAlert(
+          'Aviso enviado',
+          r.avisados === r.faltantes
+            ? `Les avisamos a los ${r.avisados} que faltan.`
+            : `Les avisamos a ${r.avisados} de los ${r.faltantes} que faltan. El resto no tiene las notificaciones activadas.`
+        );
+      }
+    } catch (e: unknown) {
+      meshAlert('No se envió el aviso', e instanceof Error ? e.message : 'Probá de nuevo.');
+    } finally {
+      setAvisando(false);
+    }
+  };
 
   const renderItem = ({ item }: { item: ViajeParticipanteApi }) => {
     const esYo = item.usuario.id === backendUserId;
@@ -183,6 +231,28 @@ export default function MiembrosViajeScreen() {
           />
         </PasoAyuda>
       )}
+
+      {!loading && !error && puedeAvisar && faltantes > 0 ? (
+        <View
+          style={[
+            styles.pieAviso,
+            { backgroundColor: theme.background, borderTopColor: theme.border },
+          ]}
+        >
+          <Btn
+            variant="primary"
+            block
+            icon="bell"
+            onPress={() => void avisar()}
+            disabled={avisando}
+            loading={avisando}
+          >
+            {viaje?.estado === 'planificado'
+              ? `Avisar que estamos por salir (${faltantes})`
+              : `Avisar a los que faltan (${faltantes})`}
+          </Btn>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -236,6 +306,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+  },
+  pieAviso: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 24,
+    borderTopWidth: 1.2,
   },
   vacio: {
     fontSize: 14.5,

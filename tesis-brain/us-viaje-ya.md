@@ -26,8 +26,13 @@
    - QR + compartir link (RN-015/016).
    - Invitar grupos o amigos en cualquier momento (`POST /invitaciones`, RN-028/029).
    - Agregar o cambiar el destino.
+   - Con destino definido, **clima sobre el recorrido** (RN-108). Sin destino no se muestra.
+   - **Parámetros del grupo y configuración de alertas** (RN-025): nacen con los defaults de la actividad y el líder los ajusta acá.
    - Lista de quién se sumó (confirmado) y quién está invitado (pendiente); se refresca cada 5 s.
    - **Arrancar viaje**: aviso de ubicación (RN-110) → `POST /iniciar` → mapa en vivo. Desde ahí el QR deja de valer (RN-015).
+
+   - **Cancelar viaje**: elimina el viaje (`DELETE /api/viajes/{viajeId}`, solo el líder y antes de arrancar).
+5. **Viaje en curso** (cualquier viaje grupal, no solo el rápido): al desplegar el panel inferior del mapa en vivo aparecen **Gastos** (quien se sumó) y **Ajustes** (solo el líder: parámetros y alertas, `PATCH /api/viajes/{viajeId}`). El motor relee el viaje en cada ping, así que el ajuste aplica al instante; el resto del grupo refresca el detalle con el evento `viaje:actualizado`.
 
 ## Reglas
 

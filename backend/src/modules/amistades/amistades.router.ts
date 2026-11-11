@@ -11,6 +11,7 @@ export const amistadesRouter = Router()
 
 amistadesRouter.get('/', requireUser, c.listarAmigos)
 amistadesRouter.get('/buscar', requireUser, c.buscarUsuarios)
+amistadesRouter.get('/relaciones', requireUser, c.listarRelaciones)
 amistadesRouter.get('/solicitudes/pendientes', requireUser, c.solicitudesPendientes)
 amistadesRouter.post('/solicitar', requireUser, c.solicitar)
 amistadesRouter.post('/solicitudes/:solicitudId/responder', requireUser, c.responderSolicitud)

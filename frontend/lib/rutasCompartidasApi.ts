@@ -30,12 +30,16 @@ export type RutaPlantillaResumenApi = {
   origen_nombre: string | null
   destino_nombre: string | null
   created_at: string
+  con_checklist: boolean
+  /** La ruta de origen es propia (recorrido que publiqué o viaje que creé). */
+  creada_por_mi: boolean
 }
 
 export type RutaPlantillaDetalleApi = RutaSnapshotPreviewApi & {
   id: string
   nombre: string
   created_at: string
+  checklist: string[]
 }
 
 export type CompartirRutaResponseApi = {
@@ -96,6 +100,18 @@ export async function listarRutasPlantilla(
 ): Promise<RutaPlantillaResumenApi[]> {
   const res = await meshFetchAuthed(apiUrl('/api/rutas-plantilla', baseUrl), { method: 'GET' })
   return parseJson<RutaPlantillaResumenApi[]>(res)
+}
+
+/** Detalle de una ruta guardada (trazado, paradas y checklist) para verla antes de usarla. */
+export async function obtenerRutaPlantilla(
+  plantillaId: string,
+  baseUrl: string = API_BASE_URL
+): Promise<RutaPlantillaDetalleApi> {
+  const res = await meshFetchAuthed(
+    apiUrl(`/api/rutas-plantilla/${encodeURIComponent(plantillaId)}`, baseUrl),
+    { method: 'GET' }
+  )
+  return parseJson<RutaPlantillaDetalleApi>(res)
 }
 
 export async function eliminarRutaPlantilla(

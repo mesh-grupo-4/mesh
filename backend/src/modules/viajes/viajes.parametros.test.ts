@@ -7,8 +7,9 @@ import { parametrosPorActividad, toleranciaAtrasoEfectiva } from './activityDefa
 const creadorId = '11111111-1111-1111-1111-111111111111'
 const viajeId = '44444444-4444-4444-4444-444444444444'
 
+const emit = vi.fn()
 vi.mock('../../realtime/ioRegistry', () => ({
-  getIo: () => ({ to: () => ({ emit: vi.fn() }) }),
+  getIo: () => ({ to: () => ({ emit: (...args: unknown[]) => emit(...args) }) }),
 }))
 vi.mock('../motor-eventos/motorEventos.service', () => ({
   obtenerMotorEventos: () => ({ procesarPing: vi.fn(), limpiarViaje: vi.fn(), limpiarIntegrante: vi.fn() }),
@@ -157,6 +158,7 @@ describe('ViajesService — parámetros de actividad (SCRUM-26)', () => {
       tolerancia_atraso_min: 7,
       tolerancia_atraso_min_efectivo: 7,
     })
+    expect(emit).toHaveBeenCalledWith('viaje:actualizado', { viajeId })
 
     const reset = await new ViajesService(prisma).actualizarViaje(creadorId, viajeId, {
       toleranciaAtrasoMin: null,

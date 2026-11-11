@@ -308,6 +308,21 @@ export function useLiveLocations({ viajeId, userId, nameByUserId = {}, selfSeed 
           aplicarEstado(payload.usuarioId, 'en_movimiento', null)
         }
 
+        // RN-045: un solo evento con todos los integrantes detenidos o retomados.
+        const onParadaGrupalIniciada = (payload: {
+          viajeId: string
+          inicio: string
+          paradas: { usuarioId: string }[]
+        }) => {
+          if (payload.viajeId !== viajeId) return
+          for (const p of payload.paradas) aplicarEstado(p.usuarioId, 'detenido_voluntario', payload.inicio)
+        }
+
+        const onParadaGrupalFinalizada = (payload: { viajeId: string; paradas: { usuarioId: string }[] }) => {
+          if (payload.viajeId !== viajeId) return
+          for (const p of payload.paradas) aplicarEstado(p.usuarioId, 'en_movimiento', null)
+        }
+
         // Quien sale del viaje deja de compartir ubicación: su marcador se va
         // ya mismo, no cuando venza como "sin señal". Lo mismo vale para quien
         // apaga el compartir ubicación (RN-111): dejar el último marcador
@@ -325,6 +340,8 @@ export function useLiveLocations({ viajeId, userId, nameByUserId = {}, selfSeed 
         sock.on('viaje:ubicacion', onUbi)
         sock.on('viaje:parada_iniciada', onParadaIniciada)
         sock.on('viaje:parada_finalizada', onParadaFinalizada)
+        sock.on('viaje:parada_grupal_iniciada', onParadaGrupalIniciada)
+        sock.on('viaje:parada_grupal_finalizada', onParadaGrupalFinalizada)
         sock.on('viaje:participante_salio', quitarMarcador)
         sock.on('viaje:ubicacion_oculta', quitarMarcador)
         socketCleanup = () => {
@@ -332,6 +349,8 @@ export function useLiveLocations({ viajeId, userId, nameByUserId = {}, selfSeed 
           sock.off('viaje:ubicacion', onUbi)
           sock.off('viaje:parada_iniciada', onParadaIniciada)
           sock.off('viaje:parada_finalizada', onParadaFinalizada)
+          sock.off('viaje:parada_grupal_iniciada', onParadaGrupalIniciada)
+          sock.off('viaje:parada_grupal_finalizada', onParadaGrupalFinalizada)
           sock.off('viaje:participante_salio', quitarMarcador)
           sock.off('viaje:ubicacion_oculta', quitarMarcador)
         }

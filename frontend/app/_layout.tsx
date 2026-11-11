@@ -19,13 +19,16 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { CopilotRoot } from '@/components/ayuda/CopilotRoot';
+import { IntroMesh } from '@/components/intro/IntroMesh';
 import { MeshDialogProvider } from '@/context/MeshDialogContext';
 import { TripRealtimeProvider } from '@/context/TripRealtimeContext';
 import Colors from '@/constants/Colors';
 import { ViajeRealtimeBridge } from '@/components/ViajeRealtimeBridge';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { consumePendingReturn, setPendingReturn } from '@/lib/pendingDeepLink';
+import { debeMostrarIntro } from '@/lib/introMesh';
 import { cargarPreferenciaTema } from '@/lib/temaApp';
+import { cargarVibracionAvisos } from '@/lib/vibracionPrefs';
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -37,6 +40,8 @@ SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [temaListo, setTemaListo] = useState(false);
+  const [mostrarIntro, setMostrarIntro] = useState(false);
+  const [introTerminada, setIntroTerminada] = useState(false);
   const [loaded, error] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
     ...FontAwesome.font,
@@ -44,7 +49,11 @@ export default function RootLayout() {
 
   useEffect(() => {
     // El splash espera al tema guardado para no mostrar un destello del otro modo.
-    void cargarPreferenciaTema().then(() => setTemaListo(true));
+    void cargarVibracionAvisos();
+    void Promise.all([cargarPreferenciaTema(), debeMostrarIntro()]).then(([, intro]) => {
+      setMostrarIntro(intro);
+      setTemaListo(true);
+    });
   }, []);
 
   useEffect(() => {
@@ -52,8 +61,9 @@ export default function RootLayout() {
   }, [error]);
 
   useEffect(() => {
-    if (loaded && temaListo) SplashScreen.hideAsync();
-  }, [loaded, temaListo]);
+    // Con intro, el splash se saca recién cuando la intro ya está dibujada.
+    if (loaded && temaListo && !mostrarIntro) SplashScreen.hideAsync();
+  }, [loaded, temaListo, mostrarIntro]);
 
   if (!loaded || !temaListo) return null;
 
@@ -64,10 +74,29 @@ export default function RootLayout() {
           <MeshDialogProvider>
             <RootLayoutNav />
           </MeshDialogProvider>
+          {mostrarIntro && !introTerminada && (
+            <IntroMesh onLista={SplashScreen.hideAsync} onFin={() => setIntroTerminada(true)} />
+          )}
         </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
+}
+
+type ParamsDeLink = { token?: string | string[]; viajeId?: string | string[] };
+
+/** Link con el que se abrió la app, para retomarlo después del login. */
+function retornoDeLink(segmento: string | undefined, params: ParamsDeLink): string | null {
+  const primero = (v?: string | string[]) => (Array.isArray(v) ? v[0] : v)?.trim();
+  if (segmento === 'ruta') {
+    const token = primero(params.token);
+    return token ? `/ruta?token=${encodeURIComponent(token)}` : null;
+  }
+  if (segmento === 'unirse') {
+    const viajeId = primero(params.viajeId);
+    return viajeId ? `/unirse?viajeId=${encodeURIComponent(viajeId)}` : null;
+  }
+  return null;
 }
 
 function AppStack() {
@@ -82,6 +111,9 @@ function AppStack() {
       <Stack.Screen name="ruta" options={{ headerShown: false }} />
       <Stack.Screen name="mis-rutas" options={{ title: 'Mis rutas' }} />
       <Stack.Screen name="privacidad" options={{ headerShown: false }} />
+      <Stack.Screen name="editar-perfil" options={{ headerShown: false }} />
+      <Stack.Screen name="estadisticas" options={{ headerShown: false }} />
+      <Stack.Screen name="apariencia" options={{ headerShown: false }} />
       <Stack.Screen name="admin" options={{ headerShown: false }} />
       <Stack.Screen name="unirse" options={{ headerShown: false }} />
       <Stack.Screen
@@ -97,7 +129,7 @@ function RootLayoutNav() {
   const { user, loading, backendUserId } = useAuth();
   const segments = useSegments();
   const router = useRouter();
-  const globalParams = useGlobalSearchParams<{ token?: string | string[] }>();
+  const globalParams = useGlobalSearchParams<ParamsDeLink>();
 
   usePushNotifications(backendUserId);
 
@@ -107,13 +139,8 @@ function RootLayoutNav() {
     const inAuthGroup = segments[0] === '(auth)';
 
     if (!user && !inAuthGroup) {
-      if (segments[0] === 'ruta') {
-        const raw = globalParams.token;
-        const token = (Array.isArray(raw) ? raw[0] : raw)?.trim();
-        if (token) {
-          void setPendingReturn(`/ruta?token=${encodeURIComponent(token)}`);
-        }
-      }
+      const retorno = retornoDeLink(segments[0], globalParams);
+      if (retorno) void setPendingReturn(retorno);
       router.replace('/(auth)/login');
     } else if (user && inAuthGroup) {
       void (async () => {
@@ -125,7 +152,7 @@ function RootLayoutNav() {
         }
       })();
     }
-  }, [user, loading, segments, globalParams.token, router]);
+  }, [user, loading, segments, globalParams.token, globalParams.viajeId, router]);
 
   if (loading) {
     return (

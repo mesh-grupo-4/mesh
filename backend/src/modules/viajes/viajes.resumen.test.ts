@@ -26,6 +26,7 @@ type Opciones = {
   miIntegrante?: unknown
   /** Si el viaje tiene registros GPS como para poder calcular métricas. */
   hayGps?: boolean
+  paradas?: unknown[]
 }
 
 function armarPrisma(o: Opciones = {}) {
@@ -47,6 +48,7 @@ function armarPrisma(o: Opciones = {}) {
     },
     miIntegrante = { estado: 'confirmado', fecha_salida: null },
     hayGps = true,
+    paradas = [],
   } = o
 
   const viaje = {
@@ -76,6 +78,7 @@ function armarPrisma(o: Opciones = {}) {
       count: vi.fn().mockResolvedValue(3),
     },
     resumenViaje: { findUnique: resumenFindUnique, upsert: vi.fn() },
+    parada: { findMany: vi.fn().mockResolvedValue(paradas) },
     registroGPS: {
       findFirst: vi.fn().mockResolvedValue(hayGps ? { id: 'gps-1' } : null),
     },
@@ -116,6 +119,53 @@ describe('ViajesService.obtenerResumen', () => {
     expect(r.totales.cantidad_integrantes).toBe(3)
     expect(r.mis_metricas.distancia_m).toBe(40120.5)
     expect(r.mis_metricas.sali_antes).toBe(false)
+  })
+
+  it('detalla las paradas sin coordenadas y une las filas de una parada grupal', async () => {
+    const inicio = new Date('2026-08-13T15:30:00.000Z')
+    const fin = new Date('2026-08-13T15:50:00.000Z')
+    const fila = {
+      tipo: 'voluntaria',
+      categoria: 'combustible',
+      inicio,
+      fin,
+      grupal: true,
+      confirmado_bien: null,
+    }
+    const { prisma } = armarPrisma({
+      paradas: [
+        {
+          ...fila,
+          id: 'p-integrante',
+          usuario_id: usuarioId,
+          usuario: { nombre: 'Ana', apellido: null },
+        },
+        {
+          ...fila,
+          id: 'p-lider',
+          usuario_id: creadorId,
+          usuario: { nombre: 'Lía', apellido: null },
+        },
+        {
+          id: 'p-antes',
+          usuario_id: otroId,
+          tipo: 'incidente_detectado',
+          categoria: null,
+          inicio: new Date('2026-08-13T15:10:00.000Z'),
+          fin: null,
+          grupal: false,
+          confirmado_bien: true,
+          usuario: { nombre: 'Beto', apellido: null },
+        },
+      ],
+    })
+
+    const r = await new ViajesService(prisma).obtenerResumen(usuarioId, viajeId)
+
+    expect(r.paradas.map((p) => p.id)).toEqual(['p-antes', 'p-lider'])
+    expect(r.paradas[0]).toMatchObject({ duracion_seg: null, es_propia: false, nombre: 'Beto' })
+    expect(r.paradas[1]).toMatchObject({ duracion_seg: 1200, es_propia: true, nombre: 'Lía' })
+    expect(r.paradas[1]).not.toHaveProperty('lat')
   })
 
   it('409 si el viaje todavía no finalizó', async () => {

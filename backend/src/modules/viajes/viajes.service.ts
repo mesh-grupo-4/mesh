@@ -18,6 +18,7 @@ import {
   computeTrazaRecorrido,
 } from '../../lib/postgis'
 import { filtrosGpsPorActividad } from '../../lib/gpsFilters'
+import { armarParadasDelResumen } from './viajes.paradas-resumen'
 import { columnasGpsExtra } from '../../lib/datosGpsExtra'
 import { esIntegranteActivo, unirUsuarioAlViaje, WHERE_INTEGRANTE_ACTIVO } from './viajes.membership'
 import type {
@@ -60,6 +61,14 @@ const ORDEN_ESTADO_INTEGRANTE: Record<EstadoViajeIntegrante, number> = {
   ausente: 3,
   rechazado: 4,
 }
+
+/** RN-029e: espera mínima entre dos avisos del líder a los que faltan, por viaje. */
+export const ESPERA_AVISO_FALTANTES_MS = 2 * 60 * 1000
+/**
+ * Último aviso por viaje. En memoria: si el proceso reinicia, lo peor que pasa es
+ * que el líder pueda avisar de nuevo antes de tiempo.
+ */
+const ultimoAvisoFaltantes = new Map<string, number>()
 
 export class ViajesService {
   private readonly rutasCompartidas: RutasCompartidasService
@@ -519,6 +528,20 @@ export class ViajesService {
     return { viajeId, yaEraParticipante: result.yaEraParticipante }
   }
 
+  /** RN-015 / RN-016: misma unión que por QR, escribiendo el código del viaje. */
+  async unirsePorCodigo(usuarioId: string, codigo: string) {
+    const viaje = await this.prisma.viaje.findUnique({
+      where: { codigo_invitacion: codigo },
+      select: { id: true },
+    })
+
+    if (!viaje) {
+      throw new HttpError(404, 'No encontramos un viaje con ese código', 'VIAJE_NOT_FOUND')
+    }
+
+    return this.unirsePorQr(usuarioId, viaje.id)
+  }
+
   async obtenerRuta(usuarioId: string, viajeId: string) {
     await this.assertPuedeVerViaje(viajeId, usuarioId)
 
@@ -832,6 +855,10 @@ export class ViajesService {
       data,
     })
 
+    // Los demás integrantes refrescan el detalle: sin esto seguían viendo los
+    // parámetros viejos (p. ej. el indicador "lejos") hasta reabrir la pantalla.
+    getIo().to(`viaje:${viajeId}`).emit('viaje:actualizado', { viajeId })
+
     return {
       id: actualizado.id,
       fecha_programada: actualizado.fecha_programada,
@@ -933,6 +960,38 @@ export class ViajesService {
 
     const inicio = new Date()
     const actualizado = await this.prisma.$transaction(async (tx) => {
+      // RN-030c: el lock por usuario evita que dos inicios simultáneos pasen ambos el chequeo.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${creadorId}::text))`
+      // Un confirmado sin check-in no cuenta: solo dijo que iba (RN-029b).
+      const otroEnCurso = await tx.viaje.findFirst({
+        where: {
+          id: { not: viajeId },
+          estado: 'en_curso',
+          OR: [
+            { creador_id: creadorId },
+            {
+              integrantes: {
+                some: {
+                  usuario_id: creadorId,
+                  estado: 'confirmado',
+                  check_in_at: { not: null },
+                },
+              },
+            },
+          ],
+        },
+        select: { id: true, nombre: true },
+      })
+      if (otroEnCurso) {
+        const cual = otroEnCurso.nombre ? `"${otroEnCurso.nombre}"` : 'otro viaje'
+        throw new HttpError(
+          409,
+          `Ya estás en ${cual}, que sigue en curso. Terminalo o salí de ese viaje antes de iniciar otro.`,
+          'OTRO_VIAJE_EN_CURSO',
+          { viaje_en_curso_id: otroEnCurso.id }
+        )
+      }
+
       const v = await tx.viaje.update({
         where: { id: viajeId },
         data: {
@@ -963,8 +1022,112 @@ export class ViajesService {
       fechaInicioReal: actualizado.fecha_inicio_real?.toISOString() ?? null,
       iniciadoPor: creadorId,
     })
+    // RN-029e: el evento de sala solo llega con la app abierta; la push avisa al resto.
+    void this.notificarFaltantes(viajeId, creadorId, {
+      title: 'El viaje arrancó',
+      body: `${actualizado.nombre ? `"${actualizado.nombre}"` : 'El viaje'} ya está en curso. Tocá "Me sumo" para unirte.`,
+    })
 
     return actualizado
+  }
+
+  /**
+   * RN-029e: el líder les avisa por push a los que confirmaron pero todavía no
+   * están. Antes de iniciar va a todos los confirmados ("estamos por salir"); con
+   * el viaje en curso, solo a los que no tocaron "Me sumo". Texto fijo y sin
+   * ubicación de nadie. Un aviso cada `ESPERA_AVISO_FALTANTES_MS` por viaje.
+   */
+  async avisarFaltantes(liderId: string, viajeId: string) {
+    const viaje = await this.prisma.viaje.findUnique({
+      where: { id: viajeId },
+      select: {
+        estado: true,
+        nombre: true,
+        creador_id: true,
+        creador: { select: { nombre: true, apellido: true } },
+      },
+    })
+    if (!viaje) throw new HttpError(404, 'Viaje no encontrado', 'VIAJE_NOT_FOUND')
+    if (viaje.creador_id !== liderId) {
+      throw new HttpError(403, 'Solo el líder puede avisar a los que faltan', 'NOT_CREATOR')
+    }
+    if (viaje.estado === 'finalizado') {
+      throw new HttpError(409, 'El viaje ya finalizó', 'INVALID_STATE')
+    }
+
+    const ahora = Date.now()
+    const ultimo = ultimoAvisoFaltantes.get(viajeId)
+    if (ultimo != null && ahora - ultimo < ESPERA_AVISO_FALTANTES_MS) {
+      const reintentarEnSeg = Math.ceil((ESPERA_AVISO_FALTANTES_MS - (ahora - ultimo)) / 1000)
+      throw new HttpError(
+        429,
+        `Ya les avisaste recién. Podés volver a avisar en ${reintentarEnSeg} s.`,
+        'AVISO_RECIENTE',
+        { reintentar_en_seg: reintentarEnSeg }
+      )
+    }
+
+    const nombreViaje = viaje.nombre ? `"${viaje.nombre}"` : 'El viaje'
+    const lider = nombreVisible(viaje.creador.nombre, viaje.creador.apellido)
+    const { faltantes, avisados } = await this.notificarFaltantes(
+      viajeId,
+      liderId,
+      viaje.estado === 'planificado'
+        ? { title: 'Estamos por salir', body: `${lider} avisa que ${nombreViaje} está por arrancar.` }
+        : {
+            title: 'Ya arrancamos',
+            body: `${nombreViaje} ya está en curso. Tocá "Me sumo" para unirte.`,
+          }
+    )
+    // Sin nadie a quien avisar no se consume la espera.
+    if (faltantes > 0) ultimoAvisoFaltantes.set(viajeId, ahora)
+
+    return {
+      viaje_id: viajeId,
+      faltantes,
+      avisados,
+      espera_seg: ESPERA_AVISO_FALTANTES_MS / 1000,
+    }
+  }
+
+  /**
+   * Push a los confirmados sin check-in, menos el líder. En un viaje planificado
+   * nadie hizo check-in todavía, así que son todos los confirmados.
+   * `faltantes` = a cuántos les corresponde; `avisados` = cuántos tienen push activa.
+   */
+  private async notificarFaltantes(
+    viajeId: string,
+    liderId: string,
+    mensaje: { title: string; body: string }
+  ): Promise<{ faltantes: number; avisados: number }> {
+    try {
+      const filas = await this.prisma.viajeIntegrante.findMany({
+        where: {
+          viaje_id: viajeId,
+          estado: 'confirmado',
+          check_in_at: null,
+          usuario_id: { not: liderId },
+        },
+        select: { usuario: { select: { push_token: true } } },
+      })
+      const tokens = filas.map((f) => f.usuario.push_token).filter((t): t is string => !!t)
+      if (tokens.length > 0) {
+        const { sendExpoPush } = await import('../../lib/expoPush')
+        await sendExpoPush(
+          tokens.map((to) => ({
+            to,
+            ...mensaje,
+            data: { viajeId, tipo: 'aviso_salida' },
+            sound: 'default' as const,
+            gravedad: 'importante' as const,
+          }))
+        )
+      }
+      return { faltantes: filas.length, avisados: tokens.length }
+    } catch (e) {
+      console.warn('[viajes] notificarFaltantes falló:', e)
+      return { faltantes: 0, avisados: 0 }
+    }
   }
 
   /**
@@ -1453,9 +1616,14 @@ export class ViajesService {
         delCreador?.distancia_m ??
         (metricas.length > 0 ? Math.max(...metricas.map((m) => m.distancia_m)) : null)
 
-      // US3: paradas voluntarias efectivamente registradas durante el viaje.
+      // US3: paradas voluntarias efectivamente registradas durante el viaje. Una grupal
+      // (RN-045) guarda una fila por integrante: se cuenta solo la del líder.
       const cantidadParadasVoluntarias = await tx.parada.count({
-        where: { viaje_id: viajeId, tipo: 'voluntaria' },
+        where: {
+          viaje_id: viajeId,
+          tipo: 'voluntaria',
+          OR: [{ grupal: false }, { usuario_id: viaje.creador_id }],
+        },
       })
 
       const datos = {
@@ -1549,7 +1717,7 @@ export class ViajesService {
       resumen = await this.prisma.resumenViaje.findUnique({ where: { viaje_id: viajeId } })
     }
 
-    const [cantidadIntegrantes, mia, miIntegrante] = await Promise.all([
+    const [cantidadIntegrantes, mia, miIntegrante, filasParadas] = await Promise.all([
       this.contarIntegrantesEfectivos(viajeId, viaje.creador_id),
       this.prisma.metricaViaje.findUnique({
         where: { viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId } },
@@ -1557,6 +1725,20 @@ export class ViajesService {
       this.prisma.viajeIntegrante.findUnique({
         where: { viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId } },
         select: { estado: true, fecha_salida: true },
+      }),
+      this.prisma.parada.findMany({
+        where: { viaje_id: viajeId },
+        select: {
+          id: true,
+          usuario_id: true,
+          tipo: true,
+          categoria: true,
+          inicio: true,
+          fin: true,
+          grupal: true,
+          confirmado_bien: true,
+          usuario: { select: { nombre: true, apellido: true } },
+        },
       }),
     ])
 
@@ -1592,6 +1774,7 @@ export class ViajesService {
         sali_antes: miIntegrante?.estado === 'salido',
         fecha_salida: miIntegrante?.fecha_salida ?? null,
       },
+      paradas: armarParadasDelResumen(filasParadas, usuarioId, viaje.creador_id),
       // RN-070 + RN-072: comparar solo en modo competitivo, y nunca en vehículo motorizado.
       ranking_habilitado: !esMotorizado(viaje.tipo_actividad) && viaje.modo === 'competitivo',
       generado_en: resumen?.generado_en ?? null,

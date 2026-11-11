@@ -191,6 +191,36 @@ describe('AmistadesService', () => {
     })
   })
 
+  describe('listarRelaciones', () => {
+    const usuarioC = '44444444-4444-4444-4444-444444444444'
+    const usuarioD = '55555555-5555-5555-5555-555555555555'
+
+    it('resuelve la relación vista desde el usuario, sea quien sea el solicitante', async () => {
+      const amistadFindMany = vi.fn().mockResolvedValue([
+        { solicitante_id: usuarioA, destinatario_id: usuarioB, estado: 'pendiente' },
+        { solicitante_id: usuarioC, destinatario_id: usuarioA, estado: 'pendiente' },
+        { solicitante_id: usuarioD, destinatario_id: usuarioA, estado: 'aceptada' },
+      ])
+      const prisma = { amistad: { findMany: amistadFindMany } } as unknown as PrismaClient
+
+      const result = await new AmistadesService(prisma).listarRelaciones(usuarioA)
+
+      expect(result).toEqual([
+        { usuario_id: usuarioB, relacion: 'solicitud_enviada' },
+        { usuario_id: usuarioC, relacion: 'solicitud_recibida' },
+        { usuario_id: usuarioD, relacion: 'amigo' },
+      ])
+    })
+
+    it('devuelve lista vacía si no tiene relaciones', async () => {
+      const prisma = {
+        amistad: { findMany: vi.fn().mockResolvedValue([]) },
+      } as unknown as PrismaClient
+
+      await expect(new AmistadesService(prisma).listarRelaciones(usuarioA)).resolves.toEqual([])
+    })
+  })
+
   describe('eliminarAmigo', () => {
     it('elimina amistad aceptada', async () => {
       const amistadFindFirst = vi.fn().mockResolvedValue({ id: solicitudId })

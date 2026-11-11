@@ -54,6 +54,7 @@ import {
   revocarCompartirRutaViaje,
 } from '@/lib/rutasCompartidasApi'
 import { MeshApiError } from '@/lib/apiClient'
+import { avisarSiOtroViajeEnCurso } from '@/lib/arrancarViaje'
 import { waypointsFromRutaDetalle } from '@/lib/routePayload'
 import { nombreCompleto } from '@/lib/nombres'
 import { ajustarSiQuedoEnPasado, esFechaFutura } from '@/lib/fechaProgramada'
@@ -62,6 +63,7 @@ import { RouteMapView } from '@/components/route-config/RouteMapView'
 import { RecorridoMapView } from '@/components/RecorridoMapView'
 import { MiniMapaEnCurso } from '@/components/live/MiniMapaEnCurso'
 import { ClimaViajeCard } from '@/components/ClimaViajeCard'
+import { ConfigAlertasCard } from '@/components/ConfigAlertasCard'
 import { ParametrosGrupoCard } from '@/components/ParametrosGrupoCard'
 import {
   REGION_FALLBACK,
@@ -124,7 +126,6 @@ function RutaMapaPreview({ ruta }: { ruta: RutaMapa }) {
       <RouteMapView
         waypoints={ruta.waypoints}
         routeLineLatLng={ruta.routeLine.length > 1 ? ruta.routeLine : null}
-        mapStyle="standard"
         initialRegion={initialRegion}
         cameraTarget={null}
         fitRouteCoords={fitCoords}
@@ -168,7 +169,6 @@ export default function ViajeDetalleScreen() {
   const [guardandoFecha, setGuardandoFecha] = useState(false)
   const [guardandoAlertaConfig, setGuardandoAlertaConfig] = useState(false)
   const [guardandoParametros, setGuardandoParametros] = useState(false)
-  const [alertaConfigAbierta, setAlertaConfigAbierta] = useState(false)
   const [participantesAbierto, setParticipantesAbierto] = useState(false)
 
   const esLider = viaje != null && userId === viaje.creador_id
@@ -506,7 +506,10 @@ export default function ViajeDetalleScreen() {
         }).catch((e) => console.warn('Broadcast TRIP_STARTED falló:', e))
       }
     } catch (e) {
-      meshAlert('Error', e instanceof Error ? e.message : 'No se pudo iniciar')
+      const avisado = avisarSiOtroViajeEnCurso(e, (otroId) =>
+        router.push({ pathname: '/viaje/[viajeId]/live', params: { viajeId: otroId } })
+      )
+      if (!avisado) meshAlert('Error', e instanceof Error ? e.message : 'No se pudo iniciar')
     } finally {
       setAccion(false)
     }
@@ -741,15 +744,18 @@ export default function ViajeDetalleScreen() {
         right={
           viaje ? (
             <View style={styles.topBarActions}>
-              <Pressable
-                onPress={() => router.push({ pathname: '/viaje/[viajeId]/qr', params: { viajeId } })}
-                style={({ pressed }) => [
-                  styles.iconBtn,
-                  { backgroundColor: pressed ? theme.surface2 : theme.surface, borderColor: theme.border }
-                ]}
-              >
-                <Feather name="share-2" size={18} color={theme.text} />
-              </Pressable>
+              {/* RN-015: el QR caduca al iniciar el viaje, no se ofrece después. */}
+              {viaje.estado === 'planificado' ? (
+                <Pressable
+                  onPress={() => router.push({ pathname: '/viaje/[viajeId]/qr', params: { viajeId } })}
+                  style={({ pressed }) => [
+                    styles.iconBtn,
+                    { backgroundColor: pressed ? theme.surface2 : theme.surface, borderColor: theme.border }
+                  ]}
+                >
+                  <Feather name="share-2" size={18} color={theme.text} />
+                </Pressable>
+              ) : null}
               {esLider && viaje.estado === 'planificado' ? (
                 <Pressable
                   onPress={confirmarEliminar}
@@ -844,7 +850,6 @@ export default function ViajeDetalleScreen() {
                   <RouteMapView
                     waypoints={[]}
                     routeLineLatLng={null}
-                    mapStyle="standard"
                     initialRegion={REGION_FALLBACK}
                     cameraTarget={null}
                     fitRouteCoords={null}
@@ -942,154 +947,11 @@ export default function ViajeDetalleScreen() {
               onGuardar={(input) => void guardarParametros(input)}
             />
             {puedeConfigurarAlertas && viaje ? (
-              <View style={[styles.alertConfigCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                <Pressable
-                  onPress={() => setAlertaConfigAbierta((v) => !v)}
-                  style={({ pressed }) => [styles.alertConfigHeader, { opacity: pressed ? 0.7 : 1 }]}
-                  accessibilityRole="button"
-                  accessibilityLabel="Configurar alertas"
-                  accessibilityState={{ expanded: alertaConfigAbierta }}
-                >
-                  <Feather name="alert-triangle" size={16} color={theme.accent} />
-                  <Text style={[styles.alertConfigTitle, { color: theme.text }]}>
-                    Configurar alertas
-                  </Text>
-                  <Feather
-                    name={alertaConfigAbierta ? 'chevron-up' : 'chevron-down'}
-                    size={16}
-                    color={theme.textDim}
-                  />
-                </Pressable>
-
-                {alertaConfigAbierta ? (
-                  <>
-                <Text style={[styles.alertConfigHint, { color: theme.textDim }]}>
-                  Si alguien queda detenido sin registrar parada, el líder recibe una alerta automática.
-                </Text>
-
-                <Pressable
-                  onPress={() =>
-                    void guardarConfigAlerta({
-                      alertaIncidenteHabilitada: !viaje.alerta_incidente_habilitada,
-                    })
-                  }
-                  disabled={guardandoAlertaConfig}
-                  style={({ pressed }) => [
-                    styles.alertToggleRow,
-                    { borderColor: theme.border, opacity: pressed ? 0.88 : 1 },
-                  ]}
-                >
-                  <Text style={[styles.alertToggleLabel, { color: theme.text }]}>Detección automática</Text>
-                  <View
-                    style={[
-                      styles.alertTogglePill,
-                      {
-                        backgroundColor: viaje.alerta_incidente_habilitada ? theme.good : theme.surface2,
-                        borderColor: viaje.alerta_incidente_habilitada ? theme.good : theme.border,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.alertTogglePillTxt,
-                        { color: viaje.alerta_incidente_habilitada ? '#fff' : theme.textDim },
-                      ]}
-                    >
-                      {viaje.alerta_incidente_habilitada ? 'Activa' : 'Off'}
-                    </Text>
-                  </View>
-                </Pressable>
-
-                {viaje.alerta_incidente_habilitada ? (
-                  <View style={styles.alertMinutosRow}>
-                    <Text style={[styles.alertMinutosLabel, { color: theme.textDim }]}>
-                      Minutos quieto sin parada
-                    </Text>
-                    <View style={styles.alertMinutosControls}>
-                      <Pressable
-                        onPress={() => {
-                          const base =
-                            viaje.alerta_incidente_minutos ?? viaje.alerta_incidente_minutos_efectivo
-                          if (base <= 1) return
-                          void guardarConfigAlerta({ alertaIncidenteMinutos: base - 1 })
-                        }}
-                        disabled={guardandoAlertaConfig || viaje.alerta_incidente_minutos_efectivo <= 1}
-                        style={[styles.alertStepBtn, { borderColor: theme.border }]}
-                      >
-                        <Feather
-                          name="minus"
-                          size={16}
-                          color={viaje.alerta_incidente_minutos_efectivo <= 1 ? theme.textDim : theme.text}
-                        />
-                      </Pressable>
-                      <Text style={[styles.alertMinutosValue, { color: theme.text }]}>
-                        {viaje.alerta_incidente_minutos_efectivo} min
-                      </Text>
-                      <Pressable
-                        onPress={() => {
-                          const base =
-                            viaje.alerta_incidente_minutos ?? viaje.alerta_incidente_minutos_efectivo
-                          if (base >= 30) return
-                          void guardarConfigAlerta({ alertaIncidenteMinutos: base + 1 })
-                        }}
-                        disabled={guardandoAlertaConfig}
-                        style={[styles.alertStepBtn, { borderColor: theme.border }]}
-                      >
-                        <Feather name="plus" size={16} color={theme.text} />
-                      </Pressable>
-                      {viaje.alerta_incidente_minutos != null ? (
-                        <Pressable
-                          onPress={() => void guardarConfigAlerta({ alertaIncidenteMinutos: null })}
-                          disabled={guardandoAlertaConfig}
-                          hitSlop={6}
-                        >
-                          <Text style={[styles.alertResetTxt, { color: theme.accent }]}>Por actividad</Text>
-                        </Pressable>
-                      ) : null}
-                    </View>
-                  </View>
-                ) : null}
-
-                <Pressable
-                  onPress={() =>
-                    void guardarConfigAlerta({
-                      alertasSoloLider: !(viaje.alertas_solo_lider ?? true),
-                    })
-                  }
-                  disabled={guardandoAlertaConfig}
-                  style={({ pressed }) => [
-                    styles.alertToggleRow,
-                    { borderColor: theme.border, opacity: pressed ? 0.88 : 1, marginTop: 10 },
-                  ]}
-                >
-                  <Text style={[styles.alertToggleLabel, { color: theme.text }]}>
-                    Solo el líder crea alertas
-                  </Text>
-                  <View
-                    style={[
-                      styles.alertTogglePill,
-                      {
-                        backgroundColor: (viaje.alertas_solo_lider ?? true) ? theme.good : theme.surface2,
-                        borderColor: (viaje.alertas_solo_lider ?? true) ? theme.good : theme.border,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.alertTogglePillTxt,
-                        { color: (viaje.alertas_solo_lider ?? true) ? '#fff' : theme.textDim },
-                      ]}
-                    >
-                      {(viaje.alertas_solo_lider ?? true) ? 'Sí' : 'No'}
-                    </Text>
-                  </View>
-                </Pressable>
-                <Text style={[styles.alertConfigHint, { color: theme.textDim, marginTop: 6 }]}>
-                  Si está desactivado, cualquier integrante puede enviar alertas manuales durante el viaje.
-                </Text>
-                  </>
-                ) : null}
-              </View>
+              <ConfigAlertasCard
+                viaje={viaje}
+                guardando={guardandoAlertaConfig}
+                onGuardar={(input) => void guardarConfigAlerta(input)}
+              />
             ) : null}
 
             {viaje.es_grupal && (
@@ -1616,60 +1478,6 @@ const styles = StyleSheet.create({
   alertConfigHint: {
     fontSize: 13,
     lineHeight: 18,
-  },
-  alertToggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  alertToggleLabel: {
-    fontSize: 14.5,
-    fontWeight: '600',
-  },
-  alertTogglePill: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  alertTogglePillTxt: {
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  alertMinutosRow: {
-    gap: 8,
-  },
-  alertMinutosLabel: {
-    fontSize: 12.5,
-    fontWeight: '600',
-  },
-  alertMinutosControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  alertStepBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    borderWidth: 1.2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  alertMinutosValue: {
-    fontSize: 16,
-    fontWeight: '800',
-    minWidth: 56,
-    textAlign: 'center',
-  },
-  alertResetTxt: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    marginLeft: 4,
   },
   warnCard: {
     flexDirection: 'row',

@@ -15,6 +15,8 @@ export const iniciarParadaSchema = z.object({
   lat: z.number().min(-90).max(90),
   lng: z.number().min(-180).max(180),
   categoria: categoriaParadaSchema,
+  /** RN-045: el líder detiene a todo el grupo. */
+  grupal: z.boolean().optional(),
 })
 
 export const solicitarParadaSchema = z.object({

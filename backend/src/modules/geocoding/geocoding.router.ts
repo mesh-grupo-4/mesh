@@ -10,4 +10,6 @@ const c = crearGeocodingController(service)
 export const geocodingRouter = Router()
 
 geocodingRouter.get('/buscar', requireUser, c.buscar)
+geocodingRouter.get('/autocompletar', requireUser, c.autocompletar)
+geocodingRouter.get('/lugares/:placeId', requireUser, c.detalleLugar)
 geocodingRouter.get('/reverse', requireUser, c.reverse)

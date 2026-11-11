@@ -259,12 +259,26 @@ export async function unirseViajePorQr(
   return parseJson<UnirseQrViajeResponse>(res)
 }
 
+export async function unirseViajePorCodigo(
+  codigo: string,
+  baseUrl: string = API_BASE_URL
+): Promise<UnirseQrViajeResponse> {
+  const res = await meshFetchAuthed(apiUrl('/api/viajes/unirse-codigo', baseUrl), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ codigo }),
+  })
+  return parseJson<UnirseQrViajeResponse>(res)
+}
+
 /** Modo del viaje: recreativo (RN-072), entrenamiento (RN-065) o competitivo (RN-071). */
 export type ModoViajeApi = 'recreativo' | 'competitivo' | 'entrenamiento'
 
 export type ViajeDetalleApi = {
   id: string
   creador_id: string
+  /** RN-015: código para sumarse sin QR. Caduca junto con el QR. */
+  codigo_invitacion: string
   nombre?: string | null
   es_grupal: boolean
   tipo_actividad: string
@@ -479,6 +493,29 @@ export async function checkInViaje(
   return parseJson<{ viaje_id: string; check_in_at: string }>(res)
 }
 
+export type AvisoFaltantesResponse = {
+  viaje_id: string
+  /** Confirmados que todavía no están (sin contar al líder). */
+  faltantes: number
+  /** A cuántos se les mandó la push (tienen notificaciones activas). */
+  avisados: number
+  espera_seg: number
+}
+
+/**
+ * RN-029e: el líder avisa por push a los que confirmaron y todavía no están.
+ * Responde 429 `AVISO_RECIENTE` si ya avisó hace menos de 2 minutos.
+ */
+export async function avisarFaltantes(
+  viajeId: string,
+  baseUrl: string = API_BASE_URL
+): Promise<AvisoFaltantesResponse> {
+  const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}/avisar-faltantes`, baseUrl), {
+    method: 'POST',
+  })
+  return parseJson<AvisoFaltantesResponse>(res)
+}
+
 /** RN-029d: el líder cede el viaje a otro integrante (confirmado; en curso, sumado). */
 export async function cederLiderazgo(
   viajeId: string,
@@ -526,8 +563,22 @@ export type ResumenViajeApi = {
     sali_antes: boolean
     fecha_salida: string | null
   }
+  paradas: ParadaResumenApi[]
   ranking_habilitado: boolean
   generado_en: string | null
+}
+
+export type ParadaResumenApi = {
+  id: string
+  tipo: 'voluntaria' | 'incidente_detectado'
+  categoria: CategoriaParadaApi | null
+  grupal: boolean
+  inicio: string
+  fin: string | null
+  duracion_seg: number | null
+  nombre: string
+  es_propia: boolean
+  confirmado_bien: boolean | null
 }
 
 export type MetricaIntegranteApi = {

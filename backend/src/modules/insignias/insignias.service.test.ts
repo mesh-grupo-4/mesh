@@ -11,6 +11,7 @@ const INSIGNIA_PRIMER_RECORRIDO = {
   nombre: 'Primer recorrido',
   descripcion: null,
   icono: 'flag',
+  rareza: 'comun',
   criterio_distancia_m: null,
   criterio_duracion_seg: null,
   criterio_actividad: null,
@@ -165,9 +166,36 @@ describe('InsigniasService.listarDeUsuario', () => {
         nombre: 'Primer recorrido',
         descripcion: null,
         icono: 'flag',
+        rareza: 'comun',
         viaje_id: viajeId,
         obtenida_at: obtenida_at.toISOString(),
       },
     ])
+  })
+})
+
+describe('InsigniasService.listarDeUsuarioVisible (RN-077)', () => {
+  it('403 LOGROS_PRIVADOS si la persona no comparte sus logros', async () => {
+    const m = armarPrisma({
+      usuario: { findUnique: vi.fn().mockResolvedValue({ visibilidad_logros: 'solo_yo' }) },
+    })
+    const service = new InsigniasService(m.prisma)
+
+    await expect(service.listarDeUsuarioVisible(usuarioId, 'otro')).rejects.toMatchObject({
+      status: 403,
+      code: 'LOGROS_PRIVADOS',
+    })
+    expect(m.usuarioInsigniaFindMany).not.toHaveBeenCalled()
+  })
+
+  it('devuelve las insignias si las comparte con todos', async () => {
+    const m = armarPrisma({
+      usuario: {
+        findUnique: vi.fn().mockResolvedValue({ id: usuarioId, visibilidad_logros: 'todos' }),
+      },
+    })
+    const service = new InsigniasService(m.prisma)
+
+    await expect(service.listarDeUsuarioVisible(usuarioId, 'otro')).resolves.toEqual([])
   })
 })

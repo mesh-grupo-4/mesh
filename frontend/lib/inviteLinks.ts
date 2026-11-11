@@ -3,18 +3,60 @@ const UUID_RE =
 
 export const MESH_INVITE_SCHEME = 'mesh'
 
+/**
+ * Dominio de la landing. Con él los links son https: abren la app si está instalada y la
+ * landing si no. Sin él (dev, o mientras no haya dominio) quedan con el esquema `mesh://`.
+ */
+const LINKS_BASE_URL = process.env.EXPO_PUBLIC_LINKS_BASE_URL?.trim().replace(/\/$/, '') || null
+
+function buildLink(ruta: string, query: string): string {
+  return LINKS_BASE_URL
+    ? `${LINKS_BASE_URL}/${ruta}?${query}`
+    : `${MESH_INVITE_SCHEME}://${ruta}?${query}`
+}
+
+/** Si la URL con la que se abrió la app es un link de Mesh (esquema propio o dominio). */
+export function esLinkDeMesh(url: string): boolean {
+  if (url.includes('expo-development-client')) return false
+  return (
+    url.startsWith(`${MESH_INVITE_SCHEME}://`) ||
+    (LINKS_BASE_URL !== null && url.startsWith(`${LINKS_BASE_URL}/`))
+  )
+}
+
 /** Mensaje exacto del AC / RN-015. */
 export const QR_EXPIRED_MESSAGE =
   'Este viaje ya ha comenzado. El código QR ha expirado.'
 
+export const CODIGO_EXPIRED_MESSAGE =
+  'Este viaje ya comenzó o finalizó, así que el código dejó de funcionar.'
+
+/** RN-015: largo del código de invitación, sin contar el guion. */
+export const LARGO_CODIGO_VIAJE = 8
+
 /** RN-015: deep link único por viaje. */
 export function buildInviteUrl(viajeId: string): string {
-  return `${MESH_INVITE_SCHEME}://unirse?viajeId=${encodeURIComponent(viajeId)}`
+  return buildLink('unirse', `viajeId=${encodeURIComponent(viajeId)}`)
+}
+
+/** RN-015: deja el código como `ABCD-2345`, descartando lo que no puede formar parte de él. */
+export function formatearCodigoViaje(raw: string): string {
+  const limpio = raw
+    .toUpperCase()
+    .replace(/[^2-9A-HJ-NP-Z]/g, '')
+    .slice(0, LARGO_CODIGO_VIAJE)
+  return limpio.length > 4 ? `${limpio.slice(0, 4)}-${limpio.slice(4)}` : limpio
+}
+
+/** Texto para compartir la invitación por fuera de la app. */
+export function buildInviteMessage(viajeId: string, codigo?: string | null): string {
+  const link = `Unite al viaje en Mesh:\n${buildInviteUrl(viajeId)}`
+  return codigo ? `${link}\n\nO ingresá el código ${formatearCodigoViaje(codigo)}` : link
 }
 
 /** RN-088: deep link de ruta compartida (distinto del QR de unirse). */
 export function buildRouteShareUrl(token: string): string {
-  return `${MESH_INVITE_SCHEME}://ruta?token=${encodeURIComponent(token)}`
+  return buildLink('ruta', `token=${encodeURIComponent(token)}`)
 }
 
 /** Extrae token de `mesh://ruta?token=...` o URL equivalente. */
