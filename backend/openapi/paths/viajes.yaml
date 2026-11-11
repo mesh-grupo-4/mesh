@@ -31,6 +31,13 @@ ViajesColeccion:
         una sola vez, con origen `grupo`.
       - Si se envía `rutaPlantillaId`, la ruta se precarga desde esa plantilla propia
         y la actividad pasa a ser la de la plantilla.
+      - **RN-065 / RN-070:** `modo: entrenamiento` no existe en moto ni auto
+        (`400 MODO_INVALIDO`), igual que `competitivo`.
+      - **RN-066:** con `repetir` el viaje repite una sesión de entrenamiento propia:
+        nace en `entrenamiento`, con la actividad y el recorrido (planificado o real)
+        de esa sesión, guarda `repite_viaje_id` y queda en el mismo circuito de quien
+        lo crea. Un entrenamiento que sale de `rutaPlantillaId` se agrupa con los
+        demás de esa plantilla.
     tags:
       - Viajes
     requestBody:
@@ -57,6 +64,16 @@ ViajesColeccion:
                 esGrupal: true
                 tipoActividad: bici
                 inmediato: true
+            repetirSesion:
+              summary: Repetir una sesión de entrenamiento (RN-066)
+              value:
+                nombre: Vuelta al lago
+                esGrupal: false
+                tipoActividad: running
+                inmediato: true
+                repetir:
+                  viajeId: 3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d
+                  recorrido: real
     responses:
       '201':
         description: Viaje creado.
@@ -67,8 +84,10 @@ ViajesColeccion:
       '400':
         description: |
           Validación fallida (por ejemplo, falta `fechaProgramada` sin `inmediato`, o
-          viene junto con `inmediato: true`), o fecha programada en el pasado
-          (`FECHA_PASADA`, RN-107).
+          viene junto con `inmediato: true`, o `repetir` junto con `rutaPlantillaId`),
+          fecha programada en el pasado (`FECHA_PASADA`, RN-107) o modo no permitido
+          (`MODO_INVALIDO`): `competitivo` sin grupo, o `competitivo` / `entrenamiento`
+          en moto o auto (RN-070).
         content:
           application/json:
             schema:
@@ -96,7 +115,10 @@ ViajesColeccion:
                   error: Solo podés invitar a tus amigos
                   code: NOT_FRIEND
       '404':
-        description: El usuario no existe (`USER_NOT_FOUND`) o la plantilla no es suya (`PLANTILLA_NOT_FOUND`).
+        description: |
+          El usuario no existe (`USER_NOT_FOUND`), la plantilla no es suya
+          (`PLANTILLA_NOT_FOUND`) o el viaje de `repetir` no es una sesión propia
+          (`SESION_NOT_FOUND`).
         content:
           application/json:
             schema:
@@ -104,6 +126,24 @@ ViajesColeccion:
             example:
               error: Plantilla no encontrada
               code: PLANTILLA_NOT_FOUND
+      '409':
+        description: |
+          Con `repetir`: la sesión no es un entrenamiento finalizado
+          (`SESION_NO_REPETIBLE`) o no tiene el recorrido pedido (`SIN_RECORRIDO`):
+          sin ruta planificada para `planificado`, o sin traza GPS propia para `real`.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            examples:
+              noRepetible:
+                value:
+                  error: Solo se repiten sesiones de entrenamiento finalizadas
+                  code: SESION_NO_REPETIBLE
+              sinRecorrido:
+                value:
+                  error: Esa sesión no tenía un recorrido planificado
+                  code: SIN_RECORRIDO
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'
 

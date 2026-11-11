@@ -13,6 +13,8 @@ import {
 } from 'react-native'
 import { Pressable } from '@/components/Pressable'
 import { meshAlert } from '@/lib/meshAlert';
+import { esMotorizado } from '@/lib/activityDefaults';
+import { abrirRepetirEntrenamiento } from '@/lib/nuevoViaje';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { Feather } from '@expo/vector-icons'
 import { useCopilot } from 'react-native-copilot'
@@ -1142,6 +1144,18 @@ export default function ViajeDetalleScreen() {
                 >
                   Mis métricas detalladas
                 </Btn>
+                {/* RN-066: repetir la sesión (mismo recorrido, con esta traza como fantasma). */}
+                {viaje.modo === 'entrenamiento' && !esMotorizado(viaje.tipo_actividad) ? (
+                  <Btn
+                    variant="secondary"
+                    block
+                    size="sm"
+                    icon="repeat"
+                    onPress={() => abrirRepetirEntrenamiento(viaje.id)}
+                  >
+                    Repetir este entrenamiento
+                  </Btn>
+                ) : null}
               </View>
             )}
 

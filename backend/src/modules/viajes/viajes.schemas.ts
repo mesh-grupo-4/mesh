@@ -74,6 +74,17 @@ export const createViajeSchema = z
     inmediato: z.boolean().optional().default(false),
     /** Opcional: precarga la ruta desde una plantilla propia del creador. */
     rutaPlantillaId: z.string().uuid().optional().nullable(),
+    /**
+     * RN-066: repetir una sesión de entrenamiento. Copia la ruta planificada o la
+     * traza real de esa sesión, fuerza `modo = entrenamiento` y suma el viaje al
+     * circuito de quien lo crea.
+     */
+    repetir: z
+      .object({
+        viajeId: z.string().uuid('viajeId debe ser un UUID válido'),
+        recorrido: z.enum(['planificado', 'real']),
+      })
+      .optional(),
     /** RN-025: si no vienen, el backend aplica los defaults de la actividad (RN-021). */
     velocidadEsperada: velocidadEsperadaSchema.optional(),
     distanciaMaxSeparacion: distanciaMaxSeparacionSchema.optional(),
@@ -94,6 +105,13 @@ export const createViajeSchema = z
         code: z.ZodIssueCode.custom,
         message: 'amigoIds solo se permiten en viajes grupales',
         path: ['amigoIds'],
+      })
+    }
+    if (data.repetir && data.rutaPlantillaId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Un viaje no puede repetir una sesión y salir de una ruta guardada a la vez',
+        path: ['repetir'],
       })
     }
     if (data.inmediato && data.fechaProgramada != null) {

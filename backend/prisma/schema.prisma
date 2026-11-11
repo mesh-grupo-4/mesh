@@ -188,33 +188,35 @@ model Usuario {
   motivo_suspension String?    @map("motivo_suspension")
   created_at        DateTime   @default(now()) @map("created_at")
 
-  grupos_liderados       Grupo[]               @relation("GrupoLider")
-  membresias             GrupoMiembro[]
-  viajes_creados         Viaje[]               @relation("ViajeCreador")
-  participaciones_viaje  ViajeIntegrante[]
-  registros_gps          RegistroGPS[]
-  metricas_viaje         MetricaViaje[]
-  ubicacion_viva         UbicacionViva?
-  invitaciones_recibidas GrupoInvitacion[]     @relation("InvitacionesRecibidas")
-  invitaciones_enviadas  GrupoInvitacion[]     @relation("InvitacionesEnviadas")
-  amistades_solicitadas  Amistad[]             @relation("AmistadSolicitante")
-  amistades_recibidas    Amistad[]             @relation("AmistadDestinatario")
-  rutas_plantilla        RutaPlantilla[]
-  paradas                Parada[]
-  solicitudes_parada     SolicitudParada[]     @relation("SolicitudParadaSolicitante")
-  solicitudes_resueltas  SolicitudParada[]     @relation("SolicitudParadaResolutor")
-  alertas_creadas        Alerta[]              @relation("AlertaAutor")
-  checklist_items        ChecklistItem[]
-  gastos_registrados     Gasto[]               @relation("GastoAutor")
-  gastos_participados    GastoParticipante[]   @relation("GastoParticipante")
-  privacidad_viajes      PrivacidadViaje[]
-  accesos_recibidos      AccesoUbicacion[]     @relation("AccesoObservado")
-  accesos_realizados     AccesoUbicacion[]     @relation("AccesoObservador")
-  acciones_admin         AuditoriaAdmin[]
-  insignias              UsuarioInsignia[]
-  recorridos_publicados  RecorridoPublicado[]
-  valoraciones_recorrido ValoracionRecorrido[]
-  racha                  RachaActividad?
+  grupos_liderados        Grupo[]                 @relation("GrupoLider")
+  membresias              GrupoMiembro[]
+  viajes_creados          Viaje[]                 @relation("ViajeCreador")
+  participaciones_viaje   ViajeIntegrante[]
+  registros_gps           RegistroGPS[]
+  metricas_viaje          MetricaViaje[]
+  ubicacion_viva          UbicacionViva?
+  invitaciones_recibidas  GrupoInvitacion[]       @relation("InvitacionesRecibidas")
+  invitaciones_enviadas   GrupoInvitacion[]       @relation("InvitacionesEnviadas")
+  amistades_solicitadas   Amistad[]               @relation("AmistadSolicitante")
+  amistades_recibidas     Amistad[]               @relation("AmistadDestinatario")
+  rutas_plantilla         RutaPlantilla[]
+  paradas                 Parada[]
+  solicitudes_parada      SolicitudParada[]       @relation("SolicitudParadaSolicitante")
+  solicitudes_resueltas   SolicitudParada[]       @relation("SolicitudParadaResolutor")
+  alertas_creadas         Alerta[]                @relation("AlertaAutor")
+  checklist_items         ChecklistItem[]
+  gastos_registrados      Gasto[]                 @relation("GastoAutor")
+  gastos_participados     GastoParticipante[]     @relation("GastoParticipante")
+  privacidad_viajes       PrivacidadViaje[]
+  accesos_recibidos       AccesoUbicacion[]       @relation("AccesoObservado")
+  accesos_realizados      AccesoUbicacion[]       @relation("AccesoObservador")
+  acciones_admin          AuditoriaAdmin[]
+  insignias               UsuarioInsignia[]
+  recorridos_publicados   RecorridoPublicado[]
+  valoraciones_recorrido  ValoracionRecorrido[]
+  racha                   RachaActividad?
+  circuitos_entrenamiento CircuitoEntrenamiento[]
+  circuito_sesiones       CircuitoSesion[]
 
   @@index([rol_sistema])
   @@map("usuario")
@@ -307,11 +309,17 @@ model Viaje {
   fecha_programada            DateTime      @map("fecha_programada")
   fecha_inicio_real           DateTime?     @map("fecha_inicio_real")
   fecha_fin_real              DateTime?     @map("fecha_fin_real")
+  /// RN-066: sesión de entrenamiento que este viaje repite. El fantasma del creador
+  /// se carga solo con su traza en esa sesión. null = no es una repetición.
+  repite_viaje_id             String?       @map("repite_viaje_id") @db.Uuid
   created_at                  DateTime      @default(now()) @map("created_at")
 
-  creador     Usuario           @relation("ViajeCreador", fields: [creador_id], references: [id], onDelete: Restrict)
-  integrantes ViajeIntegrante[]
-  grupos      ViajeGrupo[]
+  creador           Usuario           @relation("ViajeCreador", fields: [creador_id], references: [id], onDelete: Restrict)
+  repite_viaje      Viaje?            @relation("ViajeRepeticion", fields: [repite_viaje_id], references: [id], onDelete: SetNull)
+  repeticiones      Viaje[]           @relation("ViajeRepeticion")
+  circuito_sesiones CircuitoSesion[]
+  integrantes       ViajeIntegrante[]
+  grupos            ViajeGrupo[]
 
   ruta                  Ruta?
   resumen               ResumenViaje?
@@ -515,10 +523,11 @@ model RutaPlantilla {
   checklist              String[]      @default([])
   created_at             DateTime      @default(now()) @map("created_at")
 
-  usuario             Usuario               @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
-  ruta_compartida     RutaCompartida?       @relation(fields: [ruta_compartida_id], references: [id], onDelete: Restrict)
-  recorrido_publicado RecorridoPublicado?   @relation(fields: [recorrido_publicado_id], references: [id], onDelete: SetNull)
+  usuario             Usuario                 @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  ruta_compartida     RutaCompartida?         @relation(fields: [ruta_compartida_id], references: [id], onDelete: Restrict)
+  recorrido_publicado RecorridoPublicado?     @relation(fields: [recorrido_publicado_id], references: [id], onDelete: SetNull)
   paradas             RutaPlantillaParada[]
+  circuitos           CircuitoEntrenamiento[]
 
   @@unique([usuario_id, ruta_compartida_id])
   @@unique([usuario_id, recorrido_publicado_id])
@@ -880,4 +889,40 @@ model ValoracionRecorrido {
   @@id([recorrido_publicado_id, usuario_id])
   @@index([usuario_id])
   @@map("valoracion_recorrido")
+}
+
+/// RN-066: circuito de entrenamiento. Cada persona tiene los suyos: agrupa sus
+/// sesiones de un mismo recorrido, formadas con "Repetir" o saliendo desde la
+/// misma ruta guardada (`ruta_plantilla_id`).
+model CircuitoEntrenamiento {
+  id                String        @id @default(uuid()) @db.Uuid
+  usuario_id        String        @map("usuario_id") @db.Uuid
+  nombre            String        @db.VarChar(100)
+  tipo_actividad    TipoActividad @map("tipo_actividad")
+  ruta_plantilla_id String?       @map("ruta_plantilla_id") @db.Uuid
+  created_at        DateTime      @default(now()) @map("created_at")
+
+  usuario        Usuario          @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  ruta_plantilla RutaPlantilla?   @relation(fields: [ruta_plantilla_id], references: [id], onDelete: SetNull)
+  sesiones       CircuitoSesion[]
+
+  @@unique([usuario_id, ruta_plantilla_id])
+  @@index([usuario_id])
+  @@map("circuito_entrenamiento")
+}
+
+/// RN-066: una sesión (viaje) pertenece como mucho a un circuito por persona.
+model CircuitoSesion {
+  usuario_id  String   @map("usuario_id") @db.Uuid
+  viaje_id    String   @map("viaje_id") @db.Uuid
+  circuito_id String   @map("circuito_id") @db.Uuid
+  created_at  DateTime @default(now()) @map("created_at")
+
+  usuario  Usuario               @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  viaje    Viaje                 @relation(fields: [viaje_id], references: [id], onDelete: Cascade)
+  circuito CircuitoEntrenamiento @relation(fields: [circuito_id], references: [id], onDelete: Cascade)
+
+  @@id([usuario_id, viaje_id])
+  @@index([circuito_id])
+  @@map("circuito_sesion")
 }
