@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 
@@ -91,9 +91,9 @@ export default function PerfilUsuarioScreen() {
   const quitarAmigo = () => {
     if (!usuarioId || !perfil) return;
     meshConfirmDestructive({
-      title: 'Eliminar de amigos',
-      message: `¿Querés eliminar a ${perfil.nombre} de tu lista de amigos?`,
-      confirmLabel: 'Eliminar',
+      title: 'Dejar de ser amigos',
+      message: `¿Querés dejar de ser amigo de ${perfil.nombre}? Lo vas a quitar de tu lista de amigos.`,
+      confirmLabel: 'Dejar de ser amigos',
       onConfirm: async () => {
         setEliminando(true);
         try {
@@ -172,22 +172,31 @@ export default function PerfilUsuarioScreen() {
             {!perfil.es_yo ? (
               <View style={styles.amistadRow}>
                 {relacion === 'amigo' ? (
-                  <>
-                    <Badge tone="good">
-                      <Feather name="check" size={10} color={theme.good} style={{ marginRight: 3 }} />
-                      Son amigos
-                    </Badge>
-                    <Btn
-                      variant="danger-outline"
-                      size="sm"
-                      icon="user-x"
-                      onPress={quitarAmigo}
-                      loading={eliminando}
-                      disabled={eliminando}
-                    >
-                      Eliminar de amigos
-                    </Btn>
-                  </>
+                  // Un solo botón: tocarlo ofrece dejar de ser amigos (con confirmación).
+                  <Pressable
+                    onPress={quitarAmigo}
+                    disabled={eliminando}
+                    accessibilityRole="button"
+                    accessibilityLabel="Son amigos. Tocá para dejar de ser amigos"
+                    style={({ pressed }) => [
+                      styles.amigosBtn,
+                      {
+                        backgroundColor: `${theme.good}1F`,
+                        borderColor: `${theme.good}66`,
+                        opacity: pressed || eliminando ? 0.7 : 1,
+                      },
+                    ]}
+                  >
+                    {eliminando ? (
+                      <ActivityIndicator color={theme.good} />
+                    ) : (
+                      <>
+                        <Feather name="user-check" size={18} color={theme.good} />
+                        <Text style={[styles.amigosTxt, { color: theme.good }]}>Son amigos</Text>
+                        <Feather name="chevron-down" size={18} color={theme.good} />
+                      </>
+                    )}
+                  </Pressable>
                 ) : relacion === 'solicitud_enviada' ? (
                   <Badge tone="mute">Solicitud enviada</Badge>
                 ) : relacion === 'solicitud_recibida' ? (
@@ -296,7 +305,19 @@ const styles = StyleSheet.create({
   nombre: { fontSize: 26, fontWeight: '600', letterSpacing: -0.3, marginTop: 12, textAlign: 'center' },
   actividadRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
   actividadTxt: { fontSize: 14, fontWeight: '600' },
-  amistadRow: { alignItems: 'center', gap: 10, marginTop: 10 },
+  amistadRow: { alignSelf: 'stretch', alignItems: 'center', gap: 10, marginTop: 10 },
+  amigosBtn: {
+    alignSelf: 'stretch',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    minHeight: 50,
+    paddingHorizontal: 20,
+    borderRadius: 14,
+    borderWidth: 1.5,
+  },
+  amigosTxt: { fontSize: 16, fontWeight: '700' },
   cuerpo: { flexGrow: 1, paddingHorizontal: 20, paddingBottom: 40, gap: 20 },
   statsCard: { flexDirection: 'row', borderRadius: 16, borderWidth: 1, paddingVertical: 16 },
   statBox: { flex: 1, alignItems: 'center', gap: 2 },
