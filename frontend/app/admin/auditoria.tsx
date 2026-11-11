@@ -31,13 +31,16 @@ const DESCRIPCION_ACCION: Record<string, string> = {
   'viaje.eliminar': 'Eliminó un viaje',
   'checklist.definir_sugeridos': 'Editó el checklist sugerido',
   'checklist.restaurar_sugeridos': 'Restauró el checklist sugerido',
+  'insignia.crear': 'Creó una insignia',
+  'insignia.editar': 'Editó una insignia',
+  'insignia.eliminar': 'Eliminó una insignia',
 }
 
 /** Lo más legible del `detalle`: a quién o a qué afectó la acción. */
 function objetivo(e: EntradaAuditoria): string {
   const d = e.detalle ?? {}
   if (typeof d.tipo_actividad === 'string') return ETIQUETA_ACTIVIDAD[d.tipo_actividad] ?? d.tipo_actividad
-  const valor = d.email ?? d.nombre
+  const valor = d.email ?? d.nombre ?? d.codigo
   return typeof valor === 'string' && valor ? valor : e.entidad_id.slice(0, 8)
 }
 

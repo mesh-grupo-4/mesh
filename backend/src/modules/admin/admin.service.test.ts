@@ -487,3 +487,143 @@ describe('checklist de preparativos (RN-132)', () => {
     expect(acciones(prisma)).toEqual([])
   })
 })
+
+describe('catálogo de insignias (RN-133)', () => {
+  const insigniaId = '77777777-7777-7777-7777-777777777777'
+  const fila = {
+    id: insigniaId,
+    codigo: 'maraton',
+    nombre: 'Maratón',
+    descripcion: 'Corriste 42 km o más en un mismo viaje.',
+    icono: 'award',
+    rareza: 'legendaria',
+    criterio_distancia_m: 42195,
+    criterio_duracion_seg: null,
+    criterio_actividad: 'running',
+    activa: true,
+    created_at: new Date('2026-11-11T12:00:00.000Z'),
+    _count: { otorgadas: 0 },
+  }
+  const { id: _id, created_at: _c, _count: _n, ...alta } = fila
+
+  it('lista todo el catálogo con cuántas personas tiene cada una', async () => {
+    const findMany = vi.fn().mockResolvedValue([{ ...fila, _count: { otorgadas: 4 } }])
+    const { service } = armar({ insignia: { findMany } })
+
+    const { items } = await service.listarInsignias()
+
+    expect(items).toEqual([expect.objectContaining({ codigo: 'maraton', cantidad_otorgadas: 4 })])
+    expect(items[0]).not.toHaveProperty('_count')
+    // Incluye las inactivas: el listado no filtra por `activa`.
+    expect(findMany.mock.calls[0]![0]).not.toHaveProperty('where')
+  })
+
+  it('crear la guarda y la audita', async () => {
+    const create = vi.fn().mockResolvedValue(fila)
+    const { service, prisma } = armar({
+      insignia: { findUnique: vi.fn().mockResolvedValue(null), create },
+    })
+
+    const res = await service.crearInsignia(adminId, alta as never)
+
+    expect(res).toMatchObject({ id: insigniaId, cantidad_otorgadas: 0 })
+    expect(create.mock.calls[0]![0].data).toEqual(alta)
+    expect(acciones(prisma)).toEqual(['insignia.crear'])
+  })
+
+  it('crear con un código existente responde 409 sin escribir', async () => {
+    const create = vi.fn()
+    const { service, prisma } = armar({
+      insignia: { findUnique: vi.fn().mockResolvedValue({ id: 'otra' }), create },
+    })
+
+    await expect(service.crearInsignia(adminId, alta as never)).rejects.toMatchObject({
+      status: 409,
+      code: 'INSIGNIA_CODIGO_DUPLICADO',
+    })
+    expect(create).not.toHaveBeenCalled()
+    expect(acciones(prisma)).toEqual([])
+  })
+
+  it('un alta simultánea que choca con el unique también es 409', async () => {
+    const { service } = armar({
+      insignia: {
+        findUnique: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockRejectedValue(Object.assign(new Error('unique'), { code: 'P2002' })),
+      },
+    })
+
+    await expect(service.crearInsignia(adminId, alta as never)).rejects.toMatchObject({
+      code: 'INSIGNIA_CODIGO_DUPLICADO',
+    })
+  })
+
+  it('editar actualiza solo lo recibido y audita qué campos cambió', async () => {
+    const update = vi.fn().mockResolvedValue({ ...fila, activa: false })
+    const { service, prisma } = armar({
+      insignia: { findUnique: vi.fn().mockResolvedValue(fila), update },
+    })
+
+    const res = await service.actualizarInsignia(adminId, insigniaId, { activa: false })
+
+    expect(res.activa).toBe(false)
+    expect(update.mock.calls[0]![0]).toMatchObject({ where: { id: insigniaId }, data: { activa: false } })
+    expect(prisma.auditoriaAdmin.create.mock.calls[0]![0].data.detalle).toEqual({
+      codigo: 'maraton',
+      campos: ['activa'],
+    })
+  })
+
+  it('editar una inexistente es 404', async () => {
+    const { service } = armar({ insignia: { findUnique: vi.fn().mockResolvedValue(null) } })
+
+    await expect(service.actualizarInsignia(adminId, insigniaId, { nombre: 'X' })).rejects.toMatchObject({
+      status: 404,
+      code: 'INSIGNIA_NOT_FOUND',
+    })
+  })
+
+  it('eliminar una que nadie obtuvo la borra y lo audita', async () => {
+    const deleteMany = vi.fn().mockResolvedValue({ count: 1 })
+    const { service, prisma } = armar({
+      insignia: { findUnique: vi.fn().mockResolvedValue(fila), deleteMany },
+    })
+
+    const res = await service.eliminarInsignia(adminId, insigniaId)
+
+    expect(res).toEqual({ insignia_id: insigniaId, accion: 'eliminada' })
+    expect(deleteMany).toHaveBeenCalledWith({ where: { id: insigniaId, otorgadas: { none: {} } } })
+    expect(acciones(prisma)).toEqual(['insignia.eliminar'])
+  })
+
+  it('no elimina una ya otorgada: no le quita el logro a nadie', async () => {
+    const deleteMany = vi.fn()
+    const { service, prisma } = armar({
+      insignia: {
+        findUnique: vi.fn().mockResolvedValue({ ...fila, _count: { otorgadas: 3 } }),
+        deleteMany,
+      },
+    })
+
+    await expect(service.eliminarInsignia(adminId, insigniaId)).rejects.toMatchObject({
+      status: 409,
+      code: 'INSIGNIA_OTORGADA',
+    })
+    expect(deleteMany).not.toHaveBeenCalled()
+    expect(acciones(prisma)).toEqual([])
+  })
+
+  it('si se otorgó entre la lectura y el borrado, es 409 y no audita', async () => {
+    const { service, prisma } = armar({
+      insignia: {
+        findUnique: vi.fn().mockResolvedValue(fila),
+        deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+      },
+    })
+
+    await expect(service.eliminarInsignia(adminId, insigniaId)).rejects.toMatchObject({
+      code: 'INSIGNIA_OTORGADA',
+    })
+    expect(acciones(prisma)).toEqual([])
+  })
+})

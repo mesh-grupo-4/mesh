@@ -101,6 +101,12 @@ export default function AdminPanelScreen() {
             onPress={() => router.push('/admin/checklist')}
           />
           <Fila
+            icono="award"
+            titulo="Insignias"
+            detalle="Crear, editar, desactivar y eliminar las insignias que se otorgan al finalizar un viaje"
+            onPress={() => router.push('/admin/insignias')}
+          />
+          <Fila
             icono="file-text"
             titulo="Auditoría"
             detalle="Registro de cada acción hecha desde el backoffice"

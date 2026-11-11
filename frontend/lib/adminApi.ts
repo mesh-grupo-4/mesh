@@ -1,5 +1,6 @@
 import { apiUrl, meshFetchAuthed, parseJson } from './apiClient'
 import type { ActividadPreferidaApi } from './usuariosApi'
+import type { InsigniaApi } from './insigniasApi'
 
 /**
  * Backoffice superadmin (RN-120 a RN-126). Contrato en
@@ -76,10 +77,22 @@ export type ChecklistActividadAdmin = {
   updated_at: string | null
 }
 
+/** RN-133: insignia del catálogo vista desde el backoffice, incluidas las inactivas. */
+export type InsigniaAdmin = InsigniaApi & {
+  /** `false`: no se otorga más ni aparece en el catálogo público; quien la tiene la conserva. */
+  activa: boolean
+  created_at: string
+  /** Cuántas personas la obtuvieron. Con alguna, no se puede eliminar: solo desactivar. */
+  cantidad_otorgadas: number
+}
+
+/** Lo editable de una insignia. El `codigo` solo se elige al crearla. */
+export type DatosInsigniaAdmin = Omit<InsigniaAdmin, 'id' | 'codigo' | 'created_at' | 'cantidad_otorgadas'>
+
 export type EntradaAuditoria = {
   id: string
   accion: string
-  entidad: 'usuario' | 'grupo' | 'viaje' | 'checklist'
+  entidad: 'usuario' | 'grupo' | 'viaje' | 'checklist' | 'insignia'
   entidad_id: string
   detalle: Record<string, unknown> | null
   created_at: string
@@ -175,3 +188,15 @@ export const restaurarChecklistActividadAdmin = (tipo: ActividadPreferidaApi) =>
 // ── Auditoría ──
 export const listarAuditoriaAdmin = (p: { pagina?: number }) =>
   get<Pagina<EntradaAuditoria>>(`/api/admin/auditoria${query(p)}`)
+
+// ── Catálogo de insignias (RN-133) ──
+export const listarInsigniasAdmin = () => get<{ items: InsigniaAdmin[] }>('/api/admin/insignias')
+
+export const crearInsigniaAdmin = (datos: DatosInsigniaAdmin & { codigo: string }) =>
+  enviar<InsigniaAdmin>('POST', '/api/admin/insignias', datos)
+
+export const actualizarInsigniaAdmin = (id: string, datos: Partial<DatosInsigniaAdmin>) =>
+  enviar<InsigniaAdmin>('PATCH', `/api/admin/insignias/${id}`, datos)
+
+export const eliminarInsigniaAdmin = (id: string) =>
+  enviar<{ insignia_id: string; accion: 'eliminada' }>('DELETE', `/api/admin/insignias/${id}`)

@@ -3,7 +3,7 @@
 > **Estado:** implementada (backend + frontend: perfil propio y pantalla de perfil de otro usuario).
 > **Epic:** **E09** — Gamificación extendida (insignias, rachas, tabla global). Tier Deseable.
 > **OpenAPI:** `backend/openapi/paths/insignias.yaml` y `backend/openapi/paths/usuarios.yaml#/PerfilPublicoUsuario` (spec modular, ver [[adr-documentacion-api]]).
-> **RN:** RN-074 (criterio y otorgamiento automático), RN-070 (nunca velocidad, ni siquiera en moto).
+> **RN:** RN-074 (criterio y otorgamiento automático), RN-070 (nunca velocidad, ni siquiera en moto), RN-133 (catálogo editable por el superadmin).
 > **Dependencias:** `MetricaViaje` (generada al finalizar, ver [[us-ranking-viaje]] / RN-061); amistades (`AmistadesService.obtenerRelacion`) para la relación mostrada en el perfil ajeno.
 
 ---
@@ -32,6 +32,7 @@
 | **Nunca velocidad** | El modelo `Insignia` no tiene (ni debe agregarse) un campo de criterio de velocidad | RN-070 es irrevocable: la moto queda afuera de toda gamificación de velocidad. Insignias de distancia/duración/actividad no comparan velocidades entre sí, así que no chocan con la regla — pero agregar una de velocidad sí lo haría |
 | **Idempotente, best-effort** | `evaluarYOtorgar` usa `createMany({ skipDuplicates: true })` sobre el unique `(usuario_id, insignia_id)`, y corre fuera de la transacción del resumen, con su propio try/catch | Una insignia ya obtenida no se duplica ni pisa su fecha; si falla, el cierre del viaje y el resumen ya guardado no se ven afectados (mismo patrón que el resto de `generarResumen`) |
 | **Catálogo seedeado por migración** | Las 8 insignias iniciales se insertan por `INSERT ... ON CONFLICT DO NOTHING` en la propia migración, no por un script de seed aparte | El proyecto no tiene infraestructura de seed; usar la migración (ya sancionada por `migrate deploy`) es la vía más simple para datos de catálogo que deben existir siempre |
+| **Catálogo editable desde el backoffice (RN-133)** | El superadmin crea, edita, desactiva y elimina insignias (`/api/admin/insignias`). El `codigo` es inmutable y solo se elimina una insignia que nadie obtuvo; si ya se otorgó, se desactiva | El código lo referencia el sistema (p. ej. `centurion_bici` en la reputación de autores). Borrar una otorgada le quitaría el logro a esas personas por el FK en cascada; desactivarla corta el otorgamiento sin tocar lo ganado. Cambiar criterios no revoca ni otorga hacia atrás: solo cuenta para los próximos viajes finalizados |
 | **Visibles según lo que elija cada persona (RN-077)** | `GET /insignias/usuario/{usuarioId}` y el perfil pasan por `assertPuedeVerLogros` / `puedeVerLogros` (`modules/privacidad/logros.acceso.ts`). Con `todos` (default) las ve cualquier usuario autenticado; con `amigos`, solo amistades aceptadas; con `solo_yo`, nadie más. Sin permiso: `403 LOGROS_PRIVADOS` en el endpoint suelto y `null` en el perfil | El criterio original pedía "visibles para otros usuarios de la comunidad", y el default lo cumple. Se agregó la opción de cerrarlas porque son datos de actividad de la persona: lo decide ella. Un solo selector para estadísticas, racha e insignias, por simplicidad |
 | **Rareza fija por insignia (RN-078)** | Columna `rareza` (`comun`, `rara`, `epica`, `legendaria`) asignada a mano en el catálogo | Calcularla por % de usuarios que la tienen daría resultados inestables con pocos usuarios (casi todo saldría "legendaria"). La rareza solo cambia cómo se ve; no compara personas ni toca el otorgamiento |
 | **Perfil ajeno compone, no duplica** | `GET /usuarios/{id}/perfil` (módulo `usuarios`) reutiliza `ViajesService.estadisticasUsuario()`, `InsigniasService.listarDeUsuario()` y la nueva `AmistadesService.obtenerRelacion()`, en vez de reimplementar las consultas | Cada pieza de dato ya tenía su servicio; componerlas evita tener dos fuentes de verdad para lo mismo |
@@ -95,6 +96,15 @@ choca con RN-070.
 | `GET` | `/api/usuarios/{usuarioId}/perfil` | Cualquier usuario autenticado — nombre, actividad y relación de amistad siempre; estadísticas, insignias y racha solo si los comparte (si no, vuelven en `null` con `logros_visibles: false`) |
 | `PUT` | `/api/usuarios/me/privacidad` | Cada usuario — `visibilidad_logros`: `todos`, `amigos` o `solo_yo` |
 
+Backoffice (solo `superadmin`, RN-133, auditado):
+
+| Método | Ruta | Qué hace |
+|---|---|---|
+| `GET` | `/api/admin/insignias` | Catálogo completo, incluidas las inactivas, con `cantidad_otorgadas` (cuántas personas, nunca quiénes) |
+| `POST` | `/api/admin/insignias` | Crea una insignia; `409 INSIGNIA_CODIGO_DUPLICADO` si el código existe |
+| `PATCH` | `/api/admin/insignias/{insigniaId}` | Edita lo recibido (no el código); `activa: false` la desactiva |
+| `DELETE` | `/api/admin/insignias/{insigniaId}` | Solo si nadie la obtuvo; si no, `409 INSIGNIA_OTORGADA` |
+
 No existe un endpoint para otorgar insignias a mano: solo las otorga
 `ViajesService` automáticamente al finalizar un viaje.
 
@@ -124,6 +134,13 @@ No existe un endpoint para otorgar insignias a mano: solo las otorga
   `viaje/[viajeId]/index.tsx`) y miembros de un grupo
   (`grupo/[grupoId]/miembros.tsx`). Tocar la fila propia no navega (ya estás
   en tu perfil desde la pestaña "Perfil").
+
+- **Backoffice** (*Perfil → Administración → Insignias*, `app/admin/insignias.tsx` y
+  `app/admin/insignia/[insigniaId].tsx`, `nueva` para el alta): activas e inactivas con
+  sus criterios y cuántas personas las obtuvieron. El editor muestra el chip tal como se
+  va a ver, ofrece una lista de íconos de Feather, carga distancia en km y tiempo en
+  minutos (el backend guarda metros y segundos) y avisa si no tiene ningún criterio. Si la
+  insignia ya se otorgó, en lugar de "Eliminar" explica que hay que desactivarla.
 
 Pendiente: marcar en el catálogo cuáles insignias le faltan a cada usuario
 para conseguir (hoy el catálogo completo vive en `GET /insignias` pero no se

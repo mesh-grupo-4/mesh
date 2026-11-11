@@ -51,6 +51,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     plugins: [
       ...(config.plugins ?? []),
       ['react-native-maps', { androidGoogleMapsApiKey: androidKey, iosGoogleMapsApiKey: iosKey }],
+      './plugins/withIosSceneLifecycle',
     ],
     extra: {
       ...config.extra,

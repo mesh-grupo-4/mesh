@@ -6,7 +6,9 @@ import { transferirLiderazgo, type TransactionClient } from '../grupos/grupos.se
 import { ViajesService } from '../viajes/viajes.service'
 import { ACTIVIDADES_CHECKLIST, itemsSugeridos } from '../checklist/checklistDefaults'
 import type {
+  ActualizarInsigniaInput,
   ActualizarUsuarioAdminInput,
+  CrearInsigniaInput,
   ListarAuditoriaQuery,
   ListarGruposQuery,
   ListarUsuariosQuery,
@@ -28,8 +30,11 @@ export type AccionAdmin =
   | 'viaje.eliminar'
   | 'checklist.definir_sugeridos'
   | 'checklist.restaurar_sugeridos'
+  | 'insignia.crear'
+  | 'insignia.editar'
+  | 'insignia.eliminar'
 
-type EntidadAdmin = 'usuario' | 'grupo' | 'viaje' | 'checklist'
+type EntidadAdmin = 'usuario' | 'grupo' | 'viaje' | 'checklist' | 'insignia'
 
 /**
  * Operaciones sobre la cuenta de Firebase. Se inyectan para poder testear el
@@ -121,6 +126,44 @@ function detalleAuditoriaVisible(entidad: string, detalle: Prisma.JsonValue) {
   if (entidad !== 'viaje') return detalle
   const estado = (detalle as { estado?: unknown } | null)?.estado
   return typeof estado === 'string' ? { estado } : null
+}
+
+const insigniaAdminSelect = {
+  id: true,
+  codigo: true,
+  nombre: true,
+  descripcion: true,
+  icono: true,
+  rareza: true,
+  criterio_distancia_m: true,
+  criterio_duracion_seg: true,
+  criterio_actividad: true,
+  activa: true,
+  created_at: true,
+  _count: { select: { otorgadas: true } },
+} as const
+
+/** RN-133: una insignia del catálogo vista desde el backoffice. Nunca dice a quién se otorgó. */
+function insigniaAdmin(fila: Prisma.InsigniaGetPayload<{ select: typeof insigniaAdminSelect }>) {
+  const { _count, ...datos } = fila
+  return { ...datos, cantidad_otorgadas: _count.otorgadas }
+}
+
+function esViolacionUnique(err: unknown): boolean {
+  return !!err && typeof err === 'object' && 'code' in err && err.code === 'P2002'
+}
+
+function codigoDuplicado() {
+  return new HttpError(409, 'Ya existe una insignia con ese código', 'INSIGNIA_CODIGO_DUPLICADO')
+}
+
+function insigniaOtorgada(cantidad?: number) {
+  const quienes = cantidad === 1 ? 'Una persona ya la obtuvo' : 'Hay personas que ya la obtuvieron'
+  return new HttpError(
+    409,
+    `${quienes}: desactivala para dejar de otorgarla sin quitársela a nadie`,
+    'INSIGNIA_OTORGADA'
+  )
 }
 
 function paginar(pagina: number, limite: number) {
@@ -726,6 +769,96 @@ export class AdminService {
       await tx.checklistActividad.delete({ where: { id: fila.id } })
     })
     return predeterminada
+  }
+
+  // ── Catálogo de insignias (RN-133) ───────────────────────────────────────
+
+  /** Todo el catálogo, incluidas las inactivas, con cuántas personas tiene cada una. */
+  async listarInsignias() {
+    const filas = await this.prisma.insignia.findMany({
+      select: insigniaAdminSelect,
+      orderBy: [{ activa: 'desc' }, { nombre: 'asc' }],
+    })
+    return { items: filas.map(insigniaAdmin) }
+  }
+
+  /**
+   * Alta en el catálogo. Desde el próximo viaje que se finalice se evalúa como el
+   * resto (RN-074); no se otorga hacia atrás por viajes ya cerrados.
+   */
+  async crearInsignia(actorId: string, input: CrearInsigniaInput) {
+    const existente = await this.prisma.insignia.findUnique({
+      where: { codigo: input.codigo },
+      select: { id: true },
+    })
+    if (existente) throw codigoDuplicado()
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const fila = await tx.insignia.create({ data: input, select: insigniaAdminSelect })
+        await this.auditar(tx, actorId, 'insignia.crear', 'insignia', fila.id, {
+          codigo: fila.codigo,
+          nombre: fila.nombre,
+        })
+        return insigniaAdmin(fila)
+      })
+    } catch (err) {
+      // Dos altas simultáneas con el mismo código: la segunda choca con el unique.
+      if (esViolacionUnique(err)) throw codigoDuplicado()
+      throw err
+    }
+  }
+
+  /**
+   * Edición parcial. Cambiar criterios solo afecta los viajes que se finalicen de acá en
+   * adelante: quien ya la obtuvo la conserva. Desactivarla deja de otorgarla y la saca del
+   * catálogo público, pero tampoco se le quita a nadie.
+   */
+  async actualizarInsignia(actorId: string, insigniaId: string, input: ActualizarInsigniaInput) {
+    const actual = await this.obtenerInsigniaOFallar(insigniaId)
+    return this.prisma.$transaction(async (tx) => {
+      const fila = await tx.insignia.update({
+        where: { id: insigniaId },
+        data: input,
+        select: insigniaAdminSelect,
+      })
+      await this.auditar(tx, actorId, 'insignia.editar', 'insignia', insigniaId, {
+        codigo: actual.codigo,
+        campos: Object.keys(input),
+      })
+      return insigniaAdmin(fila)
+    })
+  }
+
+  /**
+   * Borrado definitivo, solo si nadie la obtuvo todavía: borrarla le quitaría el logro a
+   * esas personas (el FK es en cascada). Para retirar una ya otorgada, se desactiva.
+   */
+  async eliminarInsignia(actorId: string, insigniaId: string) {
+    const actual = await this.obtenerInsigniaOFallar(insigniaId)
+    if (actual._count.otorgadas > 0) throw insigniaOtorgada(actual._count.otorgadas)
+
+    await this.prisma.$transaction(async (tx) => {
+      // Condicionado a que siga sin otorgarse: un viaje pudo finalizar entre la lectura y acá.
+      const { count } = await tx.insignia.deleteMany({
+        where: { id: insigniaId, otorgadas: { none: {} } },
+      })
+      if (count === 0) throw insigniaOtorgada()
+      await this.auditar(tx, actorId, 'insignia.eliminar', 'insignia', insigniaId, {
+        codigo: actual.codigo,
+        nombre: actual.nombre,
+      })
+    })
+    return { insignia_id: insigniaId, accion: 'eliminada' as const }
+  }
+
+  private async obtenerInsigniaOFallar(insigniaId: string) {
+    const fila = await this.prisma.insignia.findUnique({
+      where: { id: insigniaId },
+      select: insigniaAdminSelect,
+    })
+    if (!fila) throw new HttpError(404, 'Insignia no encontrada', 'INSIGNIA_NOT_FOUND')
+    return fila
   }
 
   // ── Auditoría ────────────────────────────────────────────────────────────

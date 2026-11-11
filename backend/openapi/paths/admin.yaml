@@ -727,6 +727,156 @@ ChecklistActividadAdmin:
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'
 
+InsigniasAdmin:
+  get:
+    operationId: adminListarInsignias
+    summary: Catálogo de insignias
+    description: |
+      RN-133: todas las insignias del catálogo, incluidas las inactivas, con cuántas personas obtuvo cada una (nunca quiénes).
+    tags:
+      - Admin
+    responses:
+      '200':
+        description: Catálogo completo.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ListaInsigniasAdmin'
+            example: {"items": [{"id": "7f3e2d1c-0b9a-4c8d-9e7f-6a5b4c3d2e1f", "codigo": "maraton", "nombre": "Maratón", "descripcion": "Corriste 42 km o más en un mismo viaje.", "icono": "award", "rareza": "legendaria", "criterio_distancia_m": 42195, "criterio_duracion_seg": null, "criterio_actividad": "running", "activa": true, "created_at": "2026-11-11T15:00:00.000Z", "cantidad_otorgadas": 0}]}
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/SuperadminRequerido'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+  post:
+    operationId: adminCrearInsignia
+    summary: Crear una insignia
+    description: |
+      RN-133: agrega una insignia al catálogo. Se evalúa automáticamente desde el próximo viaje que se finalice (RN-074); no se otorga por viajes ya cerrados. Nunca por velocidad (RN-070). Queda auditado (`insignia.crear`).
+    tags:
+      - Admin
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/CrearInsigniaRequest'
+          example: {"codigo": "maraton", "nombre": "Maratón", "descripcion": "Corriste 42 km o más en un mismo viaje.", "icono": "award", "rareza": "legendaria", "criterio_distancia_m": 42195, "criterio_actividad": "running"}
+    responses:
+      '201':
+        description: Insignia creada.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/InsigniaAdmin'
+            example: {"id": "7f3e2d1c-0b9a-4c8d-9e7f-6a5b4c3d2e1f", "codigo": "maraton", "nombre": "Maratón", "descripcion": "Corriste 42 km o más en un mismo viaje.", "icono": "award", "rareza": "legendaria", "criterio_distancia_m": 42195, "criterio_duracion_seg": null, "criterio_actividad": "running", "activa": true, "created_at": "2026-11-11T15:00:00.000Z", "cantidad_otorgadas": 0}
+      '400':
+        description: Datos inválidos o campos desconocidos, como un criterio de velocidad (`VALIDATION_ERROR`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ValidationError'
+            example: {"error": "Validación fallida", "code": "VALIDATION_ERROR", "details": {"formErrors": ["Unrecognized key(s) in object: 'criterio_velocidad_kmh'"], "fieldErrors": {}}}
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/SuperadminRequerido'
+      '409':
+        description: Ya existe una insignia con ese código (`INSIGNIA_CODIGO_DUPLICADO`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example: {"error": "Ya existe una insignia con ese código", "code": "INSIGNIA_CODIGO_DUPLICADO"}
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+InsigniaAdmin:
+  parameters:
+    - $ref: '../components/parameters.yaml#/InsigniaId'
+  patch:
+    operationId: adminActualizarInsignia
+    summary: Editar una insignia
+    description: |
+      RN-133: edita los campos recibidos; el código no se puede cambiar. Los criterios nuevos rigen para los viajes que se finalicen desde ahora y nadie pierde una insignia ya obtenida. `activa: false` deja de otorgarla y la saca del catálogo público. Queda auditado (`insignia.editar`, con los campos tocados).
+    tags:
+      - Admin
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/ActualizarInsigniaRequest'
+          example: {"rareza": "epica", "activa": false}
+    responses:
+      '200':
+        description: Insignia actualizada.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/InsigniaAdmin'
+            example: {"id": "7f3e2d1c-0b9a-4c8d-9e7f-6a5b4c3d2e1f", "codigo": "maraton", "nombre": "Maratón", "descripcion": "Corriste 42 km o más en un mismo viaje.", "icono": "award", "rareza": "epica", "criterio_distancia_m": 42195, "criterio_duracion_seg": null, "criterio_actividad": "running", "activa": false, "created_at": "2026-11-11T15:00:00.000Z", "cantidad_otorgadas": 0}
+      '400':
+        description: Id inválido, ningún campo, datos inválidos o un campo no editable como `codigo` (`VALIDATION_ERROR`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ValidationError'
+            example: {"error": "Validación fallida", "code": "VALIDATION_ERROR", "details": {"formErrors": ["No hay campos para actualizar"], "fieldErrors": {}}}
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/SuperadminRequerido'
+      '404':
+        description: La insignia no existe (`INSIGNIA_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example: {"error": "Insignia no encontrada", "code": "INSIGNIA_NOT_FOUND"}
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+  delete:
+    operationId: adminEliminarInsignia
+    summary: Eliminar una insignia
+    description: |
+      RN-133: borra la insignia del catálogo solo si nadie la obtuvo; si ya se otorgó responde 409, porque borrarla le quitaría el logro a esas personas: para retirarla se desactiva (`PATCH` con `activa: false`). Queda auditado (`insignia.eliminar`).
+    tags:
+      - Admin
+    responses:
+      '200':
+        description: Insignia eliminada.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/InsigniaEliminadaAdmin'
+            example: {"insignia_id": "7f3e2d1c-0b9a-4c8d-9e7f-6a5b4c3d2e1f", "accion": "eliminada"}
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/SuperadminRequerido'
+      '404':
+        description: La insignia no existe (`INSIGNIA_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example: {"error": "Insignia no encontrada", "code": "INSIGNIA_NOT_FOUND"}
+      '409':
+        description: Alguien ya la obtuvo (`INSIGNIA_OTORGADA`); desactivarla en su lugar.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example: {"error": "Hay personas que ya la obtuvieron: desactivala para dejar de otorgarla sin quitársela a nadie", "code": "INSIGNIA_OTORGADA"}
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
 AuditoriaAdmin:
   get:
     operationId: adminListarAuditoria
@@ -747,7 +897,7 @@ AuditoriaAdmin:
         in: query
         required: false
         description: Filtra por tipo de entidad.
-        schema: {"type": "string", "enum": ["usuario", "grupo", "viaje", "checklist"]}
+        schema: {"type": "string", "enum": ["usuario", "grupo", "viaje", "checklist", "insignia"]}
       - name: entidad_id
         in: query
         required: false

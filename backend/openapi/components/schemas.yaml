@@ -145,6 +145,10 @@ ErrorCode:
     - USER_IN_ACTIVE_TRIP
     - ALREADY_LEADER
     - AUTH_PROVIDER_ERROR
+    # Catálogo de insignias del backoffice (RN-133)
+    - INSIGNIA_NOT_FOUND
+    - INSIGNIA_CODIGO_DUPLICADO
+    - INSIGNIA_OTORGADA
   example: NOT_CREATOR
 
 Error:
@@ -5350,6 +5354,9 @@ AccionAdmin:
     - viaje.eliminar
     - checklist.definir_sugeridos
     - checklist.restaurar_sugeridos
+    - insignia.crear
+    - insignia.editar
+    - insignia.eliminar
   example: usuario.suspender
 
 EntradaAuditoriaAdmin:
@@ -5363,13 +5370,14 @@ EntradaAuditoriaAdmin:
       $ref: '#/AccionAdmin'
     entidad:
       type: string
-      enum: [usuario, grupo, viaje, checklist]
+      enum: [usuario, grupo, viaje, checklist, insignia]
     entidad_id:
       type: string
       format: uuid
       description: |
         Puede apuntar a una entidad ya eliminada; por eso no es FK. En `checklist` es la
-        fila de `checklist_actividad` de esa actividad (RN-132).
+        fila de `checklist_actividad` de esa actividad (RN-132); en `insignia`, la insignia
+        del catálogo (RN-133).
     detalle:
       type: object
       nullable: true
@@ -6389,3 +6397,181 @@ RecorridoPublicadoDetalle:
               maxItems: 2
               items:
                 type: number
+
+InsigniaAdmin:
+  type: object
+  description: |
+    RN-133: una insignia del catálogo vista desde el backoffice, incluidas las inactivas.
+    Dice cuántas personas la obtuvieron, nunca quiénes. Nunca hay criterio de velocidad
+    (RN-070).
+  required:
+    - id
+    - codigo
+    - nombre
+    - descripcion
+    - icono
+    - rareza
+    - criterio_distancia_m
+    - criterio_duracion_seg
+    - criterio_actividad
+    - activa
+    - created_at
+    - cantidad_otorgadas
+  properties:
+    id:
+      type: string
+      format: uuid
+    codigo:
+      type: string
+      description: Slug estable. Se elige al crearla y no se puede cambiar.
+    nombre:
+      type: string
+    descripcion:
+      type: string
+      nullable: true
+    icono:
+      type: string
+      description: Nombre de ícono de `@expo/vector-icons/Feather`.
+    rareza:
+      $ref: '#/RarezaInsignia'
+    criterio_distancia_m:
+      type: number
+      format: double
+      nullable: true
+      description: Distancia mínima recorrida en el viaje, en metros. `null` = no aplica.
+    criterio_duracion_seg:
+      type: integer
+      nullable: true
+      description: Tiempo mínimo en movimiento durante el viaje, en segundos. `null` = no aplica.
+    criterio_actividad:
+      allOf:
+        - $ref: '#/TipoActividad'
+      type: string
+      nullable: true
+      description: '`null` = cualquier tipo de actividad.'
+    activa:
+      type: boolean
+      description: |
+        `false`: no se otorga más ni aparece en el catálogo público (`GET /api/insignias`),
+        pero quienes ya la tienen la conservan.
+    created_at:
+      type: string
+      format: date-time
+    cantidad_otorgadas:
+      type: integer
+      minimum: 0
+      description: Cuántas personas la obtuvieron. Si es mayor a 0 no se puede eliminar.
+  additionalProperties: false
+
+ListaInsigniasAdmin:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      description: Activas primero, después por nombre.
+      items:
+        $ref: '#/InsigniaAdmin'
+
+CrearInsigniaRequest:
+  type: object
+  description: |
+    RN-133. No existe ni se acepta un criterio de velocidad (RN-070): cualquier campo
+    desconocido es 400. Sin ningún criterio, se otorga en el primer viaje finalizado.
+  required: [codigo, nombre, icono]
+  properties:
+    codigo:
+      type: string
+      minLength: 3
+      maxLength: 40
+      pattern: '^[a-z0-9]+(_[a-z0-9]+)*$'
+      description: Slug único, en minúsculas con guiones bajos. Inmutable.
+    nombre:
+      type: string
+      minLength: 1
+      maxLength: 60
+    descripcion:
+      type: string
+      nullable: true
+      maxLength: 200
+      description: Vacía se guarda como `null`.
+    icono:
+      type: string
+      maxLength: 40
+      pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'
+      description: Nombre de ícono de `@expo/vector-icons/Feather`.
+    rareza:
+      $ref: '#/RarezaInsignia'
+    criterio_distancia_m:
+      type: number
+      nullable: true
+      exclusiveMinimum: true
+      minimum: 0
+      maximum: 1000000
+    criterio_duracion_seg:
+      type: integer
+      nullable: true
+      minimum: 1
+      maximum: 604800
+    criterio_actividad:
+      allOf:
+        - $ref: '#/TipoActividad'
+      type: string
+      nullable: true
+    activa:
+      type: boolean
+      default: true
+  additionalProperties: false
+
+ActualizarInsigniaRequest:
+  type: object
+  description: |
+    RN-133: se edita lo que llega (al menos un campo). El `codigo` no se puede cambiar.
+    Los criterios nuevos rigen para los viajes que se finalicen desde ahora; nadie pierde
+    una insignia ya obtenida.
+  minProperties: 1
+  properties:
+    nombre:
+      type: string
+      minLength: 1
+      maxLength: 60
+    descripcion:
+      type: string
+      nullable: true
+      maxLength: 200
+    icono:
+      type: string
+      maxLength: 40
+      pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'
+    rareza:
+      $ref: '#/RarezaInsignia'
+    criterio_distancia_m:
+      type: number
+      nullable: true
+      exclusiveMinimum: true
+      minimum: 0
+      maximum: 1000000
+    criterio_duracion_seg:
+      type: integer
+      nullable: true
+      minimum: 1
+      maximum: 604800
+    criterio_actividad:
+      allOf:
+        - $ref: '#/TipoActividad'
+      type: string
+      nullable: true
+    activa:
+      type: boolean
+  additionalProperties: false
+
+InsigniaEliminadaAdmin:
+  type: object
+  required: [insignia_id, accion]
+  properties:
+    insignia_id:
+      type: string
+      format: uuid
+    accion:
+      type: string
+      enum: [eliminada]

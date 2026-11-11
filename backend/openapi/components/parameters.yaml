@@ -259,6 +259,16 @@ TipoActividadPath:
     $ref: './schemas.yaml#/TipoActividad'
   example: moto
 
+InsigniaId:
+  name: insigniaId
+  in: path
+  required: true
+  description: UUID de la insignia del catálogo.
+  schema:
+    type: string
+    format: uuid
+  example: 7f3e2d1c-0b9a-4c8d-9e7f-6a5b4c3d2e1f
+
 RankingTipoActividad:
   name: tipoActividad
   in: query

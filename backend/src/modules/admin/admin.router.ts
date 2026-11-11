@@ -38,4 +38,9 @@ adminRouter.get('/checklist', c.listarChecklistActividades)
 adminRouter.put('/checklist/:tipoActividad', c.definirChecklistActividad)
 adminRouter.delete('/checklist/:tipoActividad', c.restaurarChecklistActividad)
 
+adminRouter.get('/insignias', c.listarInsignias)
+adminRouter.post('/insignias', c.crearInsignia)
+adminRouter.patch('/insignias/:insigniaId', c.actualizarInsignia)
+adminRouter.delete('/insignias/:insigniaId', c.eliminarInsignia)
+
 adminRouter.get('/auditoria', c.auditoria)
