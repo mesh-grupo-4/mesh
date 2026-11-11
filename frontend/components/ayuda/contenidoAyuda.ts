@@ -83,7 +83,8 @@ export const AYUDA_VIAJES: PasoDefinicion[] = [
   {
     nombre: 'viajes.filtros',
     orden: ORDEN_PANTALLA.viajes + 2,
-    texto: 'Buscá por nombre o filtrá por actividad y tu rol en el viaje.',
+    texto:
+      'Buscá por nombre o actividad. En Filtros elegí actividad, tipo de viaje, solo o grupal, tu rol y la fecha; tocá un filtro aplicado para quitarlo.',
   },
   {
     nombre: 'viajes.nuevo',

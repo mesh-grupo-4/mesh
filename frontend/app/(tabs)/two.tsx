@@ -25,12 +25,24 @@ import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda'
 import { AYUDA_VIAJES } from '@/components/ayuda/contenidoAyuda'
 import {
   BarraFiltros,
+  BotonFiltros,
   BotonLimpiarFiltros,
   BuscadorFiltros,
-  ChipFiltro,
-  DivisorChipsFiltro,
+  FilaBuscadorFiltros,
   FilaChipsFiltro,
+  PastillaFiltro,
 } from '@/components/BarraFiltros'
+import { HojaFiltrosViajes } from '@/components/viajes/HojaFiltrosViajes'
+import {
+  ETIQUETA_ORDEN_PASADOS,
+  FILTROS_INICIALES,
+  filtrarPasados,
+  filtrarProximos,
+  filtrosActivos as calcularFiltrosActivos,
+  limpiarFiltros as limpiarFiltrosViajes,
+  ordenarFinalizados,
+  type FiltrosViajes,
+} from '@/lib/filtrosViajes'
 import { SegmentTabs } from '@/components/SegmentTabs'
 import { SelectableCard } from '@/components/SelectableCard'
 import { SelectionActionBar } from '@/components/SelectionActionBar'
@@ -63,8 +75,6 @@ import {
 } from '@/lib/viajesApi'
 
 type Tab = 'mis_viajes' | 'pasados'
-type FiltroActividad = 'all' | TipoActividadApi
-type FiltroRol = 'todos' | 'creador' | 'participante'
 
 function formatearFecha(iso: string): string {
   return formatearEnArg(iso, {
@@ -90,21 +100,6 @@ function finDelDiaArg(iso: string): number {
   const campos = aCamposArg(new Date(iso))
   campos.setHours(23, 59, 59, 999)
   return desdeCamposArg(campos).getTime()
-}
-
-function filtrar<T extends {
-  nombre?: string | null
-  tipo_actividad: TipoActividadApi
-  mi_estado: string | null
-}>(lista: T[], q: string, actividad: FiltroActividad, rol: FiltroRol): T[] {
-  const q2 = q.trim().toLowerCase()
-  return lista.filter((v) => {
-    if (q2 && !(v.nombre?.toLowerCase().includes(q2) ?? false)) return false
-    if (actividad !== 'all' && v.tipo_actividad !== actividad) return false
-    if (rol === 'creador' && v.mi_estado !== 'creador') return false
-    if (rol === 'participante' && (v.mi_estado === 'creador' || v.mi_estado === null)) return false
-    return true
-  })
 }
 
 function puedeEliminarViaje(v: ViajePlanificadoApi): boolean {
@@ -526,18 +521,19 @@ export default function ViajesScreen() {
     })
   }
 
-  // Filtros
+  // Filtros: se comparten entre pestañas; cada una usa los que le aplican.
   const [busqueda, setBusqueda] = useState('')
-  const [filtroActividad, setFiltroActividad] = useState<FiltroActividad>('all')
-  const [filtroRol, setFiltroRol] = useState<FiltroRol>('todos')
+  const [filtros, setFiltros] = useState<FiltrosViajes>(FILTROS_INICIALES)
+  const [hojaFiltros, setHojaFiltros] = useState(false)
+
+  const filtrosAplicados = useMemo(() => calcularFiltrosActivos(filtros, tab), [filtros, tab])
 
   const limpiarFiltros = () => {
     setBusqueda('')
-    setFiltroActividad('all')
-    setFiltroRol('todos')
+    setFiltros(limpiarFiltrosViajes)
   }
 
-  const filtrosActivos = busqueda.trim() !== '' || filtroActividad !== 'all' || filtroRol !== 'todos'
+  const filtrosActivos = busqueda.trim() !== '' || filtrosAplicados.length > 0
 
   // Separa planificados en futuros y vencidos (no realizados)
   const ahora = useMemo(() => Date.now(), [viajes])
@@ -579,17 +575,33 @@ export default function ViajesScreen() {
 
   // Listas filtradas
   const viajesFuturosFiltrados = useMemo(
-    () => filtrar(viajesFuturos, busqueda, filtroActividad, filtroRol),
-    [viajesFuturos, busqueda, filtroActividad, filtroRol]
+    () => filtrarProximos(viajesFuturos, filtros, busqueda),
+    [viajesFuturos, filtros, busqueda]
   )
   const viajesNoRealizadosFiltrados = useMemo(
-    () => filtrar(viajesNoRealizados, busqueda, filtroActividad, filtroRol),
-    [viajesNoRealizados, busqueda, filtroActividad, filtroRol]
+    () => filtrarPasados(viajesNoRealizados, filtros, busqueda),
+    [viajesNoRealizados, filtros, busqueda]
   )
   const finalizadosFiltrados = useMemo(
-    () => filtrar(finalizados, busqueda, filtroActividad, filtroRol),
-    [finalizados, busqueda, filtroActividad, filtroRol]
+    () => ordenarFinalizados(filtrarPasados(finalizados, filtros, busqueda), filtros.ordenPasados),
+    [finalizados, filtros, busqueda]
   )
+
+  // Para la hoja: cuántos viajes dejaría ver un borrador antes de aplicarlo.
+  const contarConFiltros = useCallback(
+    (f: FiltrosViajes) =>
+      tab === 'mis_viajes'
+        ? filtrarProximos(viajesFuturos, f, busqueda).length
+        : filtrarPasados(finalizados, f, busqueda).length +
+          filtrarPasados(viajesNoRealizados, f, busqueda).length,
+    [tab, viajesFuturos, finalizados, viajesNoRealizados, busqueda]
+  )
+  const totalPestana =
+    tab === 'mis_viajes' ? viajesFuturos.length : finalizados.length + viajesNoRealizados.length
+  const visiblesPestana =
+    tab === 'mis_viajes'
+      ? viajesFuturosFiltrados.length
+      : finalizadosFiltrados.length + viajesNoRealizadosFiltrados.length
 
   const hayPasados = finalizados.length > 0 || viajesNoRealizados.length > 0
   const hayResultadosPasados = finalizadosFiltrados.length > 0 || viajesNoRealizadosFiltrados.length > 0
@@ -741,49 +753,42 @@ export default function ViajesScreen() {
           {/* Búsqueda y filtros: scrollean con la lista para dejarle más lugar. */}
           <PasoAyuda {...AYUDA_VIAJES[2]!}>
           <BarraFiltros>
-            <BuscadorFiltros
-              value={busqueda}
-              onChangeText={setBusqueda}
-              placeholder="Buscar por nombre..."
-              accessibilityLabel="Buscar viajes"
-            />
+            <FilaBuscadorFiltros>
+              <BuscadorFiltros
+                value={busqueda}
+                onChangeText={setBusqueda}
+                placeholder="Buscar por nombre o actividad..."
+                accessibilityLabel="Buscar viajes"
+                style={styles.buscadorEnFila}
+              />
+              <BotonFiltros cantidad={filtrosAplicados.length} onPress={() => setHojaFiltros(true)} />
+            </FilaBuscadorFiltros>
 
-            {/* Chips de actividad y rol */}
-            <FilaChipsFiltro>
-              {([
-                { key: 'all', label: 'Todas' },
-                { key: 'moto', label: 'Moto' },
-                { key: 'auto', label: 'Auto' },
-                { key: 'bici', label: 'Bici' },
-                { key: 'running', label: 'Running' },
-                { key: 'trekking', label: 'Trekking' },
-                { key: 'otro', label: 'Otro' },
-              ] as { key: FiltroActividad; label: string }[]).map(({ key, label }) => (
-                <ChipFiltro
-                  key={key}
-                  label={label}
-                  activo={filtroActividad === key}
-                  onPress={() => setFiltroActividad(key)}
-                />
-              ))}
+            {/* Cada filtro aplicado se ve y se quita de un toque: la lista nunca queda recortada a escondidas. */}
+            {filtrosAplicados.length > 0 && (
+              <FilaChipsFiltro>
+                {filtrosAplicados.map((a) => (
+                  <PastillaFiltro
+                    key={a.clave}
+                    etiqueta={a.etiqueta}
+                    onQuitar={() => setFiltros((f) => a.quitar(f))}
+                  />
+                ))}
+                {filtrosAplicados.length > 1 && <BotonLimpiarFiltros onPress={limpiarFiltros} />}
+              </FilaChipsFiltro>
+            )}
 
-              <DivisorChipsFiltro />
-
-              {([
-                { key: 'todos', label: 'Todos los roles' },
-                { key: 'creador', label: 'Organizador' },
-                { key: 'participante', label: 'Participante' },
-              ] as { key: FiltroRol; label: string }[]).map(({ key, label }) => (
-                <ChipFiltro
-                  key={key}
-                  label={label}
-                  activo={filtroRol === key}
-                  onPress={() => setFiltroRol(key)}
-                />
-              ))}
-
-              {filtrosActivos && <BotonLimpiarFiltros onPress={limpiarFiltros} />}
-            </FilaChipsFiltro>
+            {(filtrosActivos || (tab === 'pasados' && filtros.ordenPasados !== 'recientes')) &&
+              totalPestana > 0 && (
+                <Text style={[styles.resumenFiltros, { color: theme.textDim }]}>
+                  {filtrosActivos
+                    ? `Mostrando ${visiblesPestana} de ${totalPestana} ${totalPestana === 1 ? 'viaje' : 'viajes'}`
+                    : `${totalPestana} ${totalPestana === 1 ? 'viaje' : 'viajes'}`}
+                  {tab === 'pasados' && filtros.ordenPasados !== 'recientes'
+                    ? ` · ${ETIQUETA_ORDEN_PASADOS[filtros.ordenPasados]}`
+                    : ''}
+                </Text>
+              )}
           </BarraFiltros>
           </PasoAyuda>
 
@@ -952,6 +957,18 @@ export default function ViajesScreen() {
         )}
       </ScrollViewAyuda>
 
+      <HojaFiltrosViajes
+        visible={hojaFiltros}
+        pestana={tab}
+        filtros={filtros}
+        contar={contarConFiltros}
+        onAplicar={(f) => {
+          setFiltros(f)
+          setHojaFiltros(false)
+        }}
+        onCerrar={() => setHojaFiltros(false)}
+      />
+
       {/* Modal de invitaciones */}
       <Modal
         visible={modalInvitaciones}
@@ -1114,6 +1131,9 @@ const styles = StyleSheet.create({
   },
   desplegableTitulo: { flex: 1, fontSize: 14, fontWeight: '700' },
   desplegableContent: { padding: 12, gap: 10 },
+
+  buscadorEnFila: { flex: 1, marginHorizontal: 0 },
+  resumenFiltros: { fontSize: 13, fontWeight: '600', marginHorizontal: 16 },
 
   // Modal invitaciones
   modalRoot: { flex: 1 },
