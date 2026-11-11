@@ -426,9 +426,9 @@ export function AmigosTabPanel() {
     </Text>
   ) : null;
 
-  return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
-      {/* Barra de búsqueda y filtros (fija, no scrollea): mismo diseño que Viajes y Rutas. */}
+  // Búsqueda y filtros van como encabezado de la lista: scrollean con ella y le dejan más lugar.
+  const barraFiltros = (
+    <View style={styles.barraEnLista}>
       <BarraFiltros>
         <BuscadorFiltros
           value={busqueda}
@@ -452,9 +452,16 @@ export function AmigosTabPanel() {
           />
         </FilaChipsFiltro>
       </BarraFiltros>
+    </View>
+  );
 
+  return (
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       {loading ? (
-        <ActivityIndicator color={theme.accent} size="large" style={styles.centrado} />
+        <View style={styles.lista}>
+          {barraFiltros}
+          <ActivityIndicator color={theme.accent} size="large" style={styles.centrado} />
+        </View>
       ) : tab === 'amigos' ? (
         <FlatList
           data={amigosVisibles}
@@ -462,12 +469,16 @@ export function AmigosTabPanel() {
           renderItem={renderFilaAmigo}
           keyboardShouldPersistTaps="handled"
           automaticallyAdjustKeyboardInsets
-          ListHeaderComponent={encabezadoAmigos}
+          ListHeaderComponent={
+            <>
+              {barraFiltros}
+              {encabezadoAmigos}
+            </>
+          }
           ListEmptyComponent={vacioAmigos}
           ListFooterComponent={seccionOtrosUsuarios}
           contentContainerStyle={[
             styles.lista,
-            amigos.length === 0 && !consulta ? styles.listaVacia : undefined,
             { paddingBottom: espacioTabBar + (selection.active ? 88 : 0) },
           ]}
           refreshControl={refresh}
@@ -478,9 +489,9 @@ export function AmigosTabPanel() {
           keyExtractor={(item) => item.id}
           renderItem={renderSolicitud}
           keyboardShouldPersistTaps="handled"
+          ListHeaderComponent={barraFiltros}
           contentContainerStyle={[
             styles.lista,
-            solicitudesVisibles.length === 0 ? styles.listaVacia : undefined,
             { paddingBottom: espacioTabBar },
           ]}
           ListEmptyComponent={
@@ -508,7 +519,8 @@ export function AmigosTabPanel() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   lista: { paddingHorizontal: 20, paddingTop: 12 },
-  listaVacia: { flexGrow: 1, justifyContent: 'center' },
+  // Compensa el padding de la lista: la barra va de borde a borde.
+  barraEnLista: { marginHorizontal: -20, marginTop: -12, marginBottom: 12 },
   encabezadoFila: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -572,6 +584,6 @@ const styles = StyleSheet.create({
   },
   botonRechazarTexto: { fontSize: 14, fontWeight: '600' },
   centrado: { marginTop: 48 },
-  vacio: { fontSize: 14, lineHeight: 20, textAlign: 'center' },
+  vacio: { fontSize: 14, lineHeight: 20, textAlign: 'center', marginTop: 36 },
   vacioCompacto: { fontSize: 14, lineHeight: 20, textAlign: 'center', marginVertical: 12 },
 });

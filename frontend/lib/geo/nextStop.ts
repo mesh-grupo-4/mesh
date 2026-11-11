@@ -1,5 +1,3 @@
-import { haversineDistanceM } from '@/lib/geo/haversine'
-
 export type RouteStop = {
   lat: number
   lng: number
@@ -7,7 +5,10 @@ export type RouteStop = {
   type: 'ORIGIN' | 'STOP' | 'DESTINATION'
 }
 
-const VISIT_THRESHOLD_M = 100
+/** Recién a esta distancia (sobre la ruta) una parada se da por pasada. */
+const MARGEN_VISITA_M = 60
+/** Más lejos que esto de la ruta, llegar hasta ella también suma distancia. */
+const FUERA_DE_RUTA_M = 40
 
 export type NextStopInfo = {
   stop: RouteStop
@@ -15,30 +16,45 @@ export type NextStopInfo = {
   etaSec: number
 }
 
-/** Próximo waypoint no alcanzado según orden de la ruta. */
+/** Lo mínimo que hace falta saber del avance (ver `AvanceRuta`). */
+type Avance = { progresoM: number; distanciaARutaM: number }
+
+/**
+ * Próxima parada que todavía no se pasó, con la distancia medida sobre la ruta
+ * (no en línea recta). `paradasM` es a cuántos metros de ruta queda cada parada
+ * (`ubicarEnOrden`). El origen nunca es "próxima parada".
+ */
 export function calcNextStop(
-  lat: number,
-  lng: number,
+  avance: Avance,
   stops: RouteStop[],
+  paradasM: number[],
   speedKmh: number
 ): NextStopInfo | null {
   if (stops.length === 0 || speedKmh <= 0) return null
 
-  for (const stop of stops) {
-    const distanceM = haversineDistanceM(lat, lng, stop.lat, stop.lng)
-    if (distanceM > VISIT_THRESHOLD_M) {
-      const etaSec = (distanceM / 1000 / speedKmh) * 3600
-      return { stop, distanceM, etaSec }
+  let indice = -1
+  for (let i = 0; i < stops.length; i++) {
+    if (stops[i]!.type === 'ORIGIN') continue
+    if ((paradasM[i] ?? 0) > avance.progresoM + MARGEN_VISITA_M) {
+      indice = i
+      break
     }
   }
+  // Ya se pasaron todas: queda el final de la ruta.
+  if (indice < 0) indice = stops.length - 1
 
-  const last = stops[stops.length - 1]!
-  const distanceM = haversineDistanceM(lat, lng, last.lat, last.lng)
-  return {
-    stop: last,
-    distanceM,
-    etaSec: (distanceM / 1000 / speedKmh) * 3600,
-  }
+  const stop = stops[indice]!
+  if (stop.type === 'ORIGIN') return null
+
+  const sobreRutaM = Math.max(0, (paradasM[indice] ?? 0) - avance.progresoM)
+  const hastaRutaM = avance.distanciaARutaM > FUERA_DE_RUTA_M ? avance.distanciaARutaM : 0
+  const distanceM = sobreRutaM + hastaRutaM
+  return { stop, distanceM, etaSec: (distanceM / 1000 / speedKmh) * 3600 }
+}
+
+/** "Próx. parada: Nombre" o "Destino: Nombre", según a dónde se esté yendo. */
+export function etiquetaProximaParada(info: NextStopInfo): string {
+  return `${info.stop.type === 'DESTINATION' ? 'Destino' : 'Próx. parada'}: ${info.stop.name}`
 }
 
 export function formatEtaLabel(seconds: number): string {

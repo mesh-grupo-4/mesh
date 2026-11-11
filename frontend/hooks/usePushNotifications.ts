@@ -2,7 +2,7 @@ import Constants from 'expo-constants'
 import { isRunningInExpoGo } from 'expo'
 import { useRouter } from 'expo-router'
 import { useEffect } from 'react'
-import { Platform } from 'react-native'
+import { AppState, Platform } from 'react-native'
 import { refrescarPendientes } from '@/lib/pendientesStore'
 import { registrarPushToken } from '@/lib/usuariosApi'
 
@@ -47,6 +47,26 @@ async function ensureNotifications() {
     handlerListo = true
   }
   return Notifications
+}
+
+/**
+ * Notificación local para un aviso que nace en el dispositivo (p. ej. la llegada al
+ * destino). Solo con la app en segundo plano: en primer plano ya lo muestra la pantalla.
+ */
+export async function avisarEnSegundoPlano(titulo: string, cuerpo: string): Promise<void> {
+  if (AppState.currentState === 'active') return
+  try {
+    const Notifications = await ensureNotifications()
+    if (!Notifications) return
+    const { granted } = await Notifications.getPermissionsAsync()
+    if (!granted) return
+    await Notifications.scheduleNotificationAsync({
+      content: { title: titulo, body: cuerpo, sound: 'default' },
+      trigger: null,
+    })
+  } catch (e) {
+    console.warn('[Push] No se pudo mostrar el aviso local:', e)
+  }
 }
 
 export function usePushNotifications(backendUserId: string | null) {

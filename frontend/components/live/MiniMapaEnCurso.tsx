@@ -108,7 +108,8 @@ export function MiniMapaEnCurso({
       <LiveMapView
         ref={mapRef}
         routeRemaining={routeRemaining}
-        breadcrumb={breadcrumb}
+        // Con ruta, lo ya recorrido se borra (igual que en el mapa en vivo).
+        breadcrumb={routeRemaining ? null : breadcrumb}
         members={miembros}
         currentUserId={userId}
         initialCenter={null}

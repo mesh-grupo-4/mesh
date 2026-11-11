@@ -82,3 +82,49 @@ export function formatDeltaPace(minPorKm: number | null | undefined): string {
   const secs = Math.round((abs - mins) * 60)
   return `${signo}${mins}:${secs.toString().padStart(2, '0')} /km`
 }
+
+const SEPARADOR_MILES = /\B(?=(\d{3})+(?!\d))/g
+
+function conPuntoDeMiles(entero: string): string {
+  return entero.replace(SEPARADOR_MILES, '.')
+}
+
+/**
+ * Monto en formato argentino: punto de miles y coma decimal ("$1.234,50").
+ * Los centavos solo se muestran si los hay ("$8.500").
+ */
+export function formatMonto(monto: number): string {
+  const centavos = Math.round(Math.abs(monto) * 100)
+  const entero = conPuntoDeMiles(String(Math.floor(centavos / 100)))
+  const resto = centavos % 100
+  const signo = monto < 0 && centavos > 0 ? '-' : ''
+  return `${signo}$${entero}${resto > 0 ? `,${String(resto).padStart(2, '0')}` : ''}`
+}
+
+/**
+ * Máscara del campo de monto mientras se escribe: agrega el punto de miles y deja
+ * una sola coma con hasta dos decimales. Un punto tipeado se toma como coma decimal
+ * (hay teclados numéricos que solo ofrecen el punto).
+ */
+export function enmascararMonto(texto: string): string {
+  const tipeado = texto.endsWith('.') ? `${texto.slice(0, -1)},` : texto
+  const limpio = tipeado.replace(/[^\d,]/g, '')
+  const coma = limpio.indexOf(',')
+  const parteEntera = (coma < 0 ? limpio : limpio.slice(0, coma)).replace(/^0+(?=\d)/, '')
+  if (coma < 0) return conPuntoDeMiles(parteEntera)
+  const decimales = limpio.slice(coma + 1).replace(/,/g, '').slice(0, 2)
+  return `${conPuntoDeMiles(parteEntera || '0')},${decimales}`
+}
+
+/** Valor numérico de un monto escrito con `enmascararMonto`; `null` si no es un monto válido. */
+export function parseMonto(texto: string): number | null {
+  const normalizado = texto.trim().replace(/\./g, '').replace(',', '.')
+  if (!/^\d+(\.\d{0,2})?$/.test(normalizado)) return null
+  const valor = Number(normalizado)
+  return Number.isFinite(valor) ? valor : null
+}
+
+/** Monto ya guardado, listo para precargar el campo de edición ("1.234,5" → "1.234,50"). */
+export function montoParaEditar(monto: number): string {
+  return formatMonto(monto).replace('$', '')
+}

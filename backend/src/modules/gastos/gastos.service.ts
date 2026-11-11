@@ -129,14 +129,17 @@ export class GastosService {
     return integrante?.estado ?? null
   }
 
-  /** RN-030: el backend valida. Registrar exige ser creador o integrante confirmado, con el viaje aún no finalizado. */
+  /**
+   * RN-030: el backend valida. Registrar exige ser creador o integrante confirmado.
+   * Con el viaje `finalizado` se puede seguir cargando (las cuentas suelen cerrarse
+   * después de volver), y ahí también puede quien salió antes del final: participó
+   * del viaje y puede haber pagado algo que todavía no anotó.
+   */
   private async assertPuedeRegistrar(viaje: { id: string; creador_id: string; estado: string }, usuarioId: string): Promise<void> {
-    if (viaje.estado === 'finalizado') {
-      throw new HttpError(409, 'El viaje ya finalizó', 'INVALID_STATE')
-    }
     if (viaje.creador_id === usuarioId) return
     const estado = await this.estadoIntegranteDe(viaje.id, usuarioId)
-    if (estado !== 'confirmado') {
+    const habilitado = estado === 'confirmado' || (estado === 'salido' && viaje.estado === 'finalizado')
+    if (!habilitado) {
       throw new HttpError(403, 'Sin acceso a este viaje', 'FORBIDDEN')
     }
   }
@@ -210,9 +213,6 @@ export class GastosService {
   async actualizarGasto(usuarioId: string, viajeId: string, gastoId: string, input: ActualizarGastoInput) {
     const viaje = await this.cargarViaje(viajeId)
     const gasto = await this.cargarGastoDelViaje(viajeId, gastoId)
-    if (viaje.estado === 'finalizado') {
-      throw new HttpError(409, 'El viaje ya finalizó', 'INVALID_STATE')
-    }
     if (gasto.usuario_id !== usuarioId) {
       throw new HttpError(403, 'Solo podés editar tus propios gastos', 'FORBIDDEN')
     }
@@ -241,11 +241,8 @@ export class GastosService {
   }
 
   async eliminarGasto(usuarioId: string, viajeId: string, gastoId: string): Promise<void> {
-    const viaje = await this.cargarViaje(viajeId)
+    await this.cargarViaje(viajeId)
     const gasto = await this.cargarGastoDelViaje(viajeId, gastoId)
-    if (viaje.estado === 'finalizado') {
-      throw new HttpError(409, 'El viaje ya finalizó', 'INVALID_STATE')
-    }
     if (gasto.usuario_id !== usuarioId) {
       throw new HttpError(403, 'Solo podés eliminar tus propios gastos', 'FORBIDDEN')
     }
@@ -253,7 +250,10 @@ export class GastosService {
     await this.prisma.gasto.delete({ where: { id: gastoId } })
   }
 
-  /** El balance se calcula on-demand a partir de los gastos: no hay nada persistido aparte. */
+  /**
+   * El balance se calcula on-demand a partir de los gastos: no hay nada persistido
+   * aparte, así que un gasto cargado o corregido después del viaje lo actualiza solo.
+   */
   async obtenerBalance(usuarioId: string, viajeId: string) {
     const viaje = await this.cargarViaje(viajeId)
     if (viaje.estado !== 'finalizado') {

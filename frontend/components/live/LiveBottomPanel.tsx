@@ -12,6 +12,7 @@ import { uiConfigPorActividad } from '@/lib/activityUi'
 import type { TipoActividadApi } from '@/lib/viajesApi'
 
 import { ParadaActionsBar } from './ParadaActionsBar'
+import type { NextStopInfo } from '@/lib/geo/nextStop'
 import { TripMetricsPanel, type EntrenamientoEnVivo } from './TripMetricsPanel'
 
 const HANDLE_HEIGHT = 20
@@ -21,6 +22,8 @@ type Props = {
   distanceLabel: string
   /** RN-065: fila de ritmo/velocidad, solo en modo entrenamiento. */
   entrenamiento?: EntrenamientoEnVivo | null
+  /** Próxima parada y su tiempo estimado de llegada. */
+  proximaParada?: NextStopInfo | null
   enCurso: boolean
   esLider: boolean
   accion: boolean
@@ -49,6 +52,7 @@ export function LiveBottomPanel({
   elapsedLabel,
   distanceLabel,
   entrenamiento,
+  proximaParada,
   enCurso,
   esLider,
   accion,
@@ -129,6 +133,7 @@ export function LiveBottomPanel({
           elapsedLabel={elapsedLabel}
           distanceLabel={distanceLabel}
           entrenamiento={entrenamiento}
+          proximaParada={proximaParada}
           onLayout={onMetricsLayout}
         />
 

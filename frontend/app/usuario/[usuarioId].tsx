@@ -123,12 +123,15 @@ export default function PerfilUsuarioScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <FondoMesh
-        color={theme.text}
-        alto={ALTO_FONDO}
-        colorRacha={theme.fire}
-        intensidadRacha={intensidadRacha(semanas)}
-      />
+      {/* Recién con el perfil cargado: sin la cabecera encima, el patrón quedaba cortado en seco. */}
+      {perfil ? (
+        <FondoMesh
+          color={theme.text}
+          alto={ALTO_FONDO}
+          colorRacha={theme.fire}
+          intensidadRacha={intensidadRacha(semanas)}
+        />
+      ) : null}
       <TopBar title="" onBack={() => router.back()} bordered={false} transparente />
 
       {cargando && !perfil ? (
@@ -204,7 +207,8 @@ export default function PerfilUsuarioScreen() {
             ) : null}
           </View>
 
-          <View style={styles.cuerpo}>
+          {/* Fondo liso: tapa el patrón de la cabecera, que queda fijo detrás del scroll. */}
+          <View style={[styles.cuerpo, { backgroundColor: theme.background }]}>
             {perfil.logros_visibles && perfil.estadisticas ? (
               <>
                 <View
@@ -286,14 +290,14 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   centrado: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   errorText: { fontSize: 15, textAlign: 'center', fontWeight: '600' },
-  scroll: { flexGrow: 1, paddingBottom: 40 },
+  scroll: { flexGrow: 1 },
   cabecera: { alignItems: 'center', gap: 8, paddingTop: 4, paddingBottom: 20, paddingHorizontal: 20 },
   fundido: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 170 },
   nombre: { fontSize: 26, fontWeight: '600', letterSpacing: -0.3, marginTop: 12, textAlign: 'center' },
   actividadRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
   actividadTxt: { fontSize: 14, fontWeight: '600' },
   amistadRow: { alignItems: 'center', gap: 10, marginTop: 10 },
-  cuerpo: { paddingHorizontal: 20, gap: 20 },
+  cuerpo: { flexGrow: 1, paddingHorizontal: 20, paddingBottom: 40, gap: 20 },
   statsCard: { flexDirection: 'row', borderRadius: 16, borderWidth: 1, paddingVertical: 16 },
   statBox: { flex: 1, alignItems: 'center', gap: 2 },
   borderLeft: { borderLeftWidth: 1 },

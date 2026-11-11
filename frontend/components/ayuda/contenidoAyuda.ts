@@ -278,12 +278,14 @@ export const AYUDA_VIAJE_GASTOS: PasoDefinicion[] = [
   {
     nombre: 'gastos.lista',
     orden: ORDEN_PANTALLA.viajeGastos,
-    texto: 'Los gastos que se van registrando, quién pagó cada uno y entre cuántos se reparte.',
+    texto:
+      'El total del viaje, cómo quedás vos y cada gasto: quién pagó y entre quiénes se reparte. Con los chips filtrás por persona.',
   },
   {
     nombre: 'gastos.agregar',
     orden: ORDEN_PANTALLA.viajeGastos + 1,
-    texto: 'Registrá un gasto: monto, descripción, y elegí entre quiénes se reparte.',
+    texto:
+      'Registrá un gasto: monto, descripción, y elegí entre quiénes se reparte. También podés cargarlo o corregirlo después del viaje.',
   },
 ]
 

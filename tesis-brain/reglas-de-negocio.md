@@ -121,6 +121,38 @@ A diferencia de soluciones existentes (Strava, Garmin, Google Maps, Life360) que
 | RN-051 | En **modo trekking/running**: retroalimentación háptica (vibración) priorizada sobre visual. |
 | RN-052 | Todos los textos superan el tamaño mínimo para uso outdoor. La interfaz muestra lo mínimo necesario. |
 
+#### Avance sobre la ruta: tramo recorrido, próxima parada y llegada
+
+Con ruta planificada, el mapa en vivo ubica al integrante **sobre la ruta** (metros recorridos
+desde el origen) y de ahí sale todo lo demás. Es cálculo de pantalla, propio de cada persona:
+no se envía al backend ni reemplaza al motor de eventos, que sigue evaluando desvíos y atrasos
+con el GPS real (`frontend/lib/geo/routeProgress.ts`, `hooks/useAvanceRuta.ts`).
+
+- **El tramo ya recorrido se borra del mapa**, como en un navegador: solo queda dibujado lo que
+  falta. El recorte acompaña al marcador entre pings. La traza propia (el camino realmente
+  hecho) se dibuja únicamente en los viajes **sin** ruta planificada, donde es lo único que hay;
+  en todos los casos se sigue guardando completa (RN-038) y se ve en el resumen.
+- **Ida y vuelta / circuitos:** cuando la ruta pasa dos veces por el mismo lugar, el avance se
+  elige por continuidad con el anterior y no por cercanía. Al reabrir la pantalla se orienta con
+  la distancia ya recorrida en el viaje.
+- **Próxima parada:** la primera parada de la ruta que todavía no se pasó (el origen no cuenta);
+  pasadas todas, el destino. La distancia se mide **sobre la ruta**, no en línea recta.
+- **Tiempo estimado de llegada:** distancia que falta ÷ ritmo real reciente del integrante
+  (suavizado). Detenido o antes de arrancar se usa el último ritmo en marcha o, si no hay, la
+  `velocidad_esperada` del viaje. Se muestra como duración, hora de llegada (UTC-3, RN-105) y
+  distancia. Es una estimación individual: **no se compara con nadie ni se muestra la
+  velocidad** (RN-070), por lo que aplica también a moto y auto.
+- **Llegada al destino:** se avisa (banner, vibración y notificación local si la app está en
+  segundo plano) cuando el integrante permanece 5 s dentro del radio del destino o del final del
+  trazado (40 m; 70 m en moto y auto) **y** ya está en el tramo final de la ruta. Lo segundo
+  evita el falso aviso al arrancar un circuito cuyo destino coincide con el origen. Solo aplica
+  a quien se sumó al viaje (RN-029b). El aviso no cambia el estado del viaje: finalizarlo sigue
+  siendo decisión del líder (RN-030).
+- **Meta:** el destino se marca en el mapa con una bandera a cuadros, que cambia de color al llegar.
+- **Centrado inicial:** al entrar, el mapa se centra en la posición propia usando primero la
+  última posición conocida del dispositivo y después una lectura fresca. Solo si no hay GPS (o
+  la persona no se sumó) se encuadra el origen de la ruta, y se recentra apenas aparece su marcador.
+
 ### 2.7 Reglas de Métricas y Cierre
 
 | ID | Regla |
@@ -167,6 +199,23 @@ Las métricas individuales (`metrica_viaje`) cubren hoy distancia, tiempo en mov
 velocidad promedio, velocidad máxima y altimetría (desnivel positivo/negativo, altitud
 máxima/mínima). Tiempo detenido de RN-061 se estima en el recorte actual como duración del
 viaje menos tiempo en movimiento.
+
+#### Gastos compartidos
+
+En un viaje grupal, el creador y los integrantes confirmados cargan lo que se paga en grupo y
+eligen entre quiénes se reparte cada gasto (no hay un reparto fijo para todo el viaje).
+
+- **Se pueden cargar, editar y borrar en cualquier estado del viaje, también `finalizado`**
+  (cambio del 11/11/2026): las cuentas suelen cerrarse después de volver. Con el viaje
+  finalizado también puede cargar quien `salió` antes del final.
+- Solo quien registró un gasto puede editarlo o borrarlo; el backend lo valida (RN-030).
+- El **balance** (quién le paga a quién, con el mínimo de transferencias) existe solo con el
+  viaje `finalizado` y **no se persiste**: se recalcula en cada consulta, así que un gasto
+  agregado o corregido después lo actualiza solo.
+- La app no registra moneda. Los montos se muestran en formato argentino (punto de miles y coma
+  decimal, `formatMonto` en `frontend/lib/format.ts`) y el campo de carga aplica la misma máscara.
+- La pantalla muestra el total del viaje y la situación propia (pagaste / tu parte / tu saldo),
+  y permite filtrar por lo que pagó cada persona o por los gastos que incluyen a quien mira.
 
 #### Datos del GPS del dispositivo y altimetría
 

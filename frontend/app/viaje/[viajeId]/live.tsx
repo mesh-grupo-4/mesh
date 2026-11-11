@@ -44,6 +44,7 @@ import { AYUDA_VIAJE_LIVE } from '@/components/ayuda/contenidoAyuda'
 import { DEV_USER_ID, API_BASE_URL } from '@/constants/Config'
 import { tamanoOutdoor } from '@/constants/Typography'
 import { useAuth } from '@/context/AuthContext'
+import { useAvanceRuta } from '@/hooks/useAvanceRuta'
 import { useBreadcrumbTrail } from '@/hooks/useBreadcrumbTrail'
 import { useFantasma } from '@/hooks/useFantasma'
 import { useLeaderboard } from '@/hooks/useLeaderboard'
@@ -59,9 +60,8 @@ import type { RouteStop } from '@/lib/geo/nextStop'
 import { haversineDistanceM } from '@/lib/geo/haversine'
 import { buscarLugaresCercanos, type CategoriaLugar, type LugarSugerido } from '@/lib/lugaresApi'
 import { calcularGuiaHastaDestino } from '@/lib/osrmGuia'
-import { dividirRutaPorAvance } from '@/lib/geo/routeProgress'
 import { useHapticaAlEntrar, useHapticaCriticaRepetida } from '@/lib/haptics'
-import { marcarViajeEnPantalla } from '@/hooks/usePushNotifications'
+import { avisarEnSegundoPlano, marcarViajeEnPantalla } from '@/hooks/usePushNotifications'
 import { formatPaceMinKm, formatSpeedKmh } from '@/lib/format'
 import { nombreCompleto } from '@/lib/nombres'
 import { gravedadAlerta, type TipoAlertaApi } from '@/lib/alertasApi'
@@ -90,6 +90,14 @@ import {
   type TipoActividadApi,
 } from '@/lib/viajesApi'
 
+/** A pie o en bici se llega al punto; en moto o auto se estaciona cerca. */
+const RADIO_LLEGADA_M = 40
+const RADIO_LLEGADA_MOTOR_M = 70
+/** Tope de espera de una lectura GPS fresca al entrar: adentro de un edificio puede no llegar nunca. */
+const ESPERA_GPS_MS = 12000
+/** Una posición conocida más vieja que esto ya no sirve para decir dónde estás. */
+const POSICION_PREVIA_MAX_MS = 120000
+
 function mensajeDeError(e: unknown): string {
   return e instanceof Error ? e.message : 'Intentá de nuevo en unos segundos.'
 }
@@ -117,9 +125,8 @@ export default function ViajeLiveScreen() {
   const [participantes, setParticipantes] = useState<ViajeParticipanteApi[]>([])
   const [routeLine, setRouteLine] = useState<[number, number][] | null>(null)
   const [routeStops, setRouteStops] = useState<RouteStop[]>([])
-  const [initialCenter, setInitialCenter] = useState<{ latitude: number; longitude: number } | null>(
-    null
-  )
+  /** Posición propia leída del GPS al entrar: centra el mapa y pinta "vos" sin esperar al primer ping. */
+  const [posicionGps, setPosicionGps] = useState<{ latitude: number; longitude: number } | null>(null)
   const [gpsCenterFailed, setGpsCenterFailed] = useState(false)
   /** Modo "seguirme": el mapa se recentra solo mientras es true; se pausa si el usuario arrastra a mano. */
   const [siguiendo, setSiguiendo] = useState(true)
@@ -163,21 +170,23 @@ export default function ViajeLiveScreen() {
     viajeId: viajeId ?? '',
     userId,
     nameByUserId,
-    selfSeed: initialCenter ? { lat: initialCenter.latitude, lng: initialCenter.longitude } : null,
+    selfSeed: posicionGps ? { lat: posicionGps.latitude, lng: posicionGps.longitude } : null,
   })
 
-  const myPosition = useMemo(() => {
-    const me = memberList.find((m) => m.usuarioId === userId)
-    if (me) return { lat: me.lat, lng: me.lng }
-    if (initialCenter) return { lat: initialCenter.latitude, lng: initialCenter.longitude }
-    return null
-  }, [memberList, userId, initialCenter])
+  // Sale siempre del GPS: nunca del origen de la ruta, que solo sirve para encuadrar el mapa.
+  const miLat = memberList.find((m) => m.usuarioId === userId)?.lat ?? posicionGps?.latitude
+  const miLng = memberList.find((m) => m.usuarioId === userId)?.lng ?? posicionGps?.longitude
+  const myPosition = useMemo(
+    () => (miLat != null && miLng != null ? { lat: miLat, lng: miLng } : null),
+    [miLat, miLng]
+  )
 
-  const nextStop = useNextStopEta({
-    currentPos: myPosition,
-    stops: routeStops,
-    speedKmh: viaje?.velocidad_esperada ?? 30,
-  })
+  // Sin GPS (o sin haberse sumado) el mapa arranca en el origen de la ruta.
+  const initialCenter = useMemo(() => {
+    if (posicionGps) return posicionGps
+    const origen = gpsCenterFailed ? routeLine?.[0] : undefined
+    return origen ? { latitude: origen[0], longitude: origen[1] } : null
+  }, [posicionGps, gpsCenterFailed, routeLine])
 
   const liveMembers = useMemo((): LiveMember[] => {
     const seen = new Set<string>()
@@ -405,11 +414,15 @@ export default function ViajeLiveScreen() {
       .catch((e: unknown) => meshAlert('No se pudo cargar el fantasma', mensajeDeError(e)))
   }
 
+  const hayRuta = routeLine != null && routeLine.length > 1
+
+  // Con ruta planificada, lo ya recorrido se borra del mapa (como en un navegador):
+  // la traza propia solo se dibuja en los viajes sin ruta, donde es lo único que hay.
   const breadcrumb = useBreadcrumbTrail({
     viajeId: viajeId ?? '',
     userId,
     tipoActividad: viaje?.tipo_actividad ?? 'otro',
-    habilitado: viaje?.estado === 'en_curso',
+    habilitado: viaje?.estado === 'en_curso' && !loading && !hayRuta,
   })
 
   const destino = useMemo(() => {
@@ -418,21 +431,49 @@ export default function ViajeLiveScreen() {
     return { lat: fin.lat, lng: fin.lng, nombre: fin.name ?? null }
   }, [routeStops])
 
-  const routeRemaining = useMemo(() => {
-    if (!routeLine?.length || !myPosition) return routeLine
-    return dividirRutaPorAvance(routeLine, myPosition).restante
-  }, [routeLine, myPosition])
+  const { ruta: rutaPreparada, avance } = useAvanceRuta({
+    ruta: routeLine,
+    pos: myPosition,
+    distanciaRecorridaM: distanceM,
+  })
+
+  const nextStop = useNextStopEta({
+    ruta: rutaPreparada,
+    avance,
+    stops: routeStops,
+    velocidadEsperadaKmh: viaje?.velocidad_esperada ?? 30,
+    velocidadActualKmh,
+  })
+
+  const finRuta = useMemo(() => {
+    const fin = routeLine?.at(-1)
+    return fin ? { lat: fin[0], lng: fin[1] } : null
+  }, [routeLine])
 
   const alertasEnMapa = useMemo(
     () => alertas.filter((a) => a.estado === 'activa' && a.lat != null && a.lng != null),
     [alertas]
   )
 
-  const { llegada, descartar: descartarLlegada, destinoNombre } = useLlegadaDestino({
+  // RN-029b: solo llega quien se sumó; a quien mira desde su casa no se lo ubica.
+  const { llegada, llego, descartar: descartarLlegada, destinoNombre } = useLlegadaDestino({
     destino,
+    finRuta,
     pos: myPosition,
-    habilitado: viaje?.estado === 'en_curso',
+    avance,
+    radioM: esMotorizado(tipoActividad) ? RADIO_LLEGADA_MOTOR_M : RADIO_LLEGADA_M,
+    habilitado: viaje?.estado === 'en_curso' && sumado,
   })
+
+  // Con el teléfono guardado el banner no se ve: la llegada también se avisa por notificación.
+  useEffect(() => {
+    if (llego) void avisarEnSegundoPlano('¡Llegaste!', destinoNombre)
+  }, [llego, destinoNombre])
+
+  const meta = useMemo(
+    () => (destino ? { lat: destino.lat, lng: destino.lng, nombre: destinoNombre, alcanzada: llego } : null),
+    [destino, destinoNombre, llego]
+  )
 
   useEffect(() => {
     if (userId.trim()) void AsyncStorage.setItem('mesh:activeUserId', userId.trim())
@@ -575,30 +616,38 @@ export default function ViajeLiveScreen() {
       const perm = await solicitarPermisosUbicacion()
       if (cancelled) return
       setFg(perm.foreground)
-      if (perm.foreground) {
-        await iniciarTrackingViaje(viajeId, userId.trim(), viaje.tipo_actividad)
+      if (!perm.foreground) {
+        setGpsCenterFailed(true)
+        return
       }
-      try {
+
+      const centrarEn = (pos: Location.LocationObject | null) => {
+        if (cancelled || !pos) return false
+        setPosicionGps({ latitude: pos.coords.latitude, longitude: pos.coords.longitude })
+        return true
+      }
+
+      // El centrado no espera al arranque del tracking: van en paralelo. Primero la
+      // última posición conocida (inmediata) y después una lectura fresca que la corrige.
+      const centrado = (async () => {
+        const previa = centrarEn(
+          await Location.getLastKnownPositionAsync({ maxAge: POSICION_PREVIA_MAX_MS }).catch(() => null)
+        )
         const cfg = trackingConfigPorActividad(viaje.tipo_actividad)
-        const pos = await Location.getCurrentPositionAsync({ accuracy: cfg.accuracy })
-        if (!cancelled) {
-          setInitialCenter({ latitude: pos.coords.latitude, longitude: pos.coords.longitude })
-        }
-      } catch {
-        if (!cancelled) setGpsCenterFailed(true)
-      }
+        const fresca = await Promise.race([
+          Location.getCurrentPositionAsync({ accuracy: cfg.accuracy }).catch(() => null),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), ESPERA_GPS_MS)),
+        ])
+        if (!centrarEn(fresca) && !previa && !cancelled) setGpsCenterFailed(true)
+      })()
+
+      await iniciarTrackingViaje(viajeId, userId.trim(), viaje.tipo_actividad)
+      await centrado
     })()
     return () => {
       cancelled = true
     }
   }, [viajeId, userId, viaje?.tipo_actividad, sumado])
-
-  // Fallback: si el GPS no resolvió una posición, centramos en el origen de la ruta.
-  useEffect(() => {
-    if (!gpsCenterFailed || initialCenter || !routeLine?.[0]) return
-    const [lat, lng] = routeLine[0]
-    setInitialCenter({ latitude: lat, longitude: lng })
-  }, [gpsCenterFailed, initialCenter, routeLine])
 
   useEffect(() => {
     void Location.getForegroundPermissionsAsync().then((r) => setFg(r.status === 'granted'))
@@ -872,7 +921,7 @@ export default function ViajeLiveScreen() {
     alertaEntrante ? gravedadAlerta(alertaEntrante.tipo) : 'importante'
   )
   useHapticaAlEntrar(paradaEntrante?.paradaId ?? null, tipoActividad, 'importante')
-  useHapticaAlEntrar(llegada ? 'llegada' : null, tipoActividad, 'exito')
+  useHapticaAlEntrar(llego ? 'llegada' : null, tipoActividad, 'exito')
   // Solicitudes de parada: al líder cuando entra una, al solicitante cuando se resuelve.
   useHapticaAlEntrar(
     esLider ? (pendientes[0]?.solicitudId ?? null) : null,
@@ -942,8 +991,10 @@ export default function ViajeLiveScreen() {
       <PasoAyuda {...AYUDA_VIAJE_LIVE[0]!} estilo={styles.flex1}>
         <LiveMapView
           ref={mapRef}
-          routeRemaining={routeRemaining}
+          routeRemaining={routeLine}
           rutaCompleta={routeLine}
+          avanceM={avance?.progresoM ?? null}
+          meta={meta}
           movimientoFluido
           siguiendo={siguiendo}
           breadcrumb={breadcrumb}
@@ -1155,6 +1206,7 @@ export default function ViajeLiveScreen() {
           elapsedLabel={elapsedLabel}
           distanceLabel={distanceLabel}
           entrenamiento={entrenamientoEnVivo}
+          proximaParada={viaje?.estado === 'en_curso' ? nextStop : null}
           enCurso={viaje?.estado === 'en_curso'}
           esLider={esLider}
           accion={!!accion}

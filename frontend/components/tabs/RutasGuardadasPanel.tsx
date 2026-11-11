@@ -93,30 +93,33 @@ export function RutasGuardadasPanel() {
 
   return (
     <View style={styles.root}>
-      <BarraFiltros>
-        <BuscadorFiltros
-          value={textoBusqueda}
-          onChangeText={setTextoBusqueda}
-          placeholder="Buscar por nombre, origen o destino"
-          accessibilityLabel="Buscar rutas guardadas"
-          maxLength={60}
-        />
-        <FilaChipsFiltro>
-          {FILTROS_AUTOR.map((f) => (
-            <ChipFiltro
-              key={f.id}
-              label={f.label}
-              activo={filtroAutor === f.id}
-              onPress={() => setFiltroAutor(f.id)}
-            />
-          ))}
-        </FilaChipsFiltro>
-      </BarraFiltros>
     <FlatList
       data={visibles}
       keyboardShouldPersistTaps="handled"
       keyExtractor={(item) => item.id}
-      contentContainerStyle={[visibles.length === 0 ? styles.center : styles.list, { paddingBottom: espacioTabBar }]}
+      contentContainerStyle={[styles.list, { paddingBottom: espacioTabBar }]}
+      // Búsqueda y filtros scrollean con la lista para dejarle más lugar.
+      ListHeaderComponent={
+        <BarraFiltros>
+          <BuscadorFiltros
+            value={textoBusqueda}
+            onChangeText={setTextoBusqueda}
+            placeholder="Buscar por nombre, origen o destino"
+            accessibilityLabel="Buscar rutas guardadas"
+            maxLength={60}
+          />
+          <FilaChipsFiltro>
+            {FILTROS_AUTOR.map((f) => (
+              <ChipFiltro
+                key={f.id}
+                label={f.label}
+                activo={filtroAutor === f.id}
+                onPress={() => setFiltroAutor(f.id)}
+              />
+            ))}
+          </FilaChipsFiltro>
+        </BarraFiltros>
+      }
       renderItem={({ item }) => (
         <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <Pressable
@@ -175,12 +178,20 @@ export function RutasGuardadasPanel() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   center: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  list: { paddingHorizontal: 20, paddingTop: 12, gap: 12 },
-  empty: { fontSize: 15, textAlign: 'center', fontWeight: '600', lineHeight: 22 },
+  list: { flexGrow: 1, gap: 12 },
+  empty: {
+    fontSize: 15,
+    textAlign: 'center',
+    fontWeight: '600',
+    lineHeight: 22,
+    paddingHorizontal: 24,
+    marginTop: 36,
+  },
   card: {
     borderWidth: 1,
     borderRadius: 12,
     padding: 14,
+    marginHorizontal: 20,
     marginBottom: 12,
     gap: 10,
   },

@@ -1,11 +1,9 @@
 import React from 'react';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Tabs } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
 import { useTheme } from '@/components/MeshUI';
 import { CenterInicioTabButton } from '@/components/CenterInicioTabButton';
 import { capaBlurTab } from '@/components/BlurTargetTab';
-import { DeslizarEntreTabs } from '@/components/DeslizarEntreTabs';
 import { MeshTabBar } from '@/components/MeshTabBar';
 import { useAuth } from '@/context/AuthContext';
 import { usePendientesBadge } from '@/lib/pendientesStore';
@@ -33,16 +31,9 @@ export default function TabLayout() {
       initialRouteName="index"
       backBehavior="initialRoute"
       tabBar={(props) => <MeshTabBar {...props} />}
-      screenLayout={({ route, navigation, children }) => {
-        const capa = capaBlurTab({ route, children });
-        // En Inicio el arrastre mueve el mapa: ahí se cambia de sección deslizando sobre la barra.
-        if (route.name === 'index') return capa;
-        return (
-          <DeslizarEntreTabs navigation={navigation}>
-            <View style={styles.capa}>{capa}</View>
-          </DeslizarEntreTabs>
-        );
-      }}
+      // De una sección a otra se pasa solo tocando la barra: el gesto de deslizar se
+      // pisaba con el scroll de las listas.
+      screenLayout={({ route, children }) => capaBlurTab({ route, children })}
       screenOptions={{
         animation: 'shift',
         headerShown: false,
@@ -94,7 +85,3 @@ export default function TabLayout() {
     </Tabs>
   );
 }
-
-const styles = StyleSheet.create({
-  capa: { flex: 1 },
-});

@@ -14,6 +14,7 @@ import { auth } from '@/lib/firebase';
 import { syncUsuario, obtenerMiPerfil, type UsuarioPerfilResponse } from '@/lib/usuariosApi';
 import { API_BASE_URL } from '@/constants/Config';
 import { MeshApiError } from '@/lib/apiClient';
+import { nombreCompleto, nombreDePila } from '@/lib/nombres';
 export type ActividadPreferida = 'moto' | 'auto' | 'bici' | 'running' | 'trekking' | 'otro' | '';
 
 export interface ProfileData {
@@ -68,15 +69,11 @@ function mergeBackendProfile(
   backend: UsuarioPerfilResponse
 ): ProfileData {
   const apellido = backend.apellido ?? base?.apellido ?? '';
-  // `backend.nombre` guarda el nombre completo. Si no hay perfil local (ej. login
-  // en otro dispositivo) derivamos el nombre de pila quitando el apellido.
-  let nombre = base?.nombre ?? '';
-  if (!nombre) {
-    nombre =
-      apellido && backend.nombre.endsWith(apellido)
-        ? backend.nombre.slice(0, backend.nombre.length - apellido.length).trim()
-        : backend.nombre;
-  }
+  // `backend.nombre` guarda el nombre completo y el perfil local, el nombre de pila.
+  // Siempre se le quita el apellido: si el local quedaba como "Franco Giorda", al
+  // guardar se armaba "Franco Giorda Giorda".
+  const nombre =
+    nombreDePila(base?.nombre, apellido) || nombreDePila(backend.nombre, apellido) || backend.nombre;
   return {
     nombre,
     apellido,
@@ -87,7 +84,7 @@ function mergeBackendProfile(
 }
 
 function displayNombre(profile: ProfileData | null, firebaseUser: User): string {
-  const fromProfile = profile ? `${profile.nombre} ${profile.apellido}`.trim() : '';
+  const fromProfile = profile ? nombreCompleto(profile.nombre, profile.apellido) : '';
   if (fromProfile) return fromProfile;
   return firebaseUser.displayName?.trim() || firebaseUser.email?.split('@')[0] || 'Usuario';
 }
@@ -230,7 +227,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = async ({ nombre, apellido, telefono, email, password }: RegisterData) => {
     const { user: newUser } = await createUserWithEmailAndPassword(auth, email, password);
-    await firebaseUpdateProfile(newUser, { displayName: `${nombre} ${apellido}` });
+    await firebaseUpdateProfile(newUser, { displayName: nombreCompleto(nombre, apellido) });
     const newProfile: ProfileData = {
       nombre,
       apellido,
@@ -266,7 +263,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
     await saveProfile(user.uid, updated);
     setProfile(updated);
-    const displayName = `${updated.nombre} ${updated.apellido}`.trim();
+    const displayName = nombreCompleto(updated.nombre, updated.apellido);
     if (displayName) {
       await firebaseUpdateProfile(user, { displayName });
     }

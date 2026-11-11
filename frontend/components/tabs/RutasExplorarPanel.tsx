@@ -209,7 +209,19 @@ export function RutasExplorarPanel() {
 
   return (
     <View style={styles.root}>
-      {/* Barra de búsqueda y filtros (fija, no scrollea): mismo diseño que Viajes. */}
+    <ScrollViewAyuda
+      contentContainerStyle={{ paddingBottom: espacioTabBar }}
+      keyboardShouldPersistTaps="handled"
+      automaticallyAdjustKeyboardInsets
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => void cargar(true)}
+          tintColor={theme.accent}
+        />
+      }
+    >
+      {/* Barra de búsqueda y filtros (scrollea con la lista): mismo diseño que Viajes. */}
       <BarraFiltros>
         <PasoAyuda {...AYUDA_RECORRIDOS_PUBLICADOS[0]!}>
           <BuscadorFiltros
@@ -259,18 +271,7 @@ export function RutasExplorarPanel() {
         </PasoAyuda>
       </BarraFiltros>
 
-    <ScrollViewAyuda
-      contentContainerStyle={[styles.content, { paddingBottom: espacioTabBar }]}
-      keyboardShouldPersistTaps="handled"
-      automaticallyAdjustKeyboardInsets
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={() => void cargar(true)}
-          tintColor={theme.accent}
-        />
-      }
-    >
+      <View style={styles.content}>
       {detalleZonaVisible ? (
         <View style={styles.zona}>
           {modoZona === 'lugar' ? (
@@ -372,6 +373,7 @@ export function RutasExplorarPanel() {
           )}
         </View>
       </PasoAyuda>
+      </View>
     </ScrollViewAyuda>
     </View>
   );

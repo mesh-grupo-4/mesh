@@ -2,6 +2,7 @@ import type { PrismaClient } from '@prisma/client'
 import { prisma as defaultPrisma } from '../../config/prisma'
 import { firebaseAuth } from '../../config/firebase'
 import { HttpError } from '../../lib/httpError'
+import { nombreVisible } from '../../lib/nombres'
 import type { SyncUsuarioInput } from './usuarios.schemas'
 import { AmistadesService } from '../amistades/amistades.service'
 import { InsigniasService } from '../insignias/insignias.service'
@@ -117,7 +118,9 @@ export class UsuariosService {
     return this.prisma.usuario.update({
       where: { id: userId },
       data: {
-        nombre: input.nombre,
+        // `nombre` guarda el nombre completo: si el cliente lo manda con el apellido
+        // repetido ("Franco Giorda Giorda"), se guarda una sola vez.
+        nombre: input.apellido ? nombreVisible(input.nombre, input.apellido) : input.nombre,
         // undefined → no se toca el campo; null → se limpia
         ...(input.apellido !== undefined ? { apellido: input.apellido } : {}),
         ...(input.telefono !== undefined ? { telefono: input.telefono } : {}),

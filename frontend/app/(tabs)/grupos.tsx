@@ -332,33 +332,12 @@ export default function GruposScreen() {
       ) : (
     <KeyboardAvoidingView
       style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      // `padding` en ambas plataformas: con `height`, Android dejaba la lista achicada
+      // después de cerrar el teclado.
+      behavior="padding"
     >
-      {/* Barra de búsqueda y filtros (fija, no scrollea): mismo diseño que Viajes y Rutas. */}
-      {!mostrarFormulario && (
-        <BarraFiltros>
-          <BuscadorFiltros
-            value={busqueda}
-            onChangeText={cambiarBusqueda}
-            placeholder="Buscar por nombre..."
-            accessibilityLabel="Buscar grupos"
-            maxLength={60}
-          />
-          <FilaChipsFiltro>
-            {FILTROS_ROL.map((f) => (
-              <ChipFiltro
-                key={f.id}
-                label={f.label}
-                activo={filtroRol === f.id}
-                onPress={() => cambiarFiltroRol(f.id)}
-              />
-            ))}
-          </FilaChipsFiltro>
-        </BarraFiltros>
-      )}
-
       <ScrollViewAyuda
-        contentContainerStyle={[styles.inner, { paddingBottom: espacioTabBar + 74 }]}
+        contentContainerStyle={{ paddingBottom: espacioTabBar + 74 }}
         keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl
@@ -368,6 +347,30 @@ export default function GruposScreen() {
           />
         }
       >
+        {/* Barra de búsqueda y filtros (scrollea con la lista): mismo diseño que Viajes y Rutas. */}
+        {!mostrarFormulario && (
+          <BarraFiltros>
+            <BuscadorFiltros
+              value={busqueda}
+              onChangeText={cambiarBusqueda}
+              placeholder="Buscar por nombre..."
+              accessibilityLabel="Buscar grupos"
+              maxLength={60}
+            />
+            <FilaChipsFiltro>
+              {FILTROS_ROL.map((f) => (
+                <ChipFiltro
+                  key={f.id}
+                  label={f.label}
+                  activo={filtroRol === f.id}
+                  onPress={() => cambiarFiltroRol(f.id)}
+                />
+              ))}
+            </FilaChipsFiltro>
+          </BarraFiltros>
+        )}
+
+        <View style={styles.inner}>
         {mostrarFormulario ? (
           <View style={styles.formulario}>
             <Text style={[styles.formularioTitle, { color: theme.text }]}>Nuevo grupo</Text>
@@ -569,6 +572,7 @@ export default function GruposScreen() {
             </View>
           </>
         )}
+        </View>
       </ScrollViewAyuda>
 
       {/* Botón flotante FAB para crear grupo (solo visible si no se muestra el formulario) */}

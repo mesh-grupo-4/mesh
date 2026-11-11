@@ -9,6 +9,7 @@ import {
 import { Pressable } from '@/components/Pressable';
 import { meshAlert } from '@/lib/meshAlert';
 import { useAuth } from '@/context/AuthContext';
+import { nombreCompleto } from '@/lib/nombres';
 import { router, useFocusEffect } from 'expo-router';
 import { resolveBackendUserId } from '@/lib/apiClient';
 import { listarSolicitudesAmistadPendientes } from '@/lib/amistadesApi';
@@ -185,7 +186,7 @@ export default function PerfilScreen() {
             style={nivel >= 2 ? { borderColor: theme.fire } : undefined}
           />
           <Text style={[styles.nombre, { color: theme.text }]} numberOfLines={1}>
-            {`${profile?.nombre ?? ''} ${profile?.apellido ?? ''}`.trim() || 'Cargando...'}
+            {nombreCompleto(profile?.nombre, profile?.apellido) || 'Cargando...'}
           </Text>
           <Text style={[styles.email, { color: theme.textDim }]} numberOfLines={1}>
             {user?.email}

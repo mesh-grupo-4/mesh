@@ -10,7 +10,12 @@ import { useTheme } from '@/components/MeshUI'
 import { tamanoOutdoor } from '@/constants/Typography'
 import { uiConfigPorActividad } from '@/lib/activityUi'
 import { ICONO_VOLVER } from '@/lib/plataforma'
-import { formatDistanceShort, formatEtaLabel, type NextStopInfo } from '@/lib/geo/nextStop'
+import {
+  etiquetaProximaParada,
+  formatDistanceShort,
+  formatEtaLabel,
+  type NextStopInfo,
+} from '@/lib/geo/nextStop'
 import type { TipoActividadApi } from '@/lib/viajesApi'
 
 import { LiveMembersBar, type LiveMember } from './LiveMembersBar'
@@ -70,7 +75,7 @@ export function LiveTripHeader({
   const etaLine = !hasRoute
     ? 'Sin ruta configurada'
     : nextStop
-      ? `Próx. parada: ${nextStop.stop.name} · ${formatEtaLabel(nextStop.etaSec)} (${formatDistanceShort(nextStop.distanceM)})`
+      ? `${etiquetaProximaParada(nextStop)} · ${formatEtaLabel(nextStop.etaSec)} (${formatDistanceShort(nextStop.distanceM)})`
       : 'Calculando próxima parada…'
 
   const lineaCompacta = hasRoute && nextStop ? etaLine : tripName

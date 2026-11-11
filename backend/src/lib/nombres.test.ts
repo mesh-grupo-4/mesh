@@ -7,6 +7,12 @@ describe('nombreVisible', () => {
     expect(nombreVisible('Joaquín Peñafort', 'peñafort')).toBe('Joaquín Peñafort')
   })
 
+  it('deja una sola vez un apellido que quedó repetido', () => {
+    expect(nombreVisible('Franco Giorda Giorda', 'Giorda')).toBe('Franco Giorda')
+    expect(nombreVisible('Franco Giorda giorda Giorda', 'Giorda')).toBe('Franco Giorda')
+    expect(nombreVisible('Giorda Giorda', 'Giorda')).toBe('Giorda')
+  })
+
   it('agrega el apellido cuando nombre es solo el nombre de pila', () => {
     expect(nombreVisible('Franco', 'Giorda')).toBe('Franco Giorda')
   })

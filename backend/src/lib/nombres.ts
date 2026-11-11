@@ -14,8 +14,30 @@ export function nombreVisible(
   const a = (apellido ?? '').trim().replace(/\s+/g, ' ')
   if (!a) return n
   if (!n) return a
-  const nMin = n.toLocaleLowerCase('es')
+  const pila = nombreDePila(n, a)
+  if (pila === n) return `${n} ${a}`
+  // `nombre` ya traía el apellido: se conserva como estaba escrito ahí, una sola vez.
+  const escrito = n.slice(n.length - a.length)
+  return pila ? `${pila} ${escrito}` : escrito
+}
+
+/**
+ * Nombre sin el apellido al final ("Franco Giorda" → "Franco"). Lo quita todas las
+ * veces que aparezca repetido: hubo cuentas que quedaron guardadas como
+ * "Franco Giorda Giorda".
+ */
+export function nombreDePila(
+  nombre: string | null | undefined,
+  apellido: string | null | undefined
+): string {
+  let n = (nombre ?? '').trim().replace(/\s+/g, ' ')
+  const a = (apellido ?? '').trim().replace(/\s+/g, ' ')
+  if (!a) return n
   const aMin = a.toLocaleLowerCase('es')
-  if (nMin === aMin || nMin.endsWith(` ${aMin}`)) return n
-  return `${n} ${a}`
+  for (;;) {
+    const nMin = n.toLocaleLowerCase('es')
+    if (nMin === aMin) return ''
+    if (!nMin.endsWith(` ${aMin}`)) return n
+    n = n.slice(0, n.length - a.length).trimEnd()
+  }
 }

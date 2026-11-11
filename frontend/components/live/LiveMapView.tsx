@@ -25,7 +25,15 @@ import {
   type Seguimiento,
 } from '@/lib/geo/movimientoVisual'
 
+import {
+  avanzarEnRuta,
+  prepararRuta,
+  rutaRestante,
+  type RutaPreparada,
+} from '@/lib/geo/routeProgress'
+
 import { AlertMarker, alertMarkerKey, alertMarkerPopup } from './AlertMarker'
+import { META_ANCHOR, MetaMarker, metaMarkerKey } from './MetaMarker'
 import { GHOST_TRAIL_COLOR, GhostMarker } from './GhostMarker'
 import { MemberMarker, memberMarkerKey } from './MemberMarker'
 import { mostrarRumbo, RumboMarker, rumboColor, rumboEnPasos } from './RumboMarker'
@@ -50,6 +58,12 @@ const UMBRAL_GIRO_GRADOS = 0.2
 /** Cada cuánto se estira la punta de la traza hasta tu marcador. */
 const COLA_CADA_MS = 500
 const COLA_MIN_GRADOS = 0.00005
+/**
+ * La ruta que falta se dibuja en dos partes: una punta corta que se recorta a cada
+ * rato junto a tu marcador y el resto, que solo cambia cada tantos vértices. Así el
+ * tramo ya recorrido se borra de corrido sin reenviar toda la ruta al mapa nativo.
+ */
+const VERTICES_POR_BLOQUE = 40
 
 export type LiveMapViewHandle = {
   focusOnCoordinate: (lat: number, lng: number) => void
@@ -65,6 +79,7 @@ type GuiaDestino = {
 }
 
 type Props = {
+  /** Ruta que falta recorrer. Con `movimientoFluido` y `rutaCompleta` se recorta sola. */
   routeRemaining: [number, number][] | null
   /** Traza propia recorrida, cortada en tramos cuando hubo un salto/hueco de señal. */
   breadcrumb: [number, number][][] | null
@@ -77,6 +92,10 @@ type Props = {
   guiaLugar?: GuiaDestino | null
   /** RN-073: fantasma animado y su recorrido completo. */
   fantasma?: { lat: number; lng: number; nombre: string; pausado: boolean; traza: [number, number][] } | null
+  /** Destino del viaje: se marca con una meta, que cambia al llegar. */
+  meta?: { lat: number; lng: number; nombre: string; alcanzada: boolean } | null
+  /** Avance propio sobre la ruta (metros) según el último ping: orienta el recorte. */
+  avanceM?: number | null
   currentUserId: string
   initialCenter: { latitude: number; longitude: number } | null
   /** Si no se pasa, usa la vista de mapa elegida por el usuario. */
@@ -104,6 +123,8 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
     guiaAlerta = null,
     guiaLugar = null,
     fantasma = null,
+    meta = null,
+    avanceM = null,
     currentUserId,
     initialCenter,
     mapStyle,
@@ -123,6 +144,8 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
   const [mapaListo, setMapaListo] = useState(false)
   /** Tramo entre el último ping y tu marcador, para que la traza no quede atrás. */
   const [cola, setCola] = useState<[number, number][] | null>(null)
+  /** Punta de la ruta restante (recortada junto a tu marcador) y vértice donde sigue el resto. */
+  const [recorte, setRecorte] = useState<{ punta: [number, number][]; desde: number } | null>(null)
 
   const seguimientos = useRef(new Map<string, Seguimiento>())
   const dibujadas = useRef(new Map<string, { lat: number; lng: number }>())
@@ -135,6 +158,20 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
   siguiendoRef.current = siguiendo
   const rutaRef = useRef(rutaCompleta)
   rutaRef.current = rutaCompleta
+  const rutaPreparada = useMemo<RutaPreparada | null>(
+    () => (movimientoFluido && rutaCompleta && rutaCompleta.length > 1 ? prepararRuta(rutaCompleta) : null),
+    [movimientoFluido, rutaCompleta]
+  )
+  const rutaPreparadaRef = useRef(rutaPreparada)
+  rutaPreparadaRef.current = rutaPreparada
+  // Cada ping corrige la pista; entre pings avanza con tu marcador.
+  const pistaAvanceRef = useRef<number | null>(avanceM)
+  useEffect(() => {
+    pistaAvanceRef.current = avanceM
+  }, [avanceM])
+  useEffect(() => {
+    setRecorte(null)
+  }, [rutaPreparada])
   const finTrazaRef = useRef<[number, number] | null>(null)
   finTrazaRef.current = breadcrumb?.at(-1)?.at(-1) ?? null
   const periodoRestoRef = useRef(TICK_MOVIMIENTO_MS)
@@ -162,12 +199,22 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
 
   // Espera a que el mapa esté listo: antes de eso se descarta el animateTo
   // y el mapa quedaba con el zoom alejado del arranque.
+  // Tu posición manda: si el primer centrado fue en otro lado (el origen de la
+  // ruta, porque el GPS todavía no respondía), se vuelve a centrar en vos apenas
+  // aparece tu marcador.
+  const yo = members.find((m) => m.usuarioId === currentUserId)
+  const miLat = yo?.lat
+  const miLng = yo?.lng
   useEffect(() => {
-    if (!initialCenter || !mapaListo || centeredOnce.current) return
-    centeredOnce.current = true
+    if (!mapaListo || centeredOnce.current) return
+    // Sin `movimientoFluido` (miniatura) el encuadre lo decide quien usa el mapa.
+    const enMapa = movimientoFluido && miLat != null && miLng != null
+    const centro = enMapa ? { latitude: miLat, longitude: miLng } : initialCenter
+    if (!centro) return
+    centeredOnce.current = enMapa || !movimientoFluido
     pausaCamaraRef.current = Date.now() + DURACION_ANIMACION_MS + 50
-    mapRef.current?.animateTo(initialCenter, ZOOM_INICIAL)
-  }, [initialCenter, mapaListo])
+    mapRef.current?.animateTo(centro, ZOOM_INICIAL)
+  }, [initialCenter, mapaListo, miLat, miLng, movimientoFluido])
 
   // Cada ping (real) reinicia la estimación de ese integrante.
   useEffect(() => {
@@ -240,6 +287,35 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
       mapRef.current?.seguir(center, heading ?? undefined)
     }
 
+    // Borra de la ruta lo que tu marcador ya dejó atrás.
+    let ultimoRecorte: { lat: number; lng: number } | null = null
+    const recortarRuta = (pos: { lat: number; lng: number }) => {
+      const ruta = rutaPreparadaRef.current
+      if (!ruta) return
+      // Quieto no hay nada nuevo que borrar.
+      if (
+        ultimoRecorte &&
+        Math.abs(ultimoRecorte.lat - pos.lat) + Math.abs(ultimoRecorte.lng - pos.lng) < COLA_MIN_GRADOS / 2
+      ) {
+        return
+      }
+      ultimoRecorte = pos
+      const avance = avanzarEnRuta(ruta, pos, pistaAvanceRef.current)
+      if (!avance) return
+      pistaAvanceRef.current = avance.progresoM
+      if (avance.progresoM >= avance.totalM) {
+        setRecorte((previo) => (previo && previo.punta.length === 0 ? previo : { punta: [], desde: ruta.coords.length }))
+        return
+      }
+      const restante = rutaRestante(ruta, avance, pos)
+      // `restante[0]` es tu posición; el vértice `k` de la ruta queda en `restante[k - segmento]`.
+      const desde = Math.min(
+        ruta.coords.length - 1,
+        (Math.floor(avance.segmento / VERTICES_POR_BLOQUE) + 1) * VERTICES_POR_BLOQUE
+      )
+      setRecorte({ punta: restante.slice(0, desde - avance.segmento + 1), desde })
+    }
+
     const tick = () => {
       const ahora = Date.now()
       const dtPropio = ahora - ultimoPropio
@@ -273,6 +349,7 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
 
       if (ahora - ultimaCola >= COLA_CADA_MS) {
         ultimaCola = ahora
+        recortarRuta(posYo)
         const fin = finTrazaRef.current
         const separados =
           fin != null && Math.abs(fin[0] - posYo.lat) + Math.abs(fin[1] - posYo.lng) > COLA_MIN_GRADOS
@@ -374,6 +451,21 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
         ]
       : []
 
+    const metaViaje: MarkerSpec[] = meta
+      ? [
+          {
+            id: 'meta',
+            lat: meta.lat,
+            lng: meta.lng,
+            content: <MetaMarker alcanzada={meta.alcanzada} />,
+            contentKey: metaMarkerKey(meta.alcanzada),
+            anchor: META_ANCHOR,
+            zIndex: 400,
+            popup: { title: meta.alcanzada ? '¡Llegaste!' : 'Meta', description: meta.nombre },
+          },
+        ]
+      : []
+
     const ghost: MarkerSpec[] = fantasma
       ? [
           {
@@ -389,6 +481,7 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
       : []
 
     return [
+      ...metaViaje,
       ...alertaGuia,
       ...paradaGuia,
       ...lugarGuia,
@@ -397,7 +490,16 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
       ...rumbos,
       ...integrantes,
     ]
-  }, [members, alertasEnMapa, guiaParada, guiaAlerta, guiaLugar, fantasma, currentUserId])
+  }, [members, alertasEnMapa, guiaParada, guiaAlerta, guiaLugar, fantasma, meta, currentUserId])
+
+  // Solo cambia cuando el recorte pasa de bloque: el resto de la ruta no se reenvía en cada paso.
+  const desdeResto = recorte?.desde ?? null
+  const restoDeRuta = useMemo(
+    () => (rutaPreparada && desdeResto != null ? rutaPreparada.coords.slice(desdeResto) : null),
+    [rutaPreparada, desdeResto]
+  )
+
+  const hayRecorte = recorte != null && rutaPreparada != null
 
   const polylinesBase = useMemo((): PolylineSpec[] => {
     const list: PolylineSpec[] = []
@@ -412,9 +514,10 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
         })
       }
     }
-    if (routeRemaining && routeRemaining.length > 1) {
+    const resto = hayRecorte ? restoDeRuta : routeRemaining
+    if (resto && resto.length > 1) {
       list.push({
-        coords: routeRemaining,
+        coords: resto,
         color: COLOR_RECORRIDO,
         width: ANCHO_RECORRIDO,
         opacity: 1,
@@ -448,16 +551,19 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
       list.push({ coords: fantasma.traza, color: GHOST_TRAIL_COLOR, width: 3, opacity: 0.35 })
     }
     return list
-  }, [breadcrumb, routeRemaining, guiaParada, guiaAlerta, guiaLugar, fantasma])
+  }, [breadcrumb, routeRemaining, hayRecorte, restoDeRuta, guiaParada, guiaAlerta, guiaLugar, fantasma])
 
   // Va al final y aparte: así, cuando solo cambia la punta, no se redibuja el resto.
-  const polylines = useMemo(
-    () =>
-      cola
-        ? [...polylinesBase, { coords: cola, color: COLOR_RECORRIDO, width: ANCHO_RECORRIDO, opacity: 1 }]
-        : polylinesBase,
-    [polylinesBase, cola]
-  )
+  const polylines = useMemo(() => {
+    const puntas: PolylineSpec[] = []
+    if (recorte && recorte.punta.length > 1) {
+      puntas.push({ coords: recorte.punta, color: COLOR_RECORRIDO, width: ANCHO_RECORRIDO, opacity: 1 })
+    }
+    if (cola) {
+      puntas.push({ coords: cola, color: COLOR_RECORRIDO, width: ANCHO_RECORRIDO, opacity: 1 })
+    }
+    return puntas.length > 0 ? [...polylinesBase, ...puntas] : polylinesBase
+  }, [polylinesBase, cola, recorte])
 
   return (
     <View style={styles.container}>

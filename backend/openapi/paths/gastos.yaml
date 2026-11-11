@@ -2,13 +2,18 @@
 # Router: montado sobre viajesRouter (gastos.router.ts) · Controller: gastos.controller.ts
 #
 # Gastos compartidos del viaje y su liquidación. Cualquier integrante confirmado
-# (o el creador) puede registrar un gasto mientras el viaje está `planificado` o
-# `en_curso`, eligiendo explícitamente entre quiénes se prorratea —no es un split
-# fijo para todo el viaje—. Solo quien lo registró puede editarlo o borrarlo.
+# (o el creador) puede registrar un gasto en cualquier estado del viaje, eligiendo
+# explícitamente entre quiénes se prorratea —no es un split fijo para todo el
+# viaje—. Solo quien lo registró puede editarlo o borrarlo.
+#
+# Con el viaje `finalizado` se sigue pudiendo cargar, editar y borrar: las cuentas
+# suelen cerrarse después de volver. En ese estado también puede registrar quien
+# `salió` antes del final.
 #
 # El balance —quién le debe a quién— se calcula on-demand a partir de todos los
 # gastos, y solo está disponible una vez que el viaje está `finalizado`: antes de
-# eso responde 409 INVALID_STATE.
+# eso responde 409 INVALID_STATE. Como no se persiste, refleja siempre los gastos
+# tal como están cargados en ese momento.
 #
 # Ver gastos y el balance está habilitado también para quien ya `salió` del viaje
 # (pudo haber compartido gastos antes de irse), no solo para confirmados.
@@ -72,6 +77,9 @@ GastosColeccion:
       Registra un gasto pagado por quien consulta, prorrateado entre
       `participantesIds` (cada id debe ser el creador del viaje o alguien que
       llegó a estar `confirmado`, incluye a quien después salió).
+
+      Se puede registrar en cualquier estado del viaje, también `finalizado`.
+      Con el viaje finalizado puede registrar además quien `salió` antes del final.
     tags:
       - Gastos
     parameters:
@@ -123,7 +131,8 @@ GastosColeccion:
       '401':
         $ref: '../components/responses.yaml#/Unauthorized'
       '403':
-        description: No participa del viaje (`FORBIDDEN`).
+        description: |
+          No participa del viaje, o salió y el viaje todavía no finalizó (`FORBIDDEN`).
         content:
           application/json:
             schema:
@@ -133,15 +142,6 @@ GastosColeccion:
               code: FORBIDDEN
       '404':
         $ref: '../components/responses.yaml#/NotFound'
-      '409':
-        description: El viaje ya finalizó (`INVALID_STATE`).
-        content:
-          application/json:
-            schema:
-              $ref: '../components/schemas.yaml#/Error'
-            example:
-              error: El viaje ya finalizó
-              code: INVALID_STATE
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'
 
@@ -149,7 +149,9 @@ GastoPorId:
   patch:
     operationId: actualizarGasto
     summary: Editar un gasto propio
-    description: Solo quien registró el gasto puede editarlo, y solo mientras el viaje no finalizó.
+    description: |
+      Solo quien registró el gasto puede editarlo. Se puede editar en cualquier
+      estado del viaje, también `finalizado`: el balance se recalcula solo.
     tags:
       - Gastos
     parameters:
@@ -222,22 +224,15 @@ GastoPorId:
                 value:
                   error: Gasto no encontrado
                   code: GASTO_NOT_FOUND
-      '409':
-        description: El viaje ya finalizó (`INVALID_STATE`).
-        content:
-          application/json:
-            schema:
-              $ref: '../components/schemas.yaml#/Error'
-            example:
-              error: El viaje ya finalizó
-              code: INVALID_STATE
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'
 
   delete:
     operationId: eliminarGasto
     summary: Borrar un gasto propio
-    description: Solo quien registró el gasto puede borrarlo, y solo mientras el viaje no finalizó.
+    description: |
+      Solo quien registró el gasto puede borrarlo. Se puede borrar en cualquier
+      estado del viaje, también `finalizado`: el balance se recalcula solo.
     tags:
       - Gastos
     parameters:
@@ -274,15 +269,6 @@ GastoPorId:
                 value:
                   error: Gasto no encontrado
                   code: GASTO_NOT_FOUND
-      '409':
-        description: El viaje ya finalizó (`INVALID_STATE`).
-        content:
-          application/json:
-            schema:
-              $ref: '../components/schemas.yaml#/Error'
-            example:
-              error: El viaje ya finalizó
-              code: INVALID_STATE
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'
 
@@ -295,8 +281,8 @@ BalanceGastosRecurso:
       con el mínimo de transferencias necesarias para saldar cuentas (algoritmo
       "settle up": empareja el mayor deudor con el mayor acreedor).
 
-      Solo disponible una vez que el viaje está `finalizado`, momento en el que
-      los gastos ya no se pueden editar ni borrar.
+      Solo disponible una vez que el viaje está `finalizado`. No se persiste:
+      si después se carga, edita o borra un gasto, la próxima consulta ya lo refleja.
     tags:
       - Gastos
     parameters:

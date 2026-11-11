@@ -710,72 +710,73 @@ export default function ViajesScreen() {
         </View>
       </PasoAyuda>
 
-      {/* Barra de búsqueda y filtros (fija, no scrollea) */}
-      <PasoAyuda {...AYUDA_VIAJES[2]!}>
-      <BarraFiltros>
-        <BuscadorFiltros
-          value={busqueda}
-          onChangeText={setBusqueda}
-          placeholder="Buscar por nombre..."
-          accessibilityLabel="Buscar viajes"
-        />
-
-        {/* Chips de actividad y rol */}
-        <FilaChipsFiltro>
-          {([
-            { key: 'all', label: 'Todas' },
-            { key: 'moto', label: 'Moto' },
-            { key: 'auto', label: 'Auto' },
-            { key: 'bici', label: 'Bici' },
-            { key: 'running', label: 'Running' },
-            { key: 'trekking', label: 'Trekking' },
-            { key: 'otro', label: 'Otro' },
-          ] as { key: FiltroActividad; label: string }[]).map(({ key, label }) => (
-            <ChipFiltro
-              key={key}
-              label={label}
-              activo={filtroActividad === key}
-              onPress={() => setFiltroActividad(key)}
+      <ScrollViewAyuda
+        contentContainerStyle={[styles.scroll, { paddingBottom: espacioTabBar }]}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => void cargar(true)}
+            tintColor={theme.accent}
+          />
+        }
+      >
+          {/* Búsqueda y filtros: scrollean con la lista para dejarle más lugar. */}
+          <PasoAyuda {...AYUDA_VIAJES[2]!}>
+          <BarraFiltros>
+            <BuscadorFiltros
+              value={busqueda}
+              onChangeText={setBusqueda}
+              placeholder="Buscar por nombre..."
+              accessibilityLabel="Buscar viajes"
             />
-          ))}
 
-          <DivisorChipsFiltro />
+            {/* Chips de actividad y rol */}
+            <FilaChipsFiltro>
+              {([
+                { key: 'all', label: 'Todas' },
+                { key: 'moto', label: 'Moto' },
+                { key: 'auto', label: 'Auto' },
+                { key: 'bici', label: 'Bici' },
+                { key: 'running', label: 'Running' },
+                { key: 'trekking', label: 'Trekking' },
+                { key: 'otro', label: 'Otro' },
+              ] as { key: FiltroActividad; label: string }[]).map(({ key, label }) => (
+                <ChipFiltro
+                  key={key}
+                  label={label}
+                  activo={filtroActividad === key}
+                  onPress={() => setFiltroActividad(key)}
+                />
+              ))}
 
-          {([
-            { key: 'todos', label: 'Todos los roles' },
-            { key: 'creador', label: 'Organizador' },
-            { key: 'participante', label: 'Participante' },
-          ] as { key: FiltroRol; label: string }[]).map(({ key, label }) => (
-            <ChipFiltro
-              key={key}
-              label={label}
-              activo={filtroRol === key}
-              onPress={() => setFiltroRol(key)}
-            />
-          ))}
+              <DivisorChipsFiltro />
 
-          {filtrosActivos && <BotonLimpiarFiltros onPress={limpiarFiltros} />}
-        </FilaChipsFiltro>
-      </BarraFiltros>
-      </PasoAyuda>
+              {([
+                { key: 'todos', label: 'Todos los roles' },
+                { key: 'creador', label: 'Organizador' },
+                { key: 'participante', label: 'Participante' },
+              ] as { key: FiltroRol; label: string }[]).map(({ key, label }) => (
+                <ChipFiltro
+                  key={key}
+                  label={label}
+                  activo={filtroRol === key}
+                  onPress={() => setFiltroRol(key)}
+                />
+              ))}
 
-      {cargando ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={theme.accent} size="large" />
-        </View>
-      ) : (
-        <ScrollViewAyuda
-          contentContainerStyle={[styles.content, { paddingBottom: espacioTabBar }]}
-          keyboardShouldPersistTaps="handled"
-          automaticallyAdjustKeyboardInsets
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={() => void cargar(true)}
-              tintColor={theme.accent}
-            />
-          }
-        >
+              {filtrosActivos && <BotonLimpiarFiltros onPress={limpiarFiltros} />}
+            </FilaChipsFiltro>
+          </BarraFiltros>
+          </PasoAyuda>
+
+        {cargando ? (
+          <View style={styles.center}>
+            <ActivityIndicator color={theme.accent} size="large" />
+          </View>
+        ) : (
+        <View style={styles.content}>
           {/* ── MIS VIAJES ── */}
           {tab === 'mis_viajes' && (
             <>
@@ -931,8 +932,9 @@ export default function ViajesScreen() {
               )}
             </>
           )}
-        </ScrollViewAyuda>
-      )}
+        </View>
+        )}
+      </ScrollViewAyuda>
 
       {/* Modal de invitaciones */}
       <Modal
@@ -1053,6 +1055,7 @@ const styles = StyleSheet.create({
   segmentWrap: { paddingHorizontal: 20, paddingTop: 12 },
 
   // Contenido
+  scroll: { flexGrow: 1 },
   content: { padding: 20, gap: 12 },
 
   // Tarjetas

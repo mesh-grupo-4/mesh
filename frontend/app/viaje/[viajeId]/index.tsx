@@ -1128,7 +1128,7 @@ export default function ViajeDetalleScreen() {
                       router.push({ pathname: '/viaje/[viajeId]/gastos', params: { viajeId } })
                     }
                   >
-                    Ver balance de gastos
+                    Gastos y balance
                   </Btn>
                 )}
                 <Btn

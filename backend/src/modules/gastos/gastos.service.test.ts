@@ -139,7 +139,7 @@ describe('registrarGasto', () => {
     expect(m.gastoCreate).not.toHaveBeenCalled()
   })
 
-  it('rechaza registrar sobre un viaje ya finalizado', async () => {
+  it('permite registrar con el viaje ya finalizado', async () => {
     const m = armarPrisma({
       viaje: {
         findUnique: vi
@@ -149,13 +149,35 @@ describe('registrarGasto', () => {
     })
     const service = new GastosService(m.prisma)
 
-    await expect(
-      service.registrarGasto(liderId, viajeId, {
-        monto: 10,
-        descripcion: 'x',
-        participantesIds: [liderId],
+    await service.registrarGasto(liderId, viajeId, {
+      monto: 100,
+      descripcion: 'Nafta',
+      participantesIds: [liderId, integranteId],
+    })
+    expect(m.gastoCreate).toHaveBeenCalledTimes(1)
+  })
+
+  it('quien salió del viaje solo puede registrar cuando ya finalizó', async () => {
+    const armar = (estado: string) => {
+      const m = armarPrisma({
+        viaje: {
+          findUnique: vi.fn().mockResolvedValue({ id: viajeId, creador_id: liderId, estado }),
+        },
       })
-    ).rejects.toMatchObject({ status: 409, code: 'INVALID_STATE' })
+      m.integranteFindUnique.mockResolvedValue({ estado: 'salido' })
+      return m
+    }
+    const input = { monto: 100, descripcion: 'Nafta', participantesIds: [integranteId] }
+
+    const enCurso = armar('en_curso')
+    await expect(
+      new GastosService(enCurso.prisma).registrarGasto(integranteId, viajeId, input)
+    ).rejects.toMatchObject({ status: 403, code: 'FORBIDDEN' })
+    expect(enCurso.gastoCreate).not.toHaveBeenCalled()
+
+    const finalizado = armar('finalizado')
+    await new GastosService(finalizado.prisma).registrarGasto(integranteId, viajeId, input)
+    expect(finalizado.gastoCreate).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -168,6 +190,49 @@ describe('actualizarGasto', () => {
       service.actualizarGasto(otroId, viajeId, gastoId, { monto: 20 })
     ).rejects.toMatchObject({ status: 403, code: 'FORBIDDEN' })
     expect(m.gastoUpdate).not.toHaveBeenCalled()
+  })
+})
+
+describe('con el viaje finalizado', () => {
+  const armarFinalizado = () =>
+    armarPrisma({
+      viaje: {
+        findUnique: vi
+          .fn()
+          .mockResolvedValue({ id: viajeId, creador_id: liderId, estado: 'finalizado' }),
+      },
+    })
+
+  it('el autor puede seguir editando su gasto', async () => {
+    const m = armarFinalizado()
+    m.gastoUpdate.mockResolvedValue({
+      id: gastoId,
+      viaje_id: viajeId,
+      usuario_id: integranteId,
+      monto: 20,
+      descripcion: 'Nafta',
+      created_at: new Date('2026-08-21T14:00:00.000Z'),
+      usuario: integrante,
+      participantes: [{ usuario_id: integranteId, usuario: integrante }],
+    })
+    const service = new GastosService(m.prisma)
+
+    const gasto = await service.actualizarGasto(integranteId, viajeId, gastoId, { monto: 20 })
+    expect(gasto).toMatchObject({ id: gastoId, monto: 20, puede_editar: true })
+  })
+
+  it('el autor puede borrar su gasto, y nadie más', async () => {
+    const m = armarFinalizado()
+    const service = new GastosService(m.prisma)
+
+    await expect(service.eliminarGasto(otroId, viajeId, gastoId)).rejects.toMatchObject({
+      status: 403,
+      code: 'FORBIDDEN',
+    })
+    expect(m.gastoDelete).not.toHaveBeenCalled()
+
+    await service.eliminarGasto(integranteId, viajeId, gastoId)
+    expect(m.gastoDelete).toHaveBeenCalledWith({ where: { id: gastoId } })
   })
 })
 
