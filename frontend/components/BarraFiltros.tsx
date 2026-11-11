@@ -1,10 +1,5 @@
-<<<<<<< Updated upstream
 import type { ComponentProps, ReactNode, Ref } from 'react'
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
-=======
-import type { ComponentProps, ReactNode } from 'react'
 import { ScrollView, StyleSheet, Text, TextInput, View, type StyleProp, type ViewStyle } from 'react-native'
->>>>>>> Stashed changes
 import { Feather } from '@expo/vector-icons'
 
 import { Pressable } from '@/components/Pressable'
@@ -31,22 +26,16 @@ export function BuscadorFiltros({
   placeholder,
   accessibilityLabel,
   maxLength,
-<<<<<<< Updated upstream
   inputRef,
-=======
   style,
->>>>>>> Stashed changes
 }: {
   value: string
   onChangeText: (texto: string) => void
   placeholder: string
   accessibilityLabel?: string
   maxLength?: number
-<<<<<<< Updated upstream
   inputRef?: Ref<TextInput>
-=======
   style?: StyleProp<ViewStyle>
->>>>>>> Stashed changes
 }) {
   const theme = useTheme()
   return (
