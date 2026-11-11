@@ -510,6 +510,7 @@ export default function GruposScreen() {
             <FilaNotificacion
               key={inv.id}
               nombre={inv.invitado_por.nombre}
+              usuarioId={inv.invitado_por.id}
               mensaje={
                 <>
                   <Destacado>{inv.invitado_por.nombre}</Destacado> te invitó a{' '}

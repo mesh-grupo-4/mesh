@@ -578,7 +578,7 @@ function IntegranteRow({ integrante, rankingHabilitado, tipoActividad }: Integra
 
   return (
     <View style={styles.integranteRow}>
-      <AvatarFallback nombre={integrante.nombre} size={36} />
+      <AvatarFallback nombre={integrante.nombre} size={36} usuarioId={integrante.usuario_id} />
       <View style={styles.integranteInfo}>
         <Text style={[styles.integranteNombre, { color: theme.text }]} numberOfLines={1}>
           {integrante.nombre}

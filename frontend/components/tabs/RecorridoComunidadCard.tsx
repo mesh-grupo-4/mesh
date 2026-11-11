@@ -70,6 +70,7 @@ export function RecorridoComunidadCard({
         <View style={styles.autorFila}>
           <Avatar
             person={{ nombre: autor.nombre, apellido: autor.apellido ?? undefined }}
+            usuarioId={autor.id}
             size={esLeyenda ? 'md' : 'sm'}
             ring={esLeyenda || esDestacado}
             style={esLeyenda ? { borderColor: theme.gold } : undefined}

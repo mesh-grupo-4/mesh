@@ -100,7 +100,7 @@ export function TarjetaGrupo({
                       { borderColor: theme.surface, marginLeft: i === 0 ? 0 : -8 },
                     ]}
                   >
-                    <AvatarFallback nombre={m.nombre} size={AVATAR_MIEMBRO} />
+                    <AvatarFallback nombre={m.nombre} size={AVATAR_MIEMBRO} usuarioId={m.id} />
                   </View>
                 ))}
                 {restantes > 0 ? (

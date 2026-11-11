@@ -204,7 +204,7 @@ export default function ViajeRecapScreen() {
                 ]}
               >
                 <Badge tone="accent">{tituloCriterio(criterio)}</Badge>
-                <AvatarFallback nombre={primero.nombre} size={56} />
+                <AvatarFallback nombre={primero.nombre} size={56} usuarioId={primero.usuario_id} />
                 <Text style={[styles.heroNombre, { color: theme.text }]}>{primero.nombre}</Text>
                 <Text style={[styles.heroValor, { color: theme.accent }]}>
                   {valorDe(primero, criterio, tipo)}
@@ -237,7 +237,7 @@ export default function ViajeRecapScreen() {
                 <Text style={[styles.puesto, { color: theme.textMute }]}>
                   {puesto != null ? `#${puesto}` : '—'}
                 </Text>
-                <AvatarFallback nombre={fila.nombre} size={36} />
+                <AvatarFallback nombre={fila.nombre} size={36} usuarioId={fila.usuario_id} />
                 <View style={styles.rowInfo}>
                   <Text style={[styles.rowNombre, { color: theme.text }]} numberOfLines={1}>
                     {fila.nombre}

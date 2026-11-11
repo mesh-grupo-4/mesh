@@ -7,8 +7,9 @@ import { Pressable } from '@/components/Pressable';
 import { useTheme } from '@/components/MeshUI';
 
 type Props = {
-  /** Nombre de quien invita o solicita: define el avatar. */
+  /** Quien invita o solicita: define el avatar. */
   nombre: string;
+  usuarioId: string;
   /** Texto principal; los nombres van envueltos en `Destacado`. */
   mensaje: ReactNode;
   meta: string;
@@ -27,6 +28,7 @@ export function Destacado({ children }: { children: ReactNode }) {
 /** Ítem de invitación o solicitud dentro de la hoja de la campanita. Sale con un fundido al responderlo. */
 export function FilaNotificacion({
   nombre,
+  usuarioId,
   mensaje,
   meta,
   etiquetaAceptar,
@@ -44,7 +46,7 @@ export function FilaNotificacion({
       style={[styles.fila, { backgroundColor: theme.surface2, borderColor: theme.border }]}
     >
       <Pressable onPress={onPressAvatar} disabled={!onPressAvatar} hitSlop={4}>
-        <AvatarFallback nombre={nombre} size={42} />
+        <AvatarFallback nombre={nombre} size={42} usuarioId={usuarioId} />
       </Pressable>
 
       <View style={styles.cuerpo}>

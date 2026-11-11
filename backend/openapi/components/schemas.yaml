@@ -154,6 +154,12 @@ ErrorCode:
     - INSIGNIA_NOT_FOUND
     - INSIGNIA_CODIGO_DUPLICADO
     - INSIGNIA_OTORGADA
+    # Fotos de perfil (Supabase Storage)
+    - FOTOS_NO_DISPONIBLES
+    - FOTO_SUBIDA_FALLIDA
+    - FOTO_PATH_INVALIDO
+    - FOTO_NO_SUBIDA
+    - FOTO_INVALIDA
   example: NOT_CREATOR
 
 Error:
@@ -473,6 +479,7 @@ Usuario:
     - telefono
     - actividad_preferida
     - rol_sistema
+    - foto_perfil
   properties:
     id:
       type: string
@@ -500,6 +507,12 @@ Usuario:
       description: Modalidad que la app propone por defecto al crear un viaje.
     rol_sistema:
       $ref: '#/RolSistema'
+    foto_perfil:
+      type: string
+      format: uri
+      nullable: true
+      description: URL pública de la foto de perfil (Supabase Storage). `null` = la app muestra las iniciales.
+      example: https://ddmnzklvxbijpcpckwez.supabase.co/storage/v1/object/public/avatares/9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d/1792000000000.jpg
   additionalProperties: false
 
 PerfilPublico:
@@ -518,6 +531,7 @@ PerfilPublico:
     - nombre
     - apellido
     - actividad_preferida
+    - foto_perfil
     - es_yo
     - relacion_amistad
     - visibilidad_logros
@@ -540,6 +554,12 @@ PerfilPublico:
       allOf:
         - $ref: '#/TipoActividadNullable'
       description: Modalidad que esta persona eligió como preferida.
+    foto_perfil:
+      type: string
+      format: uri
+      nullable: true
+      description: URL pública de la foto de perfil (Supabase Storage). `null` = la app muestra las iniciales.
+      example: https://ddmnzklvxbijpcpckwez.supabase.co/storage/v1/object/public/avatares/9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d/1792000000000.jpg
     es_yo:
       type: boolean
       description: true si quien consulta es el mismo usuario del perfil.
@@ -636,6 +656,78 @@ PushTokenRequest:
       type: string
       minLength: 1
       example: ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]
+  additionalProperties: false
+
+SubidaFotoPerfil:
+  type: object
+  description: |
+    Paso 1 de la subida de foto. `upload_url` es una URL firmada de Supabase
+    Storage que solo permite escribir en `path` (la carpeta del usuario) y vence
+    a las 2 horas. La app sube ahí el JPEG con un `PUT` y después confirma con
+    `PUT /api/usuarios/me/foto`.
+  required:
+    - path
+    - upload_url
+  properties:
+    path:
+      type: string
+      description: Ruta dentro del bucket `avatares`, siempre `{usuarioId}/{timestamp}.jpg`.
+      example: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d/1792000000000.jpg
+    upload_url:
+      type: string
+      format: uri
+      example: https://ddmnzklvxbijpcpckwez.supabase.co/storage/v1/object/upload/sign/avatares/9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d/1792000000000.jpg?token=eyJhbGciOi
+  additionalProperties: false
+
+ConfirmarFotoPerfilRequest:
+  type: object
+  required:
+    - path
+  properties:
+    path:
+      type: string
+      maxLength: 200
+      description: El `path` que devolvió `POST /api/usuarios/me/foto/subida`.
+      example: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d/1792000000000.jpg
+  additionalProperties: false
+
+FotoPerfilResponse:
+  type: object
+  required:
+    - foto_perfil
+  properties:
+    foto_perfil:
+      type: string
+      format: uri
+      nullable: true
+      example: https://ddmnzklvxbijpcpckwez.supabase.co/storage/v1/object/public/avatares/9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d/1792000000000.jpg
+  additionalProperties: false
+
+ConsultarFotosRequest:
+  type: object
+  required:
+    - ids
+  properties:
+    ids:
+      type: array
+      minItems: 1
+      maxItems: 200
+      items:
+        type: string
+        format: uuid
+  additionalProperties: false
+
+ConsultarFotosResponse:
+  type: object
+  description: Mapa `usuarioId → URL`. Solo aparecen quienes tienen foto; el resto usa iniciales.
+  required:
+    - fotos
+  properties:
+    fotos:
+      type: object
+      additionalProperties:
+        type: string
+        format: uri
   additionalProperties: false
 
 OperacionOk:

@@ -154,7 +154,7 @@ export default function AgregarIntegranteScreen() {
 
     return (
       <View style={[styles.fila, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        <Avatar person={dummyPerson} size="sm" />
+        <Avatar person={dummyPerson} size="sm" usuarioId={item.id} />
         
         <View style={styles.filaContenido}>
           <Text style={[styles.nombre, { color: theme.text }]} numberOfLines={1}>

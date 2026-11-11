@@ -169,6 +169,8 @@ model Usuario {
   telefono            String?
   actividad_preferida TipoActividad? @map("actividad_preferida")
   push_token          String?        @map("push_token")
+  /// URL pública de la foto de perfil en Supabase Storage (bucket `avatares`). Null = iniciales.
+  foto_perfil         String?        @map("foto_perfil")
 
   /// RN-110: consentimiento informado de geolocalización. Null = todavía no lo dio.
   consentimiento_ubicacion_at      DateTime?         @map("consentimiento_ubicacion_at")

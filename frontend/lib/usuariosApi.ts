@@ -16,6 +16,8 @@ export type UsuarioPerfilResponse = {
   actividad_preferida: ActividadPreferidaApi | null
   /** RN-120: rol de plataforma. Solo orienta la UI; el backend valida cada acción. */
   rol_sistema: 'usuario' | 'superadmin'
+  /** URL pública de la foto de perfil. Null = iniciales. */
+  foto_perfil: string | null
 }
 
 export type SyncUsuarioInput = {
@@ -77,6 +79,7 @@ export type PerfilPublicoApi = {
   nombre: string
   apellido: string | null
   actividad_preferida: ActividadPreferidaApi | null
+  foto_perfil: string | null
   es_yo: boolean
   relacion_amistad: RelacionAmistad
   visibilidad_logros: VisibilidadLogrosApi
@@ -92,4 +95,40 @@ export async function obtenerPerfilPublico(
 ): Promise<PerfilPublicoApi> {
   const res = await meshFetchAuthed(apiUrl(`/api/usuarios/${usuarioId}/perfil`, baseUrl))
   return parseJson<PerfilPublicoApi>(res)
+}
+
+// ── Foto de perfil (Supabase Storage) ───────────────────────────────────────
+
+export type SubidaFotoApi = { path: string; upload_url: string }
+
+/** Paso 1: el backend elige la ruta y devuelve una URL firmada para subir el JPEG. */
+export async function crearSubidaFoto(): Promise<SubidaFotoApi> {
+  const res = await meshFetchAuthed(apiUrl('/api/usuarios/me/foto/subida'), { method: 'POST' })
+  return parseJson<SubidaFotoApi>(res)
+}
+
+/** Paso 3: el backend verifica el archivo subido y lo guarda como foto de perfil. */
+export async function confirmarFoto(path: string): Promise<{ foto_perfil: string }> {
+  const res = await meshFetchAuthed(apiUrl('/api/usuarios/me/foto'), {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path }),
+  })
+  return parseJson<{ foto_perfil: string }>(res)
+}
+
+export async function eliminarFoto(): Promise<void> {
+  const res = await meshFetchAuthed(apiUrl('/api/usuarios/me/foto'), { method: 'DELETE' })
+  await parseJson<{ foto_perfil: null }>(res)
+}
+
+/** Fotos de hasta 200 usuarios: solo vuelven los que tienen. */
+export async function consultarFotos(ids: string[]): Promise<Record<string, string>> {
+  const res = await meshFetchAuthed(apiUrl('/api/usuarios/fotos'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids }),
+  })
+  const data = await parseJson<{ fotos: Record<string, string> }>(res)
+  return data.fotos
 }

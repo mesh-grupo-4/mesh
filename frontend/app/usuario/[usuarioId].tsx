@@ -151,7 +151,12 @@ export default function PerfilUsuarioScreen() {
               <FundidoMesh color={theme.background} />
             </View>
             <Avatar
-              person={{ nombre: perfil.nombre, apellido: perfil.apellido ?? '', color: theme.accent }}
+              person={{
+                nombre: perfil.nombre,
+                apellido: perfil.apellido ?? '',
+                color: theme.accent,
+                foto: perfil.foto_perfil,
+              }}
               size="xl"
               ring={nivel >= 2}
               style={nivel >= 2 ? { borderColor: theme.fire } : undefined}

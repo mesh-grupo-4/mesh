@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Image,
   View,
@@ -26,6 +26,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Colors from '@/constants/Colors';
 import { BotonAyuda } from '@/components/ayuda/BotonAyuda';
 import { ICONO_VOLVER, TITULO_CENTRADO } from '@/lib/plataforma';
+import { useFotoPerfil } from '@/lib/fotosPerfilStore';
 
 // Hook auxiliar para acceder al tema activo.
 // `altoContraste` fuerza la paleta de alto contraste (RN-052, modo moto) sin importar light/dark.
@@ -435,16 +436,22 @@ interface AvatarProps {
   person: {
     nombre?: string;
     apellido?: string;
-    foto?: string;
+    /** URL ya conocida (perfil propio o público). Tiene prioridad sobre `usuarioId`. */
+    foto?: string | null;
     color?: string;
   };
   size?: 'sm' | 'md' | 'lg' | 'xl';
   ring?: boolean;
   style?: StyleProp<ViewStyle>;
+  /** Con id, busca la foto de perfil. Sin id ni `person.foto`, solo iniciales. */
+  usuarioId?: string | null;
 }
 
-export function Avatar({ person, size = 'md', ring = false, style }: AvatarProps) {
+export function Avatar({ person, size = 'md', ring = false, style, usuarioId }: AvatarProps) {
   const theme = useTheme();
+  const fotoBuscada = useFotoPerfil(person.foto ? null : usuarioId);
+  const foto = person.foto ?? fotoBuscada;
+  const [fotoRota, setFotoRota] = useState<string | null>(null);
 
   const getInitials = () => {
     const n = person.nombre ? person.nombre[0] : '';
@@ -492,6 +499,15 @@ export function Avatar({ person, size = 'md', ring = false, style }: AvatarProps
       ]}
     >
       <Text style={[styles.avatarText, { fontSize: dims.fontSize }]}>{getInitials()}</Text>
+      {/* La foto tapa las iniciales: mientras carga o si falla, se ven ellas. */}
+      {foto && foto !== fotoRota ? (
+        <Image
+          source={{ uri: foto }}
+          style={StyleSheet.absoluteFill}
+          onError={() => setFotoRota(foto)}
+          accessibilityIgnoresInvertColors
+        />
+      ) : null}
     </View>
   );
 }

@@ -206,7 +206,7 @@ export function GastoFila({
 
       <View style={styles.gastoCuerpo}>
         <View style={styles.gastoHead}>
-          <AvatarFallback nombre={gasto.usuario_nombre || '?'} size={36} />
+          <AvatarFallback nombre={gasto.usuario_nombre || '?'} size={36} usuarioId={gasto.usuario_id} />
           <View style={styles.gastoTitulos}>
             <Text style={[styles.gastoDescripcion, { color: theme.text }]} numberOfLines={2}>
               {gasto.descripcion}
@@ -226,7 +226,7 @@ export function GastoFila({
                 key={p.usuario_id}
                 style={[styles.avatarAro, { borderColor: theme.surface, marginLeft: i === 0 ? 0 : -7 }]}
               >
-                <AvatarFallback nombre={p.nombre || '?'} size={20} />
+                <AvatarFallback nombre={p.nombre || '?'} size={20} usuarioId={p.usuario_id} />
               </View>
             ))}
             {ocultos > 0 ? (
@@ -339,9 +339,9 @@ export function BalanceCard({
                 },
               ]}
             >
-              <AvatarFallback nombre={t.de_nombre || '?'} size={26} />
+              <AvatarFallback nombre={t.de_nombre || '?'} size={26} usuarioId={t.de_id} />
               <Feather name="arrow-right" size={14} color={theme.textMute} />
-              <AvatarFallback nombre={t.para_nombre || '?'} size={26} />
+              <AvatarFallback nombre={t.para_nombre || '?'} size={26} usuarioId={t.para_id} />
               <View style={styles.transaccionTexto}>
                 <Text style={[styles.transaccionNombres, { color: theme.text }]} numberOfLines={2}>
                   {debo ? 'Vos' : t.de_nombre}
@@ -360,7 +360,7 @@ export function BalanceCard({
           <Text style={[styles.resumenLabel, { color: theme.textDim }]}>SALDO POR PERSONA</Text>
           {saldos.map((s) => (
             <View key={s.usuario_id} style={styles.saldoFila}>
-              <AvatarFallback nombre={s.nombre || '?'} size={22} />
+              <AvatarFallback nombre={s.nombre || '?'} size={22} usuarioId={s.usuario_id} />
               <View style={styles.saldoTexto}>
                 <Text style={[styles.saldoNombre, { color: theme.text }]} numberOfLines={1}>
                   {s.usuario_id === miId ? `${s.nombre} (vos)` : s.nombre}

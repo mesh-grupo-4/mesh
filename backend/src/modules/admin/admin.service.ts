@@ -4,6 +4,7 @@ import { HttpError } from '../../lib/httpError'
 import { getIo } from '../../realtime/ioRegistry'
 import { transferirLiderazgo, type TransactionClient } from '../grupos/grupos.service'
 import { ViajesService } from '../viajes/viajes.service'
+import { FotosPerfilService } from '../usuarios/usuarios.fotos'
 import { ACTIVIDADES_CHECKLIST, itemsSugeridos } from '../checklist/checklistDefaults'
 import type {
   ActualizarInsigniaInput,
@@ -500,6 +501,7 @@ export class AdminService {
       await tx.usuario.delete({ where: { id: usuarioId } })
       return r
     })
+    await new FotosPerfilService(this.prisma).borrarCarpeta(usuarioId)
 
     return { usuario_id: usuarioId, accion: 'eliminado' as const, ...resultado }
   }

@@ -154,7 +154,7 @@ export default function MiembrosViajeScreen() {
           pressed && !esYo && { opacity: 0.85 },
         ]}
       >
-        <Avatar person={dummyPerson} size="sm" ring={esLider} />
+        <Avatar person={dummyPerson} size="sm" ring={esLider} usuarioId={item.usuario.id} />
 
         <View style={styles.filaContenido}>
           <View style={styles.filaTitulo}>

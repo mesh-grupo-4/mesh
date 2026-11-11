@@ -437,7 +437,7 @@ export default function GastosViajeScreen() {
                             },
                           ]}
                         >
-                          <AvatarFallback nombre={c.nombre || '?'} size={20} />
+                          <AvatarFallback nombre={c.nombre || '?'} size={20} usuarioId={c.id} />
                           <Text
                             style={[styles.chipTxt, { color: activo ? theme.accent : theme.textDim }]}
                             numberOfLines={1}

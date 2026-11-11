@@ -43,7 +43,7 @@ A diferencia de soluciones existentes (Strava, Garmin, Google Maps, Life360) que
 | RN-005 | Tras 5 intentos fallidos de login, la cuenta se bloquea temporalmente. |
 | RN-006 | El token de sesión tiene expiración configurable; al cerrar sesión se invalida en backend y se limpian datos locales. |
 | RN-007 | El link de recuperación de contraseña expira a las 24 horas. Al resetear, todas las sesiones previas se invalidan. |
-| RN-008 | La foto de perfil acepta jpg/png con tamaño máximo de 5 MB. |
+| RN-008 | La foto de perfil se elige de la galería o la cámara (cualquier formato), se recorta cuadrada y la app la recomprime a JPEG de 512×512 antes de subirla. El backend solo acepta JPEG de hasta 2 MB en la carpeta del propio usuario. Se muestra en todos los avatares **excepto en el mapa del viaje en vivo**, que mantiene las iniciales. Ver [[us-foto-perfil]]. |
 
 ### 2.2 Reglas de Grupos
 
@@ -681,7 +681,7 @@ Usuario
 ├── email (unique)
 ├── teléfono
 ├── password_hash
-├── foto_perfil
+├── foto_perfil (text, nullable: URL pública en Supabase Storage) ← RN-008
 ├── actividad_preferida (enum: moto, auto, bici, running, trekking, otro)
 ├── consentimiento_ubicacion_at (timestamp, nullable)       ← RN-110
 ├── consentimiento_ubicacion_version (text, nullable)       ← RN-110

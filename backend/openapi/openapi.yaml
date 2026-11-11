@@ -199,6 +199,12 @@ paths:
     $ref: './paths/privacidad.yaml#/PrivacidadUsuario'
   /api/usuarios/me/accesos-ubicacion:
     $ref: './paths/privacidad.yaml#/AccesosUbicacionUsuario'
+  /api/usuarios/me/foto/subida:
+    $ref: './paths/usuarios.yaml#/SubidaFotoPerfil'
+  /api/usuarios/me/foto:
+    $ref: './paths/usuarios.yaml#/FotoPerfil'
+  /api/usuarios/fotos:
+    $ref: './paths/usuarios.yaml#/FotosUsuarios'
   /api/usuarios/{usuarioId}/perfil:
     $ref: './paths/usuarios.yaml#/PerfilPublicoUsuario'
 
