@@ -1,20 +1,21 @@
 import { useState } from 'react'
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native'
-import { Pressable } from '@/components/Pressable'
 import { router, Stack, useLocalSearchParams } from 'expo-router'
 
 import { useAuth } from '@/context/AuthContext'
 import { ActivityTile, Btn, TopBar, useTheme } from '@/components/MeshUI'
 import { DestinoPicker } from '@/components/viaje-rapido/DestinoPicker'
+import { ActividadGrid } from '@/components/viaje-nuevo/ActividadGrid'
+import { SelectorModo } from '@/components/viaje-nuevo/SelectorModo'
 import { useUbicacionActual } from '@/hooks/useUbicacionActual'
 import { useVolverInterno } from '@/hooks/useVolver'
-import { ACTIVIDADES, etiquetaActividad } from '@/lib/activityDefaults'
+import { ACTIVIDADES, esMotorizado, etiquetaActividad } from '@/lib/activityDefaults'
 import { resolveBackendUserId } from '@/lib/apiClient'
 import { meshAlert } from '@/lib/meshAlert'
 import { paramTexto } from '@/lib/nuevoViaje'
 import { guardarRutaRapida, type PuntoDestino } from '@/lib/rutaRapida'
 import { formatearEnArg } from '@/lib/tiempoArg'
-import { crearViaje, type TipoActividadApi } from '@/lib/viajesApi'
+import { crearViaje, type ModoViajeApi, type TipoActividadApi } from '@/lib/viajesApi'
 
 type Paso = 'actividad' | 'destino' | 'plantilla' | 'creando'
 
@@ -23,7 +24,7 @@ function actividadValida(raw: string | undefined): TipoActividadApi | null {
 }
 
 /**
- * "Viaje YA": actividad → destino (opcional) → se crea el viaje y se pasa a la
+ * "Viaje YA": modo + actividad → destino (opcional) → se crea el viaje y se pasa a la
  * sala de espera con el QR. Con una ruta de "Mis rutas" (plantilla) no se
  * pregunta ni actividad ni destino: los trae la ruta.
  */
@@ -41,6 +42,8 @@ export default function ViajeRapidoScreen() {
 
   const [paso, setPaso] = useState<Paso>(plantillaId ? 'plantilla' : 'actividad')
   const [actividad, setActividad] = useState<TipoActividadApi>(actividadPlantilla ?? 'otro')
+  // RN-065: recreativo por defecto, así elegir el modo no suma un toque a quien no le importa.
+  const [modo, setModo] = useState<ModoViajeApi>('recreativo')
   const { ubicacion } = useUbicacionActual()
 
   // Volver desde el destino regresa a elegir actividad; mientras se crea el viaje no se sale.
@@ -61,6 +64,8 @@ export default function ViajeRapidoScreen() {
           grupoIds: grupoId ? [grupoId] : [],
           tipoActividad: tipo,
           inmediato: true,
+          // RN-070: el backend rechaza competitivo en moto/auto; acá nunca se llega a mandarlo.
+          modo: modo === 'competitivo' && esMotorizado(tipo) ? 'recreativo' : modo,
           rutaPlantillaId: plantillaId,
         },
         userId
@@ -140,6 +145,14 @@ export default function ViajeRapidoScreen() {
             Usamos el recorrido guardado ({etiquetaActividad(actividad)}). Después invitás desde la sala de
             espera.
           </Text>
+          <View style={styles.modoPlantilla}>
+            <SelectorModo
+              modo={modo}
+              onChange={setModo}
+              puedeCompetir={!esMotorizado(actividad)}
+              motorizado={esMotorizado(actividad)}
+            />
+          </View>
         </View>
         <View style={styles.footer}>
           <Btn block size="xl" icon="zap" onPress={() => void crear(actividad, null)}>
@@ -155,30 +168,22 @@ export default function ViajeRapidoScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <TopBar title="Viaje YA" bordered={false} />
       <ScrollView contentContainerStyle={styles.content}>
+        <Text style={[styles.etiqueta, { color: theme.textDim }]}>Modo</Text>
+        <SelectorModo modo={modo} onChange={setModo} puedeCompetir />
+        {modo === 'competitivo' ? (
+          <Text style={[styles.aviso, { color: theme.textDim }]}>
+            En moto y auto no hay modo competitivo (seguridad vial).
+          </Text>
+        ) : null}
+
         <Text style={[styles.titulo, { color: theme.text }]}>¿Qué van a hacer?</Text>
-        <View style={styles.grid}>
-          {ACTIVIDADES.map((a) => (
-            <Pressable
-              key={a.id}
-              accessibilityRole="button"
-              accessibilityLabel={a.label}
-              onPress={() => {
-                setActividad(a.id)
-                setPaso('destino')
-              }}
-              style={({ pressed }) => [
-                styles.tile,
-                {
-                  backgroundColor: pressed ? theme.accentWeak : theme.surface,
-                  borderColor: pressed ? theme.accentLine : theme.border,
-                },
-              ]}
-            >
-              <ActivityTile activity={a.id} size={64} />
-              <Text style={[styles.tileLabel, { color: theme.text }]}>{a.label}</Text>
-            </Pressable>
-          ))}
-        </View>
+        <ActividadGrid
+          deshabilitada={(a) => modo === 'competitivo' && esMotorizado(a)}
+          onElegir={(a) => {
+            setActividad(a)
+            setPaso('destino')
+          }}
+        />
       </ScrollView>
     </View>
   )
@@ -189,20 +194,11 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14 },
   creando: { fontSize: 16, fontWeight: '600' },
   content: { padding: 16, paddingBottom: 40 },
-  titulo: { fontSize: 26, fontWeight: '800', marginBottom: 16 },
+  titulo: { fontSize: 26, fontWeight: '800', marginTop: 24, marginBottom: 16 },
+  etiqueta: { fontSize: 14, fontWeight: '700', textTransform: 'uppercase', marginBottom: 8 },
+  aviso: { fontSize: 14, lineHeight: 20, marginTop: 8 },
+  modoPlantilla: { alignSelf: 'stretch', marginTop: 12 },
   sub: { fontSize: 16, lineHeight: 22, textAlign: 'center' },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  tile: {
-    width: '47%',
-    flexGrow: 1,
-    minHeight: 130,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-  },
-  tileLabel: { fontSize: 18, fontWeight: '700' },
   plantilla: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
   footer: { padding: 16, paddingBottom: 32 },
 })

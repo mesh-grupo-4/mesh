@@ -17,11 +17,12 @@
 1. **Inicio** es la pestaña del medio de la barra (Viajes · Grupos · **Inicio** · Rutas · Perfil). Muestra el mapa (Google Maps, `MeshMapView`) centrado en la ubicación del dispositivo; esa ubicación es solo local, no se publica (RN-110/111).
 2. Arriba a la derecha está **"Viaje YA"**. Además, **toda** entrada a "Nuevo viaje" (mantener y deslizar el botón del medio, tab Viajes, detalle de grupo, Mis rutas, recorridos publicados) abre primero el selector **Viaje YA / Planificar viaje** (`app/nuevo-viaje.tsx`), que le pasa a la opción elegida el contexto con el que se abrió (plantilla, grupo).
 3. **Viaje YA** (`app/viaje/rapido.tsx`):
-   - Elegir actividad (`moto`, `bici`, `running`, `trekking`, `otro`).
+   - Elegir **modo** (RN-065): `recreativo` por defecto, `entrenamiento` o `competitivo`. Con competitivo, moto y auto quedan bloqueados en la grilla de actividades (RN-070, vía `esMotorizado()`).
+   - Elegir actividad (`moto`, `auto`, `bici`, `running`, `trekking`, `otro`).
    - Destino **opcional**: mover el mapa o buscar un lugar, o "Saltear". Si se elige, la ruta (ubicación actual → destino, sin paradas) la calcula el backend (`/api/routing/calcular`).
-   - Con una ruta de "Mis rutas" (plantilla) no se pregunta actividad ni destino: los trae la plantilla.
+   - Con una ruta de "Mis rutas" (plantilla) no se pregunta actividad ni destino: los trae la plantilla. El modo se elige en la misma pantalla de confirmación (sin competitivo si la actividad es motorizada).
    - Si se entró desde un grupo, ese grupo queda invitado.
-   - Se crea con `inmediato: true`, nombre automático `Viaje rápido · <Actividad> · <HH:MM>` (UTC-3, RN-105), `esGrupal: true`, modo `recreativo`.
+   - Se crea con `inmediato: true`, nombre automático `Viaje rápido · <Actividad> · <HH:MM>` (UTC-3, RN-105), `esGrupal: true` y el modo elegido.
 4. **Sala de espera** (`app/viaje/[viajeId]/sala.tsx`, solo el líder):
    - QR + compartir link (RN-015/016).
    - Invitar grupos o amigos en cualquier momento (`POST /invitaciones`, RN-028/029).
@@ -32,19 +33,21 @@
    - **Arrancar viaje**: aviso de ubicación (RN-110) → `POST /iniciar` → mapa en vivo. Desde ahí el QR deja de valer (RN-015).
 
    - **Cancelar viaje**: elimina el viaje (`DELETE /api/viajes/{viajeId}`, solo el líder y antes de arrancar).
-5. **Viaje en curso** (cualquier viaje grupal, no solo el rápido): al desplegar el panel inferior del mapa en vivo aparecen **Gastos** (quien se sumó) y **Ajustes** (solo el líder: parámetros y alertas, `PATCH /api/viajes/{viajeId}`). El motor relee el viaje en cada ping, así que el ajuste aplica al instante; el resto del grupo refresca el detalle con el evento `viaje:actualizado`.
+5. **Planificar viaje** (`app/viaje/crear.tsx`) es un wizard con los mismos componentes (`components/viaje-nuevo/`): actividad → cuándo (fecha + nombre) → recorrido (trazar ahora / después) → con quién (solo / en grupo + invitados) → resumen con modo y parámetros (RN-025). Desde el resumen se vuelve a cualquier paso. Con plantilla se saltean actividad y recorrido; si se entró desde un grupo, ese grupo viene preseleccionado.
+6. **Viaje en curso** (cualquier viaje grupal, no solo el rápido): al desplegar el panel inferior del mapa en vivo aparecen **Gastos** (quien se sumó) y **Ajustes** (solo el líder: parámetros y alertas, `PATCH /api/viajes/{viajeId}`). El motor relee el viaje en cada ping, así que el ajuste aplica al instante; el resto del grupo refresca el detalle con el evento `viaje:actualizado`.
 
 ## Reglas
 
 - El viaje nace `planificado` aunque sea inmediato: así el QR sigue vigente mientras la gente se suma. La transición a `en_curso` la hace el líder (RN-030).
 - `inmediato` y `fechaProgramada` no se combinan (400). Sin `inmediato`, `fechaProgramada` es obligatoria y futura (RN-107).
 - `POST /invitaciones`: solo el líder, viaje grupal y `planificado`. Las mismas validaciones que al crear (`NOT_GROUP_MEMBER`, `NOT_FRIEND`). No reinvita a quien ya figura en el viaje.
-- RN-070 no cambia: el viaje rápido es `recreativo` y no habilita rankings.
+- RN-070 no cambia: el modo competitivo solo existe en viajes grupales no motorizados. El frontend no lo ofrece en moto/auto y el backend lo rechaza igual (`MODO_INVALIDO`).
 
 ## Criterios de aceptación
 
 - [ ] Inicio está en el medio de la barra y muestra el mapa con mi ubicación.
-- [ ] "Viaje YA" pide actividad, permite saltear el destino y lleva a la sala de espera con el QR.
+- [ ] "Viaje YA" pide actividad (y opcionalmente el modo), permite saltear el destino y lleva a la sala de espera con el QR.
+- [ ] En "Viaje YA" con modo competitivo no se puede elegir moto ni auto.
 - [ ] Toda entrada a "Nuevo viaje" pregunta Viaje YA / Planificar.
 - [ ] Desde la sala puedo invitar grupos y amigos, y veo quién se va sumando.
 - [ ] "Arrancar viaje" inicia el viaje y abre el mapa en vivo.
