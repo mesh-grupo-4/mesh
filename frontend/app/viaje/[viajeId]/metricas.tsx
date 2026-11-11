@@ -35,6 +35,7 @@ import {
 } from '@/lib/format'
 import { formatearEnArg } from '@/lib/tiempoArg'
 import { esMotorizado } from '@/lib/activityDefaults'
+import { abrirRepetirEntrenamiento } from '@/lib/nuevoViaje'
 import {
   obtenerMetricasIndividuales,
   type MetricasIndividualesApi,
@@ -291,6 +292,19 @@ export default function MetricasScreen() {
                   Con tu próxima sesión vas a ver la evolución acá.
                 </Text>
               )}
+
+              {/* RN-066: repetir esta sesión (mismo recorrido, con esta traza como fantasma). */}
+              {viaje && !esMoto ? (
+                <Btn
+                  variant="outline"
+                  block
+                  icon="repeat"
+                  onPress={() => abrirRepetirEntrenamiento(viaje.id)}
+                  style={{ marginTop: 12 }}
+                >
+                  Repetir este entrenamiento
+                </Btn>
+              ) : null}
             </>
           ) : null}
 

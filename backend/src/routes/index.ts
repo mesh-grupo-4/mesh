@@ -10,6 +10,7 @@ import { lugaresRouter } from '../modules/lugares/lugares.router'
 import { routingRouter } from '../modules/routing/routing.router'
 import { usuariosRouter } from '../modules/usuarios/usuarios.router'
 import { viajesRouter } from '../modules/viajes/viajes.router'
+import { entrenamientosRouter } from '../modules/entrenamientos/entrenamientos.router'
 import {
   rutasCompartidasRouter,
   rutasPlantillaRouter,
@@ -43,6 +44,7 @@ export const montajes = [
   { prefijo: '/tabla-posiciones', router: tablaPosicionesRouter },
   { prefijo: '/recorridos-publicados', router: recorridosPublicadosRouter },
   { prefijo: '/viajes', router: viajesRouter },
+  { prefijo: '/entrenamientos', router: entrenamientosRouter },
   { prefijo: '/rutas-compartidas', router: rutasCompartidasRouter },
   { prefijo: '/rutas-plantilla', router: rutasPlantillaRouter },
   // Antes que '/admin': si no, sus requests pasarían también por el guard de adminRouter.

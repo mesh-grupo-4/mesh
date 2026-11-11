@@ -400,6 +400,11 @@ export default function ViajeLiveScreen() {
     fechaInicioReal: viaje?.fecha_inicio_real ?? null,
     miDistanciaM: distanceM,
     habilitado: Boolean(permiteComparar),
+    // RN-066: quien repite una sesión corre contra su propia traza de esa vez.
+    refAutomatica:
+      viaje?.repite_viaje_id && backendUserId && viaje.creador_id === backendUserId
+        ? `viaje:${viaje.repite_viaje_id}:${backendUserId}`
+        : null,
   })
 
   // RN-071: leaderboard en vivo solo en competitivo.

@@ -9,7 +9,7 @@ type Props = {
   onChange: (modo: ModoViajeApi) => void
   /** RN-071 / RN-070: competir exige viaje grupal y nunca vehículo motorizado. */
   puedeCompetir: boolean
-  /** Ajusta el texto de entrenamiento: en moto/auto no hay ritmo en vivo. */
+  /** RN-065 / RN-070: en moto y auto tampoco hay modo entrenamiento. */
   motorizado?: boolean
 }
 
@@ -19,10 +19,8 @@ const OPCIONES: { id: ModoViajeApi; label: string }[] = [
   { id: 'competitivo', label: 'Competitivo' },
 ]
 
-function detalleModo(modo: ModoViajeApi, motorizado: boolean): string {
-  if (modo === 'entrenamiento') {
-    return motorizado ? 'Splits y evolución de tus sesiones.' : 'Ritmo en vivo, splits y evolución.'
-  }
+function detalleModo(modo: ModoViajeApi): string {
+  if (modo === 'entrenamiento') return 'Ritmo en vivo, splits y evolución de tus sesiones.'
   if (modo === 'competitivo') return 'Clasificación en vivo y recap con puestos.'
   return 'Navegación y alertas, sin comparaciones.'
 }
@@ -35,7 +33,8 @@ export function SelectorModo({ modo, onChange, puedeCompetir, motorizado = false
       <View style={[styles.segmentos, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         {OPCIONES.map((o) => {
           const activo = modo === o.id
-          const bloqueado = o.id === 'competitivo' && !puedeCompetir
+          const bloqueado =
+            (o.id === 'competitivo' && !puedeCompetir) || (o.id === 'entrenamiento' && motorizado)
           return (
             <Pressable
               key={o.id}
@@ -61,7 +60,7 @@ export function SelectorModo({ modo, onChange, puedeCompetir, motorizado = false
           )
         })}
       </View>
-      <Text style={[styles.detalle, { color: theme.textDim }]}>{detalleModo(modo, motorizado)}</Text>
+      <Text style={[styles.detalle, { color: theme.textDim }]}>{detalleModo(modo)}</Text>
     </View>
   )
 }

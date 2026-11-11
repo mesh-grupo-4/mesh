@@ -74,7 +74,9 @@ function plural(n: number, singular: string, pluralTxt: string): string {
  * (actividad → cuándo → recorrido → con quién) y un resumen final con lo
  * avanzado (modo y parámetros) en valores por defecto. Desde el resumen se
  * vuelve a cualquier paso y al confirmarlo se regresa directo al resumen.
- * Con una ruta de "Mis rutas" no se pregunta actividad ni recorrido: los trae la ruta.
+ * Con una ruta de "Mis rutas" o al repetir una sesión de entrenamiento (RN-066) no se
+ * pregunta actividad ni recorrido: ya vienen. Desde la tab Entrenar llega con
+ * `modo=entrenamiento` y arranca individual.
  */
 export default function CrearViajeScreen() {
   const theme = useTheme()
@@ -84,8 +86,19 @@ export default function CrearViajeScreen() {
     plantillaId?: string | string[]
     tipoActividad?: string | string[]
     grupo?: string | string[]
+    modo?: string | string[]
+    repetirViajeId?: string | string[]
+    recorrido?: string | string[]
+    nombre?: string | string[]
   }>()
   const plantillaId = paramTexto(params.plantillaId) ?? null
+  // RN-066: repetir una sesión de entrenamiento; el backend fija modo, actividad y recorrido.
+  const repetirViajeId = paramTexto(params.repetirViajeId) ?? null
+  const recorridoRepetir = paramTexto(params.recorrido) === 'planificado' ? 'planificado' : 'real'
+  /** El recorrido ya viene dado (ruta guardada o sesión repetida): no se elige actividad ni ruta. */
+  const recorridoDado = Boolean(plantillaId || repetirViajeId)
+  /** Se abrió desde la tab Entrenar (o repitiendo): es un entrenamiento desde el arranque. */
+  const esEntrenamientoDeEntrada = Boolean(repetirViajeId) || paramTexto(params.modo) === 'entrenamiento'
   const grupoInicial = paramTexto(params.grupo) ?? null
   const tipoDesdePlantilla = useMemo(() => {
     const raw = paramTexto(params.tipoActividad)
@@ -94,10 +107,10 @@ export default function CrearViajeScreen() {
 
   const pasos = useMemo<Paso[]>(
     () =>
-      plantillaId
+      recorridoDado
         ? ['cuando', 'invitados', 'resumen']
         : ['actividad', 'cuando', 'recorrido', 'invitados', 'resumen'],
-    [plantillaId]
+    [recorridoDado]
   )
   const [paso, setPaso] = useState<Paso>(pasos[0]!)
   /** Se entró a un paso tocando una fila del resumen: al confirmarlo se vuelve ahí. */
@@ -106,20 +119,24 @@ export default function CrearViajeScreen() {
   const [grupos, setGrupos] = useState<GrupoListItemApi[]>([])
   const [amigos, setAmigos] = useState<AmigoApi[]>([])
   const [cargandoInvitables, setCargandoInvitables] = useState(true)
-  const [nombre, setNombre] = useState('')
+  const [nombre, setNombre] = useState(() => (repetirViajeId ? (paramTexto(params.nombre) ?? '') : ''))
   const [nombreFocus, setNombreFocus] = useState(false)
-  const [tipoActividad, setTipoActividad] = useState<TipoActividadApi>(() =>
-    tipoDesdePlantilla ?? actividadInicialDesdePerfil(profile?.actividadPreferida)
-  )
-  const [esGrupal, setEsGrupal] = useState(true)
+  const [tipoActividad, setTipoActividad] = useState<TipoActividadApi>(() => {
+    const inicial = tipoDesdePlantilla ?? actividadInicialDesdePerfil(profile?.actividadPreferida)
+    // RN-070: desde Entrenar no se puede arrancar en moto ni auto, aunque sea la preferida.
+    return esEntrenamientoDeEntrada && esMotorizado(inicial) ? 'running' : inicial
+  })
+  // Un entrenamiento arranca individual; después se puede invitar gente.
+  const [esGrupal, setEsGrupal] = useState(!esEntrenamientoDeEntrada)
   // RN-065: entrenamiento muestra ritmo en vivo y métricas de sesión al cerrar.
-  const [modo, setModo] = useState<ModoViajeApi>('recreativo')
-  // RN-071 / RN-070: competir exige grupo y nunca vehículo motorizado.
+  const [modo, setModo] = useState<ModoViajeApi>(esEntrenamientoDeEntrada ? 'entrenamiento' : 'recreativo')
+  // RN-071 / RN-070: competir exige grupo y nunca vehículo motorizado; entrenar tampoco en moto/auto.
   const motorizado = esMotorizado(tipoActividad)
   const puedeCompetir = esGrupal && !motorizado
   useEffect(() => {
     if (!puedeCompetir && modo === 'competitivo') setModo('recreativo')
-  }, [puedeCompetir, modo])
+    if (motorizado && modo === 'entrenamiento') setModo('recreativo')
+  }, [puedeCompetir, motorizado, modo])
   const [gruposSeleccionados, setGruposSeleccionados] = useState<Set<string>>(
     () => new Set(grupoInicial ? [grupoInicial] : [])
   )
@@ -129,7 +146,7 @@ export default function CrearViajeScreen() {
   const [pickerMode, setPickerMode] = useState<'date' | 'time'>('date')
   const [guardando, setGuardando] = useState(false)
   // Con plantilla ya hay una ruta precargada: se va directo a revisarla/ajustarla.
-  const [conRecorrido, setConRecorrido] = useState(() => Boolean(plantillaId))
+  const [conRecorrido, setConRecorrido] = useState(() => recorridoDado)
   // RN-025: overrides del líder sobre los defaults de la actividad. Como texto,
   // para que el usuario pueda borrar y reescribir; se valida al crear.
   const [paramsEdit, setParamsEdit] = useState<{
@@ -351,6 +368,7 @@ export default function CrearViajeScreen() {
           modo,
           fechaProgramada: fecha,
           rutaPlantillaId: plantillaId,
+          repetir: repetirViajeId ? { viajeId: repetirViajeId, recorrido: recorridoRepetir } : null,
           ...parametros,
         },
         userId
@@ -384,9 +402,11 @@ export default function CrearViajeScreen() {
     return partes.length ? `Grupal · ${partes.join(' · ')}` : 'Grupal · sumás gente después por QR o link'
   })()
 
-  const textoRecorrido = plantillaId
-    ? 'Ruta de Mis rutas (la podés ajustar)'
-    : conRecorrido
+  const textoRecorrido = repetirViajeId
+    ? `${recorridoRepetir === 'planificado' ? 'Lo planificado' : 'Lo que hiciste'} en esa sesión (lo podés ajustar)`
+    : plantillaId
+      ? 'Ruta de Mis rutas (la podés ajustar)'
+      : conRecorrido
       ? 'Lo trazás después de crear el viaje'
       : 'Sin recorrido'
 
@@ -402,7 +422,12 @@ export default function CrearViajeScreen() {
       <>
         <Text style={[styles.titulo, { color: theme.text }]}>¿Qué actividad?</Text>
         <PasoAyuda {...AYUDA_VIAJE_CREAR[0]!}>
-          <ActividadGrid seleccionada={tipoActividad} onElegir={elegirActividad} />
+          <ActividadGrid
+            seleccionada={tipoActividad}
+            onElegir={elegirActividad}
+            // RN-070: desde Entrenar no se ofrece moto ni auto.
+            deshabilitada={esEntrenamientoDeEntrada ? esMotorizado : undefined}
+          />
         </PasoAyuda>
       </>
     )
@@ -594,7 +619,7 @@ export default function CrearViajeScreen() {
             leading={<ActivityTile activity={tipoActividad} size={30} />}
             etiqueta="Actividad"
             valor={etiquetaActividad(tipoActividad)}
-            onPress={plantillaId ? undefined : () => editarPaso('actividad')}
+            onPress={recorridoDado ? undefined : () => editarPaso('actividad')}
           />
           <FilaResumen
             icon="calendar"
@@ -607,7 +632,7 @@ export default function CrearViajeScreen() {
             icon="map"
             etiqueta="Recorrido"
             valor={textoRecorrido}
-            onPress={plantillaId ? undefined : () => editarPaso('recorrido')}
+            onPress={recorridoDado ? undefined : () => editarPaso('recorrido')}
           />
           <FilaResumen
             icon={esGrupal ? 'users' : 'user'}
@@ -620,14 +645,23 @@ export default function CrearViajeScreen() {
 
         {/* RN-065 (SCRUM-48): modo del viaje. */}
         <Text style={[styles.etiqueta, { color: theme.textDim }]}>Modo</Text>
-        <SelectorModo modo={modo} onChange={setModo} puedeCompetir={puedeCompetir} motorizado={motorizado} />
-        {!puedeCompetir ? (
+        {repetirViajeId ? (
+          // RN-066: una repetición siempre es un entrenamiento.
           <Text style={[styles.hint, { color: theme.textDim }]}>
-            {motorizado
-              ? 'En moto y auto no hay modo competitivo ni comparaciones de velocidad (seguridad vial).'
-              : 'El modo competitivo necesita un viaje en grupo.'}
+            Entrenamiento. En el mapa vas a ver tu sesión anterior como fantasma.
           </Text>
-        ) : null}
+        ) : (
+          <>
+            <SelectorModo modo={modo} onChange={setModo} puedeCompetir={puedeCompetir} motorizado={motorizado} />
+            {!puedeCompetir ? (
+              <Text style={[styles.hint, { color: theme.textDim }]}>
+                {motorizado
+                  ? 'En moto y auto no hay modo competitivo ni entrenamiento (seguridad vial).'
+                  : 'El modo competitivo necesita un viaje en grupo.'}
+              </Text>
+            ) : null}
+          </>
+        )}
 
         {/* RN-025 (SCRUM-26): el líder ajusta los parámetros del grupo. */}
         <View style={styles.parametros}>
@@ -704,7 +738,7 @@ export default function CrearViajeScreen() {
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <TopBar
-        title="Planificar viaje"
+        title={repetirViajeId ? 'Repetir entrenamiento' : esEntrenamientoDeEntrada ? 'Planificar entrenamiento' : 'Planificar viaje'}
         sub={`Paso ${indicePaso + 1} de ${pasos.length}`}
         bordered={false}
         onBack={retroceder}
@@ -718,6 +752,16 @@ export default function CrearViajeScreen() {
           />
         ))}
       </View>
+
+      {repetirViajeId && paso !== 'resumen' ? (
+        <View style={[styles.aviso, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <Feather name="repeat" size={18} color={theme.accent} />
+          <Text style={[styles.avisoTexto, { color: theme.textDim }]}>
+            Repetís {recorridoRepetir === 'planificado' ? 'la ruta planificada' : 'lo que hiciste'} en esa
+            sesión ({etiquetaActividad(tipoActividad)}). Podés ajustarla después.
+          </Text>
+        </View>
+      ) : null}
 
       {plantillaId && paso !== 'resumen' ? (
         <View style={[styles.aviso, { backgroundColor: theme.surface, borderColor: theme.border }]}>

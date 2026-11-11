@@ -1,0 +1,258 @@
+# Módulo Entrenamientos — src/modules/entrenamientos/
+# Router: top-level (entrenamientos.router.ts) · Controller: entrenamientos.controller.ts
+#
+# Entrenamientos como serie (RN-066). Una sesión es un viaje finalizado en modo
+# `entrenamiento` (RN-065), no motorizado (RN-070), donde quien consulta tiene
+# métricas. Los circuitos agrupan sesiones de un mismo recorrido y son de cada
+# persona: se forman al repetir una sesión (`POST /api/viajes` con `repetir`) o al
+# salir varias veces desde la misma ruta guardada (`rutaPlantillaId`).
+#
+# Todo es de quien consulta: nunca se devuelven métricas ni posiciones ajenas.
+
+SesionesColeccion:
+  get:
+    operationId: listarSesionesEntrenamiento
+    summary: Listar mis sesiones de entrenamiento
+    description: |
+      Sesiones propias, de la más nueva a la más vieja (hasta 200). Incluye las de
+      entrenamientos armados por otra persona en los que se participó.
+    tags:
+      - Entrenamientos
+    parameters:
+      - name: tipoActividad
+        in: query
+        required: false
+        description: Filtra por actividad. Moto y auto no tienen entrenamiento (RN-070).
+        schema:
+          type: string
+          enum: [bici, running, trekking, otro]
+      - name: circuitoId
+        in: query
+        required: false
+        description: Solo las sesiones de ese circuito propio.
+        schema:
+          type: string
+          format: uuid
+    responses:
+      '200':
+        description: Sesiones de quien consulta.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/SesionEntrenamiento'
+            example:
+              - viaje_id: 3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d
+                nombre: Vuelta al lago
+                tipo_actividad: running
+                fecha_fin_real: '2026-11-10T11:02:00.000Z'
+                es_creador: true
+                distancia_m: 8200
+                tiempo_movimiento_seg: 2558
+                velocidad_promedio_kmh: 11.5
+                pace_min_km: 5.2
+                circuito:
+                  id: 5b1d7c2e-9a4f-4c3b-8e6d-2f1a0b9c8d7e
+                  nombre: Vuelta al lago
+                repetir:
+                  planificado: true
+                  real: true
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+SesionRecurso:
+  get:
+    operationId: obtenerSesionEntrenamiento
+    summary: Ver una sesión de entrenamiento propia
+    description: |
+      La usa "Repetir" para saber qué recorridos ofrecer (`repetir.planificado`,
+      `repetir.real`) y a qué circuito pertenece la sesión.
+    tags:
+      - Entrenamientos
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '200':
+        description: La sesión.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/SesionEntrenamiento'
+            example:
+              viaje_id: 3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d
+              nombre: Vuelta al lago
+              tipo_actividad: running
+              fecha_fin_real: '2026-11-10T11:02:00.000Z'
+              es_creador: true
+              distancia_m: 8200
+              tiempo_movimiento_seg: 2558
+              velocidad_promedio_kmh: 11.5
+              pace_min_km: 5.2
+              circuito: null
+              repetir:
+                planificado: false
+                real: true
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '404':
+        description: |
+          El viaje no es una sesión de entrenamiento de quien consulta
+          (`SESION_NOT_FOUND`): no existe, no finalizó, no es modo `entrenamiento`,
+          es motorizado o no tiene métricas propias en él.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Sesión de entrenamiento no encontrada
+              code: SESION_NOT_FOUND
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+CircuitosColeccion:
+  get:
+    operationId: listarCircuitosEntrenamiento
+    summary: Listar mis circuitos de entrenamiento
+    description: |
+      Circuitos propios con su evolución (últimas 6 sesiones), ordenados por la
+      sesión más reciente. Un circuito que todavía no tiene sesiones finalizadas
+      no se lista.
+    tags:
+      - Entrenamientos
+    parameters:
+      - name: tipoActividad
+        in: query
+        required: false
+        description: Filtra por actividad. Moto y auto no tienen entrenamiento (RN-070).
+        schema:
+          type: string
+          enum: [bici, running, trekking, otro]
+    responses:
+      '200':
+        description: Circuitos de quien consulta.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/CircuitoEntrenamiento'
+            example:
+              - id: 5b1d7c2e-9a4f-4c3b-8e6d-2f1a0b9c8d7e
+                nombre: Vuelta al lago
+                tipo_actividad: running
+                ruta_plantilla_id: null
+                total_sesiones: 2
+                mejor_pace_min_km: 5.2
+                mejor_distancia_m: 8200
+                ultima_sesion_viaje_id: 3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d
+                ultima_sesion_fecha: '2026-11-10T11:02:00.000Z'
+                evolucion:
+                  - viaje_id: 1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d
+                    nombre: Vuelta al lago
+                    fecha_fin_real: '2026-11-05T11:10:00.000Z'
+                    distancia_m: 8100
+                    tiempo_movimiento_seg: 2592
+                    pace_min_km: 5.33
+                  - viaje_id: 3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d
+                    nombre: Vuelta al lago
+                    fecha_fin_real: '2026-11-10T11:02:00.000Z'
+                    distancia_m: 8200
+                    tiempo_movimiento_seg: 2558
+                    pace_min_km: 5.2
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+CircuitoRecurso:
+  patch:
+    operationId: renombrarCircuitoEntrenamiento
+    summary: Renombrar un circuito propio
+    description: El nombre es de quien lo edita; no cambia el nombre de ningún viaje.
+    tags:
+      - Entrenamientos
+    parameters:
+      - $ref: '../components/parameters.yaml#/CircuitoId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/RenombrarCircuitoRequest'
+          example:
+            nombre: Vuelta al lago
+    responses:
+      '200':
+        description: Circuito renombrado.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/CircuitoRenombrado'
+            example:
+              id: 5b1d7c2e-9a4f-4c3b-8e6d-2f1a0b9c8d7e
+              nombre: Vuelta al lago
+              tipo_actividad: running
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '404':
+        description: El circuito no existe o es de otra persona (`CIRCUITO_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Circuito no encontrado
+              code: CIRCUITO_NOT_FOUND
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+CircuitoSesion:
+  delete:
+    operationId: sacarSesionDeCircuito
+    summary: Sacar una sesión de un circuito propio
+    description: |
+      La sesión queda suelta: sigue en la lista de sesiones y en la evolución por
+      actividad. Si el circuito se queda sin sesiones, se elimina. No borra el
+      viaje ni sus métricas.
+    tags:
+      - Entrenamientos
+    parameters:
+      - $ref: '../components/parameters.yaml#/CircuitoId'
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '204':
+        description: Sesión sacada del circuito.
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '404':
+        description: |
+          El circuito no existe o es de otra persona (`CIRCUITO_NOT_FOUND`), o la
+          sesión no está en ese circuito (`SESION_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            examples:
+              circuito:
+                value:
+                  error: Circuito no encontrado
+                  code: CIRCUITO_NOT_FOUND
+              sesion:
+                value:
+                  error: Esa sesión no está en el circuito
+                  code: SESION_NOT_FOUND
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
