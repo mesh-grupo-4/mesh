@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import { BlurView } from 'expo-blur'
 import { BottomTabBar, type BottomTabBarProps } from 'expo-router/js-tabs'
-import { StyleSheet, useWindowDimensions, View } from 'react-native'
+import { StyleSheet, useColorScheme, useWindowDimensions, View } from 'react-native'
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -88,7 +88,36 @@ export function MeshTabBar(props: BottomTabBarProps) {
     return next
   }, [props.descriptors, props.state.routes, index, total, ancho, bottom])
 
-  return <BottomTabBar {...props} descriptors={descriptors} />
+  return (
+    <>
+      <FranjaInferior ruta={props.state.routes[index]!.name} alto={bottom + TAB_BAR_ALTO / 2} />
+      <BottomTabBar {...props} descriptors={descriptors} />
+    </>
+  )
+}
+
+/**
+ * Desenfoca el contenido que queda entre la cápsula y el borde de la pantalla.
+ * Sube hasta la mitad de la cápsula para que el corte quede escondido detrás de ella.
+ */
+function FranjaInferior({ ruta, alto }: { ruta: string; alto: number }) {
+  const objetivoBlur = useBlurTargetTab(ruta)
+  const claro = useColorScheme() === 'light'
+  const fondo = claro ? Colors.light.background : Colors.dark.background
+
+  return (
+    <View pointerEvents="none" style={[styles.franja, { height: alto }]}>
+      <BlurView
+        key={ruta}
+        tint={claro ? 'light' : 'dark'}
+        intensity={40}
+        blurMethod={objetivoBlur ? 'dimezisBlurViewSdk31Plus' : 'none'}
+        blurTarget={objetivoBlur}
+        style={StyleSheet.absoluteFill}
+      />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: `${fondo}94` }]} />
+    </View>
+  )
 }
 
 const styles = StyleSheet.create({
@@ -130,6 +159,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.12)',
   },
+  franja: { position: 'absolute', left: 0, right: 0, bottom: 0, overflow: 'hidden' },
   icono: { width: 26, height: 22 },
   label: { fontSize: 11, fontWeight: '600' },
 })

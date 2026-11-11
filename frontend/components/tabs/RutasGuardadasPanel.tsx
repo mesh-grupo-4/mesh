@@ -121,14 +121,16 @@ export function RutasGuardadasPanel() {
         </BarraFiltros>
       }
       renderItem={({ item }) => (
-        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-          <Pressable
-            onPress={() =>
-              router.push({ pathname: '/rutas-guardadas/[plantillaId]', params: { plantillaId: item.id } })
-            }
-            accessibilityRole="button"
-            accessibilityLabel={`Ver ruta ${item.nombre}`}
-          >
+        // Toda la tarjeta abre el detalle; los botones de abajo capturan su propio toque.
+        <Pressable
+          style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}
+          onPress={() =>
+            router.push({ pathname: '/rutas-guardadas/[plantillaId]', params: { plantillaId: item.id } })
+          }
+          accessibilityRole="button"
+          accessibilityLabel={`Ver ruta ${item.nombre}`}
+        >
+          <View>
             <Text style={[styles.nombre, { color: theme.text }]} numberOfLines={2}>
               {item.nombre}
             </Text>
@@ -138,7 +140,7 @@ export function RutasGuardadasPanel() {
               {item.tiempo_estimado_seg != null ? ` · ${formatDurationHm(item.tiempo_estimado_seg)}` : ''}
               {item.con_checklist ? ' · con checklist' : ''}
             </Text>
-          </Pressable>
+          </View>
           <View style={styles.row}>
             <Btn
               variant="primary"
@@ -157,7 +159,7 @@ export function RutasGuardadasPanel() {
               onPress={() => quitar(item)}
             />
           </View>
-        </View>
+        </Pressable>
       )}
       ListEmptyComponent={
         <Text style={[styles.empty, { color: theme.textDim }]}>
