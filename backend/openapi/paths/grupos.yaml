@@ -15,7 +15,10 @@ GruposColeccion:
     description: |
       Grupos donde el usuario es líder o integrante, del más reciente al más antiguo.
       Cada elemento trae `mi_rol` y `cantidad_miembros` resueltos, para no tener que
-      pedir el detalle de cada uno.
+      pedir el detalle de cada uno, más lo que muestra la tarjeta del listado:
+      `miembros_preview` (hasta 3, sin el propio usuario), `viaje_en_curso` y
+      `proximo_viaje` (planificado con fecha futura más cercana). Solo se consideran
+      viajes que el usuario creó o integra como confirmado o pendiente.
     tags:
       - Grupos
     responses:
@@ -34,12 +37,29 @@ GruposColeccion:
                 lider_id: 8f14e45f-ceea-4c1e-9b1a-3d5c7a2e6b04
                 cantidad_miembros: 12
                 mi_rol: lider
+                miembros_preview:
+                  - id: 2c9a7d61-4e83-4b2f-9a17-6d0e5b8c1f23
+                    nombre: Lucía Ferreyra
+                  - id: 9d2e4b71-5c3a-4f86-a1e0-7b6c8d2f4e19
+                    nombre: Martín Sosa
+                viaje_en_curso:
+                  id: 4e7a1c93-2b5d-4f80-9a6e-1c3d5b7f9a02
+                  nombre: Altas Cumbres
+                proximo_viaje: null
               - id: c14f7a92-8d3b-4e15-9f60-2a7c5b8e0d43
                 nombre: Amigos del asfalto
                 fecha_creacion: '2026-05-03T22:08:19.760Z'
                 lider_id: 2c9a7d61-4e83-4b2f-9a17-6d0e5b8c1f23
                 cantidad_miembros: 5
                 mi_rol: participante
+                miembros_preview:
+                  - id: 2c9a7d61-4e83-4b2f-9a17-6d0e5b8c1f23
+                    nombre: Lucía Ferreyra
+                viaje_en_curso: null
+                proximo_viaje:
+                  id: 7f3b2d18-6a4c-4e91-b5d0-3e8a1c6f2b47
+                  nombre: Sierras Chicas
+                  fecha_programada: '2026-11-15T11:00:00.000Z'
       '401':
         $ref: '../components/responses.yaml#/Unauthorized'
       '500':

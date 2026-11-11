@@ -94,7 +94,10 @@ export function usePushNotifications(backendUserId: string | null) {
         } else if (data?.tipo === 'invitacion_grupo' || data?.tipo === 'solicitud_amistad') {
           router.navigate({
             pathname: '/(tabs)/grupos',
-            params: { tab: data.tipo === 'solicitud_amistad' ? 'amigos' : 'grupos' },
+            params: {
+              tab: data.tipo === 'solicitud_amistad' ? 'amigos' : 'grupos',
+              abrir: 'notificaciones',
+            },
           })
         }
       })

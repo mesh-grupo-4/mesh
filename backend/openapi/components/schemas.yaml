@@ -1122,7 +1122,10 @@ GrupoBase:
 
 GrupoResumen:
   type: object
-  description: Grupo en el listado del usuario, con su rol y el total de integrantes.
+  description: |
+    Grupo en el listado del usuario, con su rol, el total de integrantes y lo
+    necesario para la tarjeta: vista previa de miembros y estado de sus viajes.
+    Los viajes se limitan a los que el usuario creó o integra (confirmado o pendiente).
   required:
     - id
     - nombre
@@ -1130,6 +1133,9 @@ GrupoResumen:
     - lider_id
     - cantidad_miembros
     - mi_rol
+    - miembros_preview
+    - viaje_en_curso
+    - proximo_viaje
   properties:
     id:
       type: string
@@ -1148,6 +1154,56 @@ GrupoResumen:
       example: 8
     mi_rol:
       $ref: '#/RolMiembro'
+    miembros_preview:
+      type: array
+      description: Hasta 3 integrantes (los primeros en sumarse), sin incluir al usuario que pide.
+      maxItems: 3
+      items:
+        type: object
+        required:
+          - id
+          - nombre
+        properties:
+          id:
+            type: string
+            format: uuid
+          nombre:
+            type: string
+        additionalProperties: false
+    viaje_en_curso:
+      type: object
+      nullable: true
+      description: Viaje del grupo que está en curso, o `null` si no hay ninguno.
+      required:
+        - id
+        - nombre
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+          nullable: true
+      additionalProperties: false
+    proximo_viaje:
+      type: object
+      nullable: true
+      description: Viaje planificado con fecha futura más cercana, o `null`.
+      required:
+        - id
+        - nombre
+        - fecha_programada
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+          nullable: true
+        fecha_programada:
+          type: string
+          format: date-time
+      additionalProperties: false
   additionalProperties: false
 
 GrupoDetalle:

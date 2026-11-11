@@ -28,6 +28,9 @@ const grupoSelect = {
   lider_id: true,
 } as const
 
+/** Integrantes que se muestran como avatares en la tarjeta del listado. */
+const MIEMBROS_PREVIEW = 3
+
 /** También lo usa el backoffice (RN-125) para reasignar el líder de un grupo. */
 export async function transferirLiderazgo(
   tx: TransactionClient,
@@ -103,6 +106,7 @@ export class GruposService {
   }
 
   async listarParaUsuario(usuarioId: string) {
+    const ahora = new Date()
     const grupos = await this.prisma.grupo.findMany({
       where: {
         OR: [
@@ -112,25 +116,73 @@ export class GruposService {
       },
       select: {
         ...grupoSelect,
+        // Vista previa para la tarjeta: los primeros en sumarse, sin incluir a quien pide.
         miembros: {
-          where: { usuario_id: usuarioId },
-          select: { rol: true },
+          where: { usuario_id: { not: usuarioId } },
+          orderBy: { fecha_union: 'asc' },
+          take: MIEMBROS_PREVIEW,
+          select: { usuario: { select: { id: true, nombre: true } } },
+        },
+        // Solo viajes que el usuario puede abrir: los creó o es integrante vigente.
+        viajes: {
+          where: {
+            viaje: {
+              OR: [
+                { estado: 'en_curso' },
+                { estado: 'planificado', fecha_programada: { gte: ahora } },
+              ],
+              AND: {
+                OR: [
+                  { creador_id: usuarioId },
+                  {
+                    integrantes: {
+                      some: { usuario_id: usuarioId, estado: { in: ['confirmado', 'pendiente'] } },
+                    },
+                  },
+                ],
+              },
+            },
+          },
+          select: {
+            viaje: {
+              select: { id: true, nombre: true, estado: true, fecha_programada: true },
+            },
+          },
         },
         _count: { select: { miembros: true } },
       },
       orderBy: { fecha_creacion: 'desc' },
     })
 
-    return grupos.map((g) => ({
-      id: g.id,
-      nombre: g.nombre,
-      fecha_creacion: g.fecha_creacion,
-      lider_id: g.lider_id,
-      cantidad_miembros: g._count.miembros,
-      mi_rol: (g.lider_id === usuarioId ? 'lider' : g.miembros[0]?.rol ?? 'participante') as
-        | 'lider'
-        | 'participante',
-    }))
+    const misMembresias = await this.prisma.grupoMiembro.findMany({
+      where: { usuario_id: usuarioId, grupo_id: { in: grupos.map((g) => g.id) } },
+      select: { grupo_id: true, rol: true },
+    })
+    const miRolPorGrupo = new Map(misMembresias.map((m) => [m.grupo_id, m.rol]))
+
+    return grupos.map((g) => {
+      const viajes = g.viajes.map((vg) => vg.viaje)
+      const enCurso = viajes.find((v) => v.estado === 'en_curso')
+      const proximo = viajes
+        .filter((v) => v.estado === 'planificado')
+        .sort((a, b) => a.fecha_programada.getTime() - b.fecha_programada.getTime())[0]
+
+      return {
+        id: g.id,
+        nombre: g.nombre,
+        fecha_creacion: g.fecha_creacion,
+        lider_id: g.lider_id,
+        cantidad_miembros: g._count.miembros,
+        mi_rol: (g.lider_id === usuarioId
+          ? 'lider'
+          : miRolPorGrupo.get(g.id) ?? 'participante') as 'lider' | 'participante',
+        miembros_preview: g.miembros.map((m) => m.usuario),
+        viaje_en_curso: enCurso ? { id: enCurso.id, nombre: enCurso.nombre } : null,
+        proximo_viaje: proximo
+          ? { id: proximo.id, nombre: proximo.nombre, fecha_programada: proximo.fecha_programada }
+          : null,
+      }
+    })
   }
 
   async detalleParaMiembro(usuarioId: string, grupoId: string) {

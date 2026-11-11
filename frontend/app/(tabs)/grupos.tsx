@@ -5,15 +5,13 @@ import {
   Text,
   StyleSheet,
   ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
   RefreshControl,
 } from 'react-native';
 import { Pressable } from '@/components/Pressable';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { resolveBackendUserId } from '@/lib/apiClient';
-import { formatearEnArg } from '@/lib/tiempoArg';
+import { formatearHaceCuanto } from '@/lib/tiempoArg';
 import {
   crearGrupo,
   eliminarGrupo,
@@ -28,11 +26,9 @@ import { useCopilot } from 'react-native-copilot';
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda';
 import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda'
 import { AYUDA_GRUPOS } from '@/components/ayuda/contenidoAyuda';
-import { SelectableCard } from '@/components/SelectableCard';
 import { SelectionActionBar } from '@/components/SelectionActionBar';
 import { BotonSeleccionar, SelectionHeader } from '@/components/SelectionHeader';
 import { useSelectionMode } from '@/hooks/useSelectionMode';
-import { useAtrasAndroid } from '@/hooks/useVolver';
 import {
   bulkDeleteSummary,
   formatItemList,
@@ -41,67 +37,56 @@ import {
 import { meshAlert, meshConfirmDestructive, meshError, meshWarning } from '@/lib/meshAlert';
 import { Feather } from '@expo/vector-icons';
 import { SegmentTabs } from '@/components/SegmentTabs';
-import {
-  BarraFiltros,
-  BuscadorFiltros,
-  ChipFiltro,
-  FilaChipsFiltro,
-} from '@/components/BarraFiltros';
+import { BarraFiltros, BuscadorFiltros } from '@/components/BarraFiltros';
 import { AmigosTabPanel } from '@/components/tabs/AmigosTabPanel';
 import { coincideBusqueda, normalizarBusqueda } from '@/lib/busqueda';
-import { setInvitacionesPendientesCount } from '@/lib/pendientesStore';
+import { setInvitacionesPendientesCount, usePendientes } from '@/lib/pendientesStore';
+import { CampanitaNotificaciones } from '@/components/notificaciones/CampanitaNotificaciones';
+import { Destacado, FilaNotificacion } from '@/components/notificaciones/FilaNotificacion';
+import { HojaInferior } from '@/components/HojaInferior';
+import { EstadoVacio } from '@/components/EstadoVacio';
+import {
+  TarjetaGrupo,
+  TarjetaGrupoEsqueleto,
+  ordenarGrupos,
+} from '@/components/grupos/TarjetaGrupo';
+import { vibrarExito, vibrarSuave } from '@/lib/haptica';
 
 type SeccionGruposAmigos = 'grupos' | 'amigos';
 
-type FiltroRolGrupo = 'todos' | 'lider' | 'participante';
-
-const FILTROS_ROL: { id: FiltroRolGrupo; label: string }[] = [
-  { id: 'todos', label: 'Todos' },
-  { id: 'lider', label: 'Líder' },
-  { id: 'participante', label: 'Participante' },
-];
-
-function formatearFecha(iso: string): string {
-  return formatearEnArg(iso, {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
-}
-
-function getGroupColor(nombre: string): string {
-  const colors = ['#d76655', '#4a9eff', '#2f9e63', '#7a5ae0', '#c98a3e'];
-  const charSum = nombre.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
-  return colors[charSum % colors.length];
-}
+/** Con pocos grupos el buscador es ruido: aparece desde esta cantidad. */
+const UMBRAL_BUSCADOR = 6;
 
 export default function GruposScreen() {
   const espacioTabBar = useEspacioTabBar()
-  const { tab } = useLocalSearchParams<{ tab?: string }>();
+  const { tab, abrir } = useLocalSearchParams<{ tab?: string; abrir?: string }>();
   const { backendUserId, backendSyncing } = useAuth();
   const theme = useTheme();
   const { start } = useCopilot();
   const selection = useSelectionMode();
+  const pendientes = usePendientes();
   const [seccion, setSeccion] = useState<SeccionGruposAmigos>(tab === 'amigos' ? 'amigos' : 'grupos');
+  const [invitacionesAbiertas, setInvitacionesAbiertas] = useState(false);
+  const [solicitudesAbiertas, setSolicitudesAbiertas] = useState(false);
 
   useEffect(() => {
     if (tab === 'amigos') setSeccion('amigos');
     if (tab === 'grupos') setSeccion('grupos');
-  }, [tab]);
+    // Desde una notificación push: abrir directo la campanita que corresponde.
+    if (abrir === 'notificaciones') {
+      if (tab === 'amigos') setSolicitudesAbiertas(true);
+      else setInvitacionesAbiertas(true);
+      router.setParams({ abrir: undefined });
+    }
+  }, [tab, abrir]);
 
   const [grupos, setGrupos] = useState<GrupoListItemApi[]>([]);
   const [invitaciones, setInvitaciones] = useState<InvitacionPendienteApi[]>([]);
   const [cargandoLista, setCargandoLista] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [mostrarFormulario, setMostrarFormulario] = useState(false);
+  const [creandoAbierto, setCreandoAbierto] = useState(false);
   const [nombre, setNombre] = useState('');
   const [loading, setLoading] = useState(false);
-
-  useAtrasAndroid(mostrarFormulario, () => {
-    if (loading) return;
-    setMostrarFormulario(false);
-    setNombre('');
-  });
   const [respondiendoId, setRespondiendoId] = useState<string | null>(null);
   const [eliminandoBulk, setEliminandoBulk] = useState(false);
 
@@ -116,22 +101,17 @@ export default function GruposScreen() {
   );
 
   const [busqueda, setBusqueda] = useState('');
-  const [filtroRol, setFiltroRol] = useState<FiltroRolGrupo>('todos');
 
-  // Cambiar el filtro sale del modo selección: así nunca queda seleccionado un grupo oculto.
+  // Cambiar la búsqueda sale del modo selección: así nunca queda seleccionado un grupo oculto.
   const cambiarBusqueda = (texto: string) => {
     selection.exit();
     setBusqueda(texto);
   };
-  const cambiarFiltroRol = (rol: FiltroRolGrupo) => {
-    selection.exit();
-    setFiltroRol(rol);
-  };
 
   const consulta = normalizarBusqueda(busqueda);
-  const gruposVisibles = grupos.filter(
-    (g) =>
-      (filtroRol === 'todos' || g.mi_rol === filtroRol) && coincideBusqueda(consulta, [g.nombre])
+  const mostrarBuscador = grupos.length >= UMBRAL_BUSCADOR || busqueda.length > 0;
+  const gruposVisibles = ordenarGrupos(
+    grupos.filter((g) => coincideBusqueda(consulta, [g.nombre]))
   );
 
   const gruposEliminables = gruposVisibles.filter((g) => g.mi_rol === 'lider');
@@ -204,12 +184,12 @@ export default function GruposScreen() {
     else setCargandoLista(true);
 
     try {
-      const [data, pendientes] = await Promise.all([
+      const [data, pendientesApi] = await Promise.all([
         listarGrupos(userId),
         listarInvitacionesPendientes(userId),
       ]);
       setGrupos(data);
-      setInvitaciones(pendientes);
+      setInvitaciones(pendientesApi);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'No se pudieron cargar los grupos.';
       if (!esRefresh) {
@@ -220,6 +200,19 @@ export default function GruposScreen() {
       setRefreshing(false);
     }
   }, [backendUserId, backendSyncing]);
+
+  /** Al abrir la campanita: trae las invitaciones nuevas sin tocar el estado de carga de la lista. */
+  const abrirInvitaciones = () => {
+    setInvitacionesAbiertas(true);
+    try {
+      const userId = resolveBackendUserId(backendUserId);
+      void listarInvitacionesPendientes(userId)
+        .then(setInvitaciones)
+        .catch(() => {});
+    } catch {
+      // Sin usuario no hay nada que refrescar: queda la lista que ya estaba.
+    }
+  };
 
   const ejecutarRespuesta = async (invitacionId: string, accion: 'aceptar' | 'rechazar') => {
     let userId: string;
@@ -233,11 +226,19 @@ export default function GruposScreen() {
     setRespondiendoId(invitacionId);
     try {
       const resultado = await responderInvitacion(invitacionId, accion, userId);
-      await cargarGrupos(true);
+      const restantes = invitaciones.filter((i) => i.id !== invitacionId);
+      setInvitaciones(restantes);
 
       if (accion === 'aceptar') {
+        vibrarExito();
+        setInvitacionesAbiertas(false);
         router.push({ pathname: '/grupo/[grupoId]', params: { grupoId: resultado.grupo_id } });
+      } else {
+        vibrarSuave();
+        // Deja ver el fundido del último ítem antes de cerrar.
+        if (restantes.length === 0) setTimeout(() => setInvitacionesAbiertas(false), 250);
       }
+      void cargarGrupos(true);
     } catch (e: unknown) {
       meshError('Error', e instanceof Error ? e.message : 'No se pudo responder la invitación.');
     } finally {
@@ -250,6 +251,12 @@ export default function GruposScreen() {
       void cargarGrupos();
     }, [cargarGrupos])
   );
+
+  const cerrarCrear = () => {
+    if (loading) return;
+    setCreandoAbierto(false);
+    setNombre('');
+  };
 
   const handleCrear = async () => {
     if (!nombre.trim()) {
@@ -269,8 +276,8 @@ export default function GruposScreen() {
     try {
       const grupo = await crearGrupo(nombre.trim(), userId);
       setNombre('');
-      setMostrarFormulario(false);
-      await cargarGrupos();
+      setCreandoAbierto(false);
+      void cargarGrupos(true);
       router.push({ pathname: '/grupo/[grupoId]', params: { grupoId: grupo.id } });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : '';
@@ -307,15 +314,37 @@ export default function GruposScreen() {
     );
   }
 
+  const campanita =
+    seccion === 'grupos' ? (
+      <CampanitaNotificaciones
+        pendientes={pendientes.invitaciones}
+        etiqueta="Invitaciones a grupos"
+        onPress={abrirInvitaciones}
+      />
+    ) : (
+      <CampanitaNotificaciones
+        pendientes={pendientes.solicitudes}
+        etiqueta="Solicitudes de amistad"
+        onPress={() => setSolicitudesAbiertas(true)}
+      />
+    );
+
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <TopBar title="Grupos y amigos" raiz bordered={false} onAyuda={() => start()} />
+      <TopBar
+        title="Grupos y amigos"
+        raiz
+        bordered={false}
+        right={campanita}
+        onAyuda={() => start()}
+      />
       <PasoAyuda {...AYUDA_GRUPOS[0]!}>
         <View style={styles.segmentWrap}>
           <SegmentTabs
             tabs={[
-              { key: 'grupos', label: 'Grupos' },
-              { key: 'amigos', label: 'Amigos' },
+              // El punto avisa de pendientes en la otra pestaña, cuya campanita no está a la vista.
+              { key: 'grupos', label: 'Grupos', dot: seccion !== 'grupos' && pendientes.invitaciones > 0 },
+              { key: 'amigos', label: 'Amigos', dot: seccion !== 'amigos' && pendientes.solicitudes > 0 },
             ]}
             active={seccion}
             onChange={(key) => {
@@ -328,14 +357,13 @@ export default function GruposScreen() {
       </PasoAyuda>
 
       {seccion === 'amigos' ? (
-        <AmigosTabPanel />
+        <AmigosTabPanel
+          solicitudesAbiertas={solicitudesAbiertas}
+          onCerrarSolicitudes={() => setSolicitudesAbiertas(false)}
+          onAbrirSolicitudes={() => setSolicitudesAbiertas(true)}
+        />
       ) : (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      // `padding` en ambas plataformas: con `height`, Android dejaba la lista achicada
-      // después de cerrar el teclado.
-      behavior="padding"
-    >
+    <View style={styles.flex}>
       <ScrollViewAyuda
         contentContainerStyle={{ paddingBottom: espacioTabBar + 74 }}
         keyboardShouldPersistTaps="handled"
@@ -347,8 +375,7 @@ export default function GruposScreen() {
           />
         }
       >
-        {/* Barra de búsqueda y filtros (scrollea con la lista): mismo diseño que Viajes y Rutas. */}
-        {!mostrarFormulario && (
+        {mostrarBuscador && (
           <BarraFiltros>
             <BuscadorFiltros
               value={busqueda}
@@ -357,124 +384,33 @@ export default function GruposScreen() {
               accessibilityLabel="Buscar grupos"
               maxLength={60}
             />
-            <FilaChipsFiltro>
-              {FILTROS_ROL.map((f) => (
-                <ChipFiltro
-                  key={f.id}
-                  label={f.label}
-                  activo={filtroRol === f.id}
-                  onPress={() => cambiarFiltroRol(f.id)}
-                />
-              ))}
-            </FilaChipsFiltro>
           </BarraFiltros>
         )}
 
         <View style={styles.inner}>
-        {mostrarFormulario ? (
-          <View style={styles.formulario}>
-            <Text style={[styles.formularioTitle, { color: theme.text }]}>Nuevo grupo</Text>
-            <Text style={[styles.formularioSubtitle, { color: theme.textDim }]}>
-              Creá tu grupo para organizar salidas y coordinar en tiempo real.
-            </Text>
-            
-            <Field
-              label="Nombre del grupo *"
-              placeholder="Ej: Trail Riders Córdoba"
-              placeholderTextColor={theme.textMute}
-              value={nombre}
-              onChangeText={setNombre}
-              autoCapitalize="words"
-              maxLength={80}
-              editable={!loading}
-            />
-
-            <View style={styles.formActions}>
-              <Btn variant="primary" size="lg" block onPress={handleCrear} loading={loading}>
-                Crear grupo
-              </Btn>
-              <Btn
-                variant="ghost"
-                size="lg"
-                block
-                onPress={() => {
-                  setMostrarFormulario(false);
-                  setNombre('');
-                }}
-                disabled={loading}
-              >
-                Cancelar
-              </Btn>
+          {cargandoLista ? (
+            <View style={styles.lista}>
+              <TarjetaGrupoEsqueleto />
+              <TarjetaGrupoEsqueleto />
+              <TarjetaGrupoEsqueleto />
             </View>
-          </View>
-        ) : (
-          <>
-            {/* Invitaciones pendientes */}
-            {invitaciones.length > 0 && (
-              <View style={styles.seccionInvitaciones}>
-                <Text style={[styles.seccionEyebrow, { color: theme.textDim }]}>
-                  INVITACIONES PENDIENTES
-                </Text>
-                {invitaciones.map((inv) => {
-                  const procesando = respondiendoId === inv.id;
-                  const origenTexto = inv.grupo_origen
-                    ? `desde ${inv.grupo_origen.nombre}`
-                    : 'directamente';
-                  return (
-                    <View
-                      key={inv.id}
-                      style={[
-                        styles.tarjetaInvitacion,
-                        { backgroundColor: theme.surface, borderColor: theme.accentLine },
-                      ]}
-                    >
-                      <View style={styles.invitacionRow}>
-                        <View
-                          style={[
-                            styles.groupIconWrapper,
-                            { backgroundColor: theme.accentWeak },
-                          ]}
-                        >
-                          <Feather name="users" size={18} color={theme.accent} />
-                        </View>
-                        <View style={styles.invitacionText}>
-                          <Text style={[styles.invitacionTitle, { color: theme.text }]}>
-                            {inv.grupo.nombre}
-                          </Text>
-                          <Text style={[styles.invitacionMeta, { color: theme.textDim }]}>
-                            {inv.invitado_por.nombre} te invitó {origenTexto}
-                          </Text>
-                        </View>
-                      </View>
-                      
-                      <View style={styles.invitacionAcciones}>
-                        <Btn
-                          variant="primary"
-                          size="sm"
-                          style={styles.invBtn}
-                          onPress={() => void ejecutarRespuesta(inv.id, 'aceptar')}
-                          disabled={procesando}
-                          loading={procesando}
-                        >
-                          Aceptar
-                        </Btn>
-                        <Btn
-                          variant="secondary"
-                          size="sm"
-                          style={styles.invBtn}
-                          onPress={() => void ejecutarRespuesta(inv.id, 'rechazar')}
-                          disabled={procesando}
-                        >
-                          Rechazar
-                        </Btn>
-                      </View>
-                    </View>
-                  );
-                })}
-              </View>
-            )}
-
-            {/* Listado de grupos */}
+          ) : grupos.length === 0 ? (
+            invitaciones.length > 0 ? (
+              <EstadoVacio
+                icono="mail"
+                titulo="Te invitaron a un grupo"
+                texto={`Tenés ${invitaciones.length === 1 ? 'una invitación pendiente' : `${invitaciones.length} invitaciones pendientes`}. Aceptala para empezar a coordinar viajes.`}
+                accion={{ label: 'Ver invitaciones', onPress: abrirInvitaciones }}
+              />
+            ) : (
+              <EstadoVacio
+                icono="users"
+                titulo="Armá tu primer grupo"
+                texto="Juntá a la gente con la que salís para coordinar viajes en tiempo real."
+                accion={{ label: 'Crear grupo', onPress: () => setCreandoAbierto(true) }}
+              />
+            )
+          ) : (
             <View style={styles.seccionGrupos}>
               <View style={styles.gruposHeaderRow}>
                 <Text style={[styles.seccionEyebrow, { color: theme.textDim }]}>
@@ -493,90 +429,42 @@ export default function GruposScreen() {
                 onCancel={selection.exit}
               />
 
-              {cargandoLista ? (
-                <ActivityIndicator color={theme.accent} style={{ marginTop: 32 }} />
-              ) : grupos.length === 0 ? (
-                <View style={styles.empty}>
-                  <Text style={[styles.subtitulo, { color: theme.textDim }]}>
-                    Todavía no tenés grupos. Tocá el botón para crear uno y organizar viajes.
-                  </Text>
-                </View>
-              ) : gruposVisibles.length === 0 ? (
-                <View style={styles.empty}>
-                  <Text style={[styles.subtitulo, { color: theme.textDim }]}>
-                    {consulta
-                      ? 'Ningún grupo coincide con la búsqueda.'
-                      : filtroRol === 'lider'
-                        ? 'No sos líder de ningún grupo.'
-                        : 'No tenés grupos donde seas participante.'}
-                  </Text>
-                </View>
+              {gruposVisibles.length === 0 ? (
+                <EstadoVacio
+                  compacto
+                  icono="search"
+                  titulo="Sin resultados"
+                  texto={`Ningún grupo coincide con "${busqueda.trim()}".`}
+                />
               ) : (
                 <PasoAyuda {...AYUDA_GRUPOS[1]!}>
                 <View style={[styles.lista, selection.active && styles.listaConBarra]}>
-                  {gruposVisibles.map((g) => {
-                    const groupColor = getGroupColor(g.nombre);
-                    const esLider = g.mi_rol === 'lider';
-
-                    return (
-                      <SelectableCard
-                        key={g.id}
-                        itemId={g.id}
-                        selectionActive={selection.active}
-                        selected={selection.isSelected(g.id)}
-                        disabled={!esLider}
-                        onEnterSelection={selection.enter}
-                        onToggle={selection.toggle}
-                        onPress={() =>
-                          router.push({ pathname: '/grupo/[grupoId]', params: { grupoId: g.id } })
-                        }
-                        onDisabledPress={() =>
-                          meshWarning(
-                            'No podés eliminar este grupo',
-                            'Solo el líder puede eliminar el grupo. Podés abandonarlo desde Ajustes del grupo.'
-                          )
-                        }
-                        style={[
-                          styles.tarjetaGrupo,
-                          { backgroundColor: theme.surface, borderColor: theme.border },
-                        ]}
-                      >
-                        <View
-                          style={[
-                            styles.groupIconWrapper,
-                            { backgroundColor: `${groupColor}20` },
-                          ]}
-                        >
-                          <Feather name="users" size={20} color={groupColor} />
-                        </View>
-
-                        <View style={styles.grupoText}>
-                          <Text style={[styles.tarjetaNombre, { color: theme.text }]} numberOfLines={1}>
-                            {g.nombre}
-                          </Text>
-                          <Text style={[styles.tarjetaMeta, { color: theme.textDim }]}>
-                            {`${g.cantidad_miembros} ${g.cantidad_miembros === 1 ? 'miembro' : 'miembros'}`}
-                            {esLider ? ' · Líder' : ' · Participante'}
-                          </Text>
-                        </View>
-
-                        {!selection.active ? (
-                          <Feather name="chevron-right" size={18} color={theme.textMute} />
-                        ) : null}
-                      </SelectableCard>
-                    );
-                  })}
+                  {gruposVisibles.map((g) => (
+                    <TarjetaGrupo
+                      key={g.id}
+                      grupo={g}
+                      selectionActive={selection.active}
+                      selected={selection.isSelected(g.id)}
+                      onEnterSelection={selection.enter}
+                      onToggle={selection.toggle}
+                      onDisabledPress={() =>
+                        meshWarning(
+                          'No podés eliminar este grupo',
+                          'Solo el líder puede eliminar el grupo. Podés abandonarlo desde Ajustes del grupo.'
+                        )
+                      }
+                    />
+                  ))}
                 </View>
                 </PasoAyuda>
               )}
             </View>
-          </>
-        )}
+          )}
         </View>
       </ScrollViewAyuda>
 
-      {/* Botón flotante FAB para crear grupo (solo visible si no se muestra el formulario) */}
-      {!mostrarFormulario && seccion === 'grupos' && (
+      {/* Botón flotante FAB para crear grupo */}
+      {!selection.active && (
         <PasoAyuda {...AYUDA_GRUPOS[2]!} estilo={StyleSheet.absoluteFill} pointerEvents="box-none">
           <Pressable
             style={({ pressed }) => [
@@ -587,7 +475,7 @@ export default function GruposScreen() {
                 transform: [{ scale: pressed ? 0.95 : 1 }],
               },
             ]}
-            onPress={() => setMostrarFormulario(true)}
+            onPress={() => setCreandoAbierto(true)}
           >
             <Feather name="plus" size={20} color={theme.onAccent} />
             <Text style={[styles.fabText, { color: theme.onAccent }]}>Crear grupo</Text>
@@ -596,14 +484,77 @@ export default function GruposScreen() {
       )}
 
       <SelectionActionBar
-        visible={selection.active && !mostrarFormulario && seccion === 'grupos'}
+        visible={selection.active}
         count={selection.count}
         deleting={eliminandoBulk}
         onCancel={selection.exit}
         onDelete={confirmarEliminarSeleccionados}
       />
-    </KeyboardAvoidingView>
+    </View>
       )}
+
+      <HojaInferior
+        visible={invitacionesAbiertas}
+        titulo="Invitaciones a grupos"
+        onCerrar={() => setInvitacionesAbiertas(false)}
+      >
+        {invitaciones.length === 0 ? (
+          <EstadoVacio
+            compacto
+            icono="check"
+            titulo="Estás al día"
+            texto="Cuando alguien te invite a un grupo, lo vas a ver acá."
+          />
+        ) : (
+          invitaciones.map((inv) => (
+            <FilaNotificacion
+              key={inv.id}
+              nombre={inv.invitado_por.nombre}
+              mensaje={
+                <>
+                  <Destacado>{inv.invitado_por.nombre}</Destacado> te invitó a{' '}
+                  <Destacado>{inv.grupo.nombre}</Destacado>
+                </>
+              }
+              meta={
+                inv.grupo_origen
+                  ? `Desde ${inv.grupo_origen.nombre} · ${formatearHaceCuanto(inv.created_at)}`
+                  : formatearHaceCuanto(inv.created_at)
+              }
+              etiquetaAceptar="Unirme"
+              procesando={respondiendoId === inv.id}
+              onAceptar={() => void ejecutarRespuesta(inv.id, 'aceptar')}
+              onRechazar={() => void ejecutarRespuesta(inv.id, 'rechazar')}
+            />
+          ))
+        )}
+      </HojaInferior>
+
+      <HojaInferior
+        visible={creandoAbierto}
+        titulo="Nuevo grupo"
+        subtitulo="Creá tu grupo para organizar salidas y coordinar en tiempo real."
+        onCerrar={cerrarCrear}
+      >
+        <Field
+          label="Nombre del grupo *"
+          placeholder="Ej: Trail Riders Córdoba"
+          placeholderTextColor={theme.textMute}
+          value={nombre}
+          onChangeText={setNombre}
+          autoCapitalize="words"
+          autoFocus
+          maxLength={80}
+          editable={!loading}
+          onSubmitEditing={() => void handleCrear()}
+          returnKeyType="done"
+        />
+        <View style={styles.formActions}>
+          <Btn variant="primary" size="lg" block onPress={handleCrear} loading={loading}>
+            Crear grupo
+          </Btn>
+        </View>
+      </HojaInferior>
     </View>
   );
 }
@@ -634,28 +585,8 @@ const styles = StyleSheet.create({
   hint: {
     fontSize: 14.5,
   },
-  empty: {
-    gap: 16,
-    marginTop: 8,
-    alignItems: 'center',
-  },
-  formulario: {
-    gap: 16,
-  },
-  formularioTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    letterSpacing: -0.6,
-  },
-  formularioSubtitle: {
-    fontSize: 14.5,
-    marginTop: -8,
-    lineHeight: 22,
-    marginBottom: 8,
-  },
   formActions: {
-    gap: 10,
-    marginTop: 14,
+    marginTop: 6,
   },
   lista: {
     gap: 11,
@@ -673,9 +604,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 8,
   },
-  seccionInvitaciones: {
-    gap: 12,
-  },
   seccionGrupos: {
     gap: 12,
   },
@@ -690,62 +618,6 @@ const styles = StyleSheet.create({
     fontFamily: 'SpaceMono',
     fontWeight: '700',
     letterSpacing: 1.2,
-  },
-  tarjetaInvitacion: {
-    borderRadius: 14,
-    borderWidth: 1.2,
-    padding: 16,
-    gap: 14,
-  },
-  invitacionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  invitacionText: {
-    flex: 1,
-  },
-  invitacionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  invitacionMeta: {
-    fontSize: 13,
-    marginTop: 2,
-  },
-  invitacionAcciones: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  invBtn: {
-    flex: 1,
-  },
-  tarjetaGrupo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 14,
-    borderWidth: 1.2,
-    padding: 14,
-  },
-  groupIconWrapper: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  grupoText: {
-    flex: 1,
-    marginLeft: 14,
-    marginRight: 10,
-  },
-  tarjetaNombre: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  tarjetaMeta: {
-    fontSize: 13,
-    marginTop: 3,
   },
   fab: {
     position: 'absolute',
@@ -768,4 +640,3 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
-

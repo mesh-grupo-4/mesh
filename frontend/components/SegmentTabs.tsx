@@ -7,6 +7,8 @@ type Theme = (typeof Colors)[keyof typeof Colors];
 export type SegmentTabItem = {
   key: string;
   label: string;
+  /** Punto rojo junto al texto: hay algo pendiente en esa pestaña. */
+  dot?: boolean;
 };
 
 type Props = {
@@ -34,9 +36,12 @@ export function SegmentTabs({ tabs, active, onChange, theme, style }: Props) {
             accessibilityRole="tab"
             accessibilityState={{ selected }}
           >
-            <Text style={[styles.tabTexto, { color: selected ? theme.accent : theme.textDim }]}>
-              {tab.label}
-            </Text>
+            <View style={styles.tabContenido}>
+              <Text style={[styles.tabTexto, { color: selected ? theme.accent : theme.textDim }]}>
+                {tab.label}
+              </Text>
+              {tab.dot ? <View style={[styles.dot, { backgroundColor: theme.danger }]} /> : null}
+            </View>
           </Pressable>
         );
       })}
@@ -55,6 +60,16 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 12,
     alignItems: 'center',
+  },
+  tabContenido: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  dot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
   },
   tabTexto: {
     fontSize: 14,

@@ -1,4 +1,4 @@
-import type { ComponentProps, ReactNode } from 'react'
+import type { ComponentProps, ReactNode, Ref } from 'react'
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native'
 import { Feather } from '@expo/vector-icons'
 
@@ -26,18 +26,21 @@ export function BuscadorFiltros({
   placeholder,
   accessibilityLabel,
   maxLength,
+  inputRef,
 }: {
   value: string
   onChangeText: (texto: string) => void
   placeholder: string
   accessibilityLabel?: string
   maxLength?: number
+  inputRef?: Ref<TextInput>
 }) {
   const theme = useTheme()
   return (
     <View style={[styles.buscador, { backgroundColor: theme.surface, borderColor: theme.border }]}>
       <Feather name="search" size={15} color={theme.textMute} />
       <TextInput
+        ref={inputRef}
         style={[styles.buscadorInput, { color: theme.text }]}
         placeholder={placeholder}
         placeholderTextColor={theme.textMute}

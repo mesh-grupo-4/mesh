@@ -47,6 +47,11 @@ export async function refrescarPendientes(userId: string): Promise<void> {
   })
 }
 
+/** Conteos por tipo, para el puntito de cada campanita. No dispara pedidos: los hace `usePendientesBadge`. */
+export function usePendientes(): Pendientes {
+  return useSyncExternalStore(subscribe, () => estado)
+}
+
 const POLL_MS = 60_000
 
 /**

@@ -16,6 +16,8 @@ type Props = {
   onPress?: () => void
   onDisabledPress?: () => void
   style?: StyleProp<ViewStyle>
+  /** En tarjetas de grilla el check va flotando en la esquina en vez de a la izquierda. */
+  checkEnEsquina?: boolean
   children: React.ReactNode
 }
 
@@ -29,6 +31,7 @@ export function SelectableCard({
   onPress,
   onDisabledPress,
   style,
+  checkEnEsquina = false,
   children,
 }: Props) {
   const theme = useTheme()
@@ -76,6 +79,7 @@ export function SelectableCard({
         <View
           style={[
             styles.checkbox,
+            checkEnEsquina && styles.checkboxEsquina,
             {
               borderColor: selected ? theme.accent : theme.borderStrong,
               backgroundColor: selected ? theme.accent : 'transparent',
@@ -85,7 +89,7 @@ export function SelectableCard({
           {selected ? <Feather name="check" size={14} color={theme.onAccent} /> : null}
         </View>
       ) : null}
-      <View style={styles.content}>{children}</View>
+      <View style={[styles.content, checkEnEsquina && styles.contentEsquina]}>{children}</View>
     </Pressable>
   )
 }
@@ -107,7 +111,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  checkboxEsquina: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    zIndex: 1,
+  },
   content: {
     flex: 1,
+  },
+  contentEsquina: {
+    alignSelf: 'stretch',
   },
 })

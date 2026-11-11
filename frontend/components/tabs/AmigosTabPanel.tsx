@@ -7,18 +7,14 @@ import {
   FlatList,
   ActivityIndicator,
   RefreshControl,
+  TextInput,
+  useWindowDimensions,
 } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { Pressable } from '@/components/Pressable';
-import { SELECCION_CON_PULSACION_LARGA } from '@/lib/plataforma';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { AvatarFallback } from '@/components/AvatarFallback';
-import {
-  BarraFiltros,
-  BuscadorFiltros,
-  ChipFiltro,
-  FilaChipsFiltro,
-} from '@/components/BarraFiltros';
-import { SelectableCard } from '@/components/SelectableCard';
+import { BarraFiltros, BuscadorFiltros } from '@/components/BarraFiltros';
 import { SelectionActionBar } from '@/components/SelectionActionBar';
 import { BotonSeleccionar, SelectionHeader } from '@/components/SelectionHeader';
 import { useAuth } from '@/context/AuthContext';
@@ -45,23 +41,50 @@ import {
 } from '@/lib/amistadesApi';
 import { coincideBusqueda, normalizarBusqueda } from '@/lib/busqueda';
 import { setSolicitudesPendientesCount } from '@/lib/pendientesStore';
-
-type TabAmigos = 'amigos' | 'solicitudes';
+import { formatearHaceCuanto } from '@/lib/tiempoArg';
+import { vibrarExito, vibrarSuave } from '@/lib/haptica';
+import { HojaInferior } from '@/components/HojaInferior';
+import { EstadoVacio } from '@/components/EstadoVacio';
+import { Destacado, FilaNotificacion } from '@/components/notificaciones/FilaNotificacion';
+import {
+  TarjetaAgregarAmigo,
+  TarjetaAmigo,
+  TarjetaAmigoEsqueleto,
+} from '@/components/amigos/TarjetaAmigo';
 
 /** Desde cuántas letras el buscador también busca otros usuarios en el servidor. */
 const MIN_LETRAS_OTROS_USUARIOS = 2;
 
-export function AmigosTabPanel() {
+/** Con pocos amigos el buscador queda oculto hasta tocar "Agregar amigo". */
+const UMBRAL_BUSCADOR = 6;
+
+const PADDING_LISTA = 20;
+const GAP_GRILLA = 10;
+/** Ancho mínimo de cada cuadrado: define cuántas columnas entran (3 en un teléfono). */
+const ANCHO_MIN_CELDA = 100;
+
+const CELDA_AGREGAR = '__agregar__';
+type CeldaGrilla = AmigoApi | { id: typeof CELDA_AGREGAR };
+
+type Props = {
+  /** La campanita vive en el `TopBar` de la pantalla; el panel solo abre y cierra la hoja. */
+  solicitudesAbiertas: boolean;
+  onCerrarSolicitudes: () => void;
+  onAbrirSolicitudes: () => void;
+};
+
+export function AmigosTabPanel({ solicitudesAbiertas, onCerrarSolicitudes, onAbrirSolicitudes }: Props) {
   const espacioTabBar = useEspacioTabBar()
   const theme = useTheme();
   const router = useRouter();
+  const { width } = useWindowDimensions();
   const { backendUserId } = useAuth();
   const selection = useSelectionMode();
-  const [tab, setTab] = useState<TabAmigos>('amigos');
   const [amigos, setAmigos] = useState<AmigoApi[]>([]);
   const [solicitudes, setSolicitudes] = useState<SolicitudAmistadPendienteApi[]>([]);
   const [resultadosBusqueda, setResultadosBusqueda] = useState<UsuarioBusquedaAmistadApi[]>([]);
   const [busqueda, setBusqueda] = useState('');
+  const [buscadorAbierto, setBuscadorAbierto] = useState(false);
   const [loading, setLoading] = useState(true);
   const [buscando, setBuscando] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -72,6 +95,16 @@ export function AmigosTabPanel() {
     new Map()
   );
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inputRef = useRef<TextInput>(null);
+  const listaRef = useRef<FlatList<CeldaGrilla>>(null);
+
+  const columnas = Math.max(
+    3,
+    Math.floor((width - PADDING_LISTA * 2 + GAP_GRILLA) / (ANCHO_MIN_CELDA + GAP_GRILLA))
+  );
+  const anchoCelda = Math.floor(
+    (width - PADDING_LISTA * 2 - GAP_GRILLA * (columnas - 1)) / columnas
+  );
 
   useEffect(() => {
     if (!loading) setSolicitudesPendientesCount(solicitudes.length);
@@ -112,12 +145,24 @@ export function AmigosTabPanel() {
     void cargarDatos();
   }, [cargarDatos]);
 
+  // Al abrir la campanita: trae las solicitudes nuevas sin mostrar la carga de la grilla.
+  useEffect(() => {
+    if (!solicitudesAbiertas) return;
+    try {
+      const userId = resolveBackendUserId(backendUserId);
+      void listarSolicitudesAmistadPendientes(userId)
+        .then(setSolicitudes)
+        .catch(() => {});
+    } catch {
+      // Sin usuario no hay nada que refrescar: queda la lista que ya estaba.
+    }
+  }, [solicitudesAbiertas, backendUserId]);
+
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
-    // Los otros usuarios solo se buscan en "Mis amigos"; en Solicitudes el buscador filtra local.
     const q = busqueda.trim();
-    if (tab !== 'amigos' || q.length < MIN_LETRAS_OTROS_USUARIOS) {
+    if (q.length < MIN_LETRAS_OTROS_USUARIOS) {
       setResultadosBusqueda([]);
       setBuscando(false);
       return;
@@ -141,7 +186,7 @@ export function AmigosTabPanel() {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [busqueda, backendUserId, tab]);
+  }, [busqueda, backendUserId]);
 
   const obtenerRelacion = (usuario: UsuarioBusquedaAmistadApi): RelacionAmistad => {
     return relacionesLocales.get(usuario.id) ?? usuario.relacion;
@@ -166,23 +211,27 @@ export function AmigosTabPanel() {
   };
 
   const consulta = normalizarBusqueda(busqueda);
-  const buscaOtrosUsuarios =
-    tab === 'amigos' && busqueda.trim().length >= MIN_LETRAS_OTROS_USUARIOS;
+  const mostrarBuscador = amigos.length >= UMBRAL_BUSCADOR || buscadorAbierto || busqueda.length > 0;
+  const buscaOtrosUsuarios = busqueda.trim().length >= MIN_LETRAS_OTROS_USUARIOS;
   const amigosVisibles = amigos.filter((a) => coincideBusqueda(consulta, [a.nombre, a.email]));
-  const solicitudesVisibles = solicitudes.filter((s) =>
-    coincideBusqueda(consulta, [s.solicitante.nombre, s.solicitante.email])
-  );
-  // Los que ya son amigos aparecen arriba, en la lista filtrada: acá no se repiten.
+  // Los que ya son amigos aparecen arriba, en la grilla filtrada: acá no se repiten.
   const otrosUsuarios = resultadosBusqueda.filter((u) => obtenerRelacion(u) !== 'amigo');
+  // La celda "Agregar amigo" sobra mientras se busca o se selecciona.
+  const celdas: CeldaGrilla[] =
+    consulta || selection.active ? amigosVisibles : [{ id: CELDA_AGREGAR }, ...amigosVisibles];
 
-  // Escribir o cambiar de chip sale del modo selección: así nunca queda seleccionado un amigo oculto.
+  // Escribir sale del modo selección: así nunca queda seleccionado un amigo oculto.
   const cambiarBusqueda = (texto: string) => {
     selection.exit();
     setBusqueda(texto);
   };
-  const cambiarTab = (nuevo: TabAmigos) => {
+
+  const abrirBuscador = () => {
     selection.exit();
-    setTab(nuevo);
+    setBuscadorAbierto(true);
+    listaRef.current?.scrollToOffset({ offset: 0, animated: true });
+    // Espera a que el buscador se monte antes de enfocarlo.
+    setTimeout(() => inputRef.current?.focus(), 80);
   };
 
   const amigosSeleccionados = amigos.filter((a) => selection.isSelected(a.id));
@@ -242,16 +291,26 @@ export function AmigosTabPanel() {
     try {
       const userId = resolveBackendUserId(backendUserId);
       await responderSolicitudAmistad(solicitudId, accion, userId);
-      setSolicitudes((prev) => prev.filter((s) => s.id !== solicitudId));
+      const restantes = solicitudes.filter((s) => s.id !== solicitudId);
+      setSolicitudes(restantes);
 
       if (accion === 'aceptar') {
-        await cargarDatos(true);
+        vibrarExito();
+        void cargarDatos(true);
+      } else {
+        vibrarSuave();
       }
+      // Deja ver el fundido del último ítem antes de cerrar.
+      if (restantes.length === 0) setTimeout(onCerrarSolicitudes, 250);
     } catch (e: unknown) {
       meshError('Error', e instanceof Error ? e.message : 'No se pudo responder la solicitud.');
     } finally {
       setRespondiendoId(null);
     }
+  };
+
+  const verPerfil = (usuarioId: string) => {
+    router.push({ pathname: '/usuario/[usuarioId]', params: { usuarioId } });
   };
 
   const renderBotonAgregar = (usuario: UsuarioBusquedaAmistadApi) => {
@@ -261,7 +320,14 @@ export function AmigosTabPanel() {
     if (relacion === 'amigo') return null;
 
     if (relacion === 'solicitud_recibida') {
-      return <Text style={[styles.hintRelacion, { color: theme.textDim }]}>Respondé en Solicitudes</Text>;
+      return (
+        <Pressable
+          style={[styles.botonAgregar, { borderColor: theme.accentLine }]}
+          onPress={onAbrirSolicitudes}
+        >
+          <Text style={[styles.botonAgregarTexto, { color: theme.accent }]}>Responder</Text>
+        </Pressable>
+      );
     }
 
     const enviada = relacion === 'solicitud_enviada';
@@ -280,35 +346,29 @@ export function AmigosTabPanel() {
           <ActivityIndicator color={theme.accent} size="small" />
         ) : (
           <Text style={[styles.botonAgregarTexto, { color: theme.accent }]}>
-            {enviada ? 'Solicitud enviada' : 'Agregar'}
+            {enviada ? 'Enviada' : 'Agregar'}
           </Text>
         )}
       </Pressable>
     );
   };
 
-  const verPerfil = (usuarioId: string) => {
-    router.push({ pathname: '/usuario/[usuarioId]', params: { usuarioId } });
-  };
+  const renderCelda = ({ item }: { item: CeldaGrilla }) =>
+    item.id === CELDA_AGREGAR ? (
+      <TarjetaAgregarAmigo ancho={anchoCelda} onPress={abrirBuscador} />
+    ) : (
+      <TarjetaAmigo
+        amigo={item as AmigoApi}
+        ancho={anchoCelda}
+        selectionActive={selection.active}
+        selected={selection.isSelected(item.id)}
+        onEnterSelection={selection.enter}
+        onToggle={selection.toggle}
+        onPress={() => verPerfil(item.id)}
+      />
+    );
 
-  const renderFilaAmigo = ({ item }: { item: AmigoApi }) => (
-    <SelectableCard
-      itemId={item.id}
-      selectionActive={selection.active}
-      selected={selection.isSelected(item.id)}
-      onEnterSelection={selection.enter}
-      onToggle={selection.toggle}
-      onPress={() => verPerfil(item.id)}
-      style={[styles.fila, { backgroundColor: theme.surface, borderColor: theme.border }]}
-    >
-      <AvatarFallback nombre={item.nombre} />
-      <View style={styles.filaContenido}>
-        <Text style={[styles.nombre, { color: theme.text }]}>{item.nombre}</Text>
-        <Text style={[styles.email, { color: theme.textDim }]}>{item.email}</Text>
-      </View>
-    </SelectableCard>
-  );
-
+  // Los resultados del servidor tienen una acción por persona: se leen mejor en filas.
   const renderFilaBusqueda = (item: UsuarioBusquedaAmistadApi) => (
     <Pressable
       key={item.id}
@@ -324,46 +384,6 @@ export function AmigosTabPanel() {
     </Pressable>
   );
 
-  const renderSolicitud = ({ item }: { item: SolicitudAmistadPendienteApi }) => {
-    const procesando = respondiendoId === item.id;
-
-    return (
-      <View style={[styles.tarjetaSolicitud, { backgroundColor: theme.surface, borderColor: theme.accentLine }]}>
-        <Pressable
-          style={styles.filaSolicitud}
-          onPress={() => verPerfil(item.solicitante.id)}
-        >
-          <AvatarFallback nombre={item.solicitante.nombre} />
-          <View style={styles.filaContenido}>
-            <Text style={[styles.nombre, { color: theme.text }]}>{item.solicitante.nombre}</Text>
-            <Text style={[styles.email, { color: theme.textDim }]}>{item.solicitante.email}</Text>
-            <Text style={[styles.hintRelacion, { color: theme.textDim }]}>Quiere agregarte como amigo</Text>
-          </View>
-        </Pressable>
-        <View style={styles.accionesSolicitud}>
-          <Pressable
-            style={[styles.botonAceptar, { backgroundColor: theme.accent }, procesando && styles.botonDeshabilitado]}
-            onPress={() => void ejecutarRespuesta(item.id, 'aceptar')}
-            disabled={procesando}
-          >
-            {procesando ? (
-              <ActivityIndicator color={theme.onAccent} size="small" />
-            ) : (
-              <Text style={[styles.botonAceptarTexto, { color: theme.onAccent }]}>Aceptar</Text>
-            )}
-          </Pressable>
-          <Pressable
-            style={[styles.botonRechazar, { borderColor: theme.borderStrong }, procesando && styles.botonDeshabilitado]}
-            onPress={() => void ejecutarRespuesta(item.id, 'rechazar')}
-            disabled={procesando}
-          >
-            <Text style={[styles.botonRechazarTexto, { color: theme.textDim }]}>Rechazar</Text>
-          </Pressable>
-        </View>
-      </View>
-    );
-  };
-
   const refresh = (
     <RefreshControl
       refreshing={refreshing}
@@ -371,6 +391,21 @@ export function AmigosTabPanel() {
       tintColor={theme.accent}
     />
   );
+
+  const barraFiltros = mostrarBuscador ? (
+    <View style={styles.barraEnLista}>
+      <BarraFiltros>
+        <BuscadorFiltros
+          inputRef={inputRef}
+          value={busqueda}
+          onChangeText={cambiarBusqueda}
+          placeholder="Buscar amigos o usuarios por nombre o email"
+          accessibilityLabel="Buscar amigos o usuarios"
+          maxLength={60}
+        />
+      </BarraFiltros>
+    </View>
+  ) : null;
 
   const encabezadoAmigos =
     amigos.length > 0 ? (
@@ -393,21 +428,14 @@ export function AmigosTabPanel() {
       </View>
     ) : null;
 
-  const vacioAmigos = !consulta ? (
-    <Text style={[styles.vacio, { color: theme.textMute }]}>
-      No tenés amigos todavía. Buscá usuarios por nombre o email y enviá solicitudes de amistad.
-      {SELECCION_CON_PULSACION_LARGA
-        ? '\n\nMantené apretado un contacto para seleccionar y eliminar.'
-        : ''}
-    </Text>
-  ) : amigos.length > 0 ? (
-    <Text style={[styles.vacioCompacto, { color: theme.textMute }]}>
-      Ninguno de tus amigos coincide con la búsqueda.
-    </Text>
-  ) : null;
+  const vacioBusqueda =
+    consulta && amigos.length > 0 ? (
+      <Text style={[styles.vacioCompacto, { color: theme.textMute }]}>
+        Ninguno de tus amigos coincide con la búsqueda.
+      </Text>
+    ) : null;
 
-  // Resultados del servidor para agregar gente nueva, debajo de los amigos filtrados.
-  const seccionOtrosUsuarios = buscaOtrosUsuarios ? (
+  const pie = buscaOtrosUsuarios ? (
     <View style={styles.seccionOtros}>
       <Text style={[styles.eyebrow, { color: theme.textDim }]}>OTROS USUARIOS</Text>
       {buscando ? (
@@ -424,49 +452,32 @@ export function AmigosTabPanel() {
     <Text style={[styles.vacioCompacto, { color: theme.textMute }]}>
       Escribí al menos {MIN_LETRAS_OTROS_USUARIOS} letras para buscar otros usuarios.
     </Text>
+  ) : amigos.length === 0 ? (
+    <Text style={[styles.pista, { color: theme.textMute }]}>
+      Buscá a tus compañeros por nombre o email y mandales una solicitud de amistad.
+    </Text>
   ) : null;
-
-  // Búsqueda y filtros van como encabezado de la lista: scrollean con ella y le dejan más lugar.
-  const barraFiltros = (
-    <View style={styles.barraEnLista}>
-      <BarraFiltros>
-        <BuscadorFiltros
-          value={busqueda}
-          onChangeText={cambiarBusqueda}
-          placeholder={
-            tab === 'amigos' ? 'Buscar amigos o usuarios por nombre o email' : 'Buscar por nombre o email'
-          }
-          accessibilityLabel={tab === 'amigos' ? 'Buscar amigos o usuarios' : 'Buscar solicitudes'}
-          maxLength={60}
-        />
-        <FilaChipsFiltro>
-          <ChipFiltro
-            label="Mis amigos"
-            activo={tab === 'amigos'}
-            onPress={() => cambiarTab('amigos')}
-          />
-          <ChipFiltro
-            label={`Solicitudes${solicitudes.length > 0 ? ` (${solicitudes.length})` : ''}`}
-            activo={tab === 'solicitudes'}
-            onPress={() => cambiarTab('solicitudes')}
-          />
-        </FilaChipsFiltro>
-      </BarraFiltros>
-    </View>
-  );
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       {loading ? (
         <View style={styles.lista}>
-          {barraFiltros}
-          <ActivityIndicator color={theme.accent} size="large" style={styles.centrado} />
+          <View style={[styles.filaGrilla, styles.filaEsqueleto]}>
+            {Array.from({ length: columnas * 2 }, (_, i) => (
+              <TarjetaAmigoEsqueleto key={i} ancho={anchoCelda} />
+            ))}
+          </View>
         </View>
-      ) : tab === 'amigos' ? (
+      ) : (
         <FlatList
-          data={amigosVisibles}
+          ref={listaRef}
+          // Cambiar la cantidad de columnas exige montar la lista de nuevo.
+          key={`grilla-${columnas}`}
+          data={celdas}
+          numColumns={columnas}
           keyExtractor={(item) => item.id}
-          renderItem={renderFilaAmigo}
+          renderItem={renderCelda}
+          columnWrapperStyle={styles.filaGrilla}
           keyboardShouldPersistTaps="handled"
           automaticallyAdjustKeyboardInsets
           ListHeaderComponent={
@@ -475,52 +486,87 @@ export function AmigosTabPanel() {
               {encabezadoAmigos}
             </>
           }
-          ListEmptyComponent={vacioAmigos}
-          ListFooterComponent={seccionOtrosUsuarios}
+          ListEmptyComponent={vacioBusqueda}
+          ListFooterComponent={pie}
           contentContainerStyle={[
             styles.lista,
-            { paddingBottom: espacioTabBar + (selection.active ? 88 : 0) },
+            { paddingBottom: espacioTabBar + 74 + (selection.active ? 88 : 0) },
           ]}
-          refreshControl={refresh}
-        />
-      ) : (
-        <FlatList
-          data={solicitudesVisibles}
-          keyExtractor={(item) => item.id}
-          renderItem={renderSolicitud}
-          keyboardShouldPersistTaps="handled"
-          ListHeaderComponent={barraFiltros}
-          contentContainerStyle={[
-            styles.lista,
-            { paddingBottom: espacioTabBar },
-          ]}
-          ListEmptyComponent={
-            <Text style={[styles.vacio, { color: theme.textMute }]}>
-              {consulta && solicitudes.length > 0
-                ? 'Ninguna solicitud coincide con la búsqueda.'
-                : 'No tenés solicitudes pendientes.'}
-            </Text>
-          }
           refreshControl={refresh}
         />
       )}
 
+      {!selection.active && (
+        <Pressable
+          style={({ pressed }) => [
+            styles.fab,
+            {
+              bottom: espacioTabBar,
+              backgroundColor: theme.accent,
+              transform: [{ scale: pressed ? 0.95 : 1 }],
+            },
+          ]}
+          onPress={abrirBuscador}
+        >
+          <Feather name="user-plus" size={19} color={theme.onAccent} />
+          <Text style={[styles.fabText, { color: theme.onAccent }]}>Agregar amigo</Text>
+        </Pressable>
+      )}
+
       <SelectionActionBar
-        visible={selection.active && tab === 'amigos'}
+        visible={selection.active}
         count={selection.count}
         deleting={eliminandoBulk}
         onCancel={selection.exit}
         onDelete={confirmarEliminarSeleccionados}
       />
+
+      <HojaInferior
+        visible={solicitudesAbiertas}
+        titulo="Solicitudes de amistad"
+        onCerrar={onCerrarSolicitudes}
+      >
+        {solicitudes.length === 0 ? (
+          <EstadoVacio
+            compacto
+            icono="check"
+            titulo="Estás al día"
+            texto="Cuando alguien quiera sumarte como amigo, lo vas a ver acá."
+          />
+        ) : (
+          solicitudes.map((s) => (
+            <FilaNotificacion
+              key={s.id}
+              nombre={s.solicitante.nombre}
+              mensaje={
+                <>
+                  <Destacado>{s.solicitante.nombre}</Destacado> quiere agregarte como amigo
+                </>
+              }
+              meta={formatearHaceCuanto(s.created_at)}
+              etiquetaAceptar="Aceptar"
+              procesando={respondiendoId === s.id}
+              onAceptar={() => void ejecutarRespuesta(s.id, 'aceptar')}
+              onRechazar={() => void ejecutarRespuesta(s.id, 'rechazar')}
+              onPressAvatar={() => {
+                onCerrarSolicitudes();
+                verPerfil(s.solicitante.id);
+              }}
+            />
+          ))
+        )}
+      </HojaInferior>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  lista: { paddingHorizontal: 20, paddingTop: 12 },
+  lista: { paddingHorizontal: PADDING_LISTA, paddingTop: 12 },
   // Compensa el padding de la lista: la barra va de borde a borde.
-  barraEnLista: { marginHorizontal: -20, marginTop: -12, marginBottom: 12 },
+  barraEnLista: { marginHorizontal: -PADDING_LISTA, marginTop: -12, marginBottom: 12 },
+  filaGrilla: { gap: GAP_GRILLA, marginBottom: GAP_GRILLA },
+  filaEsqueleto: { flexDirection: 'row', flexWrap: 'wrap' },
   encabezadoFila: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -539,10 +585,9 @@ const styles = StyleSheet.create({
   fila: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 10,
-    padding: 16,
-    marginBottom: 10,
-    borderWidth: 1,
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1.2,
     gap: 12,
   },
   filaContenido: { flex: 1, gap: 2 },
@@ -553,37 +598,31 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderWidth: 1,
-    minWidth: 120,
+    minWidth: 92,
     alignItems: 'center',
   },
-  botonAgregarTexto: { fontSize: 12, fontWeight: '600' },
+  botonAgregarTexto: { fontSize: 12.5, fontWeight: '700' },
   botonDeshabilitado: { opacity: 0.5 },
-  hintRelacion: { fontSize: 12, fontStyle: 'italic' },
-  tarjetaSolicitud: {
-    borderRadius: 10,
-    padding: 16,
-    marginBottom: 10,
-    borderWidth: 1,
-    gap: 12,
-  },
-  filaSolicitud: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  accionesSolicitud: { flexDirection: 'row', gap: 10 },
-  botonAceptar: {
-    flex: 1,
-    borderRadius: 8,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  botonAceptarTexto: { fontSize: 14, fontWeight: '600' },
-  botonRechazar: {
-    flex: 1,
-    borderRadius: 8,
-    paddingVertical: 10,
-    alignItems: 'center',
-    borderWidth: 1,
-  },
-  botonRechazarTexto: { fontSize: 14, fontWeight: '600' },
-  centrado: { marginTop: 48 },
-  vacio: { fontSize: 14, lineHeight: 20, textAlign: 'center', marginTop: 36 },
   vacioCompacto: { fontSize: 14, lineHeight: 20, textAlign: 'center', marginVertical: 12 },
+  pista: { fontSize: 14, lineHeight: 20, textAlign: 'center', marginTop: 8, paddingHorizontal: 12 },
+  fab: {
+    position: 'absolute',
+    right: 20,
+    height: 54,
+    paddingHorizontal: 20,
+    borderRadius: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 8,
+    gap: 8,
+  },
+  fabText: {
+    fontSize: 14.5,
+    fontWeight: '700',
+  },
 });

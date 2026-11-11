@@ -53,3 +53,20 @@ export function desdeCamposArg(campos: Date): Date {
 export function ahoraEnCamposArg(): Date {
   return aCamposArg(new Date())
 }
+
+/**
+ * Antigüedad corta para listas de notificaciones: "recién", "hace 5 min",
+ * "hace 3 h", "hace 2 d". Pasada una semana muestra la fecha en hora argentina.
+ */
+export function formatearHaceCuanto(valor: Date | string | number, ahora = new Date()): string {
+  const d = aDate(valor)
+  if (!d) return ''
+  const minutos = Math.floor((ahora.getTime() - d.getTime()) / 60_000)
+  if (minutos < 1) return 'recién'
+  if (minutos < 60) return `hace ${minutos} min`
+  const horas = Math.floor(minutos / 60)
+  if (horas < 24) return `hace ${horas} h`
+  const dias = Math.floor(horas / 24)
+  if (dias < 7) return `hace ${dias} d`
+  return formatearEnArg(d, { day: 'numeric', month: 'short' })
+}

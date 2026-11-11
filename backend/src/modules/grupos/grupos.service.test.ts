@@ -95,10 +95,14 @@ describe('GruposService', () => {
               nombre: 'Trail Riders',
               fecha_creacion: fecha,
               lider_id: creadorId,
-              miembros: [{ rol: 'lider' }],
+              miembros: [],
+              viajes: [],
               _count: { miembros: 3 },
             },
           ]),
+        },
+        grupoMiembro: {
+          findMany: vi.fn().mockResolvedValue([{ grupo_id: grupoId, rol: 'lider' }]),
         },
       } as unknown as import('@prisma/client').PrismaClient
 
@@ -108,6 +112,48 @@ describe('GruposService', () => {
       expect(result).toHaveLength(1)
       expect(result[0]?.mi_rol).toBe('lider')
       expect(result[0]?.cantidad_miembros).toBe(3)
+      expect(result[0]?.viaje_en_curso).toBeNull()
+      expect(result[0]?.proximo_viaje).toBeNull()
+    })
+
+    it('resume vista previa de miembros, viaje en curso y el próximo viaje', async () => {
+      const fecha = new Date('2026-05-29T12:00:00Z')
+      const lejano = new Date('2099-03-01T12:00:00Z')
+      const cercano = new Date('2099-01-01T12:00:00Z')
+      const prisma = {
+        grupo: {
+          findMany: vi.fn().mockResolvedValue([
+            {
+              id: grupoId,
+              nombre: 'Trail Riders',
+              fecha_creacion: fecha,
+              lider_id: creadorId,
+              miembros: [{ usuario: { id: creadorId, nombre: 'Ana' } }],
+              viajes: [
+                { viaje: { id: 'v-lejano', nombre: null, estado: 'planificado', fecha_programada: lejano } },
+                { viaje: { id: 'v-vivo', nombre: 'Sierras', estado: 'en_curso', fecha_programada: fecha } },
+                { viaje: { id: 'v-cercano', nombre: 'Altas Cumbres', estado: 'planificado', fecha_programada: cercano } },
+              ],
+              _count: { miembros: 2 },
+            },
+          ]),
+        },
+        grupoMiembro: {
+          findMany: vi.fn().mockResolvedValue([{ grupo_id: grupoId, rol: 'participante' }]),
+        },
+      } as unknown as import('@prisma/client').PrismaClient
+
+      const service = new GruposService(prisma)
+      const [grupo] = await service.listarParaUsuario(otroId)
+
+      expect(grupo?.mi_rol).toBe('participante')
+      expect(grupo?.miembros_preview).toEqual([{ id: creadorId, nombre: 'Ana' }])
+      expect(grupo?.viaje_en_curso).toEqual({ id: 'v-vivo', nombre: 'Sierras' })
+      expect(grupo?.proximo_viaje).toEqual({
+        id: 'v-cercano',
+        nombre: 'Altas Cumbres',
+        fecha_programada: cercano,
+      })
     })
   })
 

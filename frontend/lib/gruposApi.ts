@@ -18,6 +18,10 @@ export type GrupoDetalleApi = GrupoApi & {
 export type GrupoListItemApi = GrupoApi & {
   mi_rol: RolGrupoApi
   cantidad_miembros: number
+  /** Hasta 3 integrantes, sin incluir al usuario que pide. */
+  miembros_preview: Array<{ id: string; nombre: string }>
+  viaje_en_curso: { id: string; nombre: string | null } | null
+  proximo_viaje: { id: string; nombre: string | null; fecha_programada: string } | null
 }
 
 export type GrupoMiembroApi = {
