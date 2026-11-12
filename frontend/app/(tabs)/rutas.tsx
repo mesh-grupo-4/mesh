@@ -7,6 +7,7 @@ import { TopBar, useTheme } from '@/components/MeshUI';
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda';
 import { AYUDA_RUTAS } from '@/components/ayuda/contenidoAyuda';
 import { SegmentTabs } from '@/components/SegmentTabs';
+import { FranjaEstado } from '@/components/FranjaEstado';
 import { RutasExplorarPanel } from '@/components/tabs/RutasExplorarPanel';
 import { RutasGuardadasPanel } from '@/components/tabs/RutasGuardadasPanel';
 
@@ -23,8 +24,9 @@ export default function RutasScreen() {
     if (tab === 'guardadas') setSeccion('guardadas');
   }, [tab]);
 
-  return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+  // Título y pestañas van dentro del scroll de cada panel: nada queda fijo.
+  const encabezado = (
+    <>
       <TopBar title="Rutas" raiz bordered={false} onAyuda={() => start()} />
       <PasoAyuda {...AYUDA_RUTAS[0]!}>
         <View style={styles.segmentWrap}>
@@ -39,9 +41,19 @@ export default function RutasScreen() {
           />
         </View>
       </PasoAyuda>
+    </>
+  );
+
+  return (
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       <PasoAyuda {...AYUDA_RUTAS[1]!} estilo={styles.flex1}>
-        {seccion === 'guardadas' ? <RutasGuardadasPanel /> : <RutasExplorarPanel />}
+        {seccion === 'guardadas' ? (
+          <RutasGuardadasPanel encabezado={encabezado} />
+        ) : (
+          <RutasExplorarPanel encabezado={encabezado} />
+        )}
       </PasoAyuda>
+      <FranjaEstado />
     </View>
   );
 }
@@ -52,6 +64,6 @@ const styles = StyleSheet.create({
   segmentWrap: {
     paddingHorizontal: 20,
     paddingTop: 12,
-    paddingBottom: 8,
+    paddingBottom: 12,
   },
 });

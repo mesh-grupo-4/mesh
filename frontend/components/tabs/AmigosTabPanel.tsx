@@ -1,5 +1,5 @@
 import { useEspacioTabBar } from '@/hooks/useEspacioTabBar'
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   View,
   Text,
@@ -14,7 +14,7 @@ import { Feather } from '@expo/vector-icons';
 import { Pressable } from '@/components/Pressable';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { AvatarFallback } from '@/components/AvatarFallback';
-import { BarraFiltros, BuscadorFiltros } from '@/components/BarraFiltros';
+import { HerramientasLista } from '@/components/BarraFiltros';
 import { SelectionActionBar } from '@/components/SelectionActionBar';
 import { BotonSeleccionar, SelectionHeader } from '@/components/SelectionHeader';
 import { useAuth } from '@/context/AuthContext';
@@ -32,20 +32,13 @@ import {
   eliminarAmigo,
   listarAmigos,
   listarSolicitudesAmistadPendientes,
-  responderSolicitudAmistad,
   solicitarAmistad,
   type AmigoApi,
   type RelacionAmistad,
-  type SolicitudAmistadPendienteApi,
   type UsuarioBusquedaAmistadApi,
 } from '@/lib/amistadesApi';
 import { coincideBusqueda, normalizarBusqueda } from '@/lib/busqueda';
 import { setSolicitudesPendientesCount } from '@/lib/pendientesStore';
-import { formatearHaceCuanto } from '@/lib/tiempoArg';
-import { vibrarExito, vibrarSuave } from '@/lib/haptica';
-import { HojaInferior } from '@/components/HojaInferior';
-import { EstadoVacio } from '@/components/EstadoVacio';
-import { Destacado, FilaNotificacion } from '@/components/notificaciones/FilaNotificacion';
 import {
   TarjetaAgregarAmigo,
   TarjetaAmigo,
@@ -54,9 +47,6 @@ import {
 
 /** Desde cuántas letras el buscador también busca otros usuarios en el servidor. */
 const MIN_LETRAS_OTROS_USUARIOS = 2;
-
-/** Con pocos amigos el buscador queda oculto hasta tocar "Agregar amigo". */
-const UMBRAL_BUSCADOR = 6;
 
 const PADDING_LISTA = 20;
 const GAP_GRILLA = 10;
@@ -67,13 +57,13 @@ const CELDA_AGREGAR = '__agregar__';
 type CeldaGrilla = AmigoApi | { id: typeof CELDA_AGREGAR };
 
 type Props = {
-  /** La campanita vive en el `TopBar` de la pantalla; el panel solo abre y cierra la hoja. */
-  solicitudesAbiertas: boolean;
-  onCerrarSolicitudes: () => void;
+  /** Título y pestañas de la pantalla: van dentro de la lista para que scrolleen con ella. */
+  encabezado: ReactNode;
+  /** Abre la pantalla de solicitudes (la misma de la campanita del `TopBar`). */
   onAbrirSolicitudes: () => void;
 };
 
-export function AmigosTabPanel({ solicitudesAbiertas, onCerrarSolicitudes, onAbrirSolicitudes }: Props) {
+export function AmigosTabPanel({ encabezado, onAbrirSolicitudes }: Props) {
   const espacioTabBar = useEspacioTabBar()
   const theme = useTheme();
   const router = useRouter();
@@ -81,7 +71,7 @@ export function AmigosTabPanel({ solicitudesAbiertas, onCerrarSolicitudes, onAbr
   const { backendUserId } = useAuth();
   const selection = useSelectionMode();
   const [amigos, setAmigos] = useState<AmigoApi[]>([]);
-  const [solicitudes, setSolicitudes] = useState<SolicitudAmistadPendienteApi[]>([]);
+  const [cantidadSolicitudes, setCantidadSolicitudes] = useState(0);
   const [resultadosBusqueda, setResultadosBusqueda] = useState<UsuarioBusquedaAmistadApi[]>([]);
   const [busqueda, setBusqueda] = useState('');
   const [buscadorAbierto, setBuscadorAbierto] = useState(false);
@@ -89,12 +79,12 @@ export function AmigosTabPanel({ solicitudesAbiertas, onCerrarSolicitudes, onAbr
   const [buscando, setBuscando] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [solicitandoId, setSolicitandoId] = useState<string | null>(null);
-  const [respondiendoId, setRespondiendoId] = useState<string | null>(null);
   const [eliminandoBulk, setEliminandoBulk] = useState(false);
   const [relacionesLocales, setRelacionesLocales] = useState<Map<string, RelacionAmistad>>(
     new Map()
   );
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const yaCargoRef = useRef(false);
   const inputRef = useRef<TextInput>(null);
   const listaRef = useRef<FlatList<CeldaGrilla>>(null);
 
@@ -107,8 +97,8 @@ export function AmigosTabPanel({ solicitudesAbiertas, onCerrarSolicitudes, onAbr
   );
 
   useEffect(() => {
-    if (!loading) setSolicitudesPendientesCount(solicitudes.length);
-  }, [solicitudes, loading]);
+    if (!loading) setSolicitudesPendientesCount(cantidadSolicitudes);
+  }, [cantidadSolicitudes, loading]);
 
   useFocusEffect(
     useCallback(() => {
@@ -117,9 +107,11 @@ export function AmigosTabPanel({ solicitudesAbiertas, onCerrarSolicitudes, onAbr
   );
 
   const cargarDatos = useCallback(
-    async (esRefresh = false) => {
-      if (esRefresh) setRefreshing(true);
-      else setLoading(true);
+    /** `refresh`: tirón de la lista. `silencioso`: al volver a la pantalla, sin indicador. */
+    async (modo: 'inicial' | 'refresh' | 'silencioso' = 'inicial') => {
+      const esRefresh = modo !== 'inicial';
+      if (modo === 'refresh') setRefreshing(true);
+      else if (modo === 'inicial') setLoading(true);
 
       try {
         const userId = resolveBackendUserId(backendUserId);
@@ -128,7 +120,7 @@ export function AmigosTabPanel({ solicitudesAbiertas, onCerrarSolicitudes, onAbr
           listarSolicitudesAmistadPendientes(userId),
         ]);
         setAmigos(listaAmigos);
-        setSolicitudes(listaSolicitudes);
+        setCantidadSolicitudes(listaSolicitudes.length);
       } catch (e: unknown) {
         if (!esRefresh) {
           meshError('Error', e instanceof Error ? e.message : 'No se pudieron cargar los datos.');
@@ -141,22 +133,14 @@ export function AmigosTabPanel({ solicitudesAbiertas, onCerrarSolicitudes, onAbr
     [backendUserId]
   );
 
-  useEffect(() => {
-    void cargarDatos();
-  }, [cargarDatos]);
-
-  // Al abrir la campanita: trae las solicitudes nuevas sin mostrar la carga de la grilla.
-  useEffect(() => {
-    if (!solicitudesAbiertas) return;
-    try {
-      const userId = resolveBackendUserId(backendUserId);
-      void listarSolicitudesAmistadPendientes(userId)
-        .then(setSolicitudes)
-        .catch(() => {});
-    } catch {
-      // Sin usuario no hay nada que refrescar: queda la lista que ya estaba.
-    }
-  }, [solicitudesAbiertas, backendUserId]);
+  // La primera vez muestra la carga de la grilla; al volver (p. ej. de aceptar
+  // solicitudes en la pantalla de la campanita) refresca sin taparla.
+  useFocusEffect(
+    useCallback(() => {
+      void cargarDatos(yaCargoRef.current ? 'silencioso' : 'inicial');
+      yaCargoRef.current = true;
+    }, [cargarDatos])
+  );
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -211,7 +195,6 @@ export function AmigosTabPanel({ solicitudesAbiertas, onCerrarSolicitudes, onAbr
   };
 
   const consulta = normalizarBusqueda(busqueda);
-  const mostrarBuscador = amigos.length >= UMBRAL_BUSCADOR || buscadorAbierto || busqueda.length > 0;
   const buscaOtrosUsuarios = busqueda.trim().length >= MIN_LETRAS_OTROS_USUARIOS;
   const amigosVisibles = amigos.filter((a) => coincideBusqueda(consulta, [a.nombre, a.email]));
   // Los que ya son amigos aparecen arriba, en la grilla filtrada: acá no se repiten.
@@ -283,29 +266,6 @@ export function AmigosTabPanel({ solicitudesAbiertas, onCerrarSolicitudes, onAbr
       meshError('Error', e instanceof Error ? e.message : 'No se pudo completar la eliminación.');
     } finally {
       setEliminandoBulk(false);
-    }
-  };
-
-  const ejecutarRespuesta = async (solicitudId: string, accion: 'aceptar' | 'rechazar') => {
-    setRespondiendoId(solicitudId);
-    try {
-      const userId = resolveBackendUserId(backendUserId);
-      await responderSolicitudAmistad(solicitudId, accion, userId);
-      const restantes = solicitudes.filter((s) => s.id !== solicitudId);
-      setSolicitudes(restantes);
-
-      if (accion === 'aceptar') {
-        vibrarExito();
-        void cargarDatos(true);
-      } else {
-        vibrarSuave();
-      }
-      // Deja ver el fundido del último ítem antes de cerrar.
-      if (restantes.length === 0) setTimeout(onCerrarSolicitudes, 250);
-    } catch (e: unknown) {
-      meshError('Error', e instanceof Error ? e.message : 'No se pudo responder la solicitud.');
-    } finally {
-      setRespondiendoId(null);
     }
   };
 
@@ -387,46 +347,46 @@ export function AmigosTabPanel({ solicitudesAbiertas, onCerrarSolicitudes, onAbr
   const refresh = (
     <RefreshControl
       refreshing={refreshing}
-      onRefresh={() => void cargarDatos(true)}
+      onRefresh={() => void cargarDatos('refresh')}
       tintColor={theme.accent}
     />
   );
 
-  const barraFiltros = mostrarBuscador ? (
-    <View style={styles.barraEnLista}>
-      <BarraFiltros>
-        <BuscadorFiltros
-          inputRef={inputRef}
-          value={busqueda}
-          onChangeText={cambiarBusqueda}
-          placeholder="Buscar amigos o usuarios por nombre o email"
-          accessibilityLabel="Buscar amigos o usuarios"
-          maxLength={60}
+  const herramientas = (
+    <HerramientasLista
+      resumen={
+        amigos.length === 0
+          ? undefined
+          : consulta
+            ? `Mostrando ${amigosVisibles.length} de ${amigos.length}`
+            : `${amigos.length} ${amigos.length === 1 ? 'amigo' : 'amigos'}`
+      }
+      acciones={
+        <BotonSeleccionar
+          visible={!selection.active && amigosVisibles.length > 0}
+          onPress={() => selection.enter()}
         />
-      </BarraFiltros>
-    </View>
-  ) : null;
+      }
+      busqueda={{
+        value: busqueda,
+        onChangeText: cambiarBusqueda,
+        placeholder: 'Buscar amigos o usuarios por nombre o email',
+        accessibilityLabel: 'Buscar amigos o usuarios',
+        maxLength: 60,
+        inputRef,
+        abierto: buscadorAbierto,
+        onAbiertoChange: setBuscadorAbierto,
+      }}
+    />
+  );
 
-  const encabezadoAmigos =
-    amigos.length > 0 ? (
-      <View>
-        <View style={styles.encabezadoFila}>
-          <Text style={[styles.eyebrow, { color: theme.textDim }]}>
-            TUS AMIGOS ({amigosVisibles.length})
-          </Text>
-          <BotonSeleccionar
-            visible={!selection.active && amigosVisibles.length > 0}
-            onPress={() => selection.enter()}
-          />
-        </View>
-        <SelectionHeader
-          visible={selection.active}
-          allSelected={todosSeleccionados}
-          onToggleAll={toggleSeleccionarTodos}
-          onCancel={selection.exit}
-        />
-      </View>
-    ) : null;
+  // Encabezado de la pantalla + herramientas, de borde a borde (la lista tiene margen lateral).
+  const cabecera = (
+    <View style={styles.cabecera}>
+      {encabezado}
+      {herramientas}
+    </View>
+  );
 
   const vacioBusqueda =
     consulta && amigos.length > 0 ? (
@@ -462,6 +422,7 @@ export function AmigosTabPanel({ solicitudesAbiertas, onCerrarSolicitudes, onAbr
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       {loading ? (
         <View style={styles.lista}>
+          {cabecera}
           <View style={[styles.filaGrilla, styles.filaEsqueleto]}>
             {Array.from({ length: columnas * 2 }, (_, i) => (
               <TarjetaAmigoEsqueleto key={i} ancho={anchoCelda} />
@@ -482,8 +443,13 @@ export function AmigosTabPanel({ solicitudesAbiertas, onCerrarSolicitudes, onAbr
           automaticallyAdjustKeyboardInsets
           ListHeaderComponent={
             <>
-              {barraFiltros}
-              {encabezadoAmigos}
+              {cabecera}
+              <SelectionHeader
+                visible={selection.active}
+                allSelected={todosSeleccionados}
+                onToggleAll={toggleSeleccionarTodos}
+                onCancel={selection.exit}
+              />
             </>
           }
           ListEmptyComponent={vacioBusqueda}
@@ -521,60 +487,17 @@ export function AmigosTabPanel({ solicitudesAbiertas, onCerrarSolicitudes, onAbr
         onDelete={confirmarEliminarSeleccionados}
       />
 
-      <HojaInferior
-        visible={solicitudesAbiertas}
-        titulo="Solicitudes de amistad"
-        onCerrar={onCerrarSolicitudes}
-      >
-        {solicitudes.length === 0 ? (
-          <EstadoVacio
-            compacto
-            icono="check"
-            titulo="Estás al día"
-            texto="Cuando alguien quiera sumarte como amigo, lo vas a ver acá."
-          />
-        ) : (
-          solicitudes.map((s) => (
-            <FilaNotificacion
-              key={s.id}
-              nombre={s.solicitante.nombre}
-              usuarioId={s.solicitante.id}
-              mensaje={
-                <>
-                  <Destacado>{s.solicitante.nombre}</Destacado> quiere agregarte como amigo
-                </>
-              }
-              meta={formatearHaceCuanto(s.created_at)}
-              etiquetaAceptar="Aceptar"
-              procesando={respondiendoId === s.id}
-              onAceptar={() => void ejecutarRespuesta(s.id, 'aceptar')}
-              onRechazar={() => void ejecutarRespuesta(s.id, 'rechazar')}
-              onPressAvatar={() => {
-                onCerrarSolicitudes();
-                verPerfil(s.solicitante.id);
-              }}
-            />
-          ))
-        )}
-      </HojaInferior>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  lista: { paddingHorizontal: PADDING_LISTA, paddingTop: 12 },
-  // Compensa el padding de la lista: la barra va de borde a borde.
-  barraEnLista: { marginHorizontal: -PADDING_LISTA, marginTop: -12, marginBottom: 12 },
+  lista: { paddingHorizontal: PADDING_LISTA },
+  // Compensa el padding de la lista: el encabezado va de borde a borde.
+  cabecera: { marginHorizontal: -PADDING_LISTA, marginBottom: 4 },
   filaGrilla: { gap: GAP_GRILLA, marginBottom: GAP_GRILLA },
   filaEsqueleto: { flexDirection: 'row', flexWrap: 'wrap' },
-  encabezadoFila: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-    minHeight: 24,
-  },
   eyebrow: {
     fontSize: 11,
     fontFamily: 'SpaceMono',

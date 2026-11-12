@@ -25,7 +25,7 @@ export function Destacado({ children }: { children: ReactNode }) {
   return <Text style={styles.destacado}>{children}</Text>;
 }
 
-/** Ítem de invitación o solicitud dentro de la hoja de la campanita. Sale con un fundido al responderlo. */
+/** Ítem de invitación o solicitud en la pantalla de la campanita. Sale con un fundido al responderlo. */
 export function FilaNotificacion({
   nombre,
   usuarioId,

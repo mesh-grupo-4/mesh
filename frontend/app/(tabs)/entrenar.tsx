@@ -11,7 +11,15 @@ import {
 import { Feather } from '@expo/vector-icons'
 import { router, useFocusEffect } from 'expo-router'
 
-import { ActivityTile, Btn, Chip, ChipRow, Field, TopBar, useTheme } from '@/components/MeshUI'
+import { ActivityTile, Btn, Field, TopBar, useTheme } from '@/components/MeshUI'
+import { HerramientasLista } from '@/components/BarraFiltros'
+import { FranjaEstado } from '@/components/FranjaEstado'
+import {
+  OpcionFiltro,
+  OpcionesFiltro,
+  PantallaFiltros,
+  SeccionFiltro,
+} from '@/components/PantallaFiltros'
 import { Pressable } from '@/components/Pressable'
 import { SegmentTabs } from '@/components/SegmentTabs'
 import { useEspacioTabBar } from '@/hooks/useEspacioTabBar'
@@ -30,6 +38,7 @@ import { formatDurationHm, formatKm, formatPaceMinKm } from '@/lib/format'
 import { meshAlert, meshConfirmDestructive } from '@/lib/meshAlert'
 import { abrirNuevoEntrenamiento, abrirRepetirEntrenamiento } from '@/lib/nuevoViaje'
 import { formatearEnArg } from '@/lib/tiempoArg'
+import { coincideBusqueda, normalizarBusqueda } from '@/lib/busqueda'
 
 type Seccion = 'circuitos' | 'sesiones'
 
@@ -58,6 +67,12 @@ export default function EntrenarScreen() {
   const [sesiones, setSesiones] = useState<SesionApi[]>([])
   const [cargando, setCargando] = useState(true)
   const [refrescando, setRefrescando] = useState(false)
+
+  const [busqueda, setBusqueda] = useState('')
+  const [pantallaFiltros, setPantallaFiltros] = useState(false)
+  // La pantalla de filtros edita un borrador; se aplica recién al confirmar.
+  const [borradorActividad, setBorradorActividad] = useState<ActividadEntrenableApi | null>(null)
+  const [borradorCircuito, setBorradorCircuito] = useState<{ id: string; nombre: string } | null>(null)
 
   const [renombrando, setRenombrando] = useState<CircuitoApi | null>(null)
   const [nombreNuevo, setNombreNuevo] = useState('')
@@ -95,6 +110,49 @@ export default function EntrenarScreen() {
     if (key === 'circuitos') setCircuitoFiltro(null)
     setSeccion(key as Seccion)
   }
+
+  const cantidadFiltros =
+    (actividad ? 1 : 0) + (seccion === 'sesiones' && circuitoFiltro ? 1 : 0)
+
+  const abrirFiltros = () => {
+    setBorradorActividad(actividad)
+    setBorradorCircuito(circuitoFiltro)
+    setPantallaFiltros(true)
+  }
+
+  const aplicarFiltros = () => {
+    setActividad(borradorActividad)
+    setCircuitoFiltro(seccion === 'sesiones' ? borradorCircuito : null)
+    setPantallaFiltros(false)
+  }
+
+  const limpiarFiltros = () => {
+    setActividad(null)
+    setCircuitoFiltro(null)
+  }
+
+  const consulta = normalizarBusqueda(busqueda)
+  const circuitosVisibles = circuitos.filter((c) => coincideBusqueda(consulta, [c.nombre]))
+  const sesionesVisibles = sesiones.filter((s) =>
+    coincideBusqueda(consulta, [s.nombre, s.circuito?.nombre])
+  )
+  const total = seccion === 'circuitos' ? circuitos.length : sesiones.length
+  const visibles = seccion === 'circuitos' ? circuitosVisibles.length : sesionesVisibles.length
+  const sustantivo =
+    seccion === 'circuitos'
+      ? total === 1 ? 'circuito' : 'circuitos'
+      : total === 1 ? 'sesión' : 'sesiones'
+  const resumen = cargando
+    ? undefined
+    : consulta
+      ? `Mostrando ${visibles} de ${total}`
+      : `${total} ${sustantivo}${seccion === 'sesiones' && circuitoFiltro ? ` · ${circuitoFiltro.nombre}` : ''}`
+
+  // Circuitos para elegir en los filtros: el aplicado siempre aparece, aunque no esté en la lista cargada.
+  const circuitosParaFiltro =
+    circuitoFiltro && !circuitos.some((c) => c.id === circuitoFiltro.id)
+      ? [circuitoFiltro, ...circuitos]
+      : circuitos
 
   const abrirRenombrar = (c: CircuitoApi) => {
     setNombreNuevo(c.nombre)
@@ -139,25 +197,10 @@ export default function EntrenarScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <TopBar title="Entrenar" raiz bordered={false} />
-
-      <View style={styles.cabecera}>
-        <Btn block size="lg" icon="plus" onPress={abrirNuevoEntrenamiento}>
-          Nuevo entrenamiento
-        </Btn>
-        <SegmentTabs
-          tabs={[
-            { key: 'circuitos', label: 'Circuitos' },
-            { key: 'sesiones', label: 'Sesiones' },
-          ]}
-          active={seccion}
-          onChange={cambiarSeccion}
-          theme={theme}
-        />
-      </View>
-
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: espacioTabBar }]}
+        contentContainerStyle={{ paddingBottom: espacioTabBar }}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
         refreshControl={
           <RefreshControl
             refreshing={refrescando}
@@ -169,29 +212,50 @@ export default function EntrenarScreen() {
           />
         }
       >
-        <ChipRow>
-          <Chip active={actividad === null} onPress={() => setActividad(null)}>
-            Todas
-          </Chip>
-          {ACTIVIDADES_ENTRENABLES.map((a) => (
-            <Chip key={a} active={actividad === a} onPress={() => setActividad(a)}>
-              {etiquetaActividad(a)}
-            </Chip>
-          ))}
-        </ChipRow>
+        <TopBar title="Entrenar" raiz bordered={false} />
 
-        {seccion === 'sesiones' && circuitoFiltro ? (
-          <View style={styles.filtroCircuito}>
-            <Chip active icon="x" onPress={() => setCircuitoFiltro(null)}>
-              {`Circuito: ${circuitoFiltro.nombre}`}
-            </Chip>
-          </View>
-        ) : null}
+        <View style={styles.cabecera}>
+          <Btn block size="lg" icon="plus" onPress={abrirNuevoEntrenamiento}>
+            Nuevo entrenamiento
+          </Btn>
+          <SegmentTabs
+            tabs={[
+              { key: 'circuitos', label: 'Circuitos' },
+              { key: 'sesiones', label: 'Sesiones' },
+            ]}
+            active={seccion}
+            onChange={cambiarSeccion}
+            theme={theme}
+          />
+        </View>
 
+        <HerramientasLista
+          resumen={resumen}
+          busqueda={{
+            value: busqueda,
+            onChangeText: setBusqueda,
+            placeholder: seccion === 'circuitos' ? 'Buscar circuitos...' : 'Buscar sesiones...',
+            accessibilityLabel: 'Buscar entrenamientos',
+            maxLength: 60,
+          }}
+          filtros={{ cantidad: cantidadFiltros, onPress: abrirFiltros, onLimpiar: limpiarFiltros }}
+        />
+
+        <View style={styles.content}>
         {cargando ? (
           <View style={styles.center}>
             <ActivityIndicator color={theme.accent} />
           </View>
+        ) : visibles === 0 && (consulta || cantidadFiltros > 0) ? (
+          <Vacio
+            icon="search"
+            titulo="Sin resultados"
+            texto={
+              consulta
+                ? `Nada coincide con "${busqueda.trim()}".`
+                : 'No hay entrenamientos con los filtros aplicados.'
+            }
+          />
         ) : seccion === 'circuitos' ? (
           circuitos.length === 0 ? (
             <Vacio
@@ -200,7 +264,7 @@ export default function EntrenarScreen() {
               texto={'Un circuito se arma solo cuando repetís una sesión (botón "Repetir") o cuando entrenás varias veces con la misma ruta guardada. Ahí vas a ver cómo evolucionás en ese recorrido.'}
             />
           ) : (
-            circuitos.map((c) => (
+            circuitosVisibles.map((c) => (
               <TarjetaCircuito
                 key={c.id}
                 circuito={c}
@@ -221,7 +285,7 @@ export default function EntrenarScreen() {
             texto='Tocá "Nuevo entrenamiento" para arrancar. Cada entrenamiento que termines queda acá con su distancia y su ritmo.'
           />
         ) : (
-          sesiones.map((s) => (
+          sesionesVisibles.map((s) => (
             <FilaSesion
               key={s.viaje_id}
               sesion={s}
@@ -233,7 +297,62 @@ export default function EntrenarScreen() {
             />
           ))
         )}
+        </View>
       </ScrollView>
+
+      <FranjaEstado />
+
+      <PantallaFiltros
+        visible={pantallaFiltros}
+        titulo="Filtrar entrenamientos"
+        onCerrar={() => setPantallaFiltros(false)}
+        onLimpiar={() => {
+          setBorradorActividad(null)
+          setBorradorCircuito(null)
+        }}
+        puedeLimpiar={borradorActividad !== null || borradorCircuito !== null}
+        textoAplicar="Aplicar filtros"
+        onAplicar={aplicarFiltros}
+      >
+        <SeccionFiltro titulo="Actividad">
+          <OpcionesFiltro>
+            <OpcionFiltro
+              etiqueta="Todas"
+              activa={borradorActividad === null}
+              onPress={() => setBorradorActividad(null)}
+            />
+            {ACTIVIDADES_ENTRENABLES.map((a) => (
+              <OpcionFiltro
+                key={a}
+                etiqueta={etiquetaActividad(a)}
+                activa={borradorActividad === a}
+                onPress={() => setBorradorActividad(a)}
+                icono={<ActivityTile activity={a} size={24} />}
+              />
+            ))}
+          </OpcionesFiltro>
+        </SeccionFiltro>
+
+        {seccion === 'sesiones' && circuitosParaFiltro.length > 0 ? (
+          <SeccionFiltro titulo="Circuito">
+            <OpcionesFiltro>
+              <OpcionFiltro
+                etiqueta="Todos"
+                activa={borradorCircuito === null}
+                onPress={() => setBorradorCircuito(null)}
+              />
+              {circuitosParaFiltro.map((c) => (
+                <OpcionFiltro
+                  key={c.id}
+                  etiqueta={c.nombre}
+                  activa={borradorCircuito?.id === c.id}
+                  onPress={() => setBorradorCircuito({ id: c.id, nombre: c.nombre })}
+                />
+              ))}
+            </OpcionesFiltro>
+          </SeccionFiltro>
+        ) : null}
+      </PantallaFiltros>
 
       <Modal
         visible={renombrando != null}
@@ -454,7 +573,6 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   cabecera: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8, gap: 12 },
   content: { paddingHorizontal: 20, paddingTop: 8, gap: 12 },
-  filtroCircuito: { flexDirection: 'row' },
   center: { paddingVertical: 48, alignItems: 'center' },
   vacio: { alignItems: 'center', gap: 10, paddingVertical: 40, paddingHorizontal: 12 },
   vacioTitulo: { fontSize: 18, fontWeight: '800', textAlign: 'center' },

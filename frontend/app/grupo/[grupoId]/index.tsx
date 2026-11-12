@@ -1,46 +1,31 @@
-import { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ActivityIndicator,
-  RefreshControl,
-} from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { View, Text, StyleSheet, RefreshControl } from 'react-native';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useCopilot } from 'react-native-copilot';
 import { Pressable } from '@/components/Pressable';
 import { meshAlert } from '@/lib/meshAlert';
-import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { resolveBackendUserId } from '@/lib/apiClient';
 import {
+  listarMiembrosGrupo,
   obtenerGrupo,
   type GrupoDetalleApi,
+  type GrupoMiembroApi,
 } from '@/lib/gruposApi';
-import { useCopilot } from 'react-native-copilot';
-import { Btn, TopBar, Badge, useTheme } from '@/components/MeshUI';
+import { formatearEnArg } from '@/lib/tiempoArg';
+import { Btn, TopBar, useTheme } from '@/components/MeshUI';
+import { inicialesDe } from '@/components/AvatarFallback';
+import { Esqueleto } from '@/components/Esqueleto';
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda';
-import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda'
+import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda';
 import { AYUDA_GRUPO_DETALLE } from '@/components/ayuda/contenidoAyuda';
-import { Feather } from '@expo/vector-icons';
+import { colorDeGrupo } from '@/components/grupos/TarjetaGrupo';
+import { FilaMiembro, ordenarMiembros } from '@/components/grupos/FilaMiembro';
 import { abrirNuevoViaje } from '@/lib/nuevoViaje';
 
-const MESES_ABREV = [
-  'ene', 'feb', 'mar', 'abr', 'may', 'jun',
-  'jul', 'ago', 'sep', 'oct', 'nov', 'dic',
-];
-
-function formatearDesde(iso: string): string {
-  const fecha = new Date(iso);
-  if (Number.isNaN(fecha.getTime())) return '--';
-  const mes = MESES_ABREV[fecha.getMonth()] ?? '--';
-  const anio = String(fecha.getFullYear()).slice(2);
-  return `${mes} '${anio}`;
-}
-
-function getGroupColor(nombre: string): string {
-  const colors = ['#d76655', '#4a9eff', '#2f9e63', '#7a5ae0', '#c98a3e'];
-  const charSum = nombre.split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
-  return colors[charSum % colors.length];
-}
+/** Cuántos integrantes se muestran en el detalle; el resto, en "Ver todos". */
+const MIEMBROS_PREVIEW = 5;
 
 export default function GrupoDetalleScreen() {
   const { grupoId } = useLocalSearchParams<{ grupoId: string }>();
@@ -49,42 +34,60 @@ export default function GrupoDetalleScreen() {
   const { start } = useCopilot();
 
   const [grupo, setGrupo] = useState<GrupoDetalleApi | null>(null);
+  const [miembros, setMiembros] = useState<GrupoMiembroApi[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const cargar = async (esRefresh = false) => {
-    if (!grupoId) return;
-    if (esRefresh) setRefreshing(true);
-    else setLoading(true);
-    setError(null);
+  const cargar = useCallback(
+    async (esRefresh = false) => {
+      if (!grupoId) return;
+      if (esRefresh) setRefreshing(true);
+      else setLoading(true);
+      setError(null);
 
-    try {
-      const userId = resolveBackendUserId(backendUserId);
-      const detalle = await obtenerGrupo(grupoId, userId);
-      setGrupo(detalle);
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'No se pudo cargar el grupo.';
-      setError(msg);
-      if (!esRefresh) meshAlert('Error', msg);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+      try {
+        const userId = resolveBackendUserId(backendUserId);
+        const [detalle, lista] = await Promise.all([
+          obtenerGrupo(grupoId, userId),
+          listarMiembrosGrupo(grupoId, userId),
+        ]);
+        setGrupo(detalle);
+        setMiembros(ordenarMiembros(lista));
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : 'No se pudo cargar el grupo.';
+        setError(msg);
+        if (!esRefresh) meshAlert('Error', msg);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [grupoId, backendUserId]
+  );
 
   useEffect(() => {
     void cargar();
-  }, [grupoId, backendUserId]);
+  }, [cargar]);
 
   const esLider = grupo?.mi_rol === 'lider';
-  const groupColor = grupo ? getGroupColor(grupo.nombre) : theme.accent;
+  const color = grupo ? colorDeGrupo(grupo.nombre) : theme.accent;
+  const preview = miembros.slice(0, MIEMBROS_PREVIEW);
 
-  const headerRight = grupo ? (
+  const verMiembros = () =>
+    router.push({ pathname: '/grupo/[grupoId]/miembros', params: { grupoId } });
+  const invitar = () =>
+    router.push({ pathname: '/grupo/[grupoId]/invitar-desde-grupos', params: { grupoId } });
+  const verPerfil = (usuarioId: string) =>
+    router.push({ pathname: '/usuario/[usuarioId]', params: { usuarioId } });
+
+  const ajustes = grupo ? (
     <Pressable
       onPress={() => router.push({ pathname: '/grupo/[grupoId]/editar', params: { grupoId } })}
+      accessibilityRole="button"
+      accessibilityLabel="Ajustes del grupo"
       style={({ pressed }) => [
-        styles.headerIconBtn,
+        styles.botonRedondo,
         { backgroundColor: pressed ? theme.surface2 : theme.surface, borderColor: theme.border },
       ]}
     >
@@ -97,10 +100,10 @@ export default function GrupoDetalleScreen() {
       <Stack.Screen options={{ headerShown: false }} />
 
       <TopBar
-        title={grupo?.nombre ?? 'Grupo'}
+        title=""
         onBack={() => router.back()}
         bordered={false}
-        right={headerRight}
+        right={ajustes}
         onAyuda={() => start()}
       />
 
@@ -115,137 +118,197 @@ export default function GrupoDetalleScreen() {
         }
       >
         {loading ? (
-          <ActivityIndicator color={theme.accent} size="large" style={{ marginTop: 48 }} />
-        ) : error ? (
+          <DetalleEsqueleto />
+        ) : error || !grupo ? (
           <Text style={[styles.error, { color: theme.danger }]}>{error}</Text>
-        ) : grupo ? (
+        ) : (
           <>
-            {/* Tarjeta principal con degradado/tinta según color del grupo */}
+            {/* Identidad del grupo + estadísticas */}
             <PasoAyuda {...AYUDA_GRUPO_DETALLE[0]!}>
-            <View
-              style={[
-                styles.detailCard,
-                {
-                  backgroundColor: `${groupColor}16`,
-                  borderColor: `${groupColor}55`,
-                },
-              ]}
-            >
-              <View style={styles.cardHeaderRow}>
-                <View style={[styles.cardIconBox, { backgroundColor: `${groupColor}29` }]}>
-                  <Feather name="users" size={24} color={groupColor} />
+              <View style={styles.hero}>
+                <View
+                  style={[
+                    styles.avatarGrupo,
+                    { backgroundColor: `${color}22`, borderColor: `${color}66` },
+                  ]}
+                >
+                  <Text style={[styles.avatarGrupoTexto, { color }]}>
+                    {inicialesDe(grupo.nombre)}
+                  </Text>
                 </View>
-                {esLider && (
-                  <Badge tone="accent">
-                    <Feather name="award" size={12} color={theme.accent} style={{ marginRight: 4 }} />
-                    Líder
-                  </Badge>
-                )}
-              </View>
 
-              <Text style={[styles.nombre, { color: theme.text }]} numberOfLines={2}>
-                {grupo.nombre}
-              </Text>
+                <Text style={[styles.nombre, { color: theme.text }]} numberOfLines={2}>
+                  {grupo.nombre}
+                </Text>
 
-              <View style={styles.cardStatsRow}>
-                <View style={styles.cardStat}>
-                  <Text style={[styles.statValue, { color: theme.text }]}>
-                    {grupo.cantidad_miembros}
+                <View
+                  style={[
+                    styles.miRol,
+                    { backgroundColor: esLider ? theme.goldWeak : theme.surface2 },
+                  ]}
+                >
+                  {esLider ? (
+                    <MaterialCommunityIcons name="crown" size={14} color={theme.gold} />
+                  ) : (
+                    <Feather name="user" size={13} color={theme.textDim} />
+                  )}
+                  <Text style={[styles.miRolTexto, { color: esLider ? theme.gold : theme.textDim }]}>
+                    {esLider ? 'Sos el líder' : 'Sos participante'}
                   </Text>
-                  <Text style={[styles.statLabel, { color: theme.textDim }]}>Miembros</Text>
                 </View>
-                <View style={[styles.cardStat, styles.borderLeft, { borderLeftColor: theme.border }]}>
-                  <Text style={[styles.statValue, { color: theme.text }]}>
-                    {grupo.cantidad_viajes}
-                  </Text>
-                  <Text style={[styles.statLabel, { color: theme.textDim }]}>Viajes</Text>
-                </View>
-                <View style={[styles.cardStat, styles.borderLeft, { borderLeftColor: theme.border }]}>
-                  <Text style={[styles.statValue, { color: theme.text }]}>
-                    {formatearDesde(grupo.fecha_creacion)}
-                  </Text>
-                  <Text style={[styles.statLabel, { color: theme.textDim }]}>Desde</Text>
+
+                <View style={styles.stats}>
+                  <Stat
+                    icono="users"
+                    valor={String(grupo.cantidad_miembros)}
+                    etiqueta={grupo.cantidad_miembros === 1 ? 'Miembro' : 'Miembros'}
+                  />
+                  <Stat
+                    icono="map"
+                    valor={String(grupo.cantidad_viajes)}
+                    etiqueta={grupo.cantidad_viajes === 1 ? 'Viaje' : 'Viajes'}
+                  />
+                  <Stat
+                    icono="calendar"
+                    valor={formatearEnArg(grupo.fecha_creacion, { month: 'short', year: '2-digit' })}
+                    etiqueta="Desde"
+                  />
                 </View>
               </View>
-            </View>
             </PasoAyuda>
 
             {/* Acciones principales */}
-            <PasoAyuda {...AYUDA_GRUPO_DETALLE[1]!}>
-              <View style={styles.actionsRow}>
+            <View style={styles.acciones}>
+              <PasoAyuda {...AYUDA_GRUPO_DETALLE[1]!} estilo={styles.flex}>
                 <Btn
                   variant="primary"
+                  size="lg"
                   block
                   icon="plus"
                   onPress={() => abrirNuevoViaje({ grupo: grupo.id })}
-                  style={styles.actionBtn}
                 >
                   Nuevo viaje
                 </Btn>
-              </View>
-            </PasoAyuda>
-
-            {/* Enlaces de lista */}
-            <View style={styles.linksContainer}>
-              <PasoAyuda {...AYUDA_GRUPO_DETALLE[2]!}>
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.liLink,
-                    {
-                      backgroundColor: pressed ? theme.surface2 : theme.surface,
-                      borderColor: theme.border,
-                    },
-                  ]}
-                  onPress={() => router.push({ pathname: '/grupo/[grupoId]/miembros', params: { grupoId } })}
-                >
-                  <View style={styles.liLinkContent}>
-                    <View style={[styles.liIconWrapper, { backgroundColor: theme.surface2 }]}>
-                      <Feather name="users" size={18} color={theme.text} />
-                    </View>
-                    <View style={styles.liLinkText}>
-                      <Text style={[styles.liLinkTitle, { color: theme.text }]}>Miembros</Text>
-                      <Text style={[styles.liLinkSub, { color: theme.textDim }]}>
-                        Ver roles y permisos
-                      </Text>
-                    </View>
-                  </View>
-                  <Feather name="chevron-right" size={18} color={theme.textMute} />
-                </Pressable>
               </PasoAyuda>
-
-              {esLider && (
+              {esLider ? (
                 <PasoAyuda {...AYUDA_GRUPO_DETALLE[3]!}>
-                  <Pressable
-                    style={({ pressed }) => [
-                      styles.liLink,
-                      {
-                        backgroundColor: pressed ? theme.surface2 : theme.surface,
-                        borderColor: theme.border,
-                      },
-                    ]}
-                    onPress={() => router.push({ pathname: '/grupo/[grupoId]/invitar-desde-grupos', params: { grupoId } })}
-                  >
-                    <View style={styles.liLinkContent}>
-                      <View style={[styles.liIconWrapper, { backgroundColor: theme.accentWeak }]}>
-                        <Feather name="share-2" size={18} color={theme.accent} />
+                  <Btn variant="secondary" size="lg" icon="user-plus" onPress={invitar}>
+                    Invitar
+                  </Btn>
+                </PasoAyuda>
+              ) : null}
+            </View>
+
+            {/* Miembros */}
+            <PasoAyuda {...AYUDA_GRUPO_DETALLE[2]!}>
+              <View style={styles.seccion}>
+                <View style={styles.seccionHeader}>
+                  <Text style={[styles.eyebrow, { color: theme.textDim }]}>
+                    MIEMBROS ({miembros.length})
+                  </Text>
+                  <Pressable onPress={verMiembros} hitSlop={8} accessibilityRole="button">
+                    <Text style={[styles.verTodos, { color: theme.accent }]}>Ver todos</Text>
+                  </Pressable>
+                </View>
+
+                <View
+                  style={[styles.tarjeta, { backgroundColor: theme.surface, borderColor: theme.border }]}
+                >
+                  {preview.map((m, i) => {
+                    const esYo = m.id === backendUserId;
+                    return (
+                      <FilaMiembro
+                        key={m.id}
+                        miembro={m}
+                        esYo={esYo}
+                        separador={i > 0}
+                        onPress={esYo ? undefined : () => verPerfil(m.id)}
+                      />
+                    );
+                  })}
+
+                  {miembros.length > MIEMBROS_PREVIEW ? (
+                    <Pressable
+                      onPress={verMiembros}
+                      style={({ pressed }) => [
+                        styles.filaExtra,
+                        { borderTopColor: theme.border },
+                        pressed && { backgroundColor: theme.surface2 },
+                      ]}
+                    >
+                      <Text style={[styles.filaExtraTexto, { color: theme.text }]}>
+                        Ver los {miembros.length} miembros
+                      </Text>
+                      <Feather name="chevron-right" size={18} color={theme.textMute} />
+                    </Pressable>
+                  ) : null}
+
+                  {esLider ? (
+                    <Pressable
+                      onPress={invitar}
+                      style={({ pressed }) => [
+                        styles.filaExtra,
+                        { borderTopColor: theme.border },
+                        pressed && { backgroundColor: theme.surface2 },
+                      ]}
+                    >
+                      <View style={[styles.iconoInvitar, { backgroundColor: theme.accentWeak }]}>
+                        <Feather name="user-plus" size={18} color={theme.accent} />
                       </View>
-                      <View style={styles.liLinkText}>
-                        <Text style={[styles.liLinkTitle, { color: theme.text }]}>
+                      <View style={styles.flex}>
+                        <Text style={[styles.filaExtraTexto, { color: theme.accent }]}>
                           Invitar personas
                         </Text>
-                        <Text style={[styles.liLinkSub, { color: theme.textDim }]}>
+                        <Text style={[styles.filaExtraSub, { color: theme.textDim }]}>
                           Por usuario o desde otros grupos
                         </Text>
                       </View>
-                    </View>
-                    <Feather name="chevron-right" size={18} color={theme.textMute} />
-                  </Pressable>
-                </PasoAyuda>
-              )}
-            </View>
+                    </Pressable>
+                  ) : null}
+                </View>
+              </View>
+            </PasoAyuda>
           </>
-        ) : null}
+        )}
       </ScrollViewAyuda>
+    </View>
+  );
+}
+
+function Stat({
+  icono,
+  valor,
+  etiqueta,
+}: {
+  icono: keyof typeof Feather.glyphMap;
+  valor: string;
+  etiqueta: string;
+}) {
+  const theme = useTheme();
+  return (
+    <View style={[styles.stat, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+      <Feather name={icono} size={15} color={theme.textMute} />
+      <Text style={[styles.statValor, { color: theme.text }]} numberOfLines={1}>
+        {valor}
+      </Text>
+      <Text style={[styles.statEtiqueta, { color: theme.textDim }]}>{etiqueta}</Text>
+    </View>
+  );
+}
+
+function DetalleEsqueleto() {
+  return (
+    <View style={styles.hero}>
+      <Esqueleto ancho={88} alto={88} radio={26} />
+      <Esqueleto ancho="55%" alto={24} />
+      <Esqueleto ancho={120} alto={24} radio={12} />
+      <View style={styles.stats}>
+        {[0, 1, 2].map((i) => (
+          <View key={i} style={styles.flex}>
+            <Esqueleto alto={84} radio={14} />
+          </View>
+        ))}
+      </View>
     </View>
   );
 }
@@ -254,12 +317,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  content: {
-    padding: 20,
-    paddingBottom: 40,
-    gap: 16,
+  flex: {
+    flex: 1,
   },
-  headerIconBtn: {
+  content: {
+    paddingHorizontal: 20,
+    paddingTop: 4,
+    paddingBottom: 40,
+    gap: 22,
+  },
+  botonRedondo: {
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -267,96 +334,120 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  detailCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 18,
-    gap: 12,
-  },
-  cardHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  hero: {
     alignItems: 'center',
+    gap: 10,
   },
-  cardIconBox: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
+  avatarGrupo: {
+    width: 88,
+    height: 88,
+    borderRadius: 26,
+    borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  nombre: {
-    fontSize: 24,
-    fontWeight: '700',
+  avatarGrupoTexto: {
+    fontSize: 32,
+    fontWeight: '800',
     letterSpacing: -0.5,
+  },
+  nombre: {
+    fontSize: 26,
+    fontWeight: '800',
+    letterSpacing: -0.6,
+    textAlign: 'center',
     marginTop: 4,
   },
-  cardStatsRow: {
+  miRol: {
     flexDirection: 'row',
-    marginTop: 8,
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 999,
   },
-  cardStat: {
-    flex: 1,
-    gap: 3,
-  },
-  borderLeft: {
-    borderLeftWidth: 1,
-    paddingLeft: 16,
-  },
-  statValue: {
-    fontSize: 18,
+  miRolTexto: {
+    fontSize: 13,
     fontWeight: '700',
+  },
+  stats: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 10,
+    alignSelf: 'stretch',
+  },
+  stat: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  statValor: {
+    fontSize: 19,
+    fontWeight: '800',
     fontFamily: 'SpaceMono',
   },
-  statLabel: {
+  statEtiqueta: {
     fontSize: 10.5,
     fontFamily: 'SpaceMono',
     fontWeight: '700',
     letterSpacing: 0.5,
     textTransform: 'uppercase',
   },
-  actionsRow: {
+  acciones: {
     flexDirection: 'row',
     gap: 10,
-    alignItems: 'stretch',
   },
-  actionBtn: {
-    flex: 1,
+  seccion: {
+    gap: 10,
   },
-  linksContainer: {
-    gap: 11,
+  seccionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
-  liLink: {
+  eyebrow: {
+    fontSize: 11,
+    fontFamily: 'SpaceMono',
+    fontWeight: '700',
+    letterSpacing: 1.2,
+  },
+  verTodos: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  tarjeta: {
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  filaExtra: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderRadius: 14,
-    borderWidth: 1.2,
-    padding: 14,
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
-  liLinkContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  liIconWrapper: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  liLinkText: {
-    flex: 1,
-    marginLeft: 14,
-  },
-  liLinkTitle: {
-    fontSize: 15.5,
+  filaExtraTexto: {
+    fontSize: 15,
     fontWeight: '700',
   },
-  liLinkSub: {
+  filaExtraSub: {
     fontSize: 13,
     marginTop: 2,
+  },
+  // Mismo ancho que el avatar con anillo de `FilaMiembro`: los textos quedan alineados.
+  iconoInvitar: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   error: {
     fontSize: 15,

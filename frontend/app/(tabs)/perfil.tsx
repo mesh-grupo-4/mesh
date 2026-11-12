@@ -18,6 +18,7 @@ import { intensidadRacha, nivelRacha, obtenerMiRacha, type RachaApi } from '@/li
 import { usePreferenciaTema } from '@/lib/temaApp';
 import { elegirVibracionAvisos, useVibracionAvisos } from '@/lib/vibracionPrefs';
 import { Avatar, TopBar, useTheme } from '@/components/MeshUI';
+import { FranjaEstado } from '@/components/FranjaEstado';
 import { BotonAyuda } from '@/components/ayuda/BotonAyuda';
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda';
 import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda'
@@ -135,47 +136,56 @@ export default function PerfilScreen() {
   };
 
   const semanasRacha = racha?.semanas_consecutivas ?? 0;
+  const [scrolleado, setScrolleado] = useState(false);
   const nivel = nivelRacha(semanasRacha);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <FondoMesh
-        color={theme.text}
-        alto={ALTO_FONDO}
-        colorRacha={theme.fire}
-        intensidadRacha={intensidadRacha(semanasRacha)}
-      />
+      {/* El fondo y el encabezado van dentro del scroll: nada queda fijo. */}
+      <ScrollViewAyuda
+        contentContainerStyle={styles.scroll}
+        scrollEventThrottle={32}
+        onScroll={(e) => {
+          const abajo = e.nativeEvent.contentOffset.y > 4;
+          setScrolleado((prev) => (prev === abajo ? prev : abajo));
+        }}
+      >
+        <FondoMesh
+          color={theme.text}
+          alto={ALTO_FONDO}
+          colorRacha={theme.fire}
+          intensidadRacha={intensidadRacha(semanasRacha)}
+        />
 
-      <TopBar
-        title=""
-        raiz
-        bordered={false}
-        transparente
-        right={
-          <View style={styles.acciones}>
-            <BotonAyuda />
-            <PasoAyuda {...AYUDA_PERFIL[0]!}>
-              <Pressable
-                onPress={() => router.push('/editar-perfil')}
-                accessibilityRole="button"
-                accessibilityLabel="Ver y editar datos personales"
-                hitSlop={8}
-                style={({ pressed }) => [
-                  styles.botonLapiz,
-                  {
-                    backgroundColor: pressed ? theme.surface2 : theme.surface,
-                    borderColor: theme.border,
-                  },
-                ]}
-              >
-                <Feather name="edit-2" size={19} color={theme.text} />
-              </Pressable>
-            </PasoAyuda>
-          </View>
-        }
-      />
+        <TopBar
+          title=""
+          raiz
+          bordered={false}
+          transparente
+          right={
+            <View style={styles.acciones}>
+              <BotonAyuda />
+              <PasoAyuda {...AYUDA_PERFIL[0]!}>
+                <Pressable
+                  onPress={() => router.push('/editar-perfil')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Ver y editar datos personales"
+                  hitSlop={8}
+                  style={({ pressed }) => [
+                    styles.botonLapiz,
+                    {
+                      backgroundColor: pressed ? theme.surface2 : theme.surface,
+                      borderColor: theme.border,
+                    },
+                  ]}
+                >
+                  <Feather name="edit-2" size={19} color={theme.text} />
+                </Pressable>
+              </PasoAyuda>
+            </View>
+          }
+        />
 
-      <ScrollViewAyuda contentContainerStyle={styles.scroll}>
         <View style={styles.cabecera}>
           <View style={styles.fundido}>
             <FundidoMesh color={theme.background} />
@@ -302,6 +312,8 @@ export default function PerfilScreen() {
           </Text>
         </View>
       </ScrollViewAyuda>
+
+      <FranjaEstado visible={scrolleado} />
 
       {rafagaFueguitos > 0 ? (
         <FueguitosRacha key={rafagaFueguitos} semanas={semanasRacha} alto={ALTO_FUEGUITOS} />

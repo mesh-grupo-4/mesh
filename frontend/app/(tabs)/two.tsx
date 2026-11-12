@@ -5,13 +5,8 @@ import {
   Text,
   StyleSheet,
   ActivityIndicator,
-  ScrollView,
   RefreshControl,
-  Modal,
-  Platform,
-  SafeAreaView,
 } from 'react-native'
-import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Pressable } from '@/components/Pressable'
 import { router, useFocusEffect } from 'expo-router'
 import { Feather } from '@expo/vector-icons'
@@ -23,16 +18,9 @@ import { Btn, TopBar, useTheme, Badge, ActivityTile } from '@/components/MeshUI'
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
 import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda'
 import { AYUDA_VIAJES } from '@/components/ayuda/contenidoAyuda'
-import {
-  BarraFiltros,
-  BotonFiltros,
-  BotonLimpiarFiltros,
-  BuscadorFiltros,
-  FilaBuscadorFiltros,
-  FilaChipsFiltro,
-  PastillaFiltro,
-} from '@/components/BarraFiltros'
-import { HojaFiltrosViajes } from '@/components/viajes/HojaFiltrosViajes'
+import { HerramientasLista } from '@/components/BarraFiltros'
+import { FranjaEstado } from '@/components/FranjaEstado'
+import { PantallaFiltrosViajes } from '@/components/viajes/PantallaFiltrosViajes'
 import {
   ETIQUETA_ORDEN_PASADOS,
   FILTROS_INICIALES,
@@ -66,7 +54,6 @@ import {
   listarInvitacionesViajePendientes,
   listarViajesPlanificados,
   listarViajesFinalizados,
-  responderInvitacionViaje,
   type InvitacionViajePendienteApi,
   type ModoViajeApi,
   type ViajePlanificadoApi,
@@ -356,7 +343,6 @@ function TarjetaFinalizado({
 export default function ViajesScreen() {
   const espacioTabBar = useEspacioTabBar()
   const theme = useTheme()
-  const insets = useSafeAreaInsets()
   const { backendUserId, backendSyncing } = useAuth()
   const { syncKnownTripIds } = useTripRealtime()
   const selection = useSelectionMode()
@@ -368,8 +354,6 @@ export default function ViajesScreen() {
   const [invitaciones, setInvitaciones] = useState<InvitacionViajePendienteApi[]>([])
   const [cargando, setCargando] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [respondiendoId, setRespondiendoId] = useState<string | null>(null)
-  const [modalInvitaciones, setModalInvitaciones] = useState(false)
   const [noRealizadosAbierto, setNoRealizadosAbierto] = useState(false)
   const [eliminandoBulk, setEliminandoBulk] = useState(false)
 
@@ -524,7 +508,7 @@ export default function ViajesScreen() {
   // Filtros: se comparten entre pestañas; cada una usa los que le aplican.
   const [busqueda, setBusqueda] = useState('')
   const [filtros, setFiltros] = useState<FiltrosViajes>(FILTROS_INICIALES)
-  const [hojaFiltros, setHojaFiltros] = useState(false)
+  const [pantallaFiltros, setPantallaFiltros] = useState(false)
 
   const filtrosAplicados = useMemo(() => calcularFiltrosActivos(filtros, tab), [filtros, tab])
 
@@ -603,6 +587,16 @@ export default function ViajesScreen() {
       ? viajesFuturosFiltrados.length
       : finalizadosFiltrados.length + viajesNoRealizadosFiltrados.length
 
+  const sufijoOrden =
+    tab === 'pasados' && filtros.ordenPasados !== 'recientes'
+      ? ` · ${ETIQUETA_ORDEN_PASADOS[filtros.ordenPasados]}`
+      : ''
+  const resumenLista = cargando
+    ? undefined
+    : (filtrosActivos
+        ? `Mostrando ${visiblesPestana} de ${totalPestana}`
+        : `${totalPestana} ${totalPestana === 1 ? 'viaje' : 'viajes'}`) + sufijoOrden
+
   const hayPasados = finalizados.length > 0 || viajesNoRealizados.length > 0
   const hayResultadosPasados = finalizadosFiltrados.length > 0 || viajesNoRealizadosFiltrados.length > 0
 
@@ -656,88 +650,8 @@ export default function ViajesScreen() {
     }, [cargar])
   )
 
-  const responder = async (viajeId: string, accion: 'aceptar' | 'rechazar') => {
-    let userId: string
-    try {
-      userId = resolveBackendUserId(backendUserId)
-    } catch {
-      meshError('Error', 'No se pudo identificar tu usuario.')
-      return
-    }
-
-    setRespondiendoId(viajeId)
-    try {
-      await responderInvitacionViaje(viajeId, accion, userId)
-      await cargar(true)
-      if (accion === 'aceptar') {
-        setModalInvitaciones(false)
-        router.push({ pathname: '/viaje/[viajeId]', params: { viajeId } })
-      }
-    } catch (e: unknown) {
-      meshError('Error', e instanceof Error ? e.message : 'No se pudo responder.')
-    } finally {
-      setRespondiendoId(null)
-    }
-  }
-
   return (
     <View style={[styles.root, { backgroundColor: theme.background }]}>
-      <TopBar
-        title="Viajes"
-        raiz
-        bordered={false}
-        onAyuda={() => start()}
-        right={
-          <PasoAyuda {...AYUDA_VIAJES[0]!}>
-            <View style={styles.headerBtns}>
-              <Pressable
-                style={styles.headerBtn}
-                onPress={() => router.push('/escanear-qr')}
-                hitSlop={8}
-              >
-                <Feather name="camera" size={22} color={theme.text} />
-              </Pressable>
-              <Pressable
-                style={styles.headerBtn}
-                onPress={() => setModalInvitaciones(true)}
-                hitSlop={8}
-              >
-                <Feather
-                  name="bell"
-                  size={22}
-                  color={invitaciones.length > 0 ? theme.accent : theme.text}
-                />
-                {invitaciones.length > 0 && (
-                  <View style={[styles.bellBadge, { backgroundColor: theme.accent }]}>
-                    <Text style={styles.bellBadgeText}>
-                      {invitaciones.length > 9 ? '9+' : String(invitaciones.length)}
-                    </Text>
-                  </View>
-                )}
-              </Pressable>
-            </View>
-          </PasoAyuda>
-        }
-      />
-
-      {/* Tabs internos fijos */}
-      <PasoAyuda {...AYUDA_VIAJES[1]!}>
-        <View style={styles.segmentWrap}>
-          <SegmentTabs
-            tabs={[
-              { key: 'mis_viajes', label: 'Mis viajes' },
-              { key: 'pasados', label: 'Viajes pasados' },
-            ]}
-            active={tab}
-            onChange={(key) => {
-              selection.exit()
-              setTab(key as Tab)
-            }}
-            theme={theme}
-          />
-        </View>
-      </PasoAyuda>
-
       <ScrollViewAyuda
         contentContainerStyle={[styles.scroll, { paddingBottom: espacioTabBar }]}
         keyboardShouldPersistTaps="handled"
@@ -750,47 +664,85 @@ export default function ViajesScreen() {
           />
         }
       >
-          {/* Búsqueda y filtros: scrollean con la lista para dejarle más lugar. */}
-          <PasoAyuda {...AYUDA_VIAJES[2]!}>
-          <BarraFiltros>
-            <FilaBuscadorFiltros>
-              <BuscadorFiltros
-                value={busqueda}
-                onChangeText={setBusqueda}
-                placeholder="Buscar por nombre o actividad..."
-                accessibilityLabel="Buscar viajes"
-                style={styles.buscadorEnFila}
-              />
-              <BotonFiltros cantidad={filtrosAplicados.length} onPress={() => setHojaFiltros(true)} />
-            </FilaBuscadorFiltros>
-
-            {/* Cada filtro aplicado se ve y se quita de un toque: la lista nunca queda recortada a escondidas. */}
-            {filtrosAplicados.length > 0 && (
-              <FilaChipsFiltro>
-                {filtrosAplicados.map((a) => (
-                  <PastillaFiltro
-                    key={a.clave}
-                    etiqueta={a.etiqueta}
-                    onQuitar={() => setFiltros((f) => a.quitar(f))}
+        <TopBar
+          title="Viajes"
+          raiz
+          bordered={false}
+          onAyuda={() => start()}
+          right={
+            <PasoAyuda {...AYUDA_VIAJES[0]!}>
+              <View style={styles.headerBtns}>
+                <Pressable
+                  style={styles.headerBtn}
+                  onPress={() => router.push('/escanear-qr')}
+                  hitSlop={8}
+                >
+                  <Feather name="camera" size={22} color={theme.text} />
+                </Pressable>
+                <Pressable
+                  style={styles.headerBtn}
+                  onPress={() => router.push('/viaje/invitaciones')}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    invitaciones.length > 0
+                      ? `Invitaciones a viajes, ${invitaciones.length} pendientes`
+                      : 'Invitaciones a viajes, sin pendientes'
+                  }
+                  hitSlop={8}
+                >
+                  <Feather
+                    name="bell"
+                    size={22}
+                    color={invitaciones.length > 0 ? theme.accent : theme.text}
                   />
-                ))}
-                {filtrosAplicados.length > 1 && <BotonLimpiarFiltros onPress={limpiarFiltros} />}
-              </FilaChipsFiltro>
-            )}
+                  {invitaciones.length > 0 && (
+                    <View style={[styles.bellBadge, { backgroundColor: theme.accent }]}>
+                      <Text style={styles.bellBadgeText}>
+                        {invitaciones.length > 9 ? '9+' : String(invitaciones.length)}
+                      </Text>
+                    </View>
+                  )}
+                </Pressable>
+              </View>
+            </PasoAyuda>
+          }
+        />
 
-            {(filtrosActivos || (tab === 'pasados' && filtros.ordenPasados !== 'recientes')) &&
-              totalPestana > 0 && (
-                <Text style={[styles.resumenFiltros, { color: theme.textDim }]}>
-                  {filtrosActivos
-                    ? `Mostrando ${visiblesPestana} de ${totalPestana} ${totalPestana === 1 ? 'viaje' : 'viajes'}`
-                    : `${totalPestana} ${totalPestana === 1 ? 'viaje' : 'viajes'}`}
-                  {tab === 'pasados' && filtros.ordenPasados !== 'recientes'
-                    ? ` · ${ETIQUETA_ORDEN_PASADOS[filtros.ordenPasados]}`
-                    : ''}
-                </Text>
-              )}
-          </BarraFiltros>
-          </PasoAyuda>
+        {/* Pestañas internas: scrollean con todo lo demás, nada queda fijo. */}
+        <PasoAyuda {...AYUDA_VIAJES[1]!}>
+          <View style={styles.segmentWrap}>
+            <SegmentTabs
+              tabs={[
+                { key: 'mis_viajes', label: 'Mis viajes' },
+                { key: 'pasados', label: 'Viajes pasados' },
+              ]}
+              active={tab}
+              onChange={(key) => {
+                selection.exit()
+                setTab(key as Tab)
+              }}
+              theme={theme}
+            />
+          </View>
+        </PasoAyuda>
+
+        <PasoAyuda {...AYUDA_VIAJES[2]!}>
+          <HerramientasLista
+            resumen={resumenLista}
+            busqueda={{
+              value: busqueda,
+              onChangeText: setBusqueda,
+              placeholder: 'Buscar por nombre o actividad...',
+              accessibilityLabel: 'Buscar viajes',
+              maxLength: 60,
+            }}
+            filtros={{
+              cantidad: filtrosAplicados.length,
+              onPress: () => setPantallaFiltros(true),
+              onLimpiar: limpiarFiltros,
+            }}
+          />
+        </PasoAyuda>
 
         {cargando ? (
           <View style={styles.center}>
@@ -957,101 +909,19 @@ export default function ViajesScreen() {
         )}
       </ScrollViewAyuda>
 
-      <HojaFiltrosViajes
-        visible={hojaFiltros}
+      <FranjaEstado />
+
+      <PantallaFiltrosViajes
+        visible={pantallaFiltros}
         pestana={tab}
         filtros={filtros}
         contar={contarConFiltros}
         onAplicar={(f) => {
           setFiltros(f)
-          setHojaFiltros(false)
+          setPantallaFiltros(false)
         }}
-        onCerrar={() => setHojaFiltros(false)}
+        onCerrar={() => setPantallaFiltros(false)}
       />
-
-      {/* Modal de invitaciones */}
-      <Modal
-        visible={modalInvitaciones}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        statusBarTranslucent
-        navigationBarTranslucent
-        onRequestClose={() => setModalInvitaciones(false)}
-      >
-        {/* SafeAreaView de RN solo aplica en iOS: en Android el margen va por insets. */}
-        <SafeAreaView
-          style={[
-            styles.modalRoot,
-            { backgroundColor: theme.background },
-            Platform.OS === 'android' && { paddingTop: insets.top, paddingBottom: insets.bottom },
-          ]}
-        >
-          <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
-            <Text style={[styles.modalTitulo, { color: theme.text }]}>
-              Invitaciones{invitaciones.length > 0 ? ` · ${invitaciones.length}` : ''}
-            </Text>
-            <Pressable onPress={() => setModalInvitaciones(false)} hitSlop={8} style={styles.modalClose}>
-              <Feather name="x" size={22} color={theme.text} />
-            </Pressable>
-          </View>
-
-          <ScrollView contentContainerStyle={styles.modalContent}>
-            {invitaciones.length === 0 ? (
-              <View style={styles.modalEmpty}>
-                <Feather name="bell-off" size={32} color={theme.textMute} />
-                <Text style={[styles.modalEmptyText, { color: theme.textDim }]}>
-                  No tenés invitaciones pendientes.
-                </Text>
-              </View>
-            ) : (
-              invitaciones.map((inv) => (
-                <View
-                  key={inv.viaje_id}
-                  style={[styles.tarjeta, { backgroundColor: theme.surface, borderColor: theme.border }]}
-                >
-                  <View style={styles.tarjetaHeader}>
-                    <ActivityTile activity={inv.tipo_actividad} size={20} />
-                    <Text style={[styles.tarjetaTitulo, { color: theme.text }]} numberOfLines={1}>
-                      {inv.nombre ?? etiquetaActividad(inv.tipo_actividad)}
-                    </Text>
-                  </View>
-                  <Text style={[styles.tarjetaMeta, { color: theme.textDim }]}>
-                    <Feather name="calendar" size={12} />{'  '}{formatearFecha(inv.fecha_programada)}
-                  </Text>
-                  <Text style={[styles.tarjetaMeta, { color: theme.textDim }]}>
-                    <Feather name="user" size={12} />{'  '}Organiza {inv.creador.nombre}
-                  </Text>
-                  {inv.grupo_origen && (
-                    <Text style={[styles.tarjetaGrupo, { color: theme.accent }]}>
-                      <Feather name="users" size={12} />{'  '}Grupo: {inv.grupo_origen.nombre}
-                    </Text>
-                  )}
-                  <View style={styles.filaAcciones}>
-                    <Btn
-                      size="sm"
-                      style={styles.flex1}
-                      loading={respondiendoId === inv.viaje_id}
-                      disabled={respondiendoId === inv.viaje_id}
-                      onPress={() => void responder(inv.viaje_id, 'aceptar')}
-                    >
-                      Aceptar
-                    </Btn>
-                    <Btn
-                      variant="secondary"
-                      size="sm"
-                      style={styles.flex1}
-                      disabled={respondiendoId === inv.viaje_id}
-                      onPress={() => void responder(inv.viaje_id, 'rechazar')}
-                    >
-                      Rechazar
-                    </Btn>
-                  </View>
-                </View>
-              ))
-            )}
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
 
       <SelectionActionBar
         visible={selection.active && (tab === 'mis_viajes' || tab === 'pasados')}
@@ -1085,11 +955,11 @@ const styles = StyleSheet.create({
   bellBadgeText: { color: '#fff', fontSize: 9, fontWeight: '800', lineHeight: 12 },
 
   // Tabs internos
-  segmentWrap: { paddingHorizontal: 20, paddingTop: 12 },
+  segmentWrap: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 12 },
 
   // Contenido
   scroll: { flexGrow: 1 },
-  content: { padding: 20, gap: 12 },
+  content: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 20, gap: 12 },
 
   // Tarjetas
   tarjeta: { borderRadius: 14, padding: 14, borderWidth: 1.2, gap: 6 },
@@ -1131,23 +1001,4 @@ const styles = StyleSheet.create({
   },
   desplegableTitulo: { flex: 1, fontSize: 14, fontWeight: '700' },
   desplegableContent: { padding: 12, gap: 10 },
-
-  buscadorEnFila: { flex: 1, marginHorizontal: 0 },
-  resumenFiltros: { fontSize: 13, fontWeight: '600', marginHorizontal: 16 },
-
-  // Modal invitaciones
-  modalRoot: { flex: 1 },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-  },
-  modalTitulo: { fontSize: 18, fontWeight: '800' },
-  modalClose: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  modalContent: { padding: 20, paddingBottom: 40, gap: 12 },
-  modalEmpty: { paddingVertical: 60, alignItems: 'center', gap: 14 },
-  modalEmptyText: { fontSize: 15, textAlign: 'center' },
 })

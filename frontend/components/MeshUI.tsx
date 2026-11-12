@@ -256,11 +256,14 @@ interface FieldProps extends Omit<TextInputProps, 'style'> {
   leading?: keyof typeof Feather.glyphMap;
   error?: string;
   style?: StyleProp<ViewStyle>;
+  /** Contraseña con ojito para mostrarla u ocultarla. Arranca oculta. */
+  revelable?: boolean;
 }
 
-export function Field({ label, leading, error, style, ...props }: FieldProps) {
+export function Field({ label, leading, error, style, revelable = false, ...props }: FieldProps) {
   const theme = useTheme();
   const [focused, setFocused] = React.useState(false);
+  const [visible, setVisible] = React.useState(false);
 
   return (
     <View style={[styles.fieldContainer, style]}>
@@ -288,7 +291,19 @@ export function Field({ label, leading, error, style, ...props }: FieldProps) {
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           {...props}
+          {...(revelable ? { secureTextEntry: !visible } : null)}
         />
+        {revelable ? (
+          <Pressable
+            onPress={() => setVisible((v) => !v)}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel={visible ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+            style={styles.fieldTrailingBtn}
+          >
+            <Feather name={visible ? 'eye-off' : 'eye'} size={19} color={theme.textMute} />
+          </Pressable>
+        ) : null}
       </View>
       {error && <Text style={[styles.fieldError, { color: theme.danger }]}>{error}</Text>}
     </View>
@@ -770,6 +785,10 @@ const styles = StyleSheet.create({
     borderWidth: 1.2,
     borderRadius: 10,
     paddingHorizontal: 14,
+  },
+  fieldTrailingBtn: {
+    marginLeft: 8,
+    padding: 2,
   },
   fieldLeadingIcon: {
     marginRight: 10,

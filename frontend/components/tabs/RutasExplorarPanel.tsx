@@ -1,7 +1,7 @@
 import { useEspacioTabBar } from '@/hooks/useEspacioTabBar'
 import * as Location from 'expo-location';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   RefreshControl,
@@ -13,14 +13,14 @@ import {
 import { Feather } from '@expo/vector-icons';
 
 import { Pressable } from '@/components/Pressable';
+import { HerramientasLista } from '@/components/BarraFiltros';
+import { ActivityTile, useTheme } from '@/components/MeshUI';
 import {
-  BarraFiltros,
-  BotonLimpiarFiltros,
-  BuscadorFiltros,
-  ChipFiltro,
-  FilaChipsFiltro,
-} from '@/components/BarraFiltros';
-import { useTheme } from '@/components/MeshUI';
+  OpcionFiltro,
+  OpcionesFiltro,
+  PantallaFiltros,
+  SeccionFiltro,
+} from '@/components/PantallaFiltros';
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda';
 import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda';
 import { AYUDA_RECORRIDOS_PUBLICADOS } from '@/components/ayuda/contenidoAyuda';
@@ -37,7 +37,7 @@ import { confirmarQuitarGuardada } from '@/lib/rutasGuardadas';
 import type { TipoActividadApi } from '@/lib/viajesApi';
 
 const FILTROS: { id: TipoActividadApi | null; label: string }[] = [
-  { id: null, label: 'Todos' },
+  { id: null, label: 'Todas' },
   { id: 'moto', label: 'Moto' },
   { id: 'auto', label: 'Auto' },
   { id: 'bici', label: 'Bici' },
@@ -55,16 +55,24 @@ const ESPERA_BUSQUEDA_MS = 350;
 type ModoZona = 'todas' | 'cerca' | 'lugar';
 type Zona = { lat: number; lng: number; etiqueta: string };
 
-export function RutasExplorarPanel() {
+const ETIQUETA_CERCA = 'tu ubicación';
+
+export function RutasExplorarPanel({ encabezado }: { encabezado: ReactNode }) {
   const espacioTabBar = useEspacioTabBar();
   const theme = useTheme();
   const router = useRouter();
   const [textoBusqueda, setTextoBusqueda] = useState('');
   const [q, setQ] = useState('');
+  // Filtros aplicados (los que consulta el backend).
   const [filtro, setFiltro] = useState<TipoActividadApi | null>(null);
-  const [modoZona, setModoZona] = useState<ModoZona>('todas');
   const [zona, setZona] = useState<Zona | null>(null);
   const [radioKm, setRadioKm] = useState<number>(25);
+  // Borrador de la pantalla de filtros: se aplica recién al confirmar.
+  const [pantallaFiltros, setPantallaFiltros] = useState(false);
+  const [bFiltro, setBFiltro] = useState<TipoActividadApi | null>(null);
+  const [modoZona, setModoZona] = useState<ModoZona>('todas');
+  const [bZona, setBZona] = useState<Zona | null>(null);
+  const [bRadioKm, setBRadioKm] = useState<number>(25);
   const [ubicando, setUbicando] = useState(false);
   const [busquedaLugar, setBusquedaLugar] = useState('');
   // Sugiere mientras se escribe; se apaga cuando el texto es el lugar ya elegido.
@@ -74,7 +82,7 @@ export function RutasExplorarPanel() {
     error: errorLugar,
     resolver: resolverLugar,
   } = useSugerenciasLugares(busquedaLugar, {
-    activo: modoZona === 'lugar' && busquedaLugar !== zona?.etiqueta,
+    activo: pantallaFiltros && modoZona === 'lugar' && busquedaLugar !== bZona?.etiqueta,
   });
   const [recorridos, setRecorridos] = useState<RecorridoComunidadApi[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -156,7 +164,7 @@ export function RutasExplorarPanel() {
 
   const verTodas = () => {
     setModoZona('todas');
-    setZona(null);
+    setBZona(null);
   };
 
   const usarMiUbicacion = async () => {
@@ -170,7 +178,7 @@ export function RutasExplorarPanel() {
         return;
       }
       const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      setZona({ lat: pos.coords.latitude, lng: pos.coords.longitude, etiqueta: 'tu ubicación' });
+      setBZona({ lat: pos.coords.latitude, lng: pos.coords.longitude, etiqueta: ETIQUETA_CERCA });
     } catch {
       meshError('Ubicación', 'No pudimos obtener tu ubicación. Probá elegir un lugar.');
       verTodas();
@@ -181,13 +189,14 @@ export function RutasExplorarPanel() {
 
   const elegirLugar = () => {
     setModoZona('lugar');
-    setZona(null);
+    setBZona(null);
+    setBusquedaLugar('');
   };
 
   const seleccionarLugar = async (sugerencia: LugarSugerencia) => {
     const lugar = await resolverLugar(sugerencia);
     if (!lugar) return;
-    setZona({ lat: lugar.lat, lng: lugar.lng, etiqueta: lugar.nombre });
+    setBZona({ lat: lugar.lat, lng: lugar.lng, etiqueta: lugar.nombre });
     setBusquedaLugar(lugar.nombre);
   };
 
@@ -197,15 +206,39 @@ export function RutasExplorarPanel() {
       ? 'No hay recorridos publicados que arranquen en esta zona. Probá con un radio mayor.'
       : 'Todavía no hay recorridos publicados. Publicá uno desde el resumen de un viaje finalizado.';
 
-  const filtrosActivos = textoBusqueda.trim() !== '' || filtro !== null || modoZona !== 'todas';
+  const cantidadFiltros = (filtro ? 1 : 0) + (zona ? 1 : 0);
+
+  const abrirFiltros = () => {
+    const esCerca = zona?.etiqueta === ETIQUETA_CERCA;
+    setBFiltro(filtro);
+    setBZona(zona);
+    setBRadioKm(radioKm);
+    setModoZona(!zona ? 'todas' : esCerca ? 'cerca' : 'lugar');
+    setBusquedaLugar(zona && !esCerca ? zona.etiqueta : '');
+    setPantallaFiltros(true);
+  };
+
+  const aplicarFiltros = () => {
+    setFiltro(bFiltro);
+    setZona(modoZona === 'todas' ? null : bZona);
+    setRadioKm(bRadioKm);
+    setPantallaFiltros(false);
+  };
 
   const limpiarFiltros = () => {
-    setTextoBusqueda('');
     setFiltro(null);
+    setZona(null);
+  };
+
+  const limpiarBorrador = () => {
+    setBFiltro(null);
     verTodas();
   };
 
-  const detalleZonaVisible = modoZona === 'lugar' || ubicando || zona !== null;
+  const resumen = cargando
+    ? undefined
+    : `${recorridos.length} ${recorridos.length === 1 ? 'recorrido' : 'recorridos'}` +
+      (zona ? ` · a ${radioKm} km de ${zona.etiqueta}` : '');
 
   return (
     <View style={styles.root}>
@@ -221,58 +254,97 @@ export function RutasExplorarPanel() {
         />
       }
     >
-      {/* Barra de búsqueda y filtros (scrollea con la lista): mismo diseño que Viajes. */}
-      <BarraFiltros>
-        <PasoAyuda {...AYUDA_RECORRIDOS_PUBLICADOS[0]!}>
-          <BuscadorFiltros
-            value={textoBusqueda}
-            onChangeText={setTextoBusqueda}
-            placeholder="Buscar por nombre, autor o comentario"
-            accessibilityLabel="Buscar recorridos"
-            maxLength={60}
-          />
-        </PasoAyuda>
+      {encabezado}
 
-        <PasoAyuda {...AYUDA_RECORRIDOS_PUBLICADOS[1]!}>
-          <FilaChipsFiltro>
-            {FILTROS.map((f) => (
-              <ChipFiltro
-                key={f.label}
-                label={f.label}
-                activo={filtro === f.id}
-                onPress={() => setFiltro(f.id)}
-              />
-            ))}
-          </FilaChipsFiltro>
-        </PasoAyuda>
-
-        <PasoAyuda {...AYUDA_RECORRIDOS_PUBLICADOS[2]!}>
-          <FilaChipsFiltro>
-            <ChipFiltro
-              icon="globe"
-              label="Cualquier lugar"
-              activo={modoZona === 'todas'}
-              onPress={verTodas}
-            />
-            <ChipFiltro
-              icon="navigation"
-              label="Cerca mío"
-              activo={modoZona === 'cerca'}
-              onPress={() => void usarMiUbicacion()}
-            />
-            <ChipFiltro
-              icon="map-pin"
-              label="Elegir lugar"
-              activo={modoZona === 'lugar'}
-              onPress={elegirLugar}
-            />
-            {filtrosActivos && <BotonLimpiarFiltros onPress={limpiarFiltros} />}
-          </FilaChipsFiltro>
-        </PasoAyuda>
-      </BarraFiltros>
+      <PasoAyuda {...AYUDA_RECORRIDOS_PUBLICADOS[0]!}>
+        <HerramientasLista
+          resumen={resumen}
+          busqueda={{
+            value: textoBusqueda,
+            onChangeText: setTextoBusqueda,
+            placeholder: 'Buscar por nombre, autor o comentario',
+            accessibilityLabel: 'Buscar recorridos',
+            maxLength: 60,
+          }}
+          filtros={{ cantidad: cantidadFiltros, onPress: abrirFiltros, onLimpiar: limpiarFiltros }}
+        />
+      </PasoAyuda>
 
       <View style={styles.content}>
-      {detalleZonaVisible ? (
+      <PasoAyuda {...AYUDA_RECORRIDOS_PUBLICADOS[1]!}>
+        <View style={styles.lista}>
+          {cargando ? (
+            <ActivityIndicator color={theme.accent} size="large" style={styles.spinner} />
+          ) : error ? (
+            <Text style={[styles.mensaje, { color: theme.danger }]}>{error}</Text>
+          ) : recorridos.length === 0 ? (
+            <Text style={[styles.mensaje, { color: theme.textMute }]}>{mensajeVacio}</Text>
+          ) : (
+            recorridos.map((r) => (
+              <RecorridoComunidadCard
+                key={r.id}
+                recorrido={r}
+                guardando={guardandoId === r.id}
+                onAlternarGuardado={() => void alternarGuardado(r)}
+                onPress={() =>
+                  router.push({
+                    pathname: '/recorridos-publicados/[recorridoId]',
+                    params: { recorridoId: r.id },
+                  })
+                }
+              />
+            ))
+          )}
+        </View>
+      </PasoAyuda>
+      </View>
+    </ScrollViewAyuda>
+
+    <PantallaFiltros
+      visible={pantallaFiltros}
+      titulo="Filtrar recorridos"
+      onCerrar={() => setPantallaFiltros(false)}
+      onLimpiar={limpiarBorrador}
+      puedeLimpiar={bFiltro !== null || modoZona !== 'todas'}
+      textoAplicar="Aplicar filtros"
+      onAplicar={aplicarFiltros}
+    >
+      <SeccionFiltro titulo="Actividad">
+        <OpcionesFiltro>
+          {FILTROS.map((f) => (
+            <OpcionFiltro
+              key={f.label}
+              etiqueta={f.label}
+              activa={bFiltro === f.id}
+              onPress={() => setBFiltro(f.id)}
+              icono={f.id ? <ActivityTile activity={f.id} size={24} /> : undefined}
+            />
+          ))}
+        </OpcionesFiltro>
+      </SeccionFiltro>
+
+      <SeccionFiltro titulo="Zona" ayuda="Dónde arranca el recorrido">
+        <OpcionesFiltro>
+          <OpcionFiltro
+            etiqueta="Cualquier lugar"
+            activa={modoZona === 'todas'}
+            onPress={verTodas}
+            icono={<Feather name="globe" size={15} color={modoZona === 'todas' ? theme.accent : theme.textDim} />}
+          />
+          <OpcionFiltro
+            etiqueta="Cerca mío"
+            activa={modoZona === 'cerca'}
+            onPress={() => void usarMiUbicacion()}
+            icono={<Feather name="navigation" size={15} color={modoZona === 'cerca' ? theme.accent : theme.textDim} />}
+          />
+          <OpcionFiltro
+            etiqueta="Elegir lugar"
+            activa={modoZona === 'lugar'}
+            onPress={elegirLugar}
+            icono={<Feather name="map-pin" size={15} color={modoZona === 'lugar' ? theme.accent : theme.textDim} />}
+          />
+        </OpcionesFiltro>
+      {modoZona !== 'todas' ? (
         <View style={styles.zona}>
           {modoZona === 'lugar' ? (
             <View style={styles.lugar}>
@@ -327,54 +399,30 @@ export function RutasExplorarPanel() {
             <Text style={[styles.zonaTexto, { color: theme.textDim }]}>
               Buscando tu ubicación...
             </Text>
-          ) : zona ? (
-            <>
-              <Text style={[styles.zonaTexto, { color: theme.textDim }]} numberOfLines={2}>
-                Recorridos que arrancan a menos de {radioKm} km de {zona.etiqueta}
-              </Text>
-              <View style={styles.radios}>
-                {RADIOS_KM.map((km) => (
-                  <ChipFiltro
-                    key={km}
-                    label={`${km} km`}
-                    activo={radioKm === km}
-                    onPress={() => setRadioKm(km)}
-                  />
-                ))}
-              </View>
-            </>
+          ) : bZona ? (
+            <Text style={[styles.zonaTexto, { color: theme.textDim }]} numberOfLines={2}>
+              Recorridos que arrancan a menos de {bRadioKm} km de {bZona.etiqueta}
+            </Text>
           ) : null}
         </View>
       ) : null}
+      </SeccionFiltro>
 
-      <PasoAyuda {...AYUDA_RECORRIDOS_PUBLICADOS[3]!}>
-        <View style={styles.lista}>
-          {cargando ? (
-            <ActivityIndicator color={theme.accent} size="large" style={styles.spinner} />
-          ) : error ? (
-            <Text style={[styles.mensaje, { color: theme.danger }]}>{error}</Text>
-          ) : recorridos.length === 0 ? (
-            <Text style={[styles.mensaje, { color: theme.textMute }]}>{mensajeVacio}</Text>
-          ) : (
-            recorridos.map((r) => (
-              <RecorridoComunidadCard
-                key={r.id}
-                recorrido={r}
-                guardando={guardandoId === r.id}
-                onAlternarGuardado={() => void alternarGuardado(r)}
-                onPress={() =>
-                  router.push({
-                    pathname: '/recorridos-publicados/[recorridoId]',
-                    params: { recorridoId: r.id },
-                  })
-                }
+      {modoZona !== 'todas' ? (
+        <SeccionFiltro titulo="Radio">
+          <OpcionesFiltro>
+            {RADIOS_KM.map((km) => (
+              <OpcionFiltro
+                key={km}
+                etiqueta={`${km} km`}
+                activa={bRadioKm === km}
+                onPress={() => setBRadioKm(km)}
               />
-            ))
-          )}
-        </View>
-      </PasoAyuda>
-      </View>
-    </ScrollViewAyuda>
+            ))}
+          </OpcionesFiltro>
+        </SeccionFiltro>
+      ) : null}
+    </PantallaFiltros>
     </View>
   );
 }
@@ -387,7 +435,6 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   zona: { gap: 10 },
-  radios: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   zonaTexto: { fontSize: 13, lineHeight: 18 },
   lugar: { gap: 6 },
   lugarFila: { flexDirection: 'row', gap: 8 },

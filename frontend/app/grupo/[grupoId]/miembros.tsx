@@ -3,7 +3,7 @@ import {
   View,
   Text,
   StyleSheet,
-  FlatList,
+  ScrollView,
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
@@ -20,14 +20,15 @@ import {
   type RolGrupoApi,
 } from '@/lib/gruposApi';
 import { useCopilot } from 'react-native-copilot';
-import { TopBar, Avatar, Badge, useTheme } from '@/components/MeshUI';
+import { TopBar, useTheme } from '@/components/MeshUI';
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda';
 import { AYUDA_GRUPO_MIEMBROS } from '@/components/ayuda/contenidoAyuda';
+import { HerramientasLista } from '@/components/BarraFiltros';
+import { EstadoVacio } from '@/components/EstadoVacio';
+import { Esqueleto } from '@/components/Esqueleto';
+import { FilaMiembro, ordenarMiembros } from '@/components/grupos/FilaMiembro';
+import { coincideBusqueda, normalizarBusqueda } from '@/lib/busqueda';
 import { Feather } from '@expo/vector-icons';
-
-function etiquetaRol(rol: RolGrupoApi): string {
-  return rol === 'lider' ? 'Líder' : 'Participante';
-}
 
 export default function MiembrosGrupoScreen() {
   const { grupoId } = useLocalSearchParams<{ grupoId: string }>();
@@ -43,6 +44,7 @@ export default function MiembrosGrupoScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actualizandoId, setActualizandoId] = useState<string | null>(null);
+  const [busqueda, setBusqueda] = useState('');
 
   const cargar = useCallback(
     async (esRefresh = false) => {
@@ -59,7 +61,7 @@ export default function MiembrosGrupoScreen() {
         ]);
         setMiRol(detalle.mi_rol);
         setGrupoNombre(detalle.nombre);
-        setMiembros(lista);
+        setMiembros(ordenarMiembros(lista));
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : 'No se pudieron cargar los miembros.';
         setError(msg);
@@ -83,11 +85,13 @@ export default function MiembrosGrupoScreen() {
 
     setActualizandoId(miembro.id);
     setMiembros((prev) =>
-      prev.map((m) => {
-        if (m.id === miembro.id) return { ...m, rol: nuevoRol };
-        if (nuevoRol === 'lider' && m.rol === 'lider') return { ...m, rol: 'participante' };
-        return m;
-      })
+      ordenarMiembros(
+        prev.map((m) => {
+          if (m.id === miembro.id) return { ...m, rol: nuevoRol };
+          if (nuevoRol === 'lider' && m.rol === 'lider') return { ...m, rol: 'participante' };
+          return m;
+        })
+      )
     );
     if (nuevoRol === 'lider') setMiRol('participante');
 
@@ -106,99 +110,100 @@ export default function MiembrosGrupoScreen() {
     })();
   };
 
+  // Hay un solo líder por grupo (RN-011): hacer líder a otro es pasarle el liderazgo.
   const mostrarMenuRol = (miembro: GrupoMiembroApi) => {
-    meshAlert(`Rol de ${miembro.nombre}`, 'Seleccioná el nuevo rol:', [
-      {
-        text: 'Líder',
-        onPress: () => cambiarRol(miembro, 'lider'),
-      },
-      {
-        text: 'Participante',
-        onPress: () => cambiarRol(miembro, 'participante'),
-      },
-      { text: 'Cancelar', style: 'cancel' },
-    ]);
+    meshAlert(
+      `¿Pasarle el liderazgo a ${miembro.nombre}?`,
+      'Va a poder armar viajes, invitar gente y editar el grupo. Vos vas a quedar como participante.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Hacer líder', onPress: () => cambiarRol(miembro, 'lider') },
+      ]
+    );
   };
 
-  const renderItem = ({ item }: { item: GrupoMiembroApi }) => {
+  const consulta = normalizarBusqueda(busqueda);
+  const visibles = miembros.filter((m) => coincideBusqueda(consulta, [m.nombre, m.email]));
+  const lideres = visibles.filter((m) => m.rol === 'lider');
+  const participantes = visibles.filter((m) => m.rol !== 'lider');
+
+  const renderFila = (item: GrupoMiembroApi, i: number) => {
     const esYo = item.id === backendUserId;
     const puedeEditar = miRol === 'lider' && !esYo;
     const actualizando = actualizandoId === item.id;
 
-    const dummyPerson = {
-      nombre: item.nombre,
-      apellido: '',
-      color: item.rol === 'lider' ? theme.accent : undefined,
-    };
-
     return (
-      <Pressable
-        disabled={esYo}
-        onPress={() =>
-          router.push({ pathname: '/usuario/[usuarioId]', params: { usuarioId: item.id } })
+      <FilaMiembro
+        key={item.id}
+        miembro={item}
+        esYo={esYo}
+        separador={i > 0}
+        atenuada={actualizando}
+        onPress={
+          esYo
+            ? undefined
+            : () => router.push({ pathname: '/usuario/[usuarioId]', params: { usuarioId: item.id } })
         }
-        style={({ pressed }) => [
-          styles.fila,
-          { backgroundColor: theme.surface, borderColor: theme.border },
-          actualizando && styles.filaDeshabilitada,
-          pressed && !esYo && { opacity: 0.85 },
-        ]}
-      >
-        <Avatar person={dummyPerson} size="sm" ring={item.rol === 'lider'} usuarioId={item.id} />
-        
-        <View style={styles.filaContenido}>
-          <View style={styles.filaTitulo}>
-            <Text style={[styles.nombreText, { color: theme.text }]} numberOfLines={1}>
-              {item.nombre}
-              {esYo ? ' (Vos)' : ''}
-            </Text>
-            
-            <Badge tone={item.rol === 'lider' ? 'accent' : 'mute'}>
-              {item.rol === 'lider' && (
-                <Feather name="award" size={10} color={theme.accent} style={{ marginRight: 3 }} />
+        derecha={
+          puedeEditar ? (
+            <Pressable
+              style={({ pressed }) => [
+                styles.botonRol,
+                { backgroundColor: pressed ? theme.surface3 : theme.surface2 },
+              ]}
+              onPress={() => mostrarMenuRol(item)}
+              disabled={actualizandoId !== null}
+              accessibilityRole="button"
+              accessibilityLabel={`Opciones de ${item.nombre}`}
+              hitSlop={6}
+            >
+              {actualizando ? (
+                <ActivityIndicator color={theme.accent} size="small" />
+              ) : (
+                <Feather name="more-horizontal" size={18} color={theme.textDim} />
               )}
-              {etiquetaRol(item.rol)}
-            </Badge>
-          </View>
-          <Text style={[styles.email, { color: theme.textDim }]} numberOfLines={1}>
-            {item.email}
-          </Text>
-        </View>
-
-        {puedeEditar && (
-          <Pressable
-            style={({ pressed }) => [
-              styles.botonRol,
-              { backgroundColor: pressed ? theme.surface3 : theme.surface2 },
-            ]}
-            onPress={() => mostrarMenuRol(item)}
-            disabled={actualizandoId !== null}
-          >
-            {actualizando ? (
-              <ActivityIndicator color={theme.accent} size="small" />
-            ) : (
-              <Feather name="more-horizontal" size={16} color={theme.textDim} />
-            )}
-          </Pressable>
-        )}
-      </Pressable>
+            </Pressable>
+          ) : null
+        }
+      />
     );
   };
+
+  const seccion = (titulo: string, lista: GrupoMiembroApi[]) =>
+    lista.length === 0 ? null : (
+      <View style={styles.seccion}>
+        <Text style={[styles.eyebrow, { color: theme.textDim }]}>{titulo}</Text>
+        <View style={[styles.tarjeta, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          {lista.map(renderFila)}
+        </View>
+      </View>
+    );
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <TopBar
         title="Miembros"
-        sub={grupoNombre ?? 'Cargando...'}
+        sub={grupoNombre ?? undefined}
         onBack={() => router.back()}
         bordered={false}
         onAyuda={() => start()}
       />
 
       {loading ? (
-        <View style={styles.centrado}>
-          <ActivityIndicator color={theme.accent} size="large" />
+        <View style={styles.lista}>
+          <Esqueleto ancho={70} alto={11} />
+          <View style={[styles.tarjeta, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            {[0, 1, 2, 3].map((i) => (
+              <View key={i} style={styles.esqueletoFila}>
+                <Esqueleto ancho={48} alto={48} radio={24} />
+                <View style={styles.flex1}>
+                  <Esqueleto ancho="55%" alto={15} />
+                  <Esqueleto ancho="35%" alto={12} style={styles.esqueletoSub} />
+                </View>
+              </View>
+            ))}
+          </View>
         </View>
       ) : error ? (
         <View style={styles.centrado}>
@@ -206,11 +211,8 @@ export default function MiembrosGrupoScreen() {
         </View>
       ) : (
         <PasoAyuda {...AYUDA_GRUPO_MIEMBROS[0]!} estilo={styles.flex1}>
-          <FlatList
-            data={miembros}
-            keyExtractor={(item) => item.id}
-            renderItem={renderItem}
-            contentContainerStyle={styles.lista}
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
@@ -218,10 +220,46 @@ export default function MiembrosGrupoScreen() {
                 tintColor={theme.accent}
               />
             }
-            ListEmptyComponent={
-              <Text style={[styles.vacio, { color: theme.textMute }]}>Este grupo aún no tiene integrantes.</Text>
-            }
-          />
+          >
+            {miembros.length > 0 ? (
+              <HerramientasLista
+                resumen={
+                  consulta
+                    ? `Mostrando ${visibles.length} de ${miembros.length}`
+                    : `${miembros.length} ${miembros.length === 1 ? 'miembro' : 'miembros'}`
+                }
+                busqueda={{
+                  value: busqueda,
+                  onChangeText: setBusqueda,
+                  placeholder: 'Buscar por nombre...',
+                  accessibilityLabel: 'Buscar miembros',
+                  maxLength: 60,
+                }}
+              />
+            ) : null}
+
+            <View style={styles.lista}>
+              {miembros.length === 0 ? (
+                <EstadoVacio
+                  icono="users"
+                  titulo="Sin integrantes"
+                  texto="Este grupo aún no tiene integrantes."
+                />
+              ) : visibles.length === 0 ? (
+                <EstadoVacio
+                  compacto
+                  icono="search"
+                  titulo="Sin resultados"
+                  texto={`Nadie del grupo coincide con "${busqueda.trim()}".`}
+                />
+              ) : (
+                <>
+                  {seccion('LÍDER', lideres)}
+                  {seccion(`PARTICIPANTES (${participantes.length})`, participantes)}
+                </>
+              )}
+            </View>
+          </ScrollView>
         </PasoAyuda>
       )}
     </View>
@@ -242,50 +280,41 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   lista: {
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: 8,
     paddingBottom: 40,
-    gap: 11,
+    gap: 22,
   },
-  fila: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1.2,
-    gap: 12,
+  seccion: {
+    gap: 10,
   },
-  filaDeshabilitada: {
-    opacity: 0.6,
-  },
-  filaContenido: {
-    flex: 1,
-    gap: 2,
-  },
-  filaTitulo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  nombreText: {
-    fontSize: 15.5,
+  eyebrow: {
+    fontSize: 11,
+    fontFamily: 'SpaceMono',
     fontWeight: '700',
-    maxWidth: '60%',
+    letterSpacing: 1.2,
   },
-  email: {
-    fontSize: 13,
+  tarjeta: {
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: 'hidden',
   },
   botonRol: {
-    width: 36,
-    height: 36,
+    width: 38,
+    height: 38,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 10,
+    borderRadius: 19,
   },
-  vacio: {
-    fontSize: 14.5,
-    textAlign: 'center',
-    marginTop: 32,
+  esqueletoFila: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  esqueletoSub: {
+    marginTop: 6,
   },
   errorText: {
     fontSize: 15,
@@ -293,4 +322,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

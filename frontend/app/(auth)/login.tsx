@@ -73,7 +73,7 @@ export default function LoginScreen() {
               label="Contraseña"
               leading="lock"
               placeholder="••••••••"
-              secureTextEntry
+              revelable
               autoCapitalize="none"
               value={password}
               onChangeText={setPassword}

@@ -12,7 +12,8 @@ import { formatearEnArg } from '@/lib/tiempoArg';
 const COLORES_GRUPO = ['#d76655', '#4a9eff', '#2f9e63', '#7a5ae0', '#c98a3e'];
 const AVATAR_MIEMBRO = 24;
 
-function colorDeGrupo(nombre: string): string {
+/** Color estable por nombre: el mismo en la lista y en el detalle del grupo. */
+export function colorDeGrupo(nombre: string): string {
   const suma = nombre.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
   return COLORES_GRUPO[suma % COLORES_GRUPO.length]!;
 }

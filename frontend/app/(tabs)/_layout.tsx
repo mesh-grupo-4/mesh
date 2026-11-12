@@ -15,7 +15,7 @@ function TabBarIcon(props: {
   return <FontAwesome size={20} style={{ marginBottom: -3 }} {...props} />;
 }
 
-// Inicio queda al medio de la barra, pero sigue siendo la pestaña con la que arranca la app.
+// Inicio es la primera de la barra y la pestaña con la que arranca la app.
 export const unstable_settings = {
   initialRouteName: 'index',
 };
@@ -27,7 +27,6 @@ export default function TabLayout() {
   return (
     <Tabs
       // Atrás de Android: desde cualquier pestaña vuelve a Inicio y recién ahí sale de la app.
-      // Sin esto volvía a la primera de la barra (Viajes) y Inicio quedaba salteada.
       initialRouteName="index"
       backBehavior="initialRoute"
       tabBar={(props) => <MeshTabBar {...props} />}
@@ -41,7 +40,16 @@ export default function TabLayout() {
         tabBarInactiveTintColor: '#ffffff',
       }}
     >
-      {/* Orden: Viajes · Entrenar · Grupos · [Inicio] · Rutas · Perfil. */}
+      {/* Orden: Inicio · Viajes · Entrenar · Grupos · Rutas · Perfil. */}
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: 'Inicio',
+          tabBarIcon: () => null,
+          tabBarLabel: () => null,
+          tabBarButton: (props) => <CenterInicioTabButton {...props} />,
+        }}
+      />
       <Tabs.Screen
         name="two"
         options={{
@@ -65,15 +73,6 @@ export default function TabLayout() {
           // Invitaciones a grupos + solicitudes de amistad pendientes.
           tabBarBadge: pendientes > 0 ? (pendientes > 99 ? '99+' : pendientes) : undefined,
           tabBarBadgeStyle: { backgroundColor: theme.danger, color: '#fff', fontSize: 11 },
-        }}
-      />
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Inicio',
-          tabBarIcon: () => null,
-          tabBarLabel: () => null,
-          tabBarButton: (props) => <CenterInicioTabButton {...props} />,
         }}
       />
       <Tabs.Screen

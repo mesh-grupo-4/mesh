@@ -84,7 +84,7 @@ export const AYUDA_VIAJES: PasoDefinicion[] = [
     nombre: 'viajes.filtros',
     orden: ORDEN_PANTALLA.viajes + 2,
     texto:
-      'Buscá por nombre o actividad. En Filtros elegí actividad, tipo de viaje, solo o grupal, tu rol y la fecha; tocá un filtro aplicado para quitarlo.',
+      'Tocá la lupa para buscar por nombre o actividad. En Filtros elegí actividad, tipo de viaje, solo o grupal, tu rol y la fecha; con "Limpiar filtros" volvés a ver todo.',
   },
   {
     nombre: 'viajes.nuevo',
@@ -383,7 +383,7 @@ export const AYUDA_GRUPO_MIEMBROS: PasoDefinicion[] = [
   {
     nombre: 'grupoMiembros.lista',
     orden: ORDEN_PANTALLA.grupoMiembros,
-    texto: 'Como líder, tocá los tres puntos junto a cualquier integrante para cambiar su rol.',
+    texto: 'Como líder, tocá los tres puntos junto a un integrante para pasarle el liderazgo del grupo.',
   },
 ]
 
@@ -584,22 +584,12 @@ export const AYUDA_RECORRIDOS_PUBLICADOS: PasoDefinicion[] = [
   {
     nombre: 'recorridosPublicados.buscar',
     orden: ORDEN_PANTALLA.recorridosPublicados,
-    texto: 'Buscá recorridos por nombre, autor o comentario.',
-  },
-  {
-    nombre: 'recorridosPublicados.actividad',
-    orden: ORDEN_PANTALLA.recorridosPublicados + 1,
-    texto: 'Filtrá los recorridos por tipo de actividad.',
-  },
-  {
-    nombre: 'recorridosPublicados.zona',
-    orden: ORDEN_PANTALLA.recorridosPublicados + 2,
     texto:
-      'Elegí una zona: cerca tuyo o buscando una ciudad. Se muestran los recorridos que arrancan dentro del radio que elijas.',
+      'Tocá la lupa para buscar por nombre, autor o comentario. En Filtros elegí la actividad y la zona: cerca tuyo o una ciudad, con el radio que quieras.',
   },
   {
     nombre: 'recorridosPublicados.lista',
-    orden: ORDEN_PANTALLA.recorridosPublicados + 3,
+    orden: ORDEN_PANTALLA.recorridosPublicados + 1,
     texto:
       'Recorridos que publicó la comunidad. Primero van los muy recomendados y después los más recientes. Resaltan además los de quienes tienen buena racha, antigüedad e insignias. Tocá el corazón para guardarlo en tus rutas, o la tarjeta para ver el mapa, valorarlo o usarlo de base para tu viaje.',
   },

@@ -14,7 +14,6 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useTheme } from '@/components/MeshUI';
-import { TAB_BAR_ALTO } from '@/hooks/useEspacioTabBar';
 import { abrirNuevoViaje } from '@/lib/nuevoViaje';
 
 const HOLD_MS = 280;
@@ -22,13 +21,14 @@ const SLIDE_DISTANCE = 64;
 const SELECT_THRESHOLD = 0.6;
 const UP_DEADZONE = 6;
 const X_DEADZONE = 8;
-/** El coral de la marca, un poco más oscuro, para indicar que Inicio está seleccionado. */
-const NARANJA_SELECCIONADO = '#a84f42';
+/** Mismo blanco que el resto de las pestañas inactivas (`tabBarInactiveTintColor`). */
+const BLANCO_INACTIVO = '#ffffff';
 
 /**
- * Botón central de la tab bar: Inicio (mapa). Tap → Inicio. Mantener y deslizar
- * a la izquierda → "Nuevo viaje" (pregunta Viaje YA / Planificar); a la derecha
- * → escanear un QR para unirse.
+ * Botón de Inicio (mapa), primero de la tab bar. Se ve como las demás pestañas:
+ * naranja solo cuando está activo. Tap → Inicio. Mantener y deslizar a la
+ * izquierda → "Nuevo viaje" (pregunta Viaje YA / Planificar); a la derecha →
+ * escanear un QR para unirse.
  */
 export function CenterInicioTabButton({
   onPress,
@@ -47,7 +47,6 @@ export function CenterInicioTabButton({
   // -1 = opción izquierda (nuevo viaje), 1 = opción derecha (escanear QR), 0 = ninguna.
   const activeSide = useSharedValue(0);
   const pressed = useSharedValue(0);
-  const activo = useSharedValue(focused ? 1 : 0);
   const holdStart = useSharedValue(0);
   const totalMovement = useSharedValue(0);
 
@@ -69,10 +68,6 @@ export function CenterInicioTabButton({
   };
 
   React.useEffect(() => clearHoldTimer, []);
-
-  React.useEffect(() => {
-    activo.value = withTiming(focused ? 1 : 0, { duration: 240 });
-  }, [focused, activo]);
 
   const navigateCrear = () => {
     abrirNuevoViaje();
@@ -207,14 +202,10 @@ export function CenterInicioTabButton({
     opacity: menuOpen.value * (1 - Math.min(1, slideProgress.value * 2.5)),
   }));
 
-  const capsulaStyle = useAnimatedStyle(() => ({
-    backgroundColor: interpolateColor(activo.value, [0, 1], [theme.accent, NARANJA_SELECCIONADO]),
-    transform: [
-      {
-        scale: interpolate(pressed.value, [0, 1], [1, 0.96]),
-      },
-    ],
+  const contenidoStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: interpolate(pressed.value, [0, 1], [1, 0.92]) }],
   }));
+  const colorItem = focused ? theme.accent : BLANCO_INACTIVO;
 
   return (
     <GestureDetector gesture={gesture}>
@@ -264,13 +255,12 @@ export function CenterInicioTabButton({
           </Animated.Text>
         </Animated.View>
 
-        <Animated.View style={[styles.capsula, capsulaStyle]} />
-
-        <View style={styles.icono}>
-          <FontAwesome name="home" size={20} color={theme.onAccent} />
-        </View>
-
-        <Text style={[styles.label, { color: theme.onAccent }]}>Inicio</Text>
+        <Animated.View style={[styles.contenido, contenidoStyle]}>
+          <View style={styles.icono}>
+            <FontAwesome name="home" size={20} color={colorItem} />
+          </View>
+          <Text style={[styles.label, { color: colorItem }]}>Inicio</Text>
+        </Animated.View>
       </View>
     </GestureDetector>
   );
@@ -283,9 +273,12 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     zIndex: 2,
   },
+  // Inicio va pegado al borde izquierdo: el menú arranca ahí y se abre hacia la derecha
+  // (centrado sobre el botón se cortaría contra el borde de la pantalla).
   menuStack: {
     position: 'absolute',
     bottom: 64,
+    left: 0,
     alignItems: 'center',
     width: 260,
   },
@@ -333,15 +326,8 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
   },
-  // Ocupa el mismo lugar que la cápsula del ítem activo. El relleno mantiene el
-  // naranja legible: un ícono coral suelto se perdería sobre el vidrio claro.
-  capsula: {
-    position: 'absolute',
-    top: -2,
-    left: 4,
-    right: 4,
-    height: TAB_BAR_ALTO - 8,
-    borderRadius: (TAB_BAR_ALTO - 8) / 2,
+  contenido: {
+    alignItems: 'center',
   },
   // Misma altura que el ícono de las otras pestañas.
   icono: {

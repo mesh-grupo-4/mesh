@@ -11,13 +11,11 @@ import { Pressable } from '@/components/Pressable';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { resolveBackendUserId } from '@/lib/apiClient';
-import { formatearHaceCuanto } from '@/lib/tiempoArg';
 import {
   crearGrupo,
   eliminarGrupo,
   listarGrupos,
   listarInvitacionesPendientes,
-  responderInvitacion,
   type GrupoListItemApi,
   type InvitacionPendienteApi,
 } from '@/lib/gruposApi';
@@ -37,12 +35,12 @@ import {
 import { meshAlert, meshConfirmDestructive, meshError, meshWarning } from '@/lib/meshAlert';
 import { Feather } from '@expo/vector-icons';
 import { SegmentTabs } from '@/components/SegmentTabs';
-import { BarraFiltros, BuscadorFiltros } from '@/components/BarraFiltros';
+import { HerramientasLista } from '@/components/BarraFiltros';
+import { FranjaEstado } from '@/components/FranjaEstado';
 import { AmigosTabPanel } from '@/components/tabs/AmigosTabPanel';
 import { coincideBusqueda, normalizarBusqueda } from '@/lib/busqueda';
 import { setInvitacionesPendientesCount, usePendientes } from '@/lib/pendientesStore';
 import { CampanitaNotificaciones } from '@/components/notificaciones/CampanitaNotificaciones';
-import { Destacado, FilaNotificacion } from '@/components/notificaciones/FilaNotificacion';
 import { HojaInferior } from '@/components/HojaInferior';
 import { EstadoVacio } from '@/components/EstadoVacio';
 import {
@@ -50,12 +48,11 @@ import {
   TarjetaGrupoEsqueleto,
   ordenarGrupos,
 } from '@/components/grupos/TarjetaGrupo';
-import { vibrarExito, vibrarSuave } from '@/lib/haptica';
 
 type SeccionGruposAmigos = 'grupos' | 'amigos';
 
-/** Con pocos grupos el buscador es ruido: aparece desde esta cantidad. */
-const UMBRAL_BUSCADOR = 6;
+const abrirInvitaciones = () => router.push('/grupo/invitaciones');
+const abrirSolicitudes = () => router.push('/amigos/solicitudes');
 
 export default function GruposScreen() {
   const espacioTabBar = useEspacioTabBar()
@@ -66,17 +63,15 @@ export default function GruposScreen() {
   const selection = useSelectionMode();
   const pendientes = usePendientes();
   const [seccion, setSeccion] = useState<SeccionGruposAmigos>(tab === 'amigos' ? 'amigos' : 'grupos');
-  const [invitacionesAbiertas, setInvitacionesAbiertas] = useState(false);
-  const [solicitudesAbiertas, setSolicitudesAbiertas] = useState(false);
 
   useEffect(() => {
     if (tab === 'amigos') setSeccion('amigos');
     if (tab === 'grupos') setSeccion('grupos');
-    // Desde una notificación push: abrir directo la campanita que corresponde.
+    // Desde una notificación push: abrir directo la pantalla de la campanita que corresponde.
     if (abrir === 'notificaciones') {
-      if (tab === 'amigos') setSolicitudesAbiertas(true);
-      else setInvitacionesAbiertas(true);
       router.setParams({ abrir: undefined });
+      if (tab === 'amigos') abrirSolicitudes();
+      else abrirInvitaciones();
     }
   }, [tab, abrir]);
 
@@ -87,7 +82,6 @@ export default function GruposScreen() {
   const [creandoAbierto, setCreandoAbierto] = useState(false);
   const [nombre, setNombre] = useState('');
   const [loading, setLoading] = useState(false);
-  const [respondiendoId, setRespondiendoId] = useState<string | null>(null);
   const [eliminandoBulk, setEliminandoBulk] = useState(false);
 
   useEffect(() => {
@@ -109,7 +103,6 @@ export default function GruposScreen() {
   };
 
   const consulta = normalizarBusqueda(busqueda);
-  const mostrarBuscador = grupos.length >= UMBRAL_BUSCADOR || busqueda.length > 0;
   const gruposVisibles = ordenarGrupos(
     grupos.filter((g) => coincideBusqueda(consulta, [g.nombre]))
   );
@@ -201,51 +194,6 @@ export default function GruposScreen() {
     }
   }, [backendUserId, backendSyncing]);
 
-  /** Al abrir la campanita: trae las invitaciones nuevas sin tocar el estado de carga de la lista. */
-  const abrirInvitaciones = () => {
-    setInvitacionesAbiertas(true);
-    try {
-      const userId = resolveBackendUserId(backendUserId);
-      void listarInvitacionesPendientes(userId)
-        .then(setInvitaciones)
-        .catch(() => {});
-    } catch {
-      // Sin usuario no hay nada que refrescar: queda la lista que ya estaba.
-    }
-  };
-
-  const ejecutarRespuesta = async (invitacionId: string, accion: 'aceptar' | 'rechazar') => {
-    let userId: string;
-    try {
-      userId = resolveBackendUserId(backendUserId);
-    } catch {
-      meshError('Error', 'No se pudo identificar tu usuario.');
-      return;
-    }
-
-    setRespondiendoId(invitacionId);
-    try {
-      const resultado = await responderInvitacion(invitacionId, accion, userId);
-      const restantes = invitaciones.filter((i) => i.id !== invitacionId);
-      setInvitaciones(restantes);
-
-      if (accion === 'aceptar') {
-        vibrarExito();
-        setInvitacionesAbiertas(false);
-        router.push({ pathname: '/grupo/[grupoId]', params: { grupoId: resultado.grupo_id } });
-      } else {
-        vibrarSuave();
-        // Deja ver el fundido del último ítem antes de cerrar.
-        if (restantes.length === 0) setTimeout(() => setInvitacionesAbiertas(false), 250);
-      }
-      void cargarGrupos(true);
-    } catch (e: unknown) {
-      meshError('Error', e instanceof Error ? e.message : 'No se pudo responder la invitación.');
-    } finally {
-      setRespondiendoId(null);
-    }
-  };
-
   useFocusEffect(
     useCallback(() => {
       void cargarGrupos();
@@ -325,12 +273,13 @@ export default function GruposScreen() {
       <CampanitaNotificaciones
         pendientes={pendientes.solicitudes}
         etiqueta="Solicitudes de amistad"
-        onPress={() => setSolicitudesAbiertas(true)}
+        onPress={abrirSolicitudes}
       />
     );
 
-  return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+  // Encabezado y pestañas van dentro del scroll de cada sección: nada queda fijo.
+  const encabezado = (
+    <>
       <TopBar
         title="Grupos y amigos"
         raiz
@@ -355,13 +304,13 @@ export default function GruposScreen() {
           />
         </View>
       </PasoAyuda>
+    </>
+  );
 
+  return (
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
       {seccion === 'amigos' ? (
-        <AmigosTabPanel
-          solicitudesAbiertas={solicitudesAbiertas}
-          onCerrarSolicitudes={() => setSolicitudesAbiertas(false)}
-          onAbrirSolicitudes={() => setSolicitudesAbiertas(true)}
-        />
+        <AmigosTabPanel encabezado={encabezado} onAbrirSolicitudes={abrirSolicitudes} />
       ) : (
     <View style={styles.flex}>
       <ScrollViewAyuda
@@ -375,17 +324,30 @@ export default function GruposScreen() {
           />
         }
       >
-        {mostrarBuscador && (
-          <BarraFiltros>
-            <BuscadorFiltros
-              value={busqueda}
-              onChangeText={cambiarBusqueda}
-              placeholder="Buscar por nombre..."
-              accessibilityLabel="Buscar grupos"
-              maxLength={60}
-            />
-          </BarraFiltros>
-        )}
+        {encabezado}
+
+        {grupos.length > 0 ? (
+          <HerramientasLista
+            resumen={
+              consulta
+                ? `Mostrando ${gruposVisibles.length} de ${grupos.length}`
+                : `${grupos.length} ${grupos.length === 1 ? 'grupo' : 'grupos'}`
+            }
+            acciones={
+              <BotonSeleccionar
+                visible={!selection.active && gruposEliminables.length > 0}
+                onPress={() => selection.enter()}
+              />
+            }
+            busqueda={{
+              value: busqueda,
+              onChangeText: cambiarBusqueda,
+              placeholder: 'Buscar por nombre...',
+              accessibilityLabel: 'Buscar grupos',
+              maxLength: 60,
+            }}
+          />
+        ) : null}
 
         <View style={styles.inner}>
           {cargandoLista ? (
@@ -412,16 +374,6 @@ export default function GruposScreen() {
             )
           ) : (
             <View style={styles.seccionGrupos}>
-              <View style={styles.gruposHeaderRow}>
-                <Text style={[styles.seccionEyebrow, { color: theme.textDim }]}>
-                  TUS GRUPOS ({gruposVisibles.length})
-                </Text>
-                <BotonSeleccionar
-                  visible={!selection.active && gruposEliminables.length > 0}
-                  onPress={() => selection.enter()}
-                />
-              </View>
-
               <SelectionHeader
                 visible={selection.active}
                 allSelected={todosSeleccionados}
@@ -493,43 +445,7 @@ export default function GruposScreen() {
     </View>
       )}
 
-      <HojaInferior
-        visible={invitacionesAbiertas}
-        titulo="Invitaciones a grupos"
-        onCerrar={() => setInvitacionesAbiertas(false)}
-      >
-        {invitaciones.length === 0 ? (
-          <EstadoVacio
-            compacto
-            icono="check"
-            titulo="Estás al día"
-            texto="Cuando alguien te invite a un grupo, lo vas a ver acá."
-          />
-        ) : (
-          invitaciones.map((inv) => (
-            <FilaNotificacion
-              key={inv.id}
-              nombre={inv.invitado_por.nombre}
-              usuarioId={inv.invitado_por.id}
-              mensaje={
-                <>
-                  <Destacado>{inv.invitado_por.nombre}</Destacado> te invitó a{' '}
-                  <Destacado>{inv.grupo.nombre}</Destacado>
-                </>
-              }
-              meta={
-                inv.grupo_origen
-                  ? `Desde ${inv.grupo_origen.nombre} · ${formatearHaceCuanto(inv.created_at)}`
-                  : formatearHaceCuanto(inv.created_at)
-              }
-              etiquetaAceptar="Unirme"
-              procesando={respondiendoId === inv.id}
-              onAceptar={() => void ejecutarRespuesta(inv.id, 'aceptar')}
-              onRechazar={() => void ejecutarRespuesta(inv.id, 'rechazar')}
-            />
-          ))
-        )}
-      </HojaInferior>
+      <FranjaEstado />
 
       <HojaInferior
         visible={creandoAbierto}
@@ -570,10 +486,12 @@ const styles = StyleSheet.create({
   segmentWrap: {
     paddingHorizontal: 20,
     paddingTop: 12,
-    paddingBottom: 8,
+    paddingBottom: 12,
   },
   inner: {
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 20,
     gap: 20,
   },
   center: {
@@ -607,18 +525,6 @@ const styles = StyleSheet.create({
   },
   seccionGrupos: {
     gap: 12,
-  },
-  gruposHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 2,
-  },
-  seccionEyebrow: {
-    fontSize: 11,
-    fontFamily: 'SpaceMono',
-    fontWeight: '700',
-    letterSpacing: 1.2,
   },
   fab: {
     position: 'absolute',

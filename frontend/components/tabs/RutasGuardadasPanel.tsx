@@ -1,5 +1,5 @@
 import { useEspacioTabBar } from '@/hooks/useEspacioTabBar'
-import { useCallback, useState } from 'react';
+import { useCallback, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -11,13 +11,16 @@ import { Pressable } from '@/components/Pressable';
 import { router, useFocusEffect } from 'expo-router';
 
 import { CorazonGuardar } from '@/components/CorazonGuardar';
+import { HerramientasLista } from '@/components/BarraFiltros';
+import { ActivityTile, Btn, useTheme } from '@/components/MeshUI';
 import {
-  BarraFiltros,
-  BuscadorFiltros,
-  ChipFiltro,
-  FilaChipsFiltro,
-} from '@/components/BarraFiltros';
-import { Btn, useTheme } from '@/components/MeshUI';
+  OpcionFiltro,
+  OpcionesFiltro,
+  PantallaFiltros,
+  SeccionFiltro,
+} from '@/components/PantallaFiltros';
+import { ACTIVIDADES } from '@/lib/activityDefaults';
+import type { TipoActividadApi } from '@/lib/viajesApi';
 import { useAuth } from '@/context/AuthContext';
 import { resolveBackendUserId } from '@/lib/apiClient';
 import { formatDurationHm, formatKm } from '@/lib/format';
@@ -35,14 +38,23 @@ const FILTROS_AUTOR: { id: FiltroAutor; label: string }[] = [
   { id: 'otros', label: 'De otros usuarios' },
 ];
 
-export function RutasGuardadasPanel() {
+type FiltrosGuardadas = { autor: FiltroAutor; actividad: TipoActividadApi | null };
+const SIN_FILTROS: FiltrosGuardadas = { autor: 'todas', actividad: null };
+
+function cantidadFiltros(f: FiltrosGuardadas): number {
+  return (f.autor !== 'todas' ? 1 : 0) + (f.actividad ? 1 : 0);
+}
+
+export function RutasGuardadasPanel({ encabezado }: { encabezado: ReactNode }) {
   const espacioTabBar = useEspacioTabBar()
   const theme = useTheme();
   const { backendUserId } = useAuth();
   const [items, setItems] = useState<RutaPlantillaResumenApi[]>([]);
   const [loading, setLoading] = useState(true);
   const [quitandoId, setQuitandoId] = useState<string | null>(null);
-  const [filtroAutor, setFiltroAutor] = useState<FiltroAutor>('todas');
+  const [filtros, setFiltros] = useState<FiltrosGuardadas>(SIN_FILTROS);
+  const [borrador, setBorrador] = useState<FiltrosGuardadas>(SIN_FILTROS);
+  const [pantallaFiltros, setPantallaFiltros] = useState(false);
   const [textoBusqueda, setTextoBusqueda] = useState('');
 
   const cargar = useCallback(async () => {
@@ -76,50 +88,57 @@ export function RutasGuardadasPanel() {
     });
   };
 
-  if (loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator color={theme.accent} />
-      </View>
-    );
-  }
-
   const consulta = normalizarBusqueda(textoBusqueda);
-  const visibles = items.filter(
-    (item) =>
-      (filtroAutor === 'todas' || item.creada_por_mi === (filtroAutor === 'mias')) &&
-      coincideBusqueda(consulta, [item.nombre, item.origen_nombre, item.destino_nombre])
+  const filtrar = (f: FiltrosGuardadas) =>
+    items.filter(
+      (item) =>
+        (f.autor === 'todas' || item.creada_por_mi === (f.autor === 'mias')) &&
+        (f.actividad === null || item.tipo_actividad === f.actividad) &&
+        coincideBusqueda(consulta, [item.nombre, item.origen_nombre, item.destino_nombre])
+    );
+  const visibles = filtrar(filtros);
+  const hayFiltros = cantidadFiltros(filtros) > 0;
+  const cantidadBorrador = pantallaFiltros ? filtrar(borrador).length : 0;
+
+  const cabecera = (
+    <>
+      {encabezado}
+      <HerramientasLista
+        resumen={
+          loading
+            ? undefined
+            : consulta || hayFiltros
+              ? `Mostrando ${visibles.length} de ${items.length}`
+              : `${items.length} ${items.length === 1 ? 'ruta' : 'rutas'}`
+        }
+        busqueda={{
+          value: textoBusqueda,
+          onChangeText: setTextoBusqueda,
+          placeholder: 'Buscar por nombre, origen o destino',
+          accessibilityLabel: 'Buscar rutas guardadas',
+          maxLength: 60,
+        }}
+        filtros={{
+          cantidad: cantidadFiltros(filtros),
+          onPress: () => {
+            setBorrador(filtros);
+            setPantallaFiltros(true);
+          },
+          onLimpiar: () => setFiltros(SIN_FILTROS),
+        }}
+      />
+    </>
   );
 
   return (
     <View style={styles.root}>
     <FlatList
-      data={visibles}
+      data={loading ? [] : visibles}
       keyboardShouldPersistTaps="handled"
       keyExtractor={(item) => item.id}
       contentContainerStyle={[styles.list, { paddingBottom: espacioTabBar }]}
-      // Búsqueda y filtros scrollean con la lista para dejarle más lugar.
-      ListHeaderComponent={
-        <BarraFiltros>
-          <BuscadorFiltros
-            value={textoBusqueda}
-            onChangeText={setTextoBusqueda}
-            placeholder="Buscar por nombre, origen o destino"
-            accessibilityLabel="Buscar rutas guardadas"
-            maxLength={60}
-          />
-          <FilaChipsFiltro>
-            {FILTROS_AUTOR.map((f) => (
-              <ChipFiltro
-                key={f.id}
-                label={f.label}
-                activo={filtroAutor === f.id}
-                onPress={() => setFiltroAutor(f.id)}
-              />
-            ))}
-          </FilaChipsFiltro>
-        </BarraFiltros>
-      }
+      // Encabezado, búsqueda y filtros scrollean con la lista: nada queda fijo.
+      ListHeaderComponent={cabecera}
       renderItem={({ item }) => (
         // Toda la tarjeta abre el detalle; los botones de abajo capturan su propio toque.
         <Pressable
@@ -162,24 +181,77 @@ export function RutasGuardadasPanel() {
         </Pressable>
       )}
       ListEmptyComponent={
-        <Text style={[styles.empty, { color: theme.textDim }]}>
-          {items.length === 0
-            ? 'Todavía no guardaste rutas. Tocá el corazón de una en la pestaña Explorar o guardala desde un viaje compartido.'
-            : consulta
-              ? 'Ninguna ruta guardada coincide con la búsqueda.'
-              : filtroAutor === 'mias'
-              ? 'No tenés rutas guardadas creadas por vos.'
-              : 'No tenés rutas guardadas de otros usuarios.'}
-        </Text>
+        loading ? (
+          <ActivityIndicator color={theme.accent} style={styles.cargando} />
+        ) : (
+          <Text style={[styles.empty, { color: theme.textDim }]}>
+            {items.length === 0
+              ? 'Todavía no guardaste rutas. Tocá el corazón de una en la pestaña Explorar o guardala desde un viaje compartido.'
+              : consulta
+                ? 'Ninguna ruta guardada coincide con la búsqueda.'
+                : 'Ninguna ruta guardada coincide con los filtros.'}
+          </Text>
+        )
       }
     />
+
+    <PantallaFiltros
+      visible={pantallaFiltros}
+      titulo="Filtrar rutas"
+      onCerrar={() => setPantallaFiltros(false)}
+      onLimpiar={() => setBorrador(SIN_FILTROS)}
+      puedeLimpiar={cantidadFiltros(borrador) > 0}
+      textoAplicar={
+        cantidadBorrador === 0
+          ? 'Sin resultados con estos filtros'
+          : cantidadBorrador === 1
+            ? 'Ver 1 ruta'
+            : `Ver ${cantidadBorrador} rutas`
+      }
+      onAplicar={() => {
+        setFiltros(borrador);
+        setPantallaFiltros(false);
+      }}
+    >
+      <SeccionFiltro titulo="Quién la creó">
+        <OpcionesFiltro>
+          {FILTROS_AUTOR.map((f) => (
+            <OpcionFiltro
+              key={f.id}
+              etiqueta={f.label}
+              activa={borrador.autor === f.id}
+              onPress={() => setBorrador((b) => ({ ...b, autor: f.id }))}
+            />
+          ))}
+        </OpcionesFiltro>
+      </SeccionFiltro>
+
+      <SeccionFiltro titulo="Actividad">
+        <OpcionesFiltro>
+          <OpcionFiltro
+            etiqueta="Todas"
+            activa={borrador.actividad === null}
+            onPress={() => setBorrador((b) => ({ ...b, actividad: null }))}
+          />
+          {ACTIVIDADES.map((a) => (
+            <OpcionFiltro
+              key={a.id}
+              etiqueta={a.label}
+              activa={borrador.actividad === a.id}
+              onPress={() => setBorrador((b) => ({ ...b, actividad: a.id }))}
+              icono={<ActivityTile activity={a.id} size={24} />}
+            />
+          ))}
+        </OpcionesFiltro>
+      </SeccionFiltro>
+    </PantallaFiltros>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  center: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  cargando: { marginTop: 48 },
   list: { flexGrow: 1, gap: 12 },
   empty: {
     fontSize: 15,
