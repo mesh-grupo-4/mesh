@@ -51,6 +51,11 @@ export const responderInvitacionSchema = z.object({
   }),
 })
 
+/** Ruta del archivo subido con la URL firmada; el service valida que sea de este grupo. */
+export const confirmarFotoGrupoSchema = z.object({
+  path: z.string().trim().min(1).max(200),
+})
+
 export const buscarUsuariosQuerySchema = z.object({
   q: z
     .string()

@@ -2,6 +2,7 @@ import type { Request, RequestHandler, Response } from 'express'
 import {
   abandonarGrupoSchema,
   buscarUsuariosQuerySchema,
+  confirmarFotoGrupoSchema,
   cambiarRolMiembroSchema,
   createGrupoSchema,
   grupoIdParamSchema,
@@ -12,6 +13,7 @@ import {
   responderInvitacionSchema,
 } from './grupos.schemas'
 import type { GruposService } from './grupos.service'
+import type { FotosGrupoService } from './grupos.fotos'
 
 function asyncHandler(fn: (req: Request, res: Response) => Promise<void>): RequestHandler {
   return (req, res, next) => {
@@ -19,7 +21,7 @@ function asyncHandler(fn: (req: Request, res: Response) => Promise<void>): Reque
   }
 }
 
-export function crearGruposController(service: GruposService) {
+export function crearGruposController(service: GruposService, fotos: FotosGrupoService) {
   return {
     listar: asyncHandler(async (req, res) => {
       const grupos = await service.listarParaUsuario(req.userId!)
@@ -106,13 +108,32 @@ export function crearGruposController(service: GruposService) {
       const { grupoId } = grupoIdParamSchema.parse(req.params)
       const body = abandonarGrupoSchema.parse(req.body ?? {})
       const result = await service.abandonarGrupo(req.userId!, grupoId, body)
+      if (result.accion === 'grupo_eliminado') await fotos.borrarCarpeta(grupoId)
       res.json(result)
     }),
 
     eliminar: asyncHandler(async (req, res) => {
       const { grupoId } = grupoIdParamSchema.parse(req.params)
       const result = await service.eliminarGrupo(req.userId!, grupoId)
+      await fotos.borrarCarpeta(grupoId)
       res.json(result)
+    }),
+
+    // Foto del grupo: cualquier integrante la cambia o la quita.
+    crearSubidaFoto: asyncHandler(async (req, res) => {
+      const { grupoId } = grupoIdParamSchema.parse(req.params)
+      res.json(await fotos.crearSubida(req.userId!, grupoId))
+    }),
+
+    confirmarFoto: asyncHandler(async (req, res) => {
+      const { grupoId } = grupoIdParamSchema.parse(req.params)
+      const { path } = confirmarFotoGrupoSchema.parse(req.body)
+      res.json(await fotos.confirmar(req.userId!, grupoId, path))
+    }),
+
+    eliminarFoto: asyncHandler(async (req, res) => {
+      const { grupoId } = grupoIdParamSchema.parse(req.params)
+      res.json(await fotos.eliminar(req.userId!, grupoId))
     }),
   }
 }

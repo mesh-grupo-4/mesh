@@ -29,5 +29,24 @@
 ## Configuración por entorno
 
 1. En el `.env` del backend (local y en el VPS): `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY`. La key es la secret key `sb_secret_...` (Supabase → Project Settings → API Keys) o, en proyectos viejos, la `service_role` de *Legacy API Keys*.
-2. `npm run storage:setup` crea o ajusta el bucket `avatares` (público, JPEG, 2 MB). Es idempotente y usa `ts-node`, así que se corre desde una copia del repo (el release del VPS solo tiene `dist/`), una vez por proyecto Supabase.
+2. `npm run storage:setup` crea o ajusta el bucket `avatares` (público, JPEG, 2 MB). Es idempotente y se corre una vez por proyecto Supabase. Ojo: el backend local y producción usan **proyectos distintos**; para producción se corre en el VPS, desde la carpeta del release activo: `node dist/scripts/crear-bucket-avatares.js` (toma el `.env` compartido).
 3. La migración `20261111180000_usuario_foto_perfil` la aplica el deploy (`deploy-backend.yml` → `activar.sh`).
+4. La migración `20261112180000_grupo_foto` (foto de grupo) también la aplica el deploy. Usa el mismo bucket, así que no requiere configuración extra en el VPS.
+
+## Foto de grupo
+
+> **OpenAPI:** `backend/openapi/paths/grupos.yaml` (`SubidaFotoGrupo`, `FotoGrupo`).
+
+Mismo flujo de tres pasos que la foto de perfil, sobre `grupo.foto`:
+
+1. `POST /api/grupos/{grupoId}/foto/subida` → ruta `grupos/{grupoId}/{timestamp}.jpg` y URL firmada.
+2. `PUT` del JPEG directo a Storage.
+3. `PUT /api/grupos/{grupoId}/foto` con el `path`: valida carpeta, tipo y tamaño; guarda la URL y borra la anterior.
+
+`DELETE /api/grupos/{grupoId}/foto` vuelve a las iniciales. `GET /api/grupos` y `GET /api/grupos/{grupoId}` devuelven `foto` (URL o `null`).
+
+| Decisión | Qué se resolvió | Por qué |
+|---|---|---|
+| **Cualquier integrante la cambia** | Líder y participantes pueden cambiar o quitar la foto; el backend valida la membresía en cada paso (`403 NOT_GROUP_MEMBER` si no es del grupo) | Decisión de producto: la foto es de todos. No es una mutación sensible de RN-030 (iniciar/finalizar viaje, aprobar paradas, alertas manuales) |
+| **Mismo bucket `avatares`, carpeta `grupos/`** | Las fotos de grupo viven en `grupos/{grupoId}/`; las de usuario en `{usuarioId}/` (UUID), así que no chocan | Cero configuración nueva en Storage ni en el VPS |
+| **Limpieza al borrar el grupo** | Si el grupo se elimina (por el líder o porque el último integrante lo abandona), se borra su carpeta sin trabar la operación | Evita archivos huérfanos |

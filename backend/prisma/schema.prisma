@@ -227,6 +227,8 @@ model Grupo {
   nombre         String
   fecha_creacion DateTime @default(now()) @map("fecha_creacion")
   lider_id       String   @map("lider_id") @db.Uuid
+  /// URL pública de la foto del grupo en Supabase Storage (bucket `avatares`, carpeta `grupos/`). Null = iniciales.
+  foto           String?  @map("foto")
 
   lider                    Usuario           @relation("GrupoLider", fields: [lider_id], references: [id], onDelete: Restrict)
   miembros                 GrupoMiembro[]

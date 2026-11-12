@@ -303,6 +303,10 @@ paths:
     $ref: './paths/grupos.yaml#/InvitarDesdeGrupos'
   /api/grupos/{grupoId}/abandonar:
     $ref: './paths/grupos.yaml#/AbandonarGrupo'
+  /api/grupos/{grupoId}/foto/subida:
+    $ref: './paths/grupos.yaml#/SubidaFotoGrupo'
+  /api/grupos/{grupoId}/foto:
+    $ref: './paths/grupos.yaml#/FotoGrupo'
 
   # ── Viajes ─────────────────────────────────────────────────────────────────
   /api/viajes:

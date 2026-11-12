@@ -278,12 +278,36 @@ export default function GruposScreen() {
     );
 
   // Encabezado y pestañas van dentro del scroll de cada sección: nada queda fijo.
-  const encabezado = (
+  // El "+" junto al título crea un grupo o agrega un amigo, según la pestaña.
+  const crearEncabezado = (onAgregar: () => void) => (
     <>
       <TopBar
-        title="Grupos y amigos"
+        title=""
         raiz
         bordered={false}
+        junto={
+          <PasoAyuda {...AYUDA_GRUPOS[2]!}>
+            <Pressable
+              onPress={onAgregar}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel={seccion === 'grupos' ? 'Crear grupo' : 'Agregar amigo'}
+              style={({ pressed }) => [
+                styles.botonAgregar,
+                { backgroundColor: theme.accent, opacity: pressed ? 0.85 : 1 },
+              ]}
+            >
+              <Feather
+                name={seccion === 'grupos' ? 'plus' : 'user-plus'}
+                size={seccion === 'grupos' ? 18 : 16}
+                color={theme.onAccent}
+              />
+              <Text style={[styles.botonAgregarTexto, { color: theme.onAccent }]}>
+                {seccion === 'grupos' ? 'Crear grupo' : 'Agregar amigo'}
+              </Text>
+            </Pressable>
+          </PasoAyuda>
+        }
         right={campanita}
         onAyuda={() => start()}
       />
@@ -310,11 +334,11 @@ export default function GruposScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       {seccion === 'amigos' ? (
-        <AmigosTabPanel encabezado={encabezado} onAbrirSolicitudes={abrirSolicitudes} />
+        <AmigosTabPanel encabezado={crearEncabezado} onAbrirSolicitudes={abrirSolicitudes} />
       ) : (
     <View style={styles.flex}>
       <ScrollViewAyuda
-        contentContainerStyle={{ paddingBottom: espacioTabBar + 74 }}
+        contentContainerStyle={{ paddingBottom: espacioTabBar }}
         keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl
@@ -324,7 +348,7 @@ export default function GruposScreen() {
           />
         }
       >
-        {encabezado}
+        {crearEncabezado(() => setCreandoAbierto(true))}
 
         {grupos.length > 0 ? (
           <HerramientasLista
@@ -414,26 +438,6 @@ export default function GruposScreen() {
           )}
         </View>
       </ScrollViewAyuda>
-
-      {/* Botón flotante FAB para crear grupo */}
-      {!selection.active && (
-        <PasoAyuda {...AYUDA_GRUPOS[2]!} estilo={StyleSheet.absoluteFill} pointerEvents="box-none">
-          <Pressable
-            style={({ pressed }) => [
-              styles.fab,
-              {
-                bottom: espacioTabBar,
-                backgroundColor: theme.accent,
-                transform: [{ scale: pressed ? 0.95 : 1 }],
-              },
-            ]}
-            onPress={() => setCreandoAbierto(true)}
-          >
-            <Feather name="plus" size={20} color={theme.onAccent} />
-            <Text style={[styles.fabText, { color: theme.onAccent }]}>Crear grupo</Text>
-          </Pressable>
-        </PasoAyuda>
-      )}
 
       <SelectionActionBar
         visible={selection.active}
@@ -526,23 +530,16 @@ const styles = StyleSheet.create({
   seccionGrupos: {
     gap: 12,
   },
-  fab: {
-    position: 'absolute',
-    right: 20,
-    height: 54,
-    paddingHorizontal: 20,
-    borderRadius: 18,
+  botonAgregar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    elevation: 8,
-    gap: 8,
+    gap: 6,
+    height: 38,
+    paddingLeft: 12,
+    paddingRight: 16,
+    borderRadius: 19,
   },
-  fabText: {
+  botonAgregarTexto: {
     fontSize: 14.5,
     fontWeight: '700',
   },

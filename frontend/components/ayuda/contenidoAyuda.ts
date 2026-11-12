@@ -65,7 +65,7 @@ export const AYUDA_GRUPOS: PasoDefinicion[] = [
   {
     nombre: 'grupos.fab',
     orden: ORDEN_PANTALLA.grupos + 2,
-    texto: 'Creá un grupo nuevo para coordinar viajes con tu gente.',
+    texto: 'Con el + creás un grupo nuevo para coordinar viajes con tu gente; en Amigos, sirve para agregar amigos.',
   },
 ]
 

@@ -1,7 +1,8 @@
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
-import { AvatarFallback, inicialesDe } from '@/components/AvatarFallback';
+import { AvatarFallback } from '@/components/AvatarFallback';
+import { AvatarGrupo } from '@/components/grupos/AvatarGrupo';
 import { Esqueleto } from '@/components/Esqueleto';
 import { Badge, useTheme } from '@/components/MeshUI';
 import { Pressable } from '@/components/Pressable';
@@ -9,14 +10,7 @@ import { SelectableCard } from '@/components/SelectableCard';
 import type { GrupoListItemApi } from '@/lib/gruposApi';
 import { formatearEnArg } from '@/lib/tiempoArg';
 
-const COLORES_GRUPO = ['#d76655', '#4a9eff', '#2f9e63', '#7a5ae0', '#c98a3e'];
 const AVATAR_MIEMBRO = 24;
-
-/** Color estable por nombre: el mismo en la lista y en el detalle del grupo. */
-export function colorDeGrupo(nombre: string): string {
-  const suma = nombre.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
-  return COLORES_GRUPO[suma % COLORES_GRUPO.length]!;
-}
 
 /** En curso primero, después por próximo viaje (el más cercano antes) y el resto por nombre. */
 export function ordenarGrupos(grupos: GrupoListItemApi[]): GrupoListItemApi[] {
@@ -49,7 +43,6 @@ export function TarjetaGrupo({
   onDisabledPress,
 }: Props) {
   const theme = useTheme();
-  const color = colorDeGrupo(grupo.nombre);
   const esLider = grupo.mi_rol === 'lider';
   // `miembros_preview` excluye al usuario: el resto se resume en "+N".
   const restantes = Math.max(0, grupo.cantidad_miembros - 1 - grupo.miembros_preview.length);
@@ -71,9 +64,7 @@ export function TarjetaGrupo({
       style={[styles.tarjeta, { backgroundColor: theme.surface, borderColor: theme.border }]}
     >
       <View style={styles.fila}>
-        <View style={[styles.avatar, { backgroundColor: `${color}20` }]}>
-          <Text style={[styles.avatarTexto, { color }]}>{inicialesDe(grupo.nombre)}</Text>
-        </View>
+        <AvatarGrupo nombre={grupo.nombre} foto={grupo.foto} size={48} radio={12} />
 
         <View style={styles.cuerpo}>
           <View style={styles.titulo}>
@@ -211,17 +202,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-  },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarTexto: {
-    fontSize: 17,
-    fontWeight: '700',
   },
   cuerpo: {
     flex: 1,

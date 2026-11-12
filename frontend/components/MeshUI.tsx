@@ -648,9 +648,11 @@ interface TopBarProps {
   raiz?: boolean;
   /** Deja ver lo que haya detrás de la barra (ej. el fondo de la cabecera del Perfil). */
   transparente?: boolean;
+  /** Acción pegada al título, a la izquierda (ej. "+" para crear en Grupos y amigos). */
+  junto?: React.ReactNode;
 }
 
-export function TopBar({ title, sub, onBack, bordered = true, right, onAyuda, raiz = false, transparente = false }: TopBarProps) {
+export function TopBar({ title, sub, onBack, bordered = true, right, onAyuda, raiz = false, transparente = false, junto }: TopBarProps) {
   const theme = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -691,9 +693,20 @@ export function TopBar({ title, sub, onBack, bordered = true, right, onAyuda, ra
           </Pressable>
         ) : null}
         <View style={[styles.titleWrapper, centrado && styles.titleWrapperCentrado]}>
-          <Text style={[styles.topBarTitle, { color: theme.text }]} numberOfLines={1}>
-            {title}
-          </Text>
+          {junto ? (
+            <View style={styles.titleFila}>
+              {title ? (
+                <Text style={[styles.topBarTitle, styles.titleEncogible, { color: theme.text }]} numberOfLines={1}>
+                  {title}
+                </Text>
+              ) : null}
+              {junto}
+            </View>
+          ) : (
+            <Text style={[styles.topBarTitle, { color: theme.text }]} numberOfLines={1}>
+              {title}
+            </Text>
+          )}
           {sub && typeof sub === 'string' ? (
             <Text style={[styles.topBarSub, { color: theme.textDim }]} numberOfLines={1}>
               {sub}
@@ -919,6 +932,14 @@ const styles = StyleSheet.create({
   },
   titleWrapperCentrado: {
     alignItems: 'center',
+  },
+  titleFila: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  titleEncogible: {
+    flexShrink: 1,
   },
   topBarEquilibrio: {
     width: 52,

@@ -3,6 +3,7 @@ import * as ImagePicker from 'expo-image-picker'
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator'
 import { File } from 'expo-file-system'
 import { confirmarFoto, crearSubidaFoto, eliminarFoto } from '@/lib/usuariosApi'
+import { confirmarFotoGrupo, crearSubidaFotoGrupo, eliminarFotoGrupo } from '@/lib/gruposApi'
 
 /** Lado del cuadrado que se sube: alcanza para el avatar más grande (128 pt en 3x ≈ 384 px). */
 const LADO_PX = 512
@@ -53,18 +54,33 @@ async function leerBytes(uri: string): Promise<ArrayBuffer | Blob> {
  */
 export async function subirFotoPerfil(uriLocal: string): Promise<string> {
   const { path, upload_url } = await crearSubidaFoto()
-
-  const res = await fetch(upload_url, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'image/jpeg' },
-    body: await leerBytes(uriLocal),
-  })
-  if (!res.ok) throw new Error('No se pudo subir la foto. Revisá tu conexión e intentá de nuevo.')
-
+  await subirAUrlFirmada(upload_url, uriLocal)
   const { foto_perfil } = await confirmarFoto(path)
   return foto_perfil
 }
 
 export async function quitarFotoPerfil(): Promise<void> {
   await eliminarFoto()
+}
+
+/** Mismo flujo para la foto de un grupo. Devuelve la URL pública guardada. */
+export async function subirFotoGrupo(grupoId: string, uriLocal: string): Promise<string> {
+  const { path, upload_url } = await crearSubidaFotoGrupo(grupoId)
+  await subirAUrlFirmada(upload_url, uriLocal)
+  const { foto } = await confirmarFotoGrupo(grupoId, path)
+  return foto
+}
+
+export async function quitarFotoGrupo(grupoId: string): Promise<void> {
+  await eliminarFotoGrupo(grupoId)
+}
+
+/** Paso 2: PUT directo del JPEG a Supabase Storage con la URL firmada. */
+async function subirAUrlFirmada(uploadUrl: string, uriLocal: string): Promise<void> {
+  const res = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'image/jpeg' },
+    body: await leerBytes(uriLocal),
+  })
+  if (!res.ok) throw new Error('No se pudo subir la foto. Revisá tu conexión e intentá de nuevo.')
 }

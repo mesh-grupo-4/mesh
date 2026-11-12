@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, RefreshControl, ActivityIndicator } from 'react-native';
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useCopilot } from 'react-native-copilot';
@@ -15,12 +15,20 @@ import {
 } from '@/lib/gruposApi';
 import { formatearEnArg } from '@/lib/tiempoArg';
 import { Btn, TopBar, useTheme } from '@/components/MeshUI';
-import { inicialesDe } from '@/components/AvatarFallback';
 import { Esqueleto } from '@/components/Esqueleto';
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda';
 import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda';
 import { AYUDA_GRUPO_DETALLE } from '@/components/ayuda/contenidoAyuda';
-import { colorDeGrupo } from '@/components/grupos/TarjetaGrupo';
+import { AvatarGrupo } from '@/components/grupos/AvatarGrupo';
+import { HojaInferior } from '@/components/HojaInferior';
+import { FilaOpcion } from '@/components/perfil/FilaOpcion';
+import {
+  elegirFoto,
+  PermisoFotoDenegado,
+  quitarFotoGrupo,
+  subirFotoGrupo,
+  type OrigenFoto,
+} from '@/lib/fotoPerfil';
 import { FilaMiembro, ordenarMiembros } from '@/components/grupos/FilaMiembro';
 import { abrirNuevoViaje } from '@/lib/nuevoViaje';
 
@@ -38,6 +46,8 @@ export default function GrupoDetalleScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hojaFoto, setHojaFoto] = useState(false);
+  const [guardandoFoto, setGuardandoFoto] = useState(false);
 
   const cargar = useCallback(
     async (esRefresh = false) => {
@@ -71,7 +81,66 @@ export default function GrupoDetalleScreen() {
   }, [cargar]);
 
   const esLider = grupo?.mi_rol === 'lider';
-  const color = grupo ? colorDeGrupo(grupo.nombre) : theme.accent;
+  const foto = grupo?.foto ?? null;
+
+  // Cualquier integrante puede cambiar la foto del grupo (el backend valida la membresía).
+  const cambiarFoto = (origen: OrigenFoto) => {
+    setHojaFoto(false);
+    if (!grupoId) return;
+    void (async () => {
+      let uri: string | null;
+      try {
+        uri = await elegirFoto(origen);
+      } catch (e) {
+        if (e instanceof PermisoFotoDenegado) {
+          meshAlert(
+            'Sin permiso',
+            origen === 'camara'
+              ? 'Habilitá el acceso a la cámara desde los ajustes del teléfono para sacar una foto.'
+              : 'Habilitá el acceso a tus fotos desde los ajustes del teléfono para elegir una.'
+          );
+        } else {
+          meshAlert('Error', 'No se pudo abrir la foto. Intentá de nuevo.');
+        }
+        return;
+      }
+      if (!uri) return;
+      setGuardandoFoto(true);
+      try {
+        const url = await subirFotoGrupo(grupoId, uri);
+        setGrupo((g) => (g ? { ...g, foto: url } : g));
+      } catch (e) {
+        meshAlert('No se pudo cambiar la foto', e instanceof Error ? e.message : 'Intentá de nuevo.');
+      } finally {
+        setGuardandoFoto(false);
+      }
+    })();
+  };
+
+  const quitarFoto = () => {
+    setHojaFoto(false);
+    if (!grupoId) return;
+    meshAlert('Quitar foto', 'El grupo va a volver a mostrar sus iniciales.', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Quitar',
+        style: 'destructive',
+        onPress: () => {
+          void (async () => {
+            setGuardandoFoto(true);
+            try {
+              await quitarFotoGrupo(grupoId);
+              setGrupo((g) => (g ? { ...g, foto: null } : g));
+            } catch {
+              meshAlert('Error', 'No se pudo quitar la foto. Intentá de nuevo.');
+            } finally {
+              setGuardandoFoto(false);
+            }
+          })();
+        },
+      },
+    ]);
+  };
   const preview = miembros.slice(0, MIEMBROS_PREVIEW);
 
   const verMiembros = () =>
@@ -126,16 +195,26 @@ export default function GrupoDetalleScreen() {
             {/* Identidad del grupo + estadísticas */}
             <PasoAyuda {...AYUDA_GRUPO_DETALLE[0]!}>
               <View style={styles.hero}>
-                <View
-                  style={[
-                    styles.avatarGrupo,
-                    { backgroundColor: `${color}22`, borderColor: `${color}66` },
-                  ]}
+                <Pressable
+                  onPress={() => setHojaFoto(true)}
+                  disabled={guardandoFoto}
+                  accessibilityRole="button"
+                  accessibilityLabel={foto ? 'Cambiar la foto del grupo' : 'Agregar una foto al grupo'}
                 >
-                  <Text style={[styles.avatarGrupoTexto, { color }]}>
-                    {inicialesDe(grupo.nombre)}
-                  </Text>
-                </View>
+                  <AvatarGrupo nombre={grupo.nombre} foto={foto} size={96} radio={28} conBorde />
+                  <View
+                    style={[
+                      styles.fotoBadge,
+                      { backgroundColor: theme.accent, borderColor: theme.background },
+                    ]}
+                  >
+                    {guardandoFoto ? (
+                      <ActivityIndicator size="small" color={theme.onAccent} />
+                    ) : (
+                      <Feather name="camera" size={15} color={theme.onAccent} />
+                    )}
+                  </View>
+                </Pressable>
 
                 <Text style={[styles.nombre, { color: theme.text }]} numberOfLines={2}>
                   {grupo.nombre}
@@ -271,6 +350,12 @@ export default function GrupoDetalleScreen() {
           </>
         )}
       </ScrollViewAyuda>
+
+      <HojaInferior visible={hojaFoto} titulo="Foto del grupo" onCerrar={() => setHojaFoto(false)}>
+        <FilaOpcion icono="image" titulo="Elegir de la galería" onPress={() => cambiarFoto('galeria')} />
+        <FilaOpcion icono="camera" titulo="Sacar una foto" onPress={() => cambiarFoto('camara')} />
+        {foto ? <FilaOpcion icono="trash-2" titulo="Quitar foto" peligro onPress={quitarFoto} /> : null}
+      </HojaInferior>
     </View>
   );
 }
@@ -299,7 +384,7 @@ function Stat({
 function DetalleEsqueleto() {
   return (
     <View style={styles.hero}>
-      <Esqueleto ancho={88} alto={88} radio={26} />
+      <Esqueleto ancho={96} alto={96} radio={28} />
       <Esqueleto ancho="55%" alto={24} />
       <Esqueleto ancho={120} alto={24} radio={12} />
       <View style={styles.stats}>
@@ -338,18 +423,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
-  avatarGrupo: {
-    width: 88,
-    height: 88,
-    borderRadius: 26,
-    borderWidth: 1.5,
+  fotoBadge: {
+    position: 'absolute',
+    right: -6,
+    bottom: -6,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 3,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  avatarGrupoTexto: {
-    fontSize: 32,
-    fontWeight: '800',
-    letterSpacing: -0.5,
   },
   nombre: {
     fontSize: 26,

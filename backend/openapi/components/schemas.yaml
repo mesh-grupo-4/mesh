@@ -703,6 +703,50 @@ FotoPerfilResponse:
       example: https://ddmnzklvxbijpcpckwez.supabase.co/storage/v1/object/public/avatares/9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d/1792000000000.jpg
   additionalProperties: false
 
+SubidaFotoGrupo:
+  type: object
+  description: |
+    Paso 1 de la subida de la foto del grupo. `upload_url` es una URL firmada de
+    Supabase Storage que solo permite escribir en `path` (la carpeta del grupo).
+    La app sube ahí el JPEG con un `PUT` y después confirma con
+    `PUT /api/grupos/{grupoId}/foto`.
+  required:
+    - path
+    - upload_url
+  properties:
+    path:
+      type: string
+      description: Ruta dentro del bucket `avatares`, siempre `grupos/{grupoId}/{timestamp}.jpg`.
+      example: grupos/7a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d/1792000000000.jpg
+    upload_url:
+      type: string
+      format: uri
+  additionalProperties: false
+
+ConfirmarFotoGrupoRequest:
+  type: object
+  required:
+    - path
+  properties:
+    path:
+      type: string
+      maxLength: 200
+      description: El `path` que devolvió `POST /api/grupos/{grupoId}/foto/subida`.
+      example: grupos/7a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d/1792000000000.jpg
+  additionalProperties: false
+
+FotoGrupoResponse:
+  type: object
+  required:
+    - foto
+  properties:
+    foto:
+      type: string
+      format: uri
+      nullable: true
+      example: https://uabrwwtuihaxeqdwvtlg.supabase.co/storage/v1/object/public/avatares/grupos/7a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d/1792000000000.jpg
+  additionalProperties: false
+
 ConsultarFotosRequest:
   type: object
   required:
@@ -1216,6 +1260,12 @@ GrupoBase:
       type: string
       format: uuid
       description: UUID del líder actual. Cambia si se transfiere el liderazgo (RN-013).
+    foto:
+      type: string
+      format: uri
+      nullable: true
+      description: URL pública de la foto del grupo, o `null` si no tiene (la app muestra las iniciales).
+      example: https://uabrwwtuihaxeqdwvtlg.supabase.co/storage/v1/object/public/avatares/grupos/7a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d/1792000000000.jpg
   additionalProperties: false
 
 GrupoResumen:
@@ -1302,6 +1352,12 @@ GrupoResumen:
           type: string
           format: date-time
       additionalProperties: false
+    foto:
+      type: string
+      format: uri
+      nullable: true
+      description: URL pública de la foto del grupo, o `null` si no tiene (la app muestra las iniciales).
+      example: https://uabrwwtuihaxeqdwvtlg.supabase.co/storage/v1/object/public/avatares/grupos/7a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d/1792000000000.jpg
   additionalProperties: false
 
 GrupoDetalle:
@@ -1337,6 +1393,12 @@ GrupoDetalle:
       type: integer
       description: Viajes en los que participó el grupo.
       example: 3
+    foto:
+      type: string
+      format: uri
+      nullable: true
+      description: URL pública de la foto del grupo, o `null` si no tiene (la app muestra las iniciales).
+      example: https://uabrwwtuihaxeqdwvtlg.supabase.co/storage/v1/object/public/avatares/grupos/7a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d/1792000000000.jpg
   additionalProperties: false
 
 MiembroGrupo:

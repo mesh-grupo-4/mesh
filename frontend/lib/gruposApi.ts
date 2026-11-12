@@ -7,6 +7,8 @@ export type GrupoApi = {
   nombre: string
   fecha_creacion: string
   lider_id: string
+  /** URL pública de la foto del grupo; null = iniciales. */
+  foto?: string | null
 }
 
 export type GrupoDetalleApi = GrupoApi & {
@@ -298,4 +300,30 @@ export async function responderInvitacion(
     }
   )
   return parseJson<ResponderInvitacionResponse>(res)
+}
+
+// ── Foto del grupo (Supabase Storage) ───────────────────────────────────────
+// Cualquier integrante la cambia o la quita; el backend valida la membresía.
+
+export type SubidaFotoGrupoApi = { path: string; upload_url: string }
+
+/** Paso 1: el backend elige la ruta en la carpeta del grupo y devuelve una URL firmada. */
+export async function crearSubidaFotoGrupo(grupoId: string): Promise<SubidaFotoGrupoApi> {
+  const res = await meshFetchAuthed(apiUrl(`/api/grupos/${grupoId}/foto/subida`), { method: 'POST' })
+  return parseJson<SubidaFotoGrupoApi>(res)
+}
+
+/** Paso 3: el backend verifica el archivo subido y lo guarda como foto del grupo. */
+export async function confirmarFotoGrupo(grupoId: string, path: string): Promise<{ foto: string }> {
+  const res = await meshFetchAuthed(apiUrl(`/api/grupos/${grupoId}/foto`), {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path }),
+  })
+  return parseJson<{ foto: string }>(res)
+}
+
+export async function eliminarFotoGrupo(grupoId: string): Promise<void> {
+  const res = await meshFetchAuthed(apiUrl(`/api/grupos/${grupoId}/foto`), { method: 'DELETE' })
+  await parseJson<{ foto: null }>(res)
 }

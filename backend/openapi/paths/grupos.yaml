@@ -745,3 +745,190 @@ AbandonarGrupo:
               code: MEMBER_NOT_FOUND
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'
+
+SubidaFotoGrupo:
+  post:
+    operationId: crearSubidaFotoGrupo
+    summary: Preparar la subida de la foto del grupo
+    description: |
+      Paso 1 de 3. Cualquier integrante del grupo (líder o participante) puede
+      cambiar la foto; el backend valida la membresía en cada paso (RN-030).
+      Devuelve una URL firmada de Supabase Storage para subir un JPEG en la
+      carpeta del grupo. Los bytes van directo del dispositivo a Storage.
+
+      Paso 2: `PUT {upload_url}` con el JPEG (`Content-Type: image/jpeg`, hasta 2 MB).
+      Paso 3: `PUT /api/grupos/{grupoId}/foto` con el `path` para confirmarla.
+    tags:
+      - Grupos
+    parameters:
+      - $ref: '../components/parameters.yaml#/GrupoId'
+    responses:
+      '200':
+        description: URL firmada lista para subir.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/SubidaFotoGrupo'
+            example:
+              path: grupos/7a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d/1792000000000.jpg
+              upload_url: https://uabrwwtuihaxeqdwvtlg.supabase.co/storage/v1/object/upload/sign/avatares/grupos/7a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d/1792000000000.jpg?token=eyJhbGciOi
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: Quien pide no es integrante del grupo (`NOT_GROUP_MEMBER`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: No tenés acceso a este grupo
+              code: NOT_GROUP_MEMBER
+      '404':
+        description: El grupo no existe (`GRUPO_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Grupo no encontrado
+              code: GRUPO_NOT_FOUND
+      '502':
+        description: Supabase Storage no respondió (`FOTO_SUBIDA_FALLIDA`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: No se pudo preparar la subida de la foto
+              code: FOTO_SUBIDA_FALLIDA
+      '503':
+        description: Storage no está configurado en este entorno (`FOTOS_NO_DISPONIBLES`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Las fotos no están disponibles
+              code: FOTOS_NO_DISPONIBLES
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+FotoGrupo:
+  put:
+    operationId: confirmarFotoGrupo
+    summary: Confirmar la foto del grupo subida
+    description: |
+      Paso 3 de 3. Verifica que quien pide sea integrante, que el archivo exista
+      en la carpeta del grupo y que sea un JPEG de hasta 2 MB (RN-030). Si es
+      válido lo guarda como foto del grupo y borra la anterior y cualquier
+      subida que nunca se confirmó. Si no, lo borra y responde 400.
+    tags:
+      - Grupos
+    parameters:
+      - $ref: '../components/parameters.yaml#/GrupoId'
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/ConfirmarFotoGrupoRequest'
+          example:
+            path: grupos/7a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d/1792000000000.jpg
+    responses:
+      '200':
+        description: Foto guardada.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/FotoGrupoResponse'
+            example:
+              foto: https://uabrwwtuihaxeqdwvtlg.supabase.co/storage/v1/object/public/avatares/grupos/7a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d/1792000000000.jpg
+      '400':
+        description: Ruta de otro grupo o inválida (`FOTO_PATH_INVALIDO`), archivo no subido (`FOTO_NO_SUBIDA`) o que no es un JPEG de hasta 2 MB (`FOTO_INVALIDA`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: La foto tiene que ser un JPEG de hasta 2 MB
+              code: FOTO_INVALIDA
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: Quien pide no es integrante del grupo (`NOT_GROUP_MEMBER`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: No tenés acceso a este grupo
+              code: NOT_GROUP_MEMBER
+      '404':
+        description: El grupo no existe (`GRUPO_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Grupo no encontrado
+              code: GRUPO_NOT_FOUND
+      '502':
+        description: Supabase Storage no respondió (`FOTO_SUBIDA_FALLIDA`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: No se pudo verificar la foto
+              code: FOTO_SUBIDA_FALLIDA
+      '503':
+        description: Storage no está configurado en este entorno (`FOTOS_NO_DISPONIBLES`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Las fotos no están disponibles
+              code: FOTOS_NO_DISPONIBLES
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+  delete:
+    operationId: eliminarFotoGrupo
+    summary: Quitar la foto del grupo
+    description: Cualquier integrante puede quitarla. El grupo vuelve a mostrar sus iniciales y se borra el archivo de Storage.
+    tags:
+      - Grupos
+    parameters:
+      - $ref: '../components/parameters.yaml#/GrupoId'
+    responses:
+      '200':
+        description: Foto quitada.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/FotoGrupoResponse'
+            example:
+              foto: null
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: Quien pide no es integrante del grupo (`NOT_GROUP_MEMBER`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: No tenés acceso a este grupo
+              code: NOT_GROUP_MEMBER
+      '404':
+        description: El grupo no existe (`GRUPO_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Grupo no encontrado
+              code: GRUPO_NOT_FOUND
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'

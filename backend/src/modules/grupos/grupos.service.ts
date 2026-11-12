@@ -26,6 +26,7 @@ const grupoSelect = {
   nombre: true,
   fecha_creacion: true,
   lider_id: true,
+  foto: true,
 } as const
 
 /** Integrantes que se muestran como avatares en la tarjeta del listado. */
@@ -170,6 +171,7 @@ export class GruposService {
       return {
         id: g.id,
         nombre: g.nombre,
+        foto: g.foto,
         fecha_creacion: g.fecha_creacion,
         lider_id: g.lider_id,
         cantidad_miembros: g._count.miembros,
@@ -212,6 +214,7 @@ export class GruposService {
     return {
       id: grupo.id,
       nombre: grupo.nombre,
+      foto: grupo.foto,
       fecha_creacion: grupo.fecha_creacion,
       lider_id: grupo.lider_id,
       mi_rol: rol,

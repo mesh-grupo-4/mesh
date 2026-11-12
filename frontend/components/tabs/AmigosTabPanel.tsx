@@ -10,7 +10,6 @@ import {
   TextInput,
   useWindowDimensions,
 } from 'react-native';
-import { Feather } from '@expo/vector-icons';
 import { Pressable } from '@/components/Pressable';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { AvatarFallback } from '@/components/AvatarFallback';
@@ -57,8 +56,11 @@ const CELDA_AGREGAR = '__agregar__';
 type CeldaGrilla = AmigoApi | { id: typeof CELDA_AGREGAR };
 
 type Props = {
-  /** Título y pestañas de la pantalla: van dentro de la lista para que scrolleen con ella. */
-  encabezado: ReactNode;
+  /**
+   * Título y pestañas de la pantalla: van dentro de la lista para que scrolleen con ella.
+   * Recibe la acción del "+" del encabezado (acá, abrir el buscador para agregar amigos).
+   */
+  encabezado: (onAgregar: () => void) => ReactNode;
   /** Abre la pantalla de solicitudes (la misma de la campanita del `TopBar`). */
   onAbrirSolicitudes: () => void;
 };
@@ -383,7 +385,7 @@ export function AmigosTabPanel({ encabezado, onAbrirSolicitudes }: Props) {
   // Encabezado de la pantalla + herramientas, de borde a borde (la lista tiene margen lateral).
   const cabecera = (
     <View style={styles.cabecera}>
-      {encabezado}
+      {encabezado(abrirBuscador)}
       {herramientas}
     </View>
   );
@@ -456,27 +458,10 @@ export function AmigosTabPanel({ encabezado, onAbrirSolicitudes }: Props) {
           ListFooterComponent={pie}
           contentContainerStyle={[
             styles.lista,
-            { paddingBottom: espacioTabBar + 74 + (selection.active ? 88 : 0) },
+            { paddingBottom: espacioTabBar + (selection.active ? 88 : 0) },
           ]}
           refreshControl={refresh}
         />
-      )}
-
-      {!selection.active && (
-        <Pressable
-          style={({ pressed }) => [
-            styles.fab,
-            {
-              bottom: espacioTabBar,
-              backgroundColor: theme.accent,
-              transform: [{ scale: pressed ? 0.95 : 1 }],
-            },
-          ]}
-          onPress={abrirBuscador}
-        >
-          <Feather name="user-plus" size={19} color={theme.onAccent} />
-          <Text style={[styles.fabText, { color: theme.onAccent }]}>Agregar amigo</Text>
-        </Pressable>
       )}
 
       <SelectionActionBar
@@ -529,24 +514,4 @@ const styles = StyleSheet.create({
   botonDeshabilitado: { opacity: 0.5 },
   vacioCompacto: { fontSize: 14, lineHeight: 20, textAlign: 'center', marginVertical: 12 },
   pista: { fontSize: 14, lineHeight: 20, textAlign: 'center', marginTop: 8, paddingHorizontal: 12 },
-  fab: {
-    position: 'absolute',
-    right: 20,
-    height: 54,
-    paddingHorizontal: 20,
-    borderRadius: 18,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    elevation: 8,
-    gap: 8,
-  },
-  fabText: {
-    fontSize: 14.5,
-    fontWeight: '700',
-  },
 });
