@@ -25,7 +25,6 @@ export const ORDEN_PANTALLA = {
   viajeResumen: 1700,
   viajePrivacidad: 1800,
   viajeQr: 1900,
-  grupoEditar: 2000,
   grupoMiembros: 2100,
   grupoInvitar: 2200,
   adminPanel: 2300,
@@ -65,7 +64,7 @@ export const AYUDA_GRUPOS: PasoDefinicion[] = [
   {
     nombre: 'grupos.fab',
     orden: ORDEN_PANTALLA.grupos + 2,
-    texto: 'Con el + creás un grupo nuevo para coordinar viajes con tu gente; en Amigos, sirve para agregar amigos.',
+    texto: 'Con este botón creás un grupo nuevo para coordinar viajes con tu gente; en Amigos, sirve para agregar amigos.',
   },
 ]
 
@@ -247,6 +246,11 @@ export const AYUDA_GRUPO_DETALLE: PasoDefinicion[] = [
     orden: ORDEN_PANTALLA.grupoDetalle + 3,
     texto: 'Como líder, podés sumar gente nueva por usuario o invitando desde otro grupo.',
   },
+  {
+    nombre: 'grupo.zonaPeligro',
+    orden: ORDEN_PANTALLA.grupoDetalle + 4,
+    texto: 'Abandonar o eliminar el grupo son acciones permanentes y no se pueden deshacer.',
+  },
 ]
 
 export const AYUDA_CONFIGURAR_RUTA: PasoDefinicion[] = [
@@ -368,14 +372,6 @@ export const AYUDA_VIAJE_QR: PasoDefinicion[] = [
     nombre: 'qr.compartir',
     orden: ORDEN_PANTALLA.viajeQr + 1,
     texto: 'O mandá el enlace o la imagen del QR por cualquier app.',
-  },
-]
-
-export const AYUDA_GRUPO_EDITAR: PasoDefinicion[] = [
-  {
-    nombre: 'grupoEditar.zonaPeligro',
-    orden: ORDEN_PANTALLA.grupoEditar,
-    texto: 'Abandonar o eliminar el grupo son acciones permanentes y no se pueden deshacer.',
   },
 ]
 

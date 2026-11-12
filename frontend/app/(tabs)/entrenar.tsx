@@ -14,6 +14,7 @@ import { router, useFocusEffect } from 'expo-router'
 import { ActivityTile, Btn, Field, TopBar, useTheme } from '@/components/MeshUI'
 import { HerramientasLista } from '@/components/BarraFiltros'
 import { FranjaEstado } from '@/components/FranjaEstado'
+import { BotonFlotante, ESPACIO_BOTON_FLOTANTE } from '@/components/BotonFlotante'
 import {
   OpcionFiltro,
   OpcionesFiltro,
@@ -198,7 +199,7 @@ export default function EntrenarScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <ScrollView
-        contentContainerStyle={{ paddingBottom: espacioTabBar }}
+        contentContainerStyle={{ paddingBottom: espacioTabBar + ESPACIO_BOTON_FLOTANTE }}
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
         refreshControl={
@@ -208,16 +209,13 @@ export default function EntrenarScreen() {
               setRefrescando(true)
               void cargar()
             }}
-            tintColor={theme.accent}
+            tintColor={theme.good}
           />
         }
       >
         <TopBar title="Entrenar" raiz bordered={false} />
 
         <View style={styles.cabecera}>
-          <Btn block size="lg" icon="plus" onPress={abrirNuevoEntrenamiento}>
-            Nuevo entrenamiento
-          </Btn>
           <SegmentTabs
             tabs={[
               { key: 'circuitos', label: 'Circuitos' },
@@ -244,7 +242,7 @@ export default function EntrenarScreen() {
         <View style={styles.content}>
         {cargando ? (
           <View style={styles.center}>
-            <ActivityIndicator color={theme.accent} />
+            <ActivityIndicator color={theme.good} />
           </View>
         ) : visibles === 0 && (consulta || cantidadFiltros > 0) ? (
           <Vacio
@@ -301,6 +299,8 @@ export default function EntrenarScreen() {
       </ScrollView>
 
       <FranjaEstado />
+
+      <BotonFlotante icon="plus" label="Nuevo entrenamiento" onPress={abrirNuevoEntrenamiento} />
 
       <PantallaFiltros
         visible={pantallaFiltros}
@@ -425,8 +425,8 @@ function BarrasEvolucion({ sesiones }: { sesiones: SesionCircuitoApi[] }) {
           style={[
             styles.barra,
             {
-              height: Math.max(4, Math.round((s.distancia_m / max) * 36)),
-              backgroundColor: theme.accent,
+              height: Math.max(4, Math.round((s.distancia_m / max) * 30)),
+              backgroundColor: theme.good,
               // La última es la más reciente: es la única a pleno color.
               opacity: i === sesiones.length - 1 ? 1 : 0.4,
             },
@@ -434,6 +434,39 @@ function BarrasEvolucion({ sesiones }: { sesiones: SesionCircuitoApi[] }) {
         />
       ))}
     </View>
+  )
+}
+
+/** Métrica de la tarjeta: mismo formato valor + etiqueta que las tarjetas de Viajes. */
+function Metrica({ valor, etiqueta }: { valor: string; etiqueta: string }) {
+  const theme = useTheme()
+  return (
+    <View style={styles.metrica}>
+      <Text style={[styles.metricaValor, { color: theme.text }]} numberOfLines={1}>
+        {valor}
+      </Text>
+      <Text style={[styles.metricaLabel, { color: theme.textMute }]}>{etiqueta}</Text>
+    </View>
+  )
+}
+
+/** "Repetir" con el verde del modo entrenamiento (RN-065), en lugar del acento de la marca. */
+function BotonRepetir({ onPress }: { onPress: () => void }) {
+  const theme = useTheme()
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel="Repetir"
+      style={({ pressed }) => [
+        styles.repetir,
+        { borderColor: theme.good },
+        pressed && { backgroundColor: `${theme.good}1f` },
+      ]}
+    >
+      <Feather name="repeat" size={16} color={theme.good} />
+      <Text style={[styles.repetirTexto, { color: theme.good }]}>Repetir</Text>
+    </Pressable>
   )
 }
 
@@ -457,17 +490,11 @@ function TarjetaCircuito({
       accessibilityLabel={`Circuito ${circuito.nombre}, ${circuito.total_sesiones} sesiones`}
       style={[styles.tarjeta, { backgroundColor: theme.surface, borderColor: theme.border }]}
     >
-      <View style={styles.tarjetaCabecera}>
-        <ActivityTile activity={circuito.tipo_actividad} size={44} />
-        <View style={styles.flex}>
-          <Text style={[styles.tarjetaTitulo, { color: theme.text }]} numberOfLines={1}>
-            {circuito.nombre}
-          </Text>
-          <Text style={[styles.tarjetaSub, { color: theme.textDim }]}>
-            {etiquetaActividad(circuito.tipo_actividad)} · {circuito.total_sesiones}{' '}
-            {circuito.total_sesiones === 1 ? 'sesión' : 'sesiones'}
-          </Text>
-        </View>
+      <View style={styles.tarjetaHeader}>
+        <ActivityTile activity={circuito.tipo_actividad} size={22} color={theme.good} />
+        <Text style={[styles.tarjetaTitulo, { color: theme.text }]} numberOfLines={1}>
+          {circuito.nombre}
+        </Text>
         <Pressable
           onPress={onRenombrar}
           hitSlop={10}
@@ -475,30 +502,35 @@ function TarjetaCircuito({
           accessibilityLabel={`Renombrar ${circuito.nombre}`}
           style={styles.iconoBtn}
         >
-          <Feather name="edit-2" size={18} color={theme.textDim} />
+          <Feather name="edit-2" size={16} color={theme.textDim} />
         </Pressable>
       </View>
 
-      <View style={styles.tarjetaCuerpo}>
-        <View style={styles.flex}>
-          <Text style={[styles.dato, { color: theme.text }]}>
-            Mejor ritmo {formatPaceMinKm(circuito.mejor_pace_min_km)}
-          </Text>
-          {ultima ? (
-            <Text style={[styles.tarjetaSub, { color: theme.textDim }]}>
-              Última: {fechaCorta(ultima.fecha_fin_real)} · {formatKm(ultima.distancia_m)} ·{' '}
-              {formatPaceMinKm(ultima.pace_min_km)}
-            </Text>
-          ) : null}
-        </View>
+      <Text style={[styles.tarjetaMeta, { color: theme.textDim }]}>
+        <Feather name="repeat" size={12} />
+        {'  '}
+        {etiquetaActividad(circuito.tipo_actividad)} · {circuito.total_sesiones}{' '}
+        {circuito.total_sesiones === 1 ? 'sesión' : 'sesiones'}
+      </Text>
+      {ultima ? (
+        <Text style={[styles.tarjetaMeta, { color: theme.textDim }]}>
+          <Feather name="calendar" size={12} />
+          {'  '}Última: {fechaCorta(ultima.fecha_fin_real)}
+        </Text>
+      ) : null}
+
+      <View style={[styles.metricas, { borderTopColor: theme.border }]}>
+        <Metrica valor={formatPaceMinKm(circuito.mejor_pace_min_km)} etiqueta="Mejor ritmo" />
+        {ultima ? (
+          <>
+            <Metrica valor={formatPaceMinKm(ultima.pace_min_km)} etiqueta="Último ritmo" />
+            <Metrica valor={formatKm(ultima.distancia_m)} etiqueta="Última distancia" />
+          </>
+        ) : null}
         <BarrasEvolucion sesiones={circuito.evolucion} />
       </View>
 
-      {onRepetir ? (
-        <Btn variant="outline" size="md" icon="repeat" onPress={onRepetir}>
-          Repetir
-        </Btn>
-      ) : null}
+      {onRepetir ? <BotonRepetir onPress={onRepetir} /> : null}
     </Pressable>
   )
 }
@@ -522,28 +554,24 @@ function FilaSesion({
       accessibilityLabel={`Sesión ${sesion.nombre}, ${fechaCorta(sesion.fecha_fin_real)}`}
       style={[styles.tarjeta, { backgroundColor: theme.surface, borderColor: theme.border }]}
     >
-      <View style={styles.tarjetaCabecera}>
-        <ActivityTile activity={sesion.tipo_actividad} size={44} />
-        <View style={styles.flex}>
-          <Text style={[styles.tarjetaTitulo, { color: theme.text }]} numberOfLines={1}>
-            {sesion.nombre}
-          </Text>
-          <Text style={[styles.tarjetaSub, { color: theme.textDim }]}>
-            {fechaCorta(sesion.fecha_fin_real)}
-            {sesion.es_creador ? '' : ' · armado por otra persona'}
-          </Text>
-        </View>
+      <View style={styles.tarjetaHeader}>
+        <ActivityTile activity={sesion.tipo_actividad} size={22} color={theme.good} />
+        <Text style={[styles.tarjetaTitulo, { color: theme.text }]} numberOfLines={1}>
+          {sesion.nombre}
+        </Text>
       </View>
 
-      <Text style={[styles.dato, { color: theme.text }]}>
-        {formatKm(sesion.distancia_m)} · {formatPaceMinKm(sesion.pace_min_km)} ·{' '}
-        {formatDurationHm(sesion.tiempo_movimiento_seg)}
+      <Text style={[styles.tarjetaMeta, { color: theme.textDim }]}>
+        <Feather name="calendar" size={12} />
+        {'  '}
+        {fechaCorta(sesion.fecha_fin_real)}
+        {sesion.es_creador ? '' : ' · armado por otra persona'}
       </Text>
 
       {sesion.circuito ? (
         <View style={styles.circuitoFila}>
-          <Feather name="repeat" size={14} color={theme.accent} />
-          <Text style={[styles.tarjetaSub, styles.flex, { color: theme.textDim }]} numberOfLines={1}>
+          <Feather name="repeat" size={12} color={theme.good} />
+          <Text style={[styles.tarjetaMeta, styles.flex, { color: theme.textDim }]} numberOfLines={1}>
             {sesion.circuito.nombre}
           </Text>
           {onSacar ? (
@@ -559,11 +587,13 @@ function FilaSesion({
         </View>
       ) : null}
 
-      {sesion.repetir.planificado || sesion.repetir.real ? (
-        <Btn variant="outline" size="md" icon="repeat" onPress={onRepetir}>
-          Repetir
-        </Btn>
-      ) : null}
+      <View style={[styles.metricas, { borderTopColor: theme.border }]}>
+        <Metrica valor={formatKm(sesion.distancia_m)} etiqueta="Distancia" />
+        <Metrica valor={formatPaceMinKm(sesion.pace_min_km)} etiqueta="Ritmo" />
+        <Metrica valor={formatDurationHm(sesion.tiempo_movimiento_seg)} etiqueta="En movimiento" />
+      </View>
+
+      {sesion.repetir.planificado || sesion.repetir.real ? <BotonRepetir onPress={onRepetir} /> : null}
     </Pressable>
   )
 }
@@ -574,20 +604,40 @@ const styles = StyleSheet.create({
   cabecera: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8, gap: 12 },
   content: { paddingHorizontal: 20, paddingTop: 8, gap: 12 },
   center: { paddingVertical: 48, alignItems: 'center' },
+  // Misma escala tipográfica que las tarjetas y el estado vacío de Viajes.
   vacio: { alignItems: 'center', gap: 10, paddingVertical: 40, paddingHorizontal: 12 },
-  vacioTitulo: { fontSize: 18, fontWeight: '800', textAlign: 'center' },
-  vacioTexto: { fontSize: 15, lineHeight: 21, textAlign: 'center' },
-  tarjeta: { borderRadius: 18, borderWidth: 1, padding: 14, gap: 12 },
-  tarjetaCabecera: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  tarjetaTitulo: { fontSize: 17, fontWeight: '800' },
-  tarjetaSub: { fontSize: 14, lineHeight: 19 },
-  tarjetaCuerpo: { flexDirection: 'row', alignItems: 'flex-end', gap: 12 },
-  dato: { fontSize: 16, fontWeight: '700', fontVariant: ['tabular-nums'] },
-  iconoBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  barras: { flexDirection: 'row', alignItems: 'flex-end', gap: 4, height: 36 },
-  barra: { width: 8, borderRadius: 3 },
+  vacioTitulo: { fontSize: 16, fontWeight: '700', textAlign: 'center' },
+  vacioTexto: { fontSize: 13.5, lineHeight: 20, textAlign: 'center' },
+  tarjeta: { borderRadius: 14, borderWidth: 1.2, padding: 14, gap: 6 },
+  tarjetaHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  tarjetaTitulo: { flex: 1, fontSize: 15.5, fontWeight: '700' },
+  tarjetaMeta: { fontSize: 13, lineHeight: 18 },
+  metricas: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    marginTop: 4,
+    paddingTop: 10,
+    borderTopWidth: 1,
+  },
+  metrica: { flex: 1, gap: 2 },
+  metricaValor: { fontSize: 15, fontWeight: '800' },
+  metricaLabel: { fontSize: 11, fontWeight: '600' },
+  iconoBtn: { padding: 4 },
+  barras: { flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 30 },
+  barra: { width: 6, borderRadius: 2 },
   circuitoFila: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  sacar: { fontSize: 14, fontWeight: '700' },
+  sacar: { fontSize: 13, fontWeight: '700' },
+  repetir: {
+    marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 11,
+    borderRadius: 10,
+    borderWidth: 1.5,
+  },
+  repetirTexto: { fontSize: 15, fontWeight: '700' },
   modalFondo: { flex: 1, justifyContent: 'center', padding: 24 },
   modalCaja: { borderRadius: 20, borderWidth: 1, padding: 20, gap: 16 },
   modalTitulo: { fontSize: 20, fontWeight: '800' },

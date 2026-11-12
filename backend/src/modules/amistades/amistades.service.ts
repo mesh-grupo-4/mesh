@@ -190,6 +190,29 @@ export class AmistadesService {
     }
   }
 
+  /**
+   * Deshace una solicitud que el usuario envió y que sigue pendiente. Se borra el
+   * registro, igual que al rechazarla: después se puede volver a enviar.
+   */
+  async cancelarSolicitud(usuarioId: string, destinatarioId: string) {
+    const solicitud = await this.prisma.amistad.findFirst({
+      where: {
+        solicitante_id: usuarioId,
+        destinatario_id: destinatarioId,
+        estado: 'pendiente',
+      },
+      select: { id: true },
+    })
+
+    if (!solicitud) {
+      throw new HttpError(404, 'No tenés una solicitud pendiente con esta persona', 'FRIEND_REQUEST_NOT_FOUND')
+    }
+
+    await this.prisma.amistad.delete({ where: { id: solicitud.id } })
+
+    return { solicitud_id: solicitud.id, destinatario_id: destinatarioId }
+  }
+
   async buscarUsuarios(usuarioId: string, query: string) {
     const [usuarios, relaciones] = await Promise.all([
       this.prisma.usuario.findMany({

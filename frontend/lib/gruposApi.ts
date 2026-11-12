@@ -1,4 +1,5 @@
 import { apiUrl, meshFetchAuthed, parseJson } from './apiClient'
+import type { ModoViajeApi, TipoActividadApi } from './viajesApi'
 
 export type RolGrupoApi = 'lider' | 'participante'
 
@@ -32,6 +33,25 @@ export type GrupoMiembroApi = {
   email: string
   rol: RolGrupoApi
   fecha_union: string
+}
+
+/** Viaje hecho (o por hacer) con el grupo: los que suma `cantidad_viajes`. */
+export type ViajeDeGrupoApi = {
+  id: string
+  nombre: string | null
+  tipo_actividad: TipoActividadApi
+  modo: ModoViajeApi
+  estado: 'planificado' | 'en_curso' | 'finalizado'
+  fecha_programada: string
+  fecha_inicio_real: string | null
+  fecha_fin_real: string | null
+  creador: { id: string; nombre: string }
+  cantidad_participantes: number
+  /** Del resumen del viaje; null mientras no finalizó. */
+  distancia_m: number | null
+  duracion_segundos: number | null
+  /** Si fui parte del viaje. Solo entonces puedo abrir su detalle (el backend lo valida). */
+  participe: boolean
 }
 
 export type CambiarRolMiembroResponse = {
@@ -140,6 +160,14 @@ export async function listarMiembrosGrupo(
   const res = await meshFetchAuthed(apiUrl(`/api/grupos/${grupoId}/miembros`, baseUrl), {
   })
   return parseJson<GrupoMiembroApi[]>(res)
+}
+
+export async function listarViajesGrupo(
+  grupoId: string,
+  baseUrl?: string
+): Promise<ViajeDeGrupoApi[]> {
+  const res = await meshFetchAuthed(apiUrl(`/api/grupos/${grupoId}/viajes`, baseUrl), {})
+  return parseJson<ViajeDeGrupoApi[]>(res)
 }
 
 export async function cambiarRolMiembroGrupo(

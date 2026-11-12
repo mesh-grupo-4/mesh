@@ -247,6 +247,63 @@ export class GruposService {
     }))
   }
 
+  /**
+   * Viajes hechos (o por hacer) con el grupo: los mismos que suma `cantidad_viajes`.
+   * Reservado a integrantes del grupo. Solo datos de cabecera, sin posiciones ni
+   * velocidades (RN-070, RN-111).
+   *
+   * Quien entró al grupo después de un viaje lo ve listado pero no participó: `participe`
+   * replica la regla de `ViajesService.assertPuedeVerViaje` para que el front sepa si
+   * puede abrir el detalle sin chocar con un 403.
+   */
+  async listarViajes(usuarioId: string, grupoId: string) {
+    await this.detalleParaMiembro(usuarioId, grupoId)
+
+    const viajes = await this.prisma.viaje.findMany({
+      where: { grupos: { some: { grupo_id: grupoId } } },
+      select: {
+        id: true,
+        nombre: true,
+        tipo_actividad: true,
+        modo: true,
+        estado: true,
+        fecha_programada: true,
+        fecha_inicio_real: true,
+        fecha_fin_real: true,
+        creador_id: true,
+        creador: { select: { id: true, nombre: true } },
+        integrantes: {
+          where: { usuario_id: usuarioId },
+          select: { estado: true },
+        },
+        resumen: { select: { distancia_real_m: true, duracion_segundos: true } },
+        _count: {
+          select: { integrantes: { where: { estado: { in: ['confirmado', 'salido'] } } } },
+        },
+      },
+      orderBy: { fecha_programada: 'desc' },
+    })
+
+    return viajes.map((v) => {
+      const miEstado = v.integrantes[0]?.estado
+      return {
+        id: v.id,
+        nombre: v.nombre,
+        tipo_actividad: v.tipo_actividad,
+        modo: v.modo,
+        estado: v.estado,
+        fecha_programada: v.fecha_programada,
+        fecha_inicio_real: v.fecha_inicio_real,
+        fecha_fin_real: v.fecha_fin_real,
+        creador: v.creador,
+        cantidad_participantes: v._count.integrantes,
+        distancia_m: v.resumen?.distancia_real_m ?? null,
+        duracion_segundos: v.resumen?.duracion_segundos ?? null,
+        participe: v.creador_id === usuarioId || (miEstado !== undefined && miEstado !== 'rechazado'),
+      }
+    })
+  }
+
   async cambiarRolMiembro(
     actorId: string,
     grupoId: string,

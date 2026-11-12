@@ -955,6 +955,20 @@ AmigoEliminado:
       format: uuid
   additionalProperties: false
 
+SolicitudAmistadCancelada:
+  type: object
+  required:
+    - solicitud_id
+    - destinatario_id
+  properties:
+    solicitud_id:
+      type: string
+      format: uuid
+    destinatario_id:
+      type: string
+      format: uuid
+  additionalProperties: false
+
 # ── Rutas compartidas y plantillas (RN-085–088) ──────────────────────────────
 
 PuntoRuta:
@@ -1425,6 +1439,83 @@ MiembroGrupo:
     fecha_union:
       type: string
       format: date-time
+  additionalProperties: false
+
+ViajeDeGrupo:
+  type: object
+  description: |
+    Viaje en el que participó el grupo (los mismos que cuenta `cantidad_viajes`).
+    Solo datos de cabecera: sin posiciones ni velocidades (RN-070, RN-111).
+  required:
+    - id
+    - nombre
+    - tipo_actividad
+    - modo
+    - estado
+    - fecha_programada
+    - fecha_inicio_real
+    - fecha_fin_real
+    - creador
+    - cantidad_participantes
+    - distancia_m
+    - duracion_segundos
+    - participe
+  properties:
+    id:
+      type: string
+      format: uuid
+    nombre:
+      type: string
+      nullable: true
+      example: Vuelta a las Sierras Chicas
+    tipo_actividad:
+      $ref: '#/TipoActividad'
+    modo:
+      $ref: '#/ModoViaje'
+    estado:
+      $ref: '#/EstadoViaje'
+    fecha_programada:
+      type: string
+      format: date-time
+    fecha_inicio_real:
+      type: string
+      format: date-time
+      nullable: true
+    fecha_fin_real:
+      type: string
+      format: date-time
+      nullable: true
+    creador:
+      type: object
+      required: [id, nombre]
+      properties:
+        id:
+          type: string
+          format: uuid
+        nombre:
+          type: string
+          example: Martina
+      additionalProperties: false
+    cantidad_participantes:
+      type: integer
+      description: Integrantes confirmados o que salieron durante el viaje.
+      example: 6
+    distancia_m:
+      type: number
+      nullable: true
+      description: Distancia real del viaje según su resumen. `null` si todavía no finalizó.
+      example: 42350
+    duracion_segundos:
+      type: integer
+      nullable: true
+      description: Duración del viaje según su resumen. `null` si todavía no finalizó.
+      example: 9000
+    participe:
+      type: boolean
+      description: |
+        Si quien consulta fue parte del viaje (creador o integrante no rechazado).
+        Solo en ese caso puede abrir su detalle; quien se sumó al grupo después lo ve
+        listado pero no accede a los datos del viaje.
   additionalProperties: false
 
 CrearGrupoRequest:

@@ -324,6 +324,62 @@ MiembrosGrupo:
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'
 
+ViajesGrupo:
+  get:
+    operationId: listarViajesGrupo
+    summary: Listar los viajes del grupo
+    description: |
+      Viajes vinculados al grupo (planificados, en curso y finalizados), del más
+      reciente al más viejo por fecha programada. Son los mismos que suma
+      `cantidad_viajes` en el detalle del grupo.
+
+      Reservado a integrantes del grupo. Quien se sumó después de un viaje lo ve
+      listado con `participe: false` y no puede abrir su detalle (RN-030).
+    tags:
+      - Grupos
+    parameters:
+      - $ref: '../components/parameters.yaml#/GrupoId'
+    responses:
+      '200':
+        description: Viajes del grupo.
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '../components/schemas.yaml#/ViajeDeGrupo'
+            example:
+              - id: 7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d
+                nombre: Vuelta a las Sierras Chicas
+                tipo_actividad: bici
+                modo: recreativo
+                estado: finalizado
+                fecha_programada: '2026-10-18T11:00:00.000Z'
+                fecha_inicio_real: '2026-10-18T11:12:00.000Z'
+                fecha_fin_real: '2026-10-18T13:42:00.000Z'
+                creador:
+                  id: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d
+                  nombre: Martina
+                cantidad_participantes: 6
+                distancia_m: 42350
+                duracion_segundos: 9000
+                participe: true
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: El usuario no pertenece al grupo (`NOT_GROUP_MEMBER`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: No tenés acceso a este grupo
+              code: NOT_GROUP_MEMBER
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
 RolMiembroGrupo:
   patch:
     operationId: cambiarRolMiembro

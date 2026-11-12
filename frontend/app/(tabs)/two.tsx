@@ -14,12 +14,13 @@ import { useCopilot } from 'react-native-copilot'
 import { useAuth } from '@/context/AuthContext'
 import { useTripRealtime } from '@/context/TripRealtimeContext'
 import { resolveBackendUserId } from '@/lib/apiClient'
-import { Btn, TopBar, useTheme, Badge, ActivityTile } from '@/components/MeshUI'
+import { TopBar, useTheme, Badge, ActivityTile } from '@/components/MeshUI'
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
 import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda'
 import { AYUDA_VIAJES } from '@/components/ayuda/contenidoAyuda'
 import { HerramientasLista } from '@/components/BarraFiltros'
 import { FranjaEstado } from '@/components/FranjaEstado'
+import { BotonFlotante, ESPACIO_BOTON_FLOTANTE } from '@/components/BotonFlotante'
 import { PantallaFiltrosViajes } from '@/components/viajes/PantallaFiltrosViajes'
 import {
   ETIQUETA_ORDEN_PASADOS,
@@ -653,7 +654,7 @@ export default function ViajesScreen() {
   return (
     <View style={[styles.root, { backgroundColor: theme.background }]}>
       <ScrollViewAyuda
-        contentContainerStyle={[styles.scroll, { paddingBottom: espacioTabBar }]}
+        contentContainerStyle={[styles.scroll, { paddingBottom: espacioTabBar + ESPACIO_BOTON_FLOTANTE }]}
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
         refreshControl={
@@ -753,12 +754,6 @@ export default function ViajesScreen() {
           {/* ── MIS VIAJES ── */}
           {tab === 'mis_viajes' && (
             <>
-              <PasoAyuda {...AYUDA_VIAJES[3]!}>
-                <Btn block size="lg" icon="plus" onPress={() => abrirNuevoViaje()}>
-                  Nuevo viaje
-                </Btn>
-              </PasoAyuda>
-
               <BotonSeleccionar
                 visible={!selection.active && viajesEliminables.length > 0}
                 onPress={() => selection.enter()}
@@ -910,6 +905,14 @@ export default function ViajesScreen() {
       </ScrollViewAyuda>
 
       <FranjaEstado />
+
+      <BotonFlotante
+        icon="plus"
+        label="Nuevo viaje"
+        onPress={() => abrirNuevoViaje()}
+        visible={!selection.active}
+        ayuda={AYUDA_VIAJES[3]}
+      />
 
       <PantallaFiltrosViajes
         visible={pantallaFiltros}

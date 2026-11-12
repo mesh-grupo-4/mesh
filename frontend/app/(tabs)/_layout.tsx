@@ -68,7 +68,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="grupos"
         options={{
-          title: 'Grupos',
+          title: 'Social',
           tabBarIcon: ({ color }) => <TabBarIcon name="users" color={color} />,
           // Invitaciones a grupos + solicitudes de amistad pendientes.
           tabBarBadge: pendientes > 0 ? (pendientes > 99 ? '99+' : pendientes) : undefined,

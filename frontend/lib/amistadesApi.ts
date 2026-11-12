@@ -115,6 +115,23 @@ export async function buscarUsuariosAmistad(
   return parseJson<UsuarioBusquedaAmistadApi[]>(res)
 }
 
+export type CancelarSolicitudAmistadResponse = {
+  solicitud_id: string
+  destinatario_id: string
+}
+
+/** Deshace la solicitud pendiente que el usuario le envió a `destinatarioId`. */
+export async function cancelarSolicitudAmistad(
+  destinatarioId: string,
+  baseUrl?: string
+): Promise<CancelarSolicitudAmistadResponse> {
+  const res = await meshFetchAuthed(
+    apiUrl(`/api/amistades/solicitudes/enviadas/${destinatarioId}`, baseUrl),
+    { method: 'DELETE' }
+  )
+  return parseJson<CancelarSolicitudAmistadResponse>(res)
+}
+
 export async function eliminarAmigo(
   amigoId: string,
   userId: string,

@@ -221,6 +221,8 @@ paths:
     $ref: './paths/amistades.yaml#/SolicitarAmistad'
   /api/amistades/solicitudes/{solicitudId}/responder:
     $ref: './paths/amistades.yaml#/ResponderSolicitud'
+  /api/amistades/solicitudes/enviadas/{usuarioId}:
+    $ref: './paths/amistades.yaml#/SolicitudEnviada'
   /api/amistades/{usuarioId}:
     $ref: './paths/amistades.yaml#/Amigo'
 
@@ -287,6 +289,8 @@ paths:
     $ref: './paths/grupos.yaml#/GrupoPorId'
   /api/grupos/{grupoId}/miembros:
     $ref: './paths/grupos.yaml#/MiembrosGrupo'
+  /api/grupos/{grupoId}/viajes:
+    $ref: './paths/grupos.yaml#/ViajesGrupo'
   /api/grupos/{grupoId}/miembros/{usuarioId}/rol:
     $ref: './paths/grupos.yaml#/RolMiembroGrupo'
   /api/grupos/{grupoId}/grupos-para-invitar:

@@ -221,6 +221,43 @@ describe('AmistadesService', () => {
     })
   })
 
+  describe('cancelarSolicitud', () => {
+    it('elimina la solicitud pendiente que envió el usuario', async () => {
+      const amistadFindFirst = vi.fn().mockResolvedValue({ id: solicitudId })
+      const amistadDelete = vi.fn().mockResolvedValue({})
+
+      const prisma = {
+        amistad: { findFirst: amistadFindFirst, delete: amistadDelete },
+      } as unknown as PrismaClient
+
+      const service = new AmistadesService(prisma)
+      const result = await service.cancelarSolicitud(usuarioA, usuarioB)
+
+      expect(result).toEqual({ solicitud_id: solicitudId, destinatario_id: usuarioB })
+      expect(amistadFindFirst).toHaveBeenCalledWith({
+        where: { solicitante_id: usuarioA, destinatario_id: usuarioB, estado: 'pendiente' },
+        select: { id: true },
+      })
+      expect(amistadDelete).toHaveBeenCalledWith({ where: { id: solicitudId } })
+    })
+
+    it('falla si no hay solicitud pendiente enviada por el usuario', async () => {
+      const amistadFindFirst = vi.fn().mockResolvedValue(null)
+      const amistadDelete = vi.fn()
+
+      const prisma = {
+        amistad: { findFirst: amistadFindFirst, delete: amistadDelete },
+      } as unknown as PrismaClient
+      const service = new AmistadesService(prisma)
+
+      await expect(service.cancelarSolicitud(usuarioA, usuarioB)).rejects.toMatchObject({
+        status: 404,
+        code: 'FRIEND_REQUEST_NOT_FOUND',
+      })
+      expect(amistadDelete).not.toHaveBeenCalled()
+    })
+  })
+
   describe('eliminarAmigo', () => {
     it('elimina amistad aceptada', async () => {
       const amistadFindFirst = vi.fn().mockResolvedValue({ id: solicitudId })

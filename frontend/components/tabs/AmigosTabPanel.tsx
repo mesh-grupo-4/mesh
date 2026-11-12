@@ -15,6 +15,8 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { AvatarFallback } from '@/components/AvatarFallback';
 import { HerramientasLista } from '@/components/BarraFiltros';
 import { SelectionActionBar } from '@/components/SelectionActionBar';
+import { BotonFlotante, ESPACIO_BOTON_FLOTANTE } from '@/components/BotonFlotante';
+import { AYUDA_GRUPOS } from '@/components/ayuda/contenidoAyuda';
 import { BotonSeleccionar, SelectionHeader } from '@/components/SelectionHeader';
 import { useAuth } from '@/context/AuthContext';
 import { resolveBackendUserId } from '@/lib/apiClient';
@@ -38,11 +40,7 @@ import {
 } from '@/lib/amistadesApi';
 import { coincideBusqueda, normalizarBusqueda } from '@/lib/busqueda';
 import { setSolicitudesPendientesCount } from '@/lib/pendientesStore';
-import {
-  TarjetaAgregarAmigo,
-  TarjetaAmigo,
-  TarjetaAmigoEsqueleto,
-} from '@/components/amigos/TarjetaAmigo';
+import { TarjetaAmigo, TarjetaAmigoEsqueleto } from '@/components/amigos/TarjetaAmigo';
 
 /** Desde cuántas letras el buscador también busca otros usuarios en el servidor. */
 const MIN_LETRAS_OTROS_USUARIOS = 2;
@@ -52,15 +50,10 @@ const GAP_GRILLA = 10;
 /** Ancho mínimo de cada cuadrado: define cuántas columnas entran (3 en un teléfono). */
 const ANCHO_MIN_CELDA = 100;
 
-const CELDA_AGREGAR = '__agregar__';
-type CeldaGrilla = AmigoApi | { id: typeof CELDA_AGREGAR };
 
 type Props = {
-  /**
-   * Título y pestañas de la pantalla: van dentro de la lista para que scrolleen con ella.
-   * Recibe la acción del "+" del encabezado (acá, abrir el buscador para agregar amigos).
-   */
-  encabezado: (onAgregar: () => void) => ReactNode;
+  /** Título y pestañas de la pantalla: van dentro de la lista para que scrolleen con ella. */
+  encabezado: () => ReactNode;
   /** Abre la pantalla de solicitudes (la misma de la campanita del `TopBar`). */
   onAbrirSolicitudes: () => void;
 };
@@ -88,7 +81,7 @@ export function AmigosTabPanel({ encabezado, onAbrirSolicitudes }: Props) {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const yaCargoRef = useRef(false);
   const inputRef = useRef<TextInput>(null);
-  const listaRef = useRef<FlatList<CeldaGrilla>>(null);
+  const listaRef = useRef<FlatList<AmigoApi>>(null);
 
   const columnas = Math.max(
     3,
@@ -201,9 +194,6 @@ export function AmigosTabPanel({ encabezado, onAbrirSolicitudes }: Props) {
   const amigosVisibles = amigos.filter((a) => coincideBusqueda(consulta, [a.nombre, a.email]));
   // Los que ya son amigos aparecen arriba, en la grilla filtrada: acá no se repiten.
   const otrosUsuarios = resultadosBusqueda.filter((u) => obtenerRelacion(u) !== 'amigo');
-  // La celda "Agregar amigo" sobra mientras se busca o se selecciona.
-  const celdas: CeldaGrilla[] =
-    consulta || selection.active ? amigosVisibles : [{ id: CELDA_AGREGAR }, ...amigosVisibles];
 
   // Escribir sale del modo selección: así nunca queda seleccionado un amigo oculto.
   const cambiarBusqueda = (texto: string) => {
@@ -315,20 +305,17 @@ export function AmigosTabPanel({ encabezado, onAbrirSolicitudes }: Props) {
     );
   };
 
-  const renderCelda = ({ item }: { item: CeldaGrilla }) =>
-    item.id === CELDA_AGREGAR ? (
-      <TarjetaAgregarAmigo ancho={anchoCelda} onPress={abrirBuscador} />
-    ) : (
-      <TarjetaAmigo
-        amigo={item as AmigoApi}
-        ancho={anchoCelda}
-        selectionActive={selection.active}
-        selected={selection.isSelected(item.id)}
-        onEnterSelection={selection.enter}
-        onToggle={selection.toggle}
-        onPress={() => verPerfil(item.id)}
-      />
-    );
+  const renderCelda = ({ item }: { item: AmigoApi }) => (
+    <TarjetaAmigo
+      amigo={item}
+      ancho={anchoCelda}
+      selectionActive={selection.active}
+      selected={selection.isSelected(item.id)}
+      onEnterSelection={selection.enter}
+      onToggle={selection.toggle}
+      onPress={() => verPerfil(item.id)}
+    />
+  );
 
   // Los resultados del servidor tienen una acción por persona: se leen mejor en filas.
   const renderFilaBusqueda = (item: UsuarioBusquedaAmistadApi) => (
@@ -385,7 +372,7 @@ export function AmigosTabPanel({ encabezado, onAbrirSolicitudes }: Props) {
   // Encabezado de la pantalla + herramientas, de borde a borde (la lista tiene margen lateral).
   const cabecera = (
     <View style={styles.cabecera}>
-      {encabezado(abrirBuscador)}
+      {encabezado()}
       {herramientas}
     </View>
   );
@@ -436,7 +423,7 @@ export function AmigosTabPanel({ encabezado, onAbrirSolicitudes }: Props) {
           ref={listaRef}
           // Cambiar la cantidad de columnas exige montar la lista de nuevo.
           key={`grilla-${columnas}`}
-          data={celdas}
+          data={amigosVisibles}
           numColumns={columnas}
           keyExtractor={(item) => item.id}
           renderItem={renderCelda}
@@ -458,11 +445,19 @@ export function AmigosTabPanel({ encabezado, onAbrirSolicitudes }: Props) {
           ListFooterComponent={pie}
           contentContainerStyle={[
             styles.lista,
-            { paddingBottom: espacioTabBar + (selection.active ? 88 : 0) },
+            { paddingBottom: espacioTabBar + (selection.active ? 88 : ESPACIO_BOTON_FLOTANTE) },
           ]}
           refreshControl={refresh}
         />
       )}
+
+      <BotonFlotante
+        icon="user-plus"
+        label="Agregar amigo"
+        onPress={abrirBuscador}
+        visible={!selection.active}
+        ayuda={AYUDA_GRUPOS[2]}
+      />
 
       <SelectionActionBar
         visible={selection.active}

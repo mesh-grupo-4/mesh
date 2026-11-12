@@ -58,6 +58,12 @@ export function crearGruposController(service: GruposService, fotos: FotosGrupoS
       res.json(miembros)
     }),
 
+    viajes: asyncHandler(async (req, res) => {
+      const { grupoId } = grupoIdParamSchema.parse(req.params)
+      const viajes = await service.listarViajes(req.userId!, grupoId)
+      res.json(viajes)
+    }),
+
     cambiarRol: asyncHandler(async (req, res) => {
       const { grupoId, usuarioId } = miembroParamsSchema.parse(req.params)
       const body = cambiarRolMiembroSchema.parse(req.body)

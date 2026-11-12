@@ -259,6 +259,47 @@ ResponderSolicitud:
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'
 
+SolicitudEnviada:
+  delete:
+    operationId: cancelarSolicitudAmistad
+    summary: Deshacer una solicitud de amistad enviada
+    description: |
+      Cancela la solicitud que el usuario autenticado le envió a `usuarioId` y que
+      sigue `pendiente`. Se elimina el registro, igual que al rechazarla, así que
+      se puede volver a enviar más adelante.
+
+      Solo quien envió la solicitud puede deshacerla: si no hay una solicitud
+      pendiente suya hacia esa persona devuelve 404.
+    tags:
+      - Amistades
+    parameters:
+      - $ref: '../components/parameters.yaml#/UsuarioId'
+    responses:
+      '200':
+        description: Solicitud cancelada.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/SolicitudAmistadCancelada'
+            example:
+              solicitud_id: 9e5a2f70-4c18-4d93-b6e2-0a3f7d1c8b25
+              destinatario_id: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '404':
+        description: No hay una solicitud pendiente enviada a esa persona (`FRIEND_REQUEST_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: No tenés una solicitud pendiente con esta persona
+              code: FRIEND_REQUEST_NOT_FOUND
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
 Amigo:
   delete:
     operationId: eliminarAmigo

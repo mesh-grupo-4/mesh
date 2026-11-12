@@ -1,9 +1,7 @@
-import { Feather } from '@expo/vector-icons';
 import { StyleSheet, Text, View } from 'react-native';
 import { AvatarFallback } from '@/components/AvatarFallback';
 import { Esqueleto } from '@/components/Esqueleto';
 import { useTheme } from '@/components/MeshUI';
-import { Pressable } from '@/components/Pressable';
 import { SelectableCard } from '@/components/SelectableCard';
 import type { AmigoApi } from '@/lib/amistadesApi';
 
@@ -57,42 +55,6 @@ export function TarjetaAmigo({
   );
 }
 
-/** Primera celda de la grilla: lleva al buscador para sumar amigos. */
-export function TarjetaAgregarAmigo({ ancho, onPress }: { ancho: number; onPress: () => void }) {
-  const theme = useTheme();
-  const circulo = Math.min(64, Math.round(ancho * 0.5));
-
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel="Agregar amigo"
-      style={({ pressed }) => [
-        styles.tarjeta,
-        styles.centrado,
-        {
-          width: ancho,
-          borderColor: theme.accentLine,
-          borderStyle: 'dashed',
-          backgroundColor: pressed ? theme.accentWeak : 'transparent',
-        },
-      ]}
-    >
-      <View
-        style={[
-          styles.circuloAgregar,
-          { width: circulo, height: circulo, borderRadius: circulo / 2, backgroundColor: theme.accentWeak },
-        ]}
-      >
-        <Feather name="user-plus" size={Math.round(circulo * 0.4)} color={theme.accent} />
-      </View>
-      <Text style={[styles.nombre, { color: theme.accent }]} numberOfLines={2}>
-        Agregar amigo
-      </Text>
-    </Pressable>
-  );
-}
-
 export function TarjetaAmigoEsqueleto({ ancho }: { ancho: number }) {
   const theme = useTheme();
   const circulo = Math.min(64, Math.round(ancho * 0.5));
@@ -135,9 +97,5 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
     lineHeight: 18,
-  },
-  circuloAgregar: {
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });

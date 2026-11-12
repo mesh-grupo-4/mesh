@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 
-import { ActivityTile, Avatar, Badge, Btn, TopBar, useTheme } from '@/components/MeshUI';
+import { ActivityTile, Avatar, TopBar, useTheme } from '@/components/MeshUI';
 import { DetalleInsigniaModal } from '@/components/perfil/DetalleInsigniaModal';
 import { FondoMesh, FundidoMesh } from '@/components/perfil/FondoMesh';
 import { FueguitosRacha } from '@/components/perfil/FueguitosRacha';
@@ -11,7 +11,12 @@ import { InsigniaChip, ordenarPorRareza } from '@/components/perfil/InsigniaChip
 import { TarjetaRacha } from '@/components/perfil/TarjetaRacha';
 import { useAuth } from '@/context/AuthContext';
 import { resolveBackendUserId } from '@/lib/apiClient';
-import { eliminarAmigo, solicitarAmistad } from '@/lib/amistadesApi';
+import {
+  cancelarSolicitudAmistad,
+  eliminarAmigo,
+  solicitarAmistad,
+  type RelacionAmistad,
+} from '@/lib/amistadesApi';
 import type { InsigniaObtenidaApi } from '@/lib/insigniasApi';
 import { intensidadRacha, nivelRacha } from '@/lib/rachasApi';
 import { obtenerPerfilPublico, type PerfilPublicoApi } from '@/lib/usuariosApi';
@@ -44,10 +49,10 @@ export default function PerfilUsuarioScreen() {
   const [perfil, setPerfil] = useState<PerfilPublicoApi | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [solicitando, setSolicitando] = useState(false);
-  const [solicitudEnviadaLocal, setSolicitudEnviadaLocal] = useState(false);
-  const [eliminando, setEliminando] = useState(false);
-  const [eliminadoLocal, setEliminadoLocal] = useState(false);
+  // Una sola acción de amistad en curso a la vez (enviar, deshacer o dejar de ser amigos).
+  const [procesandoAmistad, setProcesandoAmistad] = useState(false);
+  // Relación tras una acción local; `undefined` = usar la que vino con el perfil.
+  const [relacionLocal, setRelacionLocal] = useState<RelacionAmistad | undefined>(undefined);
   const [insigniaAbierta, setInsigniaAbierta] = useState<InsigniaObtenidaApi | null>(null);
   // Cambia cada vez que llega el perfil: remonta los fueguitos y repite la ráfaga.
   const [rafagaFueguitos, setRafagaFueguitos] = useState(0);
@@ -58,8 +63,7 @@ export default function PerfilUsuarioScreen() {
     setError(null);
     try {
       setPerfil(await obtenerPerfilPublico(usuarioId));
-      setSolicitudEnviadaLocal(false);
-      setEliminadoLocal(false);
+      setRelacionLocal(undefined);
       setRafagaFueguitos((n) => n + 1);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'No se pudo cargar el perfil.');
@@ -76,16 +80,38 @@ export default function PerfilUsuarioScreen() {
 
   const agregarAmigo = async () => {
     if (!usuarioId) return;
-    setSolicitando(true);
+    setProcesandoAmistad(true);
     try {
       const userId = resolveBackendUserId(backendUserId);
       await solicitarAmistad(usuarioId, userId);
-      setSolicitudEnviadaLocal(true);
+      setRelacionLocal('solicitud_enviada');
     } catch (e: unknown) {
       meshAlert('Error', e instanceof Error ? e.message : 'No se pudo enviar la solicitud.');
     } finally {
-      setSolicitando(false);
+      setProcesandoAmistad(false);
     }
+  };
+
+  const deshacerSolicitud = () => {
+    if (!usuarioId || !perfil) return;
+    meshConfirmDestructive({
+      title: 'Deshacer solicitud',
+      message: `¿Querés cancelar la solicitud de amistad que le enviaste a ${perfil.nombre}?`,
+      confirmLabel: 'Deshacer solicitud',
+      onConfirm: async () => {
+        setProcesandoAmistad(true);
+        try {
+          await cancelarSolicitudAmistad(usuarioId);
+          setRelacionLocal(null);
+        } catch (e: unknown) {
+          meshAlert('Error', e instanceof Error ? e.message : 'No se pudo deshacer la solicitud.');
+          // Puede que ya la haya aceptado o rechazado: se trae el estado real.
+          void cargar();
+        } finally {
+          setProcesandoAmistad(false);
+        }
+      },
+    });
   };
 
   const quitarAmigo = () => {
@@ -95,26 +121,96 @@ export default function PerfilUsuarioScreen() {
       message: `¿Querés dejar de ser amigo de ${perfil.nombre}? Lo vas a quitar de tu lista de amigos.`,
       confirmLabel: 'Dejar de ser amigos',
       onConfirm: async () => {
-        setEliminando(true);
+        setProcesandoAmistad(true);
         try {
           await eliminarAmigo(usuarioId, resolveBackendUserId(backendUserId));
-          setEliminadoLocal(true);
+          setRelacionLocal(null);
           // Si solo comparte sus logros con amigos, dejan de ser visibles: se recarga.
           if (perfil.visibilidad_logros === 'amigos') void cargar();
         } catch (e: unknown) {
           meshAlert('Error', e instanceof Error ? e.message : 'No se pudo eliminar al amigo.');
         } finally {
-          setEliminando(false);
+          setProcesandoAmistad(false);
         }
       },
     });
   };
 
-  const relacion = solicitudEnviadaLocal
-    ? 'solicitud_enviada'
-    : eliminadoLocal
-      ? null
-      : perfil?.relacion_amistad ?? null;
+  const relacion: RelacionAmistad =
+    relacionLocal !== undefined ? relacionLocal : perfil?.relacion_amistad ?? null;
+
+  // Todo lo de amistad vive en un solo control, arriba a la izquierda junto a "volver".
+  const controlAmistad = (() => {
+    if (!perfil || perfil.es_yo) return null;
+    const conf =
+      relacion === 'amigo'
+        ? {
+            icono: 'user-check' as const,
+            texto: 'Amigos',
+            color: theme.good,
+            relleno: false,
+            accion: quitarAmigo,
+            a11y: 'Son amigos. Tocá para dejar de ser amigos',
+          }
+        : relacion === 'solicitud_enviada'
+          ? {
+              icono: 'clock' as const,
+              texto: 'Solicitud enviada',
+              color: theme.textDim,
+              relleno: false,
+              accion: deshacerSolicitud,
+              a11y: 'Solicitud enviada. Tocá para deshacerla',
+            }
+          : relacion === 'solicitud_recibida'
+            ? {
+                icono: 'user-plus' as const,
+                texto: 'Responder solicitud',
+                color: theme.accent,
+                relleno: false,
+                accion: () => router.push('/amigos/solicitudes'),
+                a11y: 'Te envió una solicitud de amistad. Tocá para responderla',
+              }
+            : {
+                icono: 'user-plus' as const,
+                texto: 'Agregar amigo',
+                color: theme.accent,
+                relleno: true,
+                accion: () => void agregarAmigo(),
+                a11y: 'Enviar solicitud de amistad',
+              };
+    const colorContenido = conf.relleno ? theme.onAccent : conf.color;
+    return (
+      <Pressable
+        onPress={conf.accion}
+        disabled={procesandoAmistad}
+        accessibilityRole="button"
+        accessibilityLabel={conf.a11y}
+        style={({ pressed }) => [
+          styles.amistadBtn,
+          conf.relleno
+            ? { backgroundColor: conf.color, borderColor: conf.color }
+            : { backgroundColor: theme.surface, borderColor: `${conf.color}66` },
+          { opacity: pressed || procesandoAmistad ? 0.7 : 1 },
+        ]}
+      >
+        {procesandoAmistad ? (
+          <ActivityIndicator color={colorContenido} size="small" />
+        ) : (
+          <>
+            <Feather name={conf.icono} size={16} color={colorContenido} />
+            <Text style={[styles.amistadTxt, { color: colorContenido }]} numberOfLines={1}>
+              {conf.texto}
+            </Text>
+            {relacion === 'solicitud_enviada' ? (
+              <Feather name="x" size={16} color={colorContenido} />
+            ) : relacion === 'amigo' ? (
+              <Feather name="chevron-down" size={16} color={colorContenido} />
+            ) : null}
+          </>
+        )}
+      </Pressable>
+    );
+  })();
 
   const semanas = perfil?.logros_visibles ? (perfil.racha?.semanas_consecutivas ?? 0) : 0;
   const nivel = nivelRacha(semanas);
@@ -132,7 +228,13 @@ export default function PerfilUsuarioScreen() {
           intensidadRacha={intensidadRacha(semanas)}
         />
       ) : null}
-      <TopBar title="" onBack={() => router.back()} bordered={false} transparente />
+      <TopBar
+        title=""
+        onBack={() => router.back()}
+        bordered={false}
+        transparente
+        izquierda={controlAmistad}
+      />
 
       {cargando && !perfil ? (
         <View style={styles.centrado}>
@@ -171,52 +273,6 @@ export default function PerfilUsuarioScreen() {
                 <Text style={[styles.actividadTxt, { color: theme.textDim }]}>
                   {ETIQUETA_ACTIVIDAD[perfil.actividad_preferida] ?? perfil.actividad_preferida}
                 </Text>
-              </View>
-            ) : null}
-
-            {!perfil.es_yo ? (
-              <View style={styles.amistadRow}>
-                {relacion === 'amigo' ? (
-                  // Un solo botón: tocarlo ofrece dejar de ser amigos (con confirmación).
-                  <Pressable
-                    onPress={quitarAmigo}
-                    disabled={eliminando}
-                    accessibilityRole="button"
-                    accessibilityLabel="Son amigos. Tocá para dejar de ser amigos"
-                    style={({ pressed }) => [
-                      styles.amigosBtn,
-                      {
-                        backgroundColor: `${theme.good}1F`,
-                        borderColor: `${theme.good}66`,
-                        opacity: pressed || eliminando ? 0.7 : 1,
-                      },
-                    ]}
-                  >
-                    {eliminando ? (
-                      <ActivityIndicator color={theme.good} />
-                    ) : (
-                      <>
-                        <Feather name="user-check" size={18} color={theme.good} />
-                        <Text style={[styles.amigosTxt, { color: theme.good }]}>Son amigos</Text>
-                        <Feather name="chevron-down" size={18} color={theme.good} />
-                      </>
-                    )}
-                  </Pressable>
-                ) : relacion === 'solicitud_enviada' ? (
-                  <Badge tone="mute">Solicitud enviada</Badge>
-                ) : relacion === 'solicitud_recibida' ? (
-                  <Badge tone="accent">Te envió una solicitud — respondé desde Amigos</Badge>
-                ) : (
-                  <Btn
-                    variant="primary"
-                    icon="user-plus"
-                    onPress={() => void agregarAmigo()}
-                    loading={solicitando}
-                    disabled={solicitando}
-                  >
-                    Enviar solicitud de amistad
-                  </Btn>
-                )}
               </View>
             ) : null}
           </View>
@@ -310,19 +366,19 @@ const styles = StyleSheet.create({
   nombre: { fontSize: 26, fontWeight: '600', letterSpacing: -0.3, marginTop: 12, textAlign: 'center' },
   actividadRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
   actividadTxt: { fontSize: 14, fontWeight: '600' },
-  amistadRow: { alignSelf: 'stretch', alignItems: 'center', gap: 10, marginTop: 10 },
-  amigosBtn: {
-    alignSelf: 'stretch',
+  // Misma altura que el botón de volver, al que queda pegado.
+  amistadBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    minHeight: 50,
-    paddingHorizontal: 20,
-    borderRadius: 14,
+    gap: 6,
+    minHeight: 40,
+    minWidth: 40,
+    flexShrink: 1,
+    paddingHorizontal: 14,
+    borderRadius: 20,
     borderWidth: 1.5,
   },
-  amigosTxt: { fontSize: 16, fontWeight: '700' },
+  amistadTxt: { fontSize: 14, fontWeight: '700', flexShrink: 1 },
   cuerpo: { flexGrow: 1, paddingHorizontal: 20, paddingBottom: 40, gap: 20 },
   statsCard: { flexDirection: 'row', borderRadius: 16, borderWidth: 1, paddingVertical: 16 },
   statBox: { flex: 1, alignItems: 'center', gap: 2 },

@@ -39,6 +39,12 @@ export function crearAmistadesController(service: AmistadesService) {
       res.json(result)
     }),
 
+    cancelarSolicitud: asyncHandler(async (req, res) => {
+      const { usuarioId } = amigoUsuarioIdParamSchema.parse(req.params)
+      const result = await service.cancelarSolicitud(req.userId!, usuarioId)
+      res.json(result)
+    }),
+
     buscarUsuarios: asyncHandler(async (req, res) => {
       const { q } = buscarUsuariosAmistadQuerySchema.parse(req.query)
       const usuarios = await service.buscarUsuarios(req.userId!, q)

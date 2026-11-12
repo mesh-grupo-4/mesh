@@ -300,6 +300,111 @@ describe('GruposService', () => {
     })
   })
 
+  describe('listarViajes', () => {
+    const viajeId = '66666666-6666-6666-6666-666666666666'
+
+    function grupoConMiembro() {
+      return {
+        id: grupoId,
+        nombre: 'Trail Riders',
+        fecha_creacion: new Date('2026-05-29T12:00:00Z'),
+        lider_id: creadorId,
+        miembros: [{ rol: 'participante' }],
+      }
+    }
+
+    function viajeBase(overrides: Record<string, unknown> = {}) {
+      return {
+        id: viajeId,
+        nombre: 'Sierras Chicas',
+        tipo_actividad: 'bici',
+        modo: 'recreativo',
+        estado: 'finalizado',
+        fecha_programada: new Date('2026-10-18T11:00:00Z'),
+        fecha_inicio_real: new Date('2026-10-18T11:12:00Z'),
+        fecha_fin_real: new Date('2026-10-18T13:42:00Z'),
+        creador_id: creadorId,
+        creador: { id: creadorId, nombre: 'Ana' },
+        integrantes: [],
+        resumen: { distancia_real_m: 42350, duracion_segundos: 9000 },
+        _count: { integrantes: 6 },
+        ...overrides,
+      }
+    }
+
+    it('lista los viajes del grupo con resumen y si el usuario participó', async () => {
+      const { prisma, grupoFindUnique } = createMockPrisma()
+      grupoFindUnique.mockResolvedValue(grupoConMiembro())
+      const viajeFindMany = vi.fn().mockResolvedValue([
+        viajeBase({ integrantes: [{ estado: 'confirmado' }] }),
+      ])
+      Object.assign(prisma, { viaje: { findMany: viajeFindMany } })
+
+      const result = await new GruposService(prisma).listarViajes(otroId, grupoId)
+
+      expect(viajeFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { grupos: { some: { grupo_id: grupoId } } } })
+      )
+      expect(result).toEqual([
+        expect.objectContaining({
+          id: viajeId,
+          estado: 'finalizado',
+          cantidad_participantes: 6,
+          distancia_m: 42350,
+          duracion_segundos: 9000,
+          creador: { id: creadorId, nombre: 'Ana' },
+          participe: true,
+        }),
+      ])
+    })
+
+    it('marca participe=false si se sumó al grupo después del viaje o lo rechazó', async () => {
+      const { prisma, grupoFindUnique } = createMockPrisma()
+      grupoFindUnique.mockResolvedValue(grupoConMiembro())
+      Object.assign(prisma, {
+        viaje: {
+          findMany: vi.fn().mockResolvedValue([
+            viajeBase(),
+            viajeBase({ id: 'otro', integrantes: [{ estado: 'rechazado' }] }),
+          ]),
+        },
+      })
+
+      const result = await new GruposService(prisma).listarViajes(otroId, grupoId)
+
+      expect(result.map((v) => v.participe)).toEqual([false, false])
+    })
+
+    it('el creador siempre participa y un viaje sin resumen trae métricas null', async () => {
+      const { prisma, grupoFindUnique } = createMockPrisma()
+      grupoFindUnique.mockResolvedValue({ ...grupoConMiembro(), miembros: [{ rol: 'lider' }] })
+      Object.assign(prisma, {
+        viaje: {
+          findMany: vi
+            .fn()
+            .mockResolvedValue([viajeBase({ estado: 'planificado', resumen: null })]),
+        },
+      })
+
+      const [viaje] = await new GruposService(prisma).listarViajes(creadorId, grupoId)
+
+      expect(viaje).toMatchObject({ participe: true, distancia_m: null, duracion_segundos: null })
+    })
+
+    it('lanza 403 si el actor no es miembro', async () => {
+      const { prisma, grupoFindUnique } = createMockPrisma()
+      grupoFindUnique.mockResolvedValue({ ...grupoConMiembro(), miembros: [] })
+      const viajeFindMany = vi.fn()
+      Object.assign(prisma, { viaje: { findMany: viajeFindMany } })
+
+      await expect(new GruposService(prisma).listarViajes(terceroId, grupoId)).rejects.toMatchObject({
+        status: 403,
+        code: 'NOT_GROUP_MEMBER',
+      })
+      expect(viajeFindMany).not.toHaveBeenCalled()
+    })
+  })
+
   describe('cambiarRolMiembro', () => {
     function createCambiarRolMocks() {
       const grupoFindUnique = vi.fn()

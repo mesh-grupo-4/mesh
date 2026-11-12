@@ -565,7 +565,7 @@ export default function CrearViajeScreen() {
                   <Collapsible title="Grupos" icon="users" badge={gruposSeleccionados.size} defaultOpen>
                     {grupos.length === 0 ? (
                       <Text style={[styles.vacio, { color: theme.textMute }]}>
-                        No tenés grupos. Creá uno en la pestaña Grupos.
+                        No tenés grupos. Creá uno en la pestaña Social.
                       </Text>
                     ) : (
                       grupos.map((g) => (

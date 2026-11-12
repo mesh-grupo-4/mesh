@@ -650,9 +650,11 @@ interface TopBarProps {
   transparente?: boolean;
   /** Acción pegada al título, a la izquierda (ej. "+" para crear en Grupos y amigos). */
   junto?: React.ReactNode;
+  /** Contenido pegado al botón de volver, siempre a la izquierda aunque el título vaya centrado. */
+  izquierda?: React.ReactNode;
 }
 
-export function TopBar({ title, sub, onBack, bordered = true, right, onAyuda, raiz = false, transparente = false, junto }: TopBarProps) {
+export function TopBar({ title, sub, onBack, bordered = true, right, onAyuda, raiz = false, transparente = false, junto, izquierda }: TopBarProps) {
   const theme = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -692,6 +694,7 @@ export function TopBar({ title, sub, onBack, bordered = true, right, onAyuda, ra
             <Feather name={ICONO_VOLVER} size={20} color={theme.text} />
           </Pressable>
         ) : null}
+        {izquierda}
         <View style={[styles.titleWrapper, centrado && styles.titleWrapperCentrado]}>
           {junto ? (
             <View style={styles.titleFila}>

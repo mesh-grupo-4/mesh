@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useAuth } from '@/context/AuthContext'
 import { useTripRealtime } from '@/context/TripRealtimeContext'
 import { Badge, MeshLogo, useTheme } from '@/components/MeshUI'
+import { estilosBotonFlotante } from '@/components/BotonFlotante'
 import { MeshMapView, type MeshMapViewHandle } from '@/components/maps/MeshMapView'
 import { getMapStyle } from '@/components/route-config/mapStyles'
 import { SelectorCapaMapa } from '@/components/route-config/SelectorCapaMapa'
@@ -30,7 +31,7 @@ function horaInicio(iso: string | null): string {
 }
 
 /**
- * Inicio: mapa con dónde estás parado y, abajo al alcance del pulgar, "Viaje YA".
+ * Inicio: mapa con dónde estás parado y, abajo a la derecha al alcance del pulgar, "Viaje YA".
  * Si hay un viaje en curso, su tarjeta pasa a ser la acción principal.
  */
 export default function InicioScreen() {
@@ -142,14 +143,15 @@ export default function InicioScreen() {
             accessibilityRole="button"
             onPress={abrirViajeYa}
             style={({ pressed }) => [
+              estilosBotonFlotante.boton,
+              estilosBotonFlotante.sombra,
               styles.viajeYa,
-              styles.sombra,
               { backgroundColor: theme.accent },
-              pressed && styles.presionado,
+              pressed && estilosBotonFlotante.presionado,
             ]}
           >
             <Feather name="zap" size={20} color={theme.onAccent} />
-            <Text style={[styles.viajeYaTexto, { color: theme.onAccent }]}>Viaje YA</Text>
+            <Text style={[estilosBotonFlotante.texto, { color: theme.onAccent }]}>Viaje YA</Text>
           </Pressable>
         )}
 
@@ -239,21 +241,12 @@ const styles = StyleSheet.create({
   dock: { position: 'absolute', left: 16, right: 16, gap: 12 },
   // Con viaje en curso, reserva la fila del botón de centrar arriba de la tarjeta.
   dockConCentrar: { paddingTop: 64 },
-  viajeYa: {
-    alignSelf: 'flex-start',
-    height: 52,
-    paddingHorizontal: 20,
-    borderRadius: 26,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 9,
-  },
-  // 19 px en negrita: texto grande, legible en blanco sobre el acento de la marca.
-  viajeYaTexto: { fontSize: 19, fontWeight: '800' },
+  // A la derecha, en el mismo lugar que la acción principal de las demás pestañas.
+  viajeYa: { alignSelf: 'flex-end' },
   centrar: {
     position: 'absolute',
     top: 0,
-    right: 0,
+    left: 0,
     width: 52,
     height: 52,
     borderRadius: 26,
@@ -261,7 +254,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   panel: { borderRadius: 20, padding: 5 },
-  presionado: { opacity: 0.88 },
   filete: {
     flexDirection: 'row',
     alignItems: 'center',
