@@ -36,7 +36,9 @@ function createMockPrisma() {
   }
 
   const prisma = {
-    usuario: { findUnique: usuarioFindUnique },
+    // La push de invitación (RN-029f) sale después de crear: acá no tiene a quién avisar.
+    usuario: { findUnique: usuarioFindUnique, findMany: vi.fn().mockResolvedValue([]) },
+    viaje: { findUnique: vi.fn().mockResolvedValue(null) },
     grupoMiembro: { findMany: grupoMiembroFindMany },
     amistad: { findMany: vi.fn().mockResolvedValue([]) },
     $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn(tx)),

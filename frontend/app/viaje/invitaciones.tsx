@@ -16,10 +16,13 @@ import { Destacado, FilaNotificacion } from '@/components/notificaciones/FilaNot
 
 type Invitacion = InvitacionViajePendienteApi & { id: string };
 
-/** El contador de la campanita sale de la lista de Viajes, que se recarga al volver. */
+/** El contador de la campanita lo calcula cada pestaña, que se recarga al volver. */
 const sinContador = () => {};
 
-/** Campanita de la pestaña Viajes: invitaciones a viajes sin responder. */
+/**
+ * Campanita de las pestañas Viajes y Entrenar: invitaciones a viajes sin responder.
+ * Los entrenamientos son viajes: comparten esta bandeja y se distinguen por `modo`.
+ */
 export default function InvitacionesViajesScreen() {
   const { backendUserId } = useAuth();
   const [respondiendoId, setRespondiendoId] = useState<string | null>(null);
@@ -65,6 +68,7 @@ export default function InvitacionesViajesScreen() {
           hour: '2-digit',
           minute: '2-digit',
         });
+        const esEntrenamiento = inv.modo === 'entrenamiento';
         return (
           <FilaNotificacion
             nombre={inv.creador.nombre}
@@ -76,12 +80,14 @@ export default function InvitacionesViajesScreen() {
                   <Destacado>{inv.nombre}</Destacado>
                 ) : (
                   <>
-                    un viaje de <Destacado>{etiquetaActividad(inv.tipo_actividad)}</Destacado>
+                    {esEntrenamiento ? 'un entrenamiento' : 'un viaje'} de <Destacado>{etiquetaActividad(inv.tipo_actividad)}</Destacado>
                   </>
                 )}
               </>
             }
             meta={[
+              // Con nombre propio el mensaje no dice qué es: lo aclara la línea de abajo.
+              inv.nombre && esEntrenamiento ? 'Entrenamiento' : null,
               inv.nombre ? etiquetaActividad(inv.tipo_actividad) : null,
               fecha,
               inv.grupo_origen ? `Grupo ${inv.grupo_origen.nombre}` : null,

@@ -249,7 +249,7 @@ export class ViajesService {
 
     const params = parametrosPorActividad(tipoActividad)
 
-    return this.prisma.$transaction(async (tx) => {
+    const creado = await this.prisma.$transaction(async (tx) => {
       const viaje = await tx.viaje.create({
         data: {
           creador_id: creadorId,
@@ -325,6 +325,48 @@ export class ViajesService {
         ruta_precargada,
       }
     })
+
+    void this.notificarInvitados(
+      creado.id,
+      filasPendientes(creado.id).map((f) => f.usuario_id)
+    )
+
+    return creado
+  }
+
+  /**
+   * RN-029f: push a los recién invitados; la invitación solo se ve al abrir la
+   * campanita. Best-effort: un fallo acá no afecta a la invitación ya creada.
+   * No lleva `viajeId`: la app abre la bandeja de invitaciones, no el viaje.
+   */
+  private async notificarInvitados(viajeId: string, usuarioIds: string[]): Promise<void> {
+    if (usuarioIds.length === 0) return
+    try {
+      const [viaje, invitados] = await Promise.all([
+        this.prisma.viaje.findUnique({
+          where: { id: viajeId },
+          select: { nombre: true, modo: true, creador: { select: { nombre: true } } },
+        }),
+        this.prisma.usuario.findMany({
+          where: { id: { in: usuarioIds }, push_token: { not: null } },
+          select: { push_token: true },
+        }),
+      ])
+      if (!viaje || invitados.length === 0) return
+      const que = viaje.modo === 'entrenamiento' ? 'un entrenamiento' : 'un viaje'
+      const { sendExpoPush } = await import('../../lib/expoPush')
+      await sendExpoPush(
+        invitados.map((u) => ({
+          to: u.push_token!,
+          title: `Nueva invitación a ${que}`,
+          body: `${viaje.creador.nombre} te invitó a ${viaje.nombre ? `"${viaje.nombre}"` : que}.`,
+          data: { tipo: 'invitacion_viaje' },
+          sound: 'default' as const,
+        }))
+      )
+    } catch (e) {
+      console.warn('[viajes] notificarInvitados falló:', e)
+    }
   }
 
   async listarPlanificados(usuarioId: string) {
@@ -386,6 +428,7 @@ export class ViajesService {
             id: true,
             nombre: true,
             tipo_actividad: true,
+            modo: true,
             fecha_programada: true,
             estado: true,
             creador: { select: { id: true, nombre: true } },
@@ -401,6 +444,7 @@ export class ViajesService {
         viaje_id: r.viaje.id,
         nombre: r.viaje.nombre,
         tipo_actividad: r.viaje.tipo_actividad,
+        modo: r.viaje.modo,
         fecha_programada: r.viaje.fecha_programada,
         creador: r.viaje.creador,
         created_at: r.created_at,
@@ -984,8 +1028,18 @@ export class ViajesService {
       input.amigoIds
     )
 
-    return this.prisma.$transaction(async (tx) => {
-      const filas = filasPendientes(viajeId)
+    const filas = filasPendientes(viajeId)
+    // Quien ya figura no recibe una invitación nueva, así que tampoco la push.
+    const yaFiguran =
+      filas.length > 0
+        ? await this.prisma.viajeIntegrante.findMany({
+            where: { viaje_id: viajeId, usuario_id: { in: filas.map((f) => f.usuario_id) } },
+            select: { usuario_id: true },
+          })
+        : []
+    const idsYaFiguran = new Set(yaFiguran.map((i) => i.usuario_id))
+
+    const resultado = await this.prisma.$transaction(async (tx) => {
       const creados =
         filas.length > 0
           ? await tx.viajeIntegrante.createMany({ data: filas, skipDuplicates: true })
@@ -1000,6 +1054,13 @@ export class ViajesService {
 
       return { viaje_id: viajeId, invitaciones_enviadas: creados.count }
     })
+
+    void this.notificarInvitados(
+      viajeId,
+      filas.map((f) => f.usuario_id).filter((id) => !idsYaFiguran.has(id))
+    )
+
+    return resultado
   }
 
   async iniciar(creadorId: string, viajeId: string) {

@@ -29,6 +29,8 @@ ViajesColeccion:
       - **RN-028/029:** los integrantes de `grupoIds` y las personas de `amigoIds`
         quedan invitados en estado `pendiente`. Quien llega por ambas vías se registra
         una sola vez, con origen `grupo`.
+      - **RN-029f:** cada invitado recibe una notificación push
+        (`data.tipo: invitacion_viaje`), best-effort y sin demorar la respuesta.
       - Si se envía `rutaPlantillaId`, la ruta se precarga desde esa plantilla propia
         y la actividad pasa a ser la de la plantilla.
       - **RN-065 / RN-070:** `modo: entrenamiento` no existe en moto ni auto
@@ -337,6 +339,9 @@ InvitacionesViajePendientes:
 
       Solo se listan las de viajes todavía `planificado`: una vez iniciado el viaje,
       la invitación deja de ofrecerse aunque siga pendiente en la base.
+
+      `modo` permite distinguir en la bandeja una invitación a un entrenamiento
+      (RN-066) de la de un viaje común.
     tags:
       - Viajes
     responses:
@@ -352,6 +357,7 @@ InvitacionesViajePendientes:
               - viaje_id: 1b8d4c37-6e29-4f05-a3b7-9c2f8e5d0a41
                 nombre: Subida al Cerro Champaquí
                 tipo_actividad: trekking
+                modo: recreativo
                 fecha_programada: '2026-08-24T10:00:00.000Z'
                 creador:
                   id: 2c9a7d61-4e83-4b2f-9a17-6d0e5b8c1f23
@@ -361,6 +367,7 @@ InvitacionesViajePendientes:
               - viaje_id: 3e9b6a04-7c25-4d18-8f37-0b4a2e9c6d15
                 nombre: null
                 tipo_actividad: bici
+                modo: entrenamiento
                 fecha_programada: '2026-09-13T11:00:00.000Z'
                 creador:
                   id: 5a1d3e88-9b64-4c07-83f2-1e7a4b6d9c50
@@ -549,6 +556,8 @@ InvitarAViaje:
         grupo y tener amistad aceptada con cada amigo. Quien llega por ambas vías se
         registra una sola vez, con origen `grupo`.
       - Quien ya figura en el viaje (en cualquier estado) no se vuelve a invitar.
+      - **RN-029f:** cada invitado nuevo recibe una notificación push
+        (`data.tipo: invitacion_viaje`), best-effort y sin demorar la respuesta.
     tags:
       - Viajes
     parameters:

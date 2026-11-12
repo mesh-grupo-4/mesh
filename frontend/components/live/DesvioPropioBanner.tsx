@@ -7,15 +7,19 @@ import { Pressable } from '@/components/Pressable'
  */
 type Props = {
   ocupado: boolean
+  /** Sigue en el viaje: se desvía un rato y vuelve. */
   onAProposito: () => void
+  /** Se va: sale del viaje y deja de compartir ubicación (pide confirmación). */
+  onMeVuelvo: () => void
 }
 
-export function DesvioPropioBanner({ ocupado, onAProposito }: Props) {
+export function DesvioPropioBanner({ ocupado, onAProposito, onMeVuelvo }: Props) {
   return (
     <View style={styles.banner}>
       <Text style={styles.titulo}>Saliste de la ruta</Text>
       <Text style={styles.subtitulo}>
-        Le avisamos al líder. Si te desviaste a propósito (combustible, volvés antes), confirmalo.
+        Le avisamos al líder. Si te desviás un rato y volvés, confirmalo. Si te vas, salí del
+        viaje para dejar de compartir tu ubicación.
       </Text>
       <Pressable
         style={({ pressed }) => [styles.boton, pressed && styles.presionado, ocupado && styles.deshabilitado]}
@@ -27,8 +31,21 @@ export function DesvioPropioBanner({ ocupado, onAProposito }: Props) {
         {ocupado ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <Text style={styles.botonTxt}>Me desvío a propósito</Text>
+          <Text style={styles.botonTxt}>Me desvío y vuelvo</Text>
         )}
+      </Pressable>
+      <Pressable
+        style={({ pressed }) => [
+          styles.botonSalir,
+          pressed && styles.presionado,
+          ocupado && styles.deshabilitado,
+        ]}
+        onPress={onMeVuelvo}
+        disabled={ocupado}
+        accessibilityRole="button"
+        accessibilityLabel="Me vuelvo: salir del viaje y dejar de compartir mi ubicación"
+      >
+        <Text style={styles.botonSalirTxt}>Me vuelvo · Salir del viaje</Text>
       </Pressable>
     </View>
   )
@@ -71,6 +88,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
     color: '#fff',
+  },
+  botonSalir: {
+    marginTop: 10,
+    minHeight: 56,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    borderWidth: 1.5,
+    borderColor: '#b45309',
+  },
+  botonSalirTxt: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#92400e',
   },
   presionado: {
     opacity: 0.75,

@@ -1265,7 +1265,11 @@ export default function ViajeLiveScreen() {
 
         {/* RN-034b: el participante avisa si su desvío es a propósito. */}
         {!esLider && miDesvio ? (
-          <DesvioPropioBanner ocupado={avisandoDesvio} onAProposito={handleDesvioAProposito} />
+          <DesvioPropioBanner
+            ocupado={avisandoDesvio || !!accion}
+            onAProposito={handleDesvioAProposito}
+            onMeVuelvo={confirmarSalir}
+          />
         ) : null}
       </View>
 

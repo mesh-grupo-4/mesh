@@ -68,6 +68,7 @@ export type InvitacionViajePendienteApi = {
   viaje_id: string
   nombre?: string
   tipo_actividad: TipoActividadApi
+  modo?: ModoViajeApi
   fecha_programada: string
   creador: { id: string; nombre: string }
   grupo_origen?: { id: string; nombre: string } | null

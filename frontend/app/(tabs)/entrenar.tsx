@@ -23,6 +23,8 @@ import {
 } from '@/components/PantallaFiltros'
 import { Pressable } from '@/components/Pressable'
 import { SegmentTabs } from '@/components/SegmentTabs'
+import { CampanitaNotificaciones } from '@/components/notificaciones/CampanitaNotificaciones'
+import { useAuth } from '@/context/AuthContext'
 import { useEspacioTabBar } from '@/hooks/useEspacioTabBar'
 import { etiquetaActividad } from '@/lib/activityDefaults'
 import {
@@ -40,6 +42,7 @@ import { meshAlert, meshConfirmDestructive } from '@/lib/meshAlert'
 import { abrirNuevoEntrenamiento, abrirRepetirEntrenamiento } from '@/lib/nuevoViaje'
 import { formatearEnArg } from '@/lib/tiempoArg'
 import { coincideBusqueda, normalizarBusqueda } from '@/lib/busqueda'
+import { listarInvitacionesViajePendientes } from '@/lib/viajesApi'
 
 type Seccion = 'circuitos' | 'sesiones'
 
@@ -58,7 +61,10 @@ function fechaCorta(iso: string | null): string {
 export default function EntrenarScreen() {
   const theme = useTheme()
   const espacioTabBar = useEspacioTabBar()
+  const { backendUserId } = useAuth()
 
+  /** Invitaciones a entrenamientos sin responder: el puntito de la campanita. */
+  const [invitaciones, setInvitaciones] = useState(0)
   const [seccion, setSeccion] = useState<Seccion>('circuitos')
   const [actividad, setActividad] = useState<ActividadEntrenableApi | null>(null)
   /** Ver solo las sesiones de un circuito (se entra tocando su tarjeta). */
@@ -80,6 +86,12 @@ export default function EntrenarScreen() {
   const [guardandoNombre, setGuardandoNombre] = useState(false)
 
   const cargar = useCallback(async () => {
+    // Aparte de la lista: si falla, la campanita queda como estaba y la pantalla carga igual.
+    if (backendUserId) {
+      void listarInvitacionesViajePendientes(backendUserId)
+        .then((inv) => setInvitaciones(inv.filter((i) => i.modo === 'entrenamiento').length))
+        .catch(() => {})
+    }
     try {
       const [c, s] = await Promise.all([
         listarCircuitos({ tipoActividad: actividad }),
@@ -93,7 +105,7 @@ export default function EntrenarScreen() {
       setCargando(false)
       setRefrescando(false)
     }
-  }, [actividad, circuitoFiltro?.id])
+  }, [actividad, circuitoFiltro?.id, backendUserId])
 
   useFocusEffect(
     useCallback(() => {
@@ -213,7 +225,18 @@ export default function EntrenarScreen() {
           />
         }
       >
-        <TopBar title="Entrenar" raiz bordered={false} />
+        <TopBar
+          title="Entrenar"
+          raiz
+          bordered={false}
+          right={
+            <CampanitaNotificaciones
+              pendientes={invitaciones}
+              etiqueta="Invitaciones a entrenamientos"
+              onPress={() => router.push('/viaje/invitaciones')}
+            />
+          }
+        />
 
         <View style={styles.cabecera}>
           <SegmentTabs

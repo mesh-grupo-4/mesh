@@ -12,7 +12,11 @@ const pushDisponible = Platform.OS !== 'web' && !isRunningInExpoGo()
 let handlerListo = false
 
 type PushData =
-  | { viajeId?: string; tipo?: 'invitacion_grupo' | 'solicitud_amistad'; gravedad?: string }
+  | {
+      viajeId?: string
+      tipo?: 'invitacion_grupo' | 'solicitud_amistad' | 'invitacion_viaje'
+      gravedad?: string
+    }
   | undefined
 
 let viajeEnPantalla: string | null = null
@@ -91,6 +95,9 @@ export function usePushNotifications(backendUserId: string | null) {
         const data = response.notification.request.content.data as PushData
         if (data?.viajeId) {
           router.replace({ pathname: '/viaje/[viajeId]', params: { viajeId: data.viajeId } })
+        } else if (data?.tipo === 'invitacion_viaje') {
+          // RN-029f: a la bandeja, donde se acepta o rechaza (viajes y entrenamientos).
+          router.navigate('/viaje/invitaciones')
         } else if (data?.tipo === 'invitacion_grupo' || data?.tipo === 'solicitud_amistad') {
           router.navigate({
             pathname: '/(tabs)/grupos',

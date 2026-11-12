@@ -2,7 +2,7 @@
 
 > **Epic:** **E06** — Cierre, métricas y estadísticas / **E07** — Ghost tracking.
 > **OpenAPI:** `backend/openapi/paths/entrenamientos.yaml` (`/api/entrenamientos/*`) y `POST /api/viajes` (`repetir`) en `backend/openapi/paths/viajes.yaml`.
-> **RN:** RN-066 (nueva), RN-065 (modo entrenamiento), RN-070 (sin motorizados), RN-073 (fantasma).
+> **RN:** RN-066 (nueva), RN-065 (modo entrenamiento), RN-070 (sin motorizados), RN-073 (fantasma), RN-029f (aviso de invitación).
 > Relacionado: [[reglas-de-negocio]], [[us-viaje-ya]], [[us-ranking-viaje]]
 
 ---
@@ -36,7 +36,8 @@ El modo entrenamiento (RN-065) ya calculaba la evolución entre sesiones, pero s
 3. **Repetir** (`app/repetir-entrenamiento.tsx`) está en la tab, en la pantalla de métricas y en el detalle del viaje finalizado:
    - Pregunta **Lo planificado / Lo que hice**. Si la sesión solo tiene uno de los dos, no pregunta.
    - Después, **Salir ahora / Planificar**. No se elige actividad ni recorrido: ya vienen de la sesión.
-4. En el mapa en vivo del viaje repetido, **el fantasma de la sesión original se carga solo** para quien repitió (su propia traza de esa vez, RN-073). Se puede pausar o quitar; si se quita, no vuelve a aparecer. Los invitados eligen fantasma a mano, como siempre.
+4. **Invitaciones.** Un entrenamiento grupal invita igual que cualquier viaje (RN-028/029) y avisa por push (RN-029f). La tab Entrenar tiene una campanita con punto rojo cuando hay invitaciones a entrenamientos sin responder; abre la bandeja **Invitaciones a viajes** (`app/viaje/invitaciones.tsx`), compartida con la tab Viajes, donde las de entrenamiento se distinguen por el texto. Al aceptar, el entrenamiento planificado queda en Viajes y pasa a Entrenar como sesión cuando termina.
+5. En el mapa en vivo del viaje repetido, **el fantasma de la sesión original se carga solo** para quien repitió (su propia traza de esa vez, RN-073). Se puede pausar o quitar; si se quita, no vuelve a aparecer. Los invitados eligen fantasma a mano, como siempre.
 
 ## Reglas
 
