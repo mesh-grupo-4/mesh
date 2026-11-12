@@ -1,3 +1,4 @@
+import { MaterialCommunityIcons } from '@expo/vector-icons'
 import { StyleSheet, Text, View } from 'react-native'
 import { Pressable } from '@/components/Pressable'
 
@@ -65,9 +66,10 @@ export function AlertasButton({
           ]}
           onPress={onCrear}
           accessibilityRole="button"
-          accessibilityLabel="Crear una alerta para el grupo"
+          accessibilityLabel="Avisar algo al grupo"
         >
-          <Text style={styles.crearTxt}>+</Text>
+          {/* Megáfono: avisa al grupo. Los lugares (baño, nafta) van por "Cerca mío". */}
+          <MaterialCommunityIcons name="bullhorn-outline" size={Math.round(22 * escalaBotones)} color="#4338ca" />
         </Pressable>
       ) : null}
 
@@ -137,12 +139,6 @@ const styles = StyleSheet.create({
   },
   crear: {
     backgroundColor: '#fff',
-  },
-  crearTxt: {
-    color: '#4338ca',
-    fontSize: 26,
-    fontWeight: '300',
-    lineHeight: 30,
   },
   presionado: {
     opacity: 0.7,

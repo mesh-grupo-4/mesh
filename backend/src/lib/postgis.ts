@@ -90,6 +90,69 @@ export async function computeProgresoEnRutaM(
   return typeof progreso === 'number' && !Number.isNaN(progreso) ? progreso : null
 }
 
+/**
+ * Fracción (0..1) de cada punto proyectado sobre el LineString (ST_LineLocatePoint),
+ * en el mismo orden en que llegan. Sirve para saber qué tramo de la ruta ya quedó atrás.
+ */
+export async function computeFraccionesEnRuta(
+  prisma: PrismaClient,
+  linestring: GeoJsonLineString,
+  puntos: { lat: number; lng: number }[]
+): Promise<number[]> {
+  assertLineString(linestring)
+  if (puntos.length === 0) return []
+  const jsonText = JSON.stringify(linestring)
+  const lats = puntos.map((p) => p.lat)
+  const lngs = puntos.map((p) => p.lng)
+  const rows = await prisma.$queryRaw<{ orden: number; fraccion: number }[]>(
+    Prisma.sql`
+      SELECT
+        p.orden::int AS orden,
+        ST_LineLocatePoint(
+          ST_GeomFromGeoJSON(${jsonText}::text)::geometry,
+          ST_SetSRID(ST_MakePoint(p.lng, p.lat), 4326)
+        )::float8 AS fraccion
+      FROM unnest(${lats}::float8[], ${lngs}::float8[]) WITH ORDINALITY AS p(lat, lng, orden)
+      ORDER BY p.orden
+    `
+  )
+  return rows.map((r) => Number(r.fraccion))
+}
+
+/**
+ * RN-034b: une el tramo de la ruta vieja que ya se recorrió (desde el origen hasta
+ * `fraccionCorte`) con el tramo nuevo que calculó el ruteo. Así quien todavía viene
+ * por detrás sobre el trazado original no queda "desviado" por el recálculo.
+ */
+export async function unirTramoRecorridoConNuevo(
+  prisma: PrismaClient,
+  rutaVieja: GeoJsonLineString,
+  fraccionCorte: number,
+  tramoNuevo: GeoJsonLineString
+): Promise<{ linestring: GeoJsonLineString; longitudM: number }> {
+  assertLineString(rutaVieja)
+  assertLineString(tramoNuevo)
+  const fraccion = Math.min(1, Math.max(0, fraccionCorte))
+  const rows = await prisma.$queryRaw<{ geojson: string; len: number }[]>(
+    Prisma.sql`
+      WITH unida AS (
+        SELECT ST_MakeLine(
+          ST_LineSubstring(ST_GeomFromGeoJSON(${JSON.stringify(rutaVieja)}::text), 0, ${fraccion}::float8),
+          ST_GeomFromGeoJSON(${JSON.stringify(tramoNuevo)}::text)
+        ) AS g
+      )
+      SELECT ST_AsGeoJSON(g) AS geojson, ST_Length(g::geography)::float8 AS len FROM unida
+    `
+  )
+  const fila = rows[0]
+  if (!fila?.geojson || typeof fila.len !== 'number' || Number.isNaN(fila.len)) {
+    throw new Error('No se pudo unir la ruta recalculada')
+  }
+  const linestring = JSON.parse(fila.geojson) as GeoJsonLineString
+  assertLineString(linestring)
+  return { linestring, longitudM: fila.len }
+}
+
 export type MetricaGpsUsuario = {
   usuario_id: string
   distancia_m: number

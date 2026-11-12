@@ -37,6 +37,9 @@ type SolicitudEntrante = {
   solicitanteId: string
   nombre: string
   motivo: string | null
+  /** Lugar propuesto (o donde estaba al pedir); el backend lo manda si lo hubo. */
+  lat: number | null
+  lng: number | null
   createdAt: string
 }
 
@@ -113,6 +116,8 @@ export function useParadas({
               solicitanteId: s.solicitante_id,
               nombre: s.solicitante_nombre ?? 'Un integrante',
               motivo: s.motivo,
+              lat: s.lat,
+              lng: s.lng,
               createdAt: s.created_at,
             }))
         )
@@ -144,6 +149,8 @@ export function useParadas({
           solicitanteId: string
           nombre: string
           motivo: string | null
+          lat: number | null
+          lng: number | null
           createdAt: string
         }) => {
           if (p.viajeId !== viajeId || !esLider) return
@@ -156,6 +163,8 @@ export function useParadas({
                     solicitanteId: p.solicitanteId,
                     nombre: p.nombre,
                     motivo: p.motivo,
+                    lat: p.lat ?? null,
+                    lng: p.lng ?? null,
                     createdAt: p.createdAt,
                   },
                   ...prev,

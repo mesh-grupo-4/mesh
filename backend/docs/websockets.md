@@ -412,6 +412,55 @@ La foto inicial se carga con `GET /api/viajes/{viajeId}/leaderboard`.
 a la velocidad esperada del viaje. El ghost tracking (RN-073) **no** usa sockets: el cliente
 descarga la traza histórica por REST y la anima localmente.
 
+### Desvío del grupo y ruta recalculada (`motorEventos.service.ts`, RN-034b)
+
+Cuando el **líder** sale de la ruta, el motor no alerta por cada integrante que lo sigue:
+le pregunta al líder si recalcular. Quien va a menos de `distancia_max_separacion` del
+líder no genera desvío individual y, mientras dure, no se evalúan atrasos.
+
+#### `viaje:desvio_grupal`
+
+Cambio de estado del desvío del grupo. La foto inicial se carga con
+`GET /api/viajes/{viajeId}/desvio-grupal`; el líder responde con
+`POST .../desvio-grupal/confirmar` o `.../desvio-grupal/rechazar`.
+
+```jsonc
+{
+  "viajeId": "3f2c9a10-...",
+  "estado": "pendiente",          // ninguno | pendiente | rechazado | recalculando
+  "desde": "2026-11-12T14:05:00.000Z",
+  "recalculo_automatico_en": "2026-11-12T14:07:00.000Z"  // solo con pendiente
+}
+```
+
+- `pendiente`: se emite al detectarlo (y se manda push solo al líder). Si el líder no
+  responde, a los 2 minutos la ruta se recalcula sola con su posición.
+- `rechazado`: el líder dijo "volvemos"; no se recalcula hasta que vuelva al trazado.
+- `ninguno`: el líder volvió a la ruta o la ruta ya se recalculó.
+
+#### `viaje:ruta_actualizada`
+
+La ruta del viaje en curso cambió. El cliente vuelve a pedir `GET /api/viajes/{viajeId}/ruta`
+(o usa `linestring` directo) y redibuja. Al recalcular se resuelven todas las alertas del
+sistema de desvío y atraso del viaje (con `viaje:alerta_actualizada`): el próximo ping de
+cada integrante las reevalúa contra la ruta nueva.
+
+```jsonc
+{
+  "viajeId": "3f2c9a10-...",
+  "motivo": "automatico",         // lider | automatico | edicion (PUT de la ruta en curso)
+  "linestring": { "type": "LineString", "coordinates": [[-64.19, -31.42], [-64.2, -31.43]] },
+  "distanciaPlaneadaM": 18450.5,
+  "tiempoEstimadoSeg": 1520,
+  "recalculadaEn": "2026-11-12T14:07:05.000Z"
+}
+```
+
+El trazado nuevo conserva el tramo ya recorrido de la ruta original y sigue desde la
+posición del líder hasta el destino, por las paradas intermedias que quedaban adelante.
+El desvío voluntario de un participante (`POST .../desvio/voluntario`) no emite eventos
+propios: solo `viaje:alerta_actualizada` al resolver su alerta.
+
 ### Paradas voluntarias e incidentes (`paradas.service.ts`, `motorEventos.service.ts`)
 
 | Evento | Cuándo |
@@ -485,6 +534,8 @@ Para paradas voluntarias, `estado` es `detenido_voluntario`. El frontend en `liv
 | `viaje:alerta` | servidor → sala | — | — |
 | `viaje:alerta_actualizada` | servidor → sala | — | — |
 | `viaje:leaderboard` | servidor → sala | — | solo viajes `competitivo` |
+| `viaje:desvio_grupal` | servidor → sala | — | confirmar/rechazar: solo el líder |
+| `viaje:ruta_actualizada` | servidor → sala | — | confirmar o editar la ruta: solo el líder |
 | `viaje:parada_iniciada` | servidor → sala | — | — |
 | `viaje:parada_finalizada` | servidor → sala | — | — |
 | `viaje:solicitud_parada` | servidor → sala | — | — |

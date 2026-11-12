@@ -143,6 +143,10 @@ tags:
       `detenido_voluntario` de un integrante se deriva de su parada abierta.
   - name: SolicitudesParada
     description: Pedidos de un integrante para que el líder autorice una parada (RN-044).
+  - name: Desvios
+    description: |
+      Desvío del grupo y desvío voluntario (RN-034b). Cuando el líder sale de la
+      ruta, el sistema le pregunta si recalcular en vez de alertar por cada integrante.
   - name: Alertas
     description: Alertas que el líder envía al grupo durante el viaje (RN-040/041/043).
   - name: Fantasma
@@ -389,6 +393,14 @@ paths:
     $ref: './paths/paradas.yaml#/ParadasColeccion'
   /api/viajes/{viajeId}/paradas/finalizar:
     $ref: './paths/paradas.yaml#/FinalizarParada'
+  /api/viajes/{viajeId}/desvio-grupal:
+    $ref: './paths/desvios.yaml#/DesvioGrupal'
+  /api/viajes/{viajeId}/desvio-grupal/confirmar:
+    $ref: './paths/desvios.yaml#/ConfirmarDesvioGrupal'
+  /api/viajes/{viajeId}/desvio-grupal/rechazar:
+    $ref: './paths/desvios.yaml#/RechazarDesvioGrupal'
+  /api/viajes/{viajeId}/desvio/voluntario:
+    $ref: './paths/desvios.yaml#/DesvioVoluntario'
   /api/viajes/{viajeId}/paradas/confirmar-bien:
     $ref: './paths/paradas.yaml#/ConfirmarEstoyBien'
   /api/viajes/{viajeId}/paradas/confirmar-mal:

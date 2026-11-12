@@ -12,6 +12,7 @@ import { checklistHandlers } from '../checklist/checklist.router'
 import { gastosHandlers } from '../gastos/gastos.router'
 import { privacidadViajeHandlers } from '../privacidad/privacidad.router'
 import { recorridoPublicadoViajeHandlers } from '../recorridos-publicados/recorridos-publicados.router'
+import { desviosHandlers } from '../desvios/desvios.router'
 
 const service = new ViajesService(prisma)
 const c = crearViajesController(service)
@@ -86,6 +87,12 @@ viajesRouter.post(
   '/:viajeId/solicitudes-parada/:solicitudId/cancelar',
   ...paradasHandlers.cancelarSolicitud
 )
+
+// Desvío del grupo y desvío voluntario (RN-034b).
+viajesRouter.get('/:viajeId/desvio-grupal', ...desviosHandlers.estado)
+viajesRouter.post('/:viajeId/desvio-grupal/confirmar', ...desviosHandlers.confirmar)
+viajesRouter.post('/:viajeId/desvio-grupal/rechazar', ...desviosHandlers.rechazar)
+viajesRouter.post('/:viajeId/desvio/voluntario', ...desviosHandlers.voluntario)
 
 // Alertas del viaje (US1, RN-040 / RN-041).
 viajesRouter.get('/:viajeId/alertas', ...alertasHandlers.listar)

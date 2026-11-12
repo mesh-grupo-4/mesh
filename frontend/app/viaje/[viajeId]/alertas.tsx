@@ -22,6 +22,7 @@ import {
   type EstadoAlertaApi,
   type TipoAlertaApi,
 } from '@/lib/alertasApi'
+import { pedirEnfoqueMapa } from '@/lib/enfoqueMapa'
 import { meshAlert } from '@/lib/meshAlert'
 import { formatearEnArg } from '@/lib/tiempoArg'
 import { obtenerViaje, type ViajeDetalleApi } from '@/lib/viajesApi'
@@ -81,8 +82,19 @@ export default function AlertasViajeScreen() {
   const puedeCrear =
     viaje?.estado === 'en_curso' &&
     (esLider || (viaje?.alertas_solo_lider ?? true) === false)
-  // RN-042: pausar / cancelar / resolver es del líder, con el viaje en curso.
+  // RN-042: cancelar / resolver es del líder, con el viaje en curso.
   const puedeGestionar = esLider && viaje?.estado === 'en_curso'
+
+  /** Vuelve al mapa en vivo centrado en la alerta. */
+  const handleVerEnMapa = useCallback(
+    (alerta: AlertaApi) => {
+      if (!viajeId || alerta.lat == null || alerta.lng == null) return
+      pedirEnfoqueMapa({ viajeId, lat: alerta.lat, lng: alerta.lng })
+      if (router.canGoBack()) router.back()
+      else router.replace({ pathname: '/viaje/[viajeId]/live', params: { viajeId } })
+    },
+    [router, viajeId]
+  )
 
   const handleCambiarEstado = useCallback(
     (alertaId: string, estado: EstadoAlertaApi) => {
@@ -187,6 +199,7 @@ export default function AlertasViajeScreen() {
             theme={theme}
             gestionable={puedeGestionar}
             onCambiarEstado={handleCambiarEstado}
+            onVerEnMapa={handleVerEnMapa}
           />
         ))}
       </ScrollView>
@@ -216,17 +229,21 @@ function TarjetaAlerta({
   theme,
   gestionable,
   onCambiarEstado,
+  onVerEnMapa,
 }: {
   alerta: AlertaApi
   theme: ReturnType<typeof useTheme>
   gestionable: boolean
   onCambiarEstado: (alertaId: string, estado: EstadoAlertaApi) => void
+  onVerEnMapa: (alerta: AlertaApi) => void
 }) {
   const meta = metaTipoAlerta(alerta.tipo)
   const mensaje = mensajeAlertaVisible(alerta.mensaje)
   const cerrada = alertaCerrada(alerta)
   const colorTipo = cerrada ? theme.textDim : meta.color
   const transiciones = gestionable ? TRANSICIONES_ALERTA[alerta.estado] : []
+  // Solo las activas con ubicación tienen marcador en el mapa en vivo.
+  const verEnMapa = alerta.estado === 'activa' && alerta.lat != null && alerta.lng != null
   return (
     <View
       style={[
@@ -269,8 +286,13 @@ function TarjetaAlerta({
         {alerta.lat != null && alerta.lng != null ? ' · con ubicación' : ''}
       </Text>
 
-      {transiciones.length > 0 ? (
+      {verEnMapa || transiciones.length > 0 ? (
         <View style={styles.acciones}>
+          {verEnMapa ? (
+            <Btn size="sm" variant="outline" onPress={() => onVerEnMapa(alerta)}>
+              Ver en el mapa
+            </Btn>
+          ) : null}
           {transiciones.map((estado) => (
             <Btn
               key={estado}

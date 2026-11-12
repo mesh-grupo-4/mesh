@@ -20,3 +20,13 @@ export const calcularRutaSchema = z.object({
 
 export type PerfilRuta = z.infer<typeof perfilRutaSchema>
 export type CalcularRutaInput = z.infer<typeof calcularRutaSchema>
+
+/**
+ * Perfil de ruteo según la actividad del viaje. Espejo de `perfilOsrmDesdeActividad`
+ * en `frontend/lib/osrm.ts`: el backend lo necesita para recalcular la ruta en vivo.
+ */
+export function perfilRutaDesdeActividad(tipo: string): PerfilRuta {
+  if (tipo === 'moto' || tipo === 'auto') return 'driving'
+  if (tipo === 'bici') return 'cycling'
+  return 'walking'
+}

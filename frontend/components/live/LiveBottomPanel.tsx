@@ -1,5 +1,9 @@
 import { Feather } from '@expo/vector-icons'
-import BottomSheet, { BottomSheetView } from '@gorhom/bottom-sheet'
+import BottomSheet, {
+  BottomSheetBackdrop,
+  BottomSheetView,
+  type BottomSheetBackdropProps,
+} from '@gorhom/bottom-sheet'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { LayoutChangeEvent, StyleSheet, Text, View } from 'react-native'
 import { Pressable } from '@/components/Pressable'
@@ -102,6 +106,21 @@ export function LiveBottomPanel({
     reportHeight(sheetIndex)
   }, [reportHeight, sheetIndex, collapsedSnap, expandedSnap])
 
+  // Desplegado, tocar afuera (el mapa) lo vuelve a bajar. Plegado no bloquea el mapa:
+  // el backdrop deja de recibir toques en el índice 0.
+  const renderBackdrop = useCallback(
+    (props: BottomSheetBackdropProps) => (
+      <BottomSheetBackdrop
+        {...props}
+        appearsOnIndex={1}
+        disappearsOnIndex={0}
+        pressBehavior="collapse"
+        opacity={0.15}
+      />
+    ),
+    []
+  )
+
   const onMetricsLayout = (e: LayoutChangeEvent) => {
     const h = Math.ceil(e.nativeEvent.layout.height)
     if (h > 0 && h !== metricsHeight) setMetricsHeight(h)
@@ -118,6 +137,7 @@ export function LiveBottomPanel({
       snapPoints={snapPoints}
       bottomInset={insets.bottom}
       animatedPosition={posicionAnimada}
+      backdropComponent={renderBackdrop}
       onChange={(index) => {
         setSheetIndex(index)
         reportHeight(index)

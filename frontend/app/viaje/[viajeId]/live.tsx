@@ -1,8 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as Location from 'expo-location'
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated'
 import {
@@ -20,7 +20,7 @@ import { AlertaGrupalBanner } from '@/components/live/AlertaGrupalBanner'
 import { AlertasButton } from '@/components/live/AlertasButton'
 import { AjustesViajeSheet } from '@/components/live/AjustesViajeSheet'
 import { CategoriaParadaSheet } from '@/components/live/CategoriaParadaSheet'
-import { CrearAlertaSheet } from '@/components/live/CrearAlertaSheet'
+import { CrearAlertaSheet, type AlertaInicial } from '@/components/live/CrearAlertaSheet'
 import { CenterLocationButton } from '@/components/live/CenterLocationButton'
 import { CercaMioButton } from '@/components/live/CercaMioButton'
 import { LugaresSugeridosModal } from '@/components/lugares/LugaresSugeridosModal'
@@ -28,6 +28,11 @@ import { ParadaVoluntariaBanner } from '@/components/live/ParadaVoluntariaBanner
 import { SolicitudParadaBanner } from '@/components/live/SolicitudParadaBanner'
 import { LlegadaDestinoBanner } from '@/components/live/LlegadaDestinoBanner'
 import { EstoyBienBanner } from '@/components/live/EstoyBienBanner'
+import { DesvioGrupalBanner } from '@/components/live/DesvioGrupalBanner'
+import { DesvioPropioBanner } from '@/components/live/DesvioPropioBanner'
+import { useDesvioGrupal } from '@/hooks/useDesvioGrupal'
+import { avisarDesvioVoluntario } from '@/lib/desvioApi'
+import type { RutaDetalleApi } from '@/lib/viajesTypes'
 import { FantasmaPanel } from '@/components/live/FantasmaPanel'
 import { FantasmaPickerModal } from '@/components/live/FantasmaPickerModal'
 import { LeaderboardPanel } from '@/components/live/LeaderboardPanel'
@@ -58,13 +63,19 @@ import { uiConfigPorActividad } from '@/lib/activityUi'
 import { esMotorizado } from '@/lib/activityDefaults'
 import type { RouteStop } from '@/lib/geo/nextStop'
 import { haversineDistanceM } from '@/lib/geo/haversine'
-import { buscarLugaresCercanos, type CategoriaLugar, type LugarSugerido } from '@/lib/lugaresApi'
+import {
+  buscarLugaresCercanos,
+  CATEGORIAS_LUGAR,
+  type CategoriaLugar,
+  type LugarSugerido,
+} from '@/lib/lugaresApi'
 import { calcularGuiaHastaDestino } from '@/lib/osrmGuia'
 import { useHapticaAlEntrar, useHapticaCriticaRepetida } from '@/lib/haptics'
 import { avisarEnSegundoPlano, marcarViajeEnPantalla } from '@/hooks/usePushNotifications'
 import { formatPaceMinKm, formatSpeedKmh } from '@/lib/format'
 import { nombreCompleto } from '@/lib/nombres'
-import { gravedadAlerta, type TipoAlertaApi } from '@/lib/alertasApi'
+import { gravedadAlerta, usuarioAfectadoDesdeMensaje, type TipoAlertaApi } from '@/lib/alertasApi'
+import { tomarEnfoqueMapa } from '@/lib/enfoqueMapa'
 import type { CategoriaParadaApi } from '@/lib/paradasApi'
 import { motivoParadaLegible } from '@/lib/paradasApi'
 import { waypointTieneCoords } from '@/components/route-config/routeTypes'
@@ -137,6 +148,8 @@ export default function ViajeLiveScreen() {
   const [accion, setAccion] = useState(false)
   const [eligiendoCategoria, setEligiendoCategoria] = useState(false)
   const [componiendoAlerta, setComponiendoAlerta] = useState(false)
+  /** Alerta ya armada con un lugar ("Vamos todos" o un pedido aprobado); null = sheet vacío. */
+  const [alertaInicial, setAlertaInicial] = useState<AlertaInicial | null>(null)
   const [eligiendoFantasma, setEligiendoFantasma] = useState(false)
   const [buscandoCerca, setBuscandoCerca] = useState(false)
   const [ajustando, setAjustando] = useState(false)
@@ -354,6 +367,59 @@ export default function ViajeLiveScreen() {
     viaje?.estado === 'en_curso' &&
     (esLider || (sumado && (viaje?.alertas_solo_lider ?? true) === false))
 
+  /** "Baño en YPF Ruta 20": nombra el lugar en la alerta o en el pedido de parada. */
+  const describirLugar = (lugar: LugarSugerido, categoria: CategoriaLugar) => {
+    const etiqueta = CATEGORIAS_LUGAR.find((c) => c.value === categoria)?.label ?? 'Parada'
+    return `${etiqueta} en ${lugar.nombre}`
+  }
+
+  const abrirAlertaConLugar = (inicial: AlertaInicial) => {
+    setAlertaInicial(inicial)
+    setComponiendoAlerta(true)
+  }
+
+  /** Quien puede avisar al grupo lo lleva directo: abre la alerta ya armada para confirmar. */
+  const llevarAlGrupo = (lugar: LugarSugerido, categoria: CategoriaLugar) => {
+    setBuscandoCerca(false)
+    const descripcion = describirLugar(lugar, categoria)
+    abrirAlertaConLugar({
+      tipo: categoria === 'combustible' ? 'combustible' : 'parada',
+      mensaje: `Paramos: ${descripcion}.`,
+      ubicacion: { lat: lugar.lat, lng: lugar.lng },
+      nombreUbicacion: lugar.nombre,
+    })
+  }
+
+  /** El resto lo propone: le llega al líder como pedido de parada con el lugar (RN-030). */
+  const proponerAlGrupo = (lugar: LugarSugerido, categoria: CategoriaLugar) => {
+    setBuscandoCerca(false)
+    if (miSolicitud?.estado === 'pendiente') {
+      meshAlert(
+        'Ya tenés un pedido enviado',
+        'El líder todavía no respondió tu pedido de parada. Te avisamos apenas lo haga.'
+      )
+      return
+    }
+    void (async () => {
+      try {
+        await pedirParada({ lat: lugar.lat, lng: lugar.lng, motivo: describirLugar(lugar, categoria) })
+        meshAlert(
+          'Propuesta enviada',
+          'Le avisamos al líder. Si la aprueba, el grupo recibe el lugar para ir todos.'
+        )
+      } catch (e) {
+        meshAlert('No se pudo enviar', mensajeDeError(e))
+      }
+    })()
+  }
+
+  // En un viaje grupal, "Cerca mío" también sirve para ir todos juntos al lugar.
+  const accionGrupoLugar = puedeCrearAlertas
+    ? { label: 'Vamos todos', onElegir: llevarAlGrupo }
+    : puedeSolicitarParada
+      ? { label: 'Proponer al grupo', onElegir: proponerAlGrupo }
+      : null
+
   // RN-030: el backend valida ambos; acá solo se decide qué accesos mostrar.
   const puedeGastos = viaje?.estado === 'en_curso' && viaje.es_grupal && sumado
   // RN-025: el líder corrige en vivo parámetros que disparan alertas de más.
@@ -484,6 +550,88 @@ export default function ViajeLiveScreen() {
     if (userId.trim()) void AsyncStorage.setItem('mesh:activeUserId', userId.trim())
   }, [userId])
 
+  /** Dibuja el trazado y arma las paradas del mapa a partir de la ruta del viaje. */
+  const aplicarRuta = useCallback((ruta: RutaDetalleApi | null) => {
+    if (ruta?.linestring) {
+      setRouteLine(linestringToLatLng(ruta.linestring))
+      const h = waypointsFromRutaDetalle(ruta)
+      // Un waypoint sin coordenadas (parada sin geocodificar) no puede ser
+      // "próxima parada": metía NaN en el ETA y en la detección de llegada.
+      const stops: RouteStop[] = []
+      if (waypointTieneCoords(h.origen)) {
+        stops.push({ lat: h.origen.lat, lng: h.origen.lon, name: h.origen.name || 'Origen', type: 'ORIGIN' })
+      }
+      for (const p of h.paradas) {
+        if (!waypointTieneCoords(p)) continue
+        stops.push({ lat: p.lat, lng: p.lon, name: p.name || 'Parada', type: 'STOP' })
+      }
+      if (waypointTieneCoords(h.destino)) {
+        stops.push({
+          lat: h.destino.lat,
+          lng: h.destino.lon,
+          name: h.destino.name || 'Destino',
+          type: 'DESTINATION',
+        })
+      }
+      setRouteStops(stops)
+    } else {
+      setRouteStops([])
+    }
+  }, [])
+
+  // RN-034b: desvío del grupo. Si la ruta cambia (recalculada o editada), se vuelve a
+  // pedir completa: las paradas pendientes y el destino salen de la misma respuesta.
+  const {
+    desvio: desvioGrupal,
+    ocupado: desvioOcupado,
+    confirmar: confirmarDesvio,
+    rechazar: rechazarDesvio,
+  } = useDesvioGrupal({
+    viajeId: viajeId ?? '',
+    habilitado: Boolean(viajeId && userId.trim()) && viaje?.estado === 'en_curso',
+    onRutaActualizada: (evento) => {
+      setRouteLine(linestringToLatLng(evento.linestring))
+      if (!viajeId) return
+      void obtenerRuta(viajeId, userId)
+        .then(aplicarRuta)
+        .catch(() => {
+          /* ya se dibujó el trazado del evento */
+        })
+    },
+  })
+
+  /** RN-034b: alerta de desvío abierta sobre uno mismo (solo participantes; el líder tiene la grupal). */
+  const miDesvio = useMemo(
+    () =>
+      alertas.find(
+        (a) =>
+          a.estado === 'activa' &&
+          a.origen === 'sistema' &&
+          a.tipo === 'desvio' &&
+          usuarioAfectadoDesdeMensaje(a.mensaje) === userId
+      ) ?? null,
+    [alertas, userId]
+  )
+  const [avisandoDesvio, setAvisandoDesvio] = useState(false)
+
+  const handleRecalcularRuta = () => {
+    void confirmarDesvio().catch((e: unknown) =>
+      meshAlert('No se pudo recalcular la ruta', mensajeDeError(e))
+    )
+  }
+
+  const handleVolvemosALaRuta = () => {
+    void rechazarDesvio().catch((e: unknown) => meshAlert('No se pudo guardar', mensajeDeError(e)))
+  }
+
+  const handleDesvioAProposito = () => {
+    if (!viajeId) return
+    setAvisandoDesvio(true)
+    void avisarDesvioVoluntario(viajeId)
+      .catch((e: unknown) => meshAlert('No se pudo avisar', mensajeDeError(e)))
+      .finally(() => setAvisandoDesvio(false))
+  }
+
   useEffect(() => {
     if (!viajeId || !userId.trim()) return
     let cancelled = false
@@ -500,31 +648,7 @@ export default function ViajeLiveScreen() {
         setViaje(v)
         setParticipantes(parts)
         setCheckInLocal(checkInPendienteLocal(viajeId, userId))
-        if (ruta?.linestring) {
-          setRouteLine(linestringToLatLng(ruta.linestring))
-          const h = waypointsFromRutaDetalle(ruta)
-          // Un waypoint sin coordenadas (parada sin geocodificar) no puede ser
-          // "próxima parada": metía NaN en el ETA y en la detección de llegada.
-          const stops: RouteStop[] = []
-          if (waypointTieneCoords(h.origen)) {
-            stops.push({ lat: h.origen.lat, lng: h.origen.lon, name: h.origen.name || 'Origen', type: 'ORIGIN' })
-          }
-          for (const p of h.paradas) {
-            if (!waypointTieneCoords(p)) continue
-            stops.push({ lat: p.lat, lng: p.lon, name: p.name || 'Parada', type: 'STOP' })
-          }
-          if (waypointTieneCoords(h.destino)) {
-            stops.push({
-              lat: h.destino.lat,
-              lng: h.destino.lon,
-              name: h.destino.name || 'Destino',
-              type: 'DESTINATION',
-            })
-          }
-          setRouteStops(stops)
-        } else {
-          setRouteStops([])
-        }
+        aplicarRuta(ruta)
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -859,15 +983,28 @@ export default function ViajeLiveScreen() {
   }
 
   const handleResponderSolicitud = (
-    solicitudId: string,
+    solicitud: (typeof pendientes)[number],
     decision: 'aprobada' | 'rechazada'
   ) => {
     void (async () => {
       try {
-        await responderSolicitud(solicitudId, decision)
+        await responderSolicitud(solicitud.solicitudId, decision)
       } catch (e) {
         meshAlert('No se pudo responder', mensajeDeError(e))
+        return
       }
+      // Propuesta con lugar ("Cerca mío"): aprobar solo le avisa al que la pidió,
+      // así que se abre la alerta ya armada para que el grupo reciba el lugar.
+      // El pedido simple de parada manda la posición pero no un motivo: no aplica.
+      if (decision !== 'aprobada' || solicitud.lat == null || solicitud.lng == null || !solicitud.motivo) {
+        return
+      }
+      abrirAlertaConLugar({
+        tipo: 'parada',
+        mensaje: `Paramos: ${solicitud.motivo}.`,
+        ubicacion: { lat: solicitud.lat, lng: solicitud.lng },
+        nombreUbicacion: solicitud.motivo,
+      })
     })()
   }
 
@@ -950,6 +1087,18 @@ export default function ViajeLiveScreen() {
     marcarViajeEnPantalla(viajeId)
     return () => marcarViajeEnPantalla(null)
   }, [viajeId])
+
+  // "Ver en el mapa" desde Alertas: al volver, centra en la alerta. Como un
+  // arrastre manual, pausa el "seguirme" para que no se pise con el próximo tick.
+  useFocusEffect(
+    useCallback(() => {
+      if (!viajeId) return
+      const enfoque = tomarEnfoqueMapa(viajeId)
+      if (!enfoque) return
+      setSiguiendo(false)
+      mapRef.current?.focusOnCoordinate(enfoque.lat, enfoque.lng)
+    }, [viajeId])
+  )
   const bottomCentrar = (altoBotonera || 130) + 12
   const extraIncidente = incidentePropio ? 236 : 0
   const altoFlotantesInferiores = Math.round(48 * uiConfig.escalaBotones)
@@ -1098,9 +1247,25 @@ export default function ViajeLiveScreen() {
             motivo={pendientes[0].motivo}
             restantes={pendientes.length}
             ocupado={paradaEnCurso}
-            onAprobar={() => handleResponderSolicitud(pendientes[0]!.solicitudId, 'aprobada')}
-            onRechazar={() => handleResponderSolicitud(pendientes[0]!.solicitudId, 'rechazada')}
+            onAprobar={() => handleResponderSolicitud(pendientes[0]!, 'aprobada')}
+            onRechazar={() => handleResponderSolicitud(pendientes[0]!, 'rechazada')}
           />
+        ) : null}
+
+        {/* RN-034b: el líder decide si el grupo cambió de camino. */}
+        {esLider && (desvioGrupal.estado === 'pendiente' || desvioGrupal.estado === 'recalculando') ? (
+          <DesvioGrupalBanner
+            recalculoAutomaticoEn={desvioGrupal.recalculo_automatico_en}
+            recalculando={desvioGrupal.estado === 'recalculando'}
+            ocupado={desvioOcupado}
+            onRecalcular={handleRecalcularRuta}
+            onVolvemos={handleVolvemosALaRuta}
+          />
+        ) : null}
+
+        {/* RN-034b: el participante avisa si su desvío es a propósito. */}
+        {!esLider && miDesvio ? (
+          <DesvioPropioBanner ocupado={avisandoDesvio} onAProposito={handleDesvioAProposito} />
         ) : null}
       </View>
 
@@ -1115,7 +1280,14 @@ export default function ViajeLiveScreen() {
               cantidad={alertasNoVistas}
               topOffset={topFlotantes + 14}
               onPress={irAAlertas}
-              onCrear={puedeCrearAlertas ? () => setComponiendoAlerta(true) : undefined}
+              onCrear={
+                puedeCrearAlertas
+                  ? () => {
+                      setAlertaInicial(null)
+                      setComponiendoAlerta(true)
+                    }
+                  : undefined
+              }
               onFantasma={permiteComparar ? () => setEligiendoFantasma(true) : undefined}
               fantasmaActivo={fantasmaActivo}
               tipoActividad={tipoActividad}
@@ -1265,11 +1437,17 @@ export default function ViajeLiveScreen() {
       <LugaresSugeridosModal
         visible={buscandoCerca}
         titulo="Cerca mío"
-        subtitulo="Lugares a menos de 5 km"
-        accionLabel="Ir"
+        subtitulo={
+          accionGrupoLugar ? 'Lugares a menos de 5 km, para vos o para todo el grupo' : 'Lugares a menos de 5 km'
+        }
+        // Con grupo, la acción principal lleva a todos y "Solo yo" queda como la guía personal.
+        accionLabel={accionGrupoLugar?.label ?? 'Ir'}
+        onElegir={accionGrupoLugar?.onElegir ?? ((lugar) => void irALugar(lugar))}
+        accionSecundaria={
+          accionGrupoLugar ? { label: 'Solo yo', onElegir: (lugar) => void irALugar(lugar) } : undefined
+        }
         buscar={buscarCercaMio}
         detalle={distanciaHastaLugar}
-        onElegir={(lugar) => void irALugar(lugar)}
         onCerrar={() => setBuscandoCerca(false)}
       />
 
@@ -1294,6 +1472,7 @@ export default function ViajeLiveScreen() {
       <CrearAlertaSheet
         visible={componiendoAlerta}
         enviando={alertaEnviando}
+        inicial={alertaInicial}
         centroMapaInicial={centroMapaAlerta}
         onPublicar={handlePublicarAlerta}
         onCancelar={() => setComponiendoAlerta(false)}

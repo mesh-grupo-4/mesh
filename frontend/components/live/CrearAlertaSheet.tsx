@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
-  Keyboard,
   KeyboardAvoidingView,
   Modal,
   ScrollView,
@@ -17,22 +16,34 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { DragToDismiss } from '@/components/DragToDismiss'
 import { useTheme } from '@/components/MeshUI'
-import { useSugerenciasLugares } from '@/hooks/useSugerenciasLugares'
 import {
   MENSAJE_PREDETERMINADO,
   TIPOS_ALERTA,
   type TipoAlertaApi,
 } from '@/lib/alertasApi'
-import { MIN_LETRAS_SUGERENCIAS, type LugarSugerencia } from '@/lib/nominatim'
 
 import { AlertaMapPickModal } from './AlertaMapPickModal'
 
 type UbicacionAlerta = { lat: number; lng: number }
 
-/** US1: el líder o integrante elige tipo, mensaje y opcionalmente marca parada en mapa. */
+/** Alerta ya armada desde un lugar elegido en "Cerca mío" o un pedido aprobado. */
+export type AlertaInicial = {
+  tipo: TipoAlertaApi
+  mensaje: string
+  ubicacion: UbicacionAlerta
+  nombreUbicacion: string
+}
+
+/**
+ * US1: el líder o integrante elige tipo, mensaje y opcionalmente marca parada en mapa.
+ * Los lugares con nombre (estaciones, baños, comida) se eligen desde "Cerca mío",
+ * que abre este sheet ya completo con `inicial`.
+ */
 type Props = {
   visible: boolean
   enviando: boolean
+  /** Se aplica cada vez que el sheet se abre; sin él arranca vacío. */
+  inicial?: AlertaInicial | null
   /** Centro inicial para el picker de mapa (posición actual o fallback). */
   centroMapaInicial: { latitude: number; longitude: number }
   onPublicar: (tipo: TipoAlertaApi, mensaje: string, ubicacion?: UbicacionAlerta) => void
@@ -44,6 +55,7 @@ const MAX_MENSAJE = 280
 export function CrearAlertaSheet({
   visible,
   enviando,
+  inicial,
   centroMapaInicial,
   onPublicar,
   onCancelar,
@@ -54,26 +66,10 @@ export function CrearAlertaSheet({
   const [ubicacion, setUbicacion] = useState<UbicacionAlerta | null>(null)
   const [eligiendoMapa, setEligiendoMapa] = useState(false)
   const [nombreUbicacion, setNombreUbicacion] = useState<string | null>(null)
-  const [busqueda, setBusqueda] = useState('')
-  const {
-    sugerencias: hits,
-    buscando,
-    error: errorBusqueda,
-    sinResultados,
-    resolver,
-  } = useSugerenciasLugares(busqueda, {
-    activo: visible,
-    cerca: { lat: centroMapaInicial.latitude, lng: centroMapaInicial.longitude },
-  })
   const tipoAnterior = useRef(tipo)
   const theme = useTheme()
   const insets = useSafeAreaInsets()
-  const scrollRef = useRef<ScrollView>(null)
-  const yBusqueda = useRef(0)
   const styles = useMemo(() => crearEstilos(theme), [theme])
-
-  // Con el texto vacío el hook vacía solo sugerencias y error.
-  const limpiarBusqueda = () => setBusqueda('')
 
   const quitarUbicacion = () => {
     setUbicacion(null)
@@ -82,29 +78,30 @@ export function CrearAlertaSheet({
 
   useEffect(() => {
     if (!visible) return
+    if (inicial) {
+      setTipo(inicial.tipo)
+      setMensaje(inicial.mensaje.slice(0, MAX_MENSAJE))
+      // Nombra el lugar: cambiar el tipo no debe pisarlo con el predeterminado.
+      setMensajeEditado(true)
+      setUbicacion(inicial.ubicacion)
+      setNombreUbicacion(inicial.nombreUbicacion)
+      tipoAnterior.current = inicial.tipo
+      return
+    }
     setTipo('informacion')
     setMensaje(MENSAJE_PREDETERMINADO.informacion)
     setMensajeEditado(false)
     quitarUbicacion()
-    limpiarBusqueda()
     tipoAnterior.current = 'informacion'
+    // Solo al abrir: `inicial` llega junto con `visible`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible])
-
-  const elegirHit = async (sugerencia: LugarSugerencia) => {
-    const hit = await resolver(sugerencia)
-    if (!hit || Number.isNaN(hit.lat) || Number.isNaN(hit.lng)) return
-    setUbicacion({ lat: hit.lat, lng: hit.lng })
-    setNombreUbicacion(hit.nombre)
-    limpiarBusqueda()
-    Keyboard.dismiss()
-  }
 
   const cerrar = () => {
     setMensaje(MENSAJE_PREDETERMINADO.informacion)
     setMensajeEditado(false)
     setTipo('informacion')
     quitarUbicacion()
-    limpiarBusqueda()
     onCancelar()
   }
 
@@ -117,18 +114,12 @@ export function CrearAlertaSheet({
     tipoAnterior.current = nuevo
   }
 
-  /** Se espera a que suba el teclado: antes de eso el scroll todavía no tiene su altura final. */
-  const mostrarBusqueda = () => {
-    setTimeout(() => scrollRef.current?.scrollTo({ y: yBusqueda.current, animated: true }), 300)
-  }
-
   const publicar = () => {
     onPublicar(tipo, mensaje.trim(), ubicacion ?? undefined)
     setMensaje(MENSAJE_PREDETERMINADO.informacion)
     setMensajeEditado(false)
     setTipo('informacion')
     quitarUbicacion()
-    limpiarBusqueda()
   }
 
   return (
@@ -151,7 +142,6 @@ export function CrearAlertaSheet({
             }
           >
             <ScrollView
-              ref={scrollRef}
               bounces={false}
               keyboardShouldPersistTaps="handled"
               keyboardDismissMode="on-drag"
@@ -197,14 +187,7 @@ export function CrearAlertaSheet({
                 {mensaje.length}/{MAX_MENSAJE}
               </Text>
 
-              <Text
-                style={styles.label}
-                onLayout={(e) => {
-                  yBusqueda.current = e.nativeEvent.layout.y
-                }}
-              >
-                Dónde paran (opcional)
-              </Text>
+              <Text style={styles.label}>Dónde paran (opcional)</Text>
               {ubicacion ? (
                 <View style={styles.ubicacionRow}>
                   <Text style={styles.ubicacionTxt} numberOfLines={2}>
@@ -216,44 +199,9 @@ export function CrearAlertaSheet({
                 </View>
               ) : (
                 <>
-                  <TextInput
-                    style={styles.inputBusqueda}
-                    value={busqueda}
-                    onChangeText={setBusqueda}
-                    onFocus={mostrarBusqueda}
-                    placeholder="Buscar lugar (ej. YPF Ruta 20)"
-                    placeholderTextColor={theme.textMute}
-                    autoCorrect={false}
-                    autoCapitalize="none"
-                    returnKeyType="search"
-                    accessibilityLabel="Buscar el lugar donde van a parar"
-                  />
-                  {busqueda.trim().length >= MIN_LETRAS_SUGERENCIAS ? (
-                    <View style={styles.sugerencias}>
-                      {errorBusqueda ? (
-                        <Text style={[styles.sugerenciaInfo, styles.sugerenciaError]}>{errorBusqueda}</Text>
-                      ) : hits.length === 0 ? (
-                        sinResultados && !buscando ? (
-                          <Text style={styles.sugerenciaInfo}>Sin resultados. Probá otro texto o el mapa.</Text>
-                        ) : (
-                          <ActivityIndicator size="small" color={theme.accent} style={styles.sugerenciaInfo} />
-                        )
-                      ) : (
-                        // Las sugerencias anteriores quedan a la vista mientras llega la siguiente búsqueda.
-                        hits.map((hit, i) => (
-                          <Pressable
-                            key={hit.placeId ?? `${hit.lat},${hit.lng}-${i}`}
-                            style={({ pressed }) => [styles.sugerencia, pressed && styles.presionado]}
-                            onPress={() => void elegirHit(hit)}
-                          >
-                            <Text style={styles.sugerenciaTxt} numberOfLines={2}>
-                              {hit.nombre}
-                            </Text>
-                          </Pressable>
-                        ))
-                      )}
-                    </View>
-                  ) : null}
+                  <Text style={styles.ayudaUbicacion}>
+                    Para estaciones, baños o comida usá el botón 📍 del mapa.
+                  </Text>
                   <Pressable
                     style={({ pressed }) => [styles.marcarMapa, pressed && styles.presionado]}
                     onPress={() => setEligiendoMapa(true)}
@@ -304,7 +252,6 @@ export function CrearAlertaSheet({
         onConfirm={(punto) => {
           setUbicacion(punto)
           setNombreUbicacion(null)
-          limpiarBusqueda()
           setEligiendoMapa(false)
         }}
         onCancel={() => setEligiendoMapa(false)}
@@ -400,41 +347,9 @@ const crearEstilos = (theme: Tema) =>
     fontSize: 12,
     color: theme.textMute,
   },
-  inputBusqueda: {
-    minHeight: 48,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: theme.border,
-    backgroundColor: theme.surface2,
-    paddingHorizontal: 12,
-    fontSize: 16,
-    color: theme.text,
-  },
-  sugerencias: {
-    marginTop: 6,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: theme.border,
-    backgroundColor: theme.surface,
-    overflow: 'hidden',
-  },
-  sugerencia: {
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: theme.border,
-  },
-  sugerenciaTxt: {
-    fontSize: 15,
-    color: theme.text,
-  },
-  sugerenciaInfo: {
-    padding: 12,
+  ayudaUbicacion: {
     fontSize: 14,
     color: theme.textDim,
-  },
-  sugerenciaError: {
-    color: theme.danger,
   },
   marcarMapa: {
     marginTop: 8,

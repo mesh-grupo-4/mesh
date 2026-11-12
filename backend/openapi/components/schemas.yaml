@@ -31,6 +31,7 @@ ErrorCode:
     # Autorización (RN-030 / RN-011)
     - NOT_CREATOR
     - NOT_GROUP_LEADER
+    - NOT_LEADER
     - NOT_GROUP_MEMBER
     - NOT_SOURCE_GROUP_MEMBER
     - NOT_PARTICIPANT
@@ -84,6 +85,10 @@ ErrorCode:
     - SIN_INCIDENTE_ABIERTO
     - AYUDA_YA_PEDIDA
     - SIN_PEDIDO_AYUDA
+    # Desvío del grupo (RN-034b)
+    - SIN_DESVIO_PENDIENTE
+    - SIN_DESVIO_ACTIVO
+    - RECALCULO_EN_CURSO
     - ES_LIDER
     - SOLICITUD_PENDIENTE
     - SOLICITUD_RESUELTA
@@ -109,6 +114,7 @@ ErrorCode:
     - SHARE_REVOKED
     - SHARE_SNAPSHOT_INVALID
     - RUTA_INCOMPLETA
+    - SIN_RUTA
     - ROUTE_COMPUTE_FAILED
     # Geocoding — proxy a Google Places/Geocoding con Nominatim de respaldo (src/modules/geocoding/)
     - GEOCODING_TIMEOUT
@@ -7101,4 +7107,63 @@ RenombrarCircuitoRequest:
       minLength: 1
       maxLength: 100
       example: Vuelta al lago
+  additionalProperties: false
+
+# --- Desvío del grupo (RN-034b) ---
+
+DesvioGrupal:
+  type: object
+  description: Estado del desvío del grupo, que marca el líder al salir de la ruta.
+  required:
+    - estado
+    - desde
+    - recalculo_automatico_en
+  properties:
+    estado:
+      type: string
+      enum: [ninguno, pendiente, rechazado, recalculando]
+      example: pendiente
+    desde:
+      type: string
+      format: date-time
+      nullable: true
+      description: Cuándo se detectó el desvío (UTC). `null` con `ninguno`.
+      example: '2026-11-12T14:05:00.000Z'
+    recalculo_automatico_en:
+      type: string
+      format: date-time
+      nullable: true
+      description: |
+        Solo con `pendiente`: cuándo se recalcula sola la ruta si el líder no responde
+        (2 minutos después de `desde`).
+      example: '2026-11-12T14:07:00.000Z'
+  additionalProperties: false
+
+RutaRecalculada:
+  type: object
+  description: |
+    Trazado nuevo del viaje en curso: el tramo ya recorrido de la ruta original más
+    el tramo calculado desde la posición del líder hasta el destino.
+  required:
+    - linestring
+    - distancia_planeada_m
+    - tiempo_estimado_seg
+    - paradas_pendientes
+  properties:
+    linestring:
+      $ref: '#/GeoJsonLineString'
+    distancia_planeada_m:
+      type: number
+      format: double
+      description: Longitud del trazado completo, en metros.
+      example: 18450.5
+    tiempo_estimado_seg:
+      type: integer
+      nullable: true
+      description: Tiempo estimado del trazado completo, en segundos.
+      example: 1520
+    paradas_pendientes:
+      type: integer
+      description: Paradas intermedias que quedaban por delante y se incluyeron en el tramo nuevo.
+      example: 1
   additionalProperties: false

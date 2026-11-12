@@ -47,6 +47,7 @@ function agregarSinDuplicar(prev: AlertaApi[], alerta: AlertaApi): AlertaApi[] {
  * Qué alertas merecen banner: las de otros integrantes y las del motor de
  * eventos (desvío, atraso, posible incidente), que antes solo llegaban por push.
  * El afectado por un posible incidente no la ve acá: ya tiene el banner "Estoy bien".
+ * Tampoco el afectado por un desvío: tiene el banner "Me desvío a propósito" (RN-034b).
  */
 function esAlertaParaBanner(alerta: AlertaApi, userId: string | undefined, vistas: Set<string>): boolean {
   if (vistas.has(alerta.id)) return false
@@ -56,7 +57,7 @@ function esAlertaParaBanner(alerta: AlertaApi, userId: string | undefined, vista
   const afectadoYo =
     userId != null &&
     alerta.origen === 'sistema' &&
-    alerta.tipo === 'peligro' &&
+    (alerta.tipo === 'peligro' || alerta.tipo === 'desvio') &&
     usuarioAfectadoDesdeMensaje(alerta.mensaje) === userId
   return !afectadoYo
 }

@@ -1,0 +1,231 @@
+DesvioGrupal:
+  get:
+    operationId: obtenerDesvioGrupal
+    summary: Estado del desvío del grupo (RN-034b)
+    description: |
+      Foto del desvío grupal para hidratar la pantalla en vivo al abrirla; los cambios
+      llegan después por el evento `viaje:desvio_grupal`. Lo ve cualquier integrante
+      confirmado del viaje en curso.
+
+      - `ninguno`: el líder va por la ruta.
+      - `pendiente`: el líder salió de la ruta y se le preguntó si recalcular. Sin
+        respuesta, se recalcula solo en `recalculo_automatico_en`.
+      - `rechazado`: el líder dijo que vuelven a la ruta. Quien va con él no genera
+        desvío individual hasta que vuelvan.
+      - `recalculando`: hay un recálculo en vuelo.
+    tags:
+      - Desvios
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '200':
+        description: Estado actual del desvío grupal.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/DesvioGrupal'
+            example:
+              estado: pendiente
+              desde: '2026-11-12T14:05:00.000Z'
+              recalculo_automatico_en: '2026-11-12T14:07:00.000Z'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: No participa del viaje (`FORBIDDEN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Sin acceso a este viaje
+              code: FORBIDDEN
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '409':
+        description: El viaje no está en curso (`INVALID_STATE`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: El viaje no está en curso
+              code: INVALID_STATE
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+ConfirmarDesvioGrupal:
+  post:
+    operationId: confirmarDesvioGrupal
+    summary: El líder confirma el desvío y se recalcula la ruta (RN-034b)
+    description: |
+      Recalcula la ruta desde la última posición del líder hasta el destino, pasando
+      por las paradas intermedias que todavía estaban por delante. El tramo ya
+      recorrido se conserva. Cierra los desvíos y atrasos abiertos (se reevalúan
+      contra la ruta nueva), emite `viaje:ruta_actualizada` y avisa por push al grupo.
+
+      Solo el líder (RN-030). Sirve tanto con el desvío `pendiente` como `rechazado`
+      (si cambió de idea).
+    tags:
+      - Desvios
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '200':
+        description: Ruta recalculada y guardada.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/RutaRecalculada'
+            example:
+              linestring:
+                type: LineString
+                coordinates:
+                  - [-64.19, -31.42]
+                  - [-64.185, -31.415]
+                  - [-64.17, -31.40]
+              distancia_planeada_m: 18450.5
+              tiempo_estimado_seg: 1520
+              paradas_pendientes: 1
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: No es el líder del viaje (`NOT_LEADER`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Solo el líder puede decidir sobre la ruta del grupo
+              code: NOT_LEADER
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '409':
+        description: |
+          El viaje no está en curso (`INVALID_STATE`), no hay desvío del grupo
+          (`SIN_DESVIO_PENDIENTE`), ya se está recalculando (`RECALCULO_EN_CURSO`) o el
+          viaje no tiene ruta planificada (`SIN_RUTA`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            examples:
+              sinDesvio:
+                value:
+                  error: No hay un desvío del grupo para confirmar
+                  code: SIN_DESVIO_PENDIENTE
+              recalculando:
+                value:
+                  error: La ruta ya se está recalculando
+                  code: RECALCULO_EN_CURSO
+      '502':
+        description: |
+          Ningún proveedor de rutas pudo calcular el tramo nuevo
+          (`ROUTING_UPSTREAM_ERROR`). El desvío vuelve a `pendiente`.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: El servicio de rutas respondió con un error
+              code: ROUTING_UPSTREAM_ERROR
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+RechazarDesvioGrupal:
+  post:
+    operationId: rechazarDesvioGrupal
+    summary: El líder indica que el grupo vuelve a la ruta (RN-034b)
+    description: |
+      No se recalcula. El desvío pasa a `rechazado` hasta que el líder vuelva al
+      trazado; mientras tanto, quien va con él no genera desvío individual.
+      Emite `viaje:desvio_grupal`. Solo el líder (RN-030).
+    tags:
+      - Desvios
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '200':
+        description: Desvío marcado como rechazado.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/DesvioGrupal'
+            example:
+              estado: rechazado
+              desde: '2026-11-12T14:05:00.000Z'
+              recalculo_automatico_en: null
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: No es el líder del viaje (`NOT_LEADER`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Solo el líder puede decidir sobre la ruta del grupo
+              code: NOT_LEADER
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '409':
+        description: |
+          El viaje no está en curso (`INVALID_STATE`) o no hay un desvío esperando
+          respuesta (`SIN_DESVIO_PENDIENTE`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: No hay un desvío del grupo esperando respuesta
+              code: SIN_DESVIO_PENDIENTE
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+DesvioVoluntario:
+  post:
+    operationId: avisarDesvioVoluntario
+    summary: Avisar que te desviás a propósito (RN-034b)
+    description: |
+      Un integrante con una alerta de desvío abierta avisa que se desvía a propósito
+      (va a cargar combustible, se vuelve antes). Se resuelve su alerta, al líder le
+      llega un aviso informativo y no se le genera otro desvío hasta que vuelva a la
+      ruta. La ruta del grupo **no** cambia: recalcularla es solo del líder.
+    tags:
+      - Desvios
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '204':
+        description: Desvío marcado como voluntario.
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: No participa del viaje (`FORBIDDEN`) o no se sumó (`NOT_CHECKED_IN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            examples:
+              sinAcceso:
+                value:
+                  error: Sin acceso a este viaje
+                  code: FORBIDDEN
+              sinCheckIn:
+                value:
+                  error: Tenés que sumarte al viaje primero
+                  code: NOT_CHECKED_IN
+      '404':
+        $ref: '../components/responses.yaml#/NotFound'
+      '409':
+        description: |
+          El viaje no está en curso (`INVALID_STATE`) o no tenés un desvío abierto
+          (`SIN_DESVIO_ACTIVO`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: No tenés un desvío abierto
+              code: SIN_DESVIO_ACTIVO
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'

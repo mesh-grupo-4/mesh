@@ -86,6 +86,16 @@ export function LiveTripHeader({
   const enFaseParada = !expandido && showEta && hasRoute && !!nextStop
 
   return (
+    <>
+    {/* Expandido, tocar en cualquier otro lado de la pantalla lo contrae. */}
+    {expandido ? (
+      <Pressable
+        feedback={false}
+        style={styles.fondoCerrar}
+        onPress={() => setExpandido(false)}
+        accessibilityLabel="Contraer panel del viaje"
+      />
+    ) : null}
     <View
       style={[
         styles.wrap,
@@ -226,10 +236,21 @@ export function LiveTripHeader({
         ) : null}
       </Pressable>
     </View>
+    </>
   )
 }
 
 const styles = StyleSheet.create({
+  // Debajo del encabezado (zIndex 50) y encima del mapa y del panel inferior.
+  fondoCerrar: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    zIndex: 49,
+    elevation: 49,
+  },
   wrap: {
     position: 'absolute',
     top: 0,

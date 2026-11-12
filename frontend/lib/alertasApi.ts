@@ -47,9 +47,12 @@ export async function cambiarEstadoAlerta(
   return parseJson<AlertaApi>(res)
 }
 
-/** Transiciones que el líder puede pedir desde la UI (espejo de `alertas.service.ts`). */
+/**
+ * Transiciones que el líder puede pedir desde la UI (subconjunto de `alertas.service.ts`).
+ * Pausar ya no se ofrece; las que quedaron pausadas se pueden reactivar o cancelar.
+ */
 export const TRANSICIONES_ALERTA: Record<EstadoAlertaApi, EstadoAlertaApi[]> = {
-  activa: ['pausada', 'resuelta', 'cancelada'],
+  activa: ['resuelta', 'cancelada'],
   pausada: ['activa', 'cancelada'],
   cancelada: [],
   resuelta: [],

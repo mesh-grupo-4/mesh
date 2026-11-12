@@ -69,6 +69,11 @@ que uno nativo.
   RN-022 (`combustible`, `gastronomia`, `descanso`, `sanitario`). Al planificar, el lugar elegido se
   inserta como parada donde menos alarga el recorrido. En vivo, "Cerca mío" dibuja una guía hasta el
   lugar; la posición viaja al backend solo para esa búsqueda y no se publica al grupo (RN-111).
+  En un viaje grupal el lugar también se comparte: quien puede crear alertas usa "Vamos todos" (abre
+  la alerta ya armada con el lugar) y el resto "Proponer al grupo" (pedido de parada con el lugar; al
+  aprobarlo, al líder se le abre esa alerta). Lo que se publica es la ubicación del lugar, nunca la de
+  la persona. "Solo yo" mantiene la guía personal. Por eso la alerta ya no busca lugares por texto:
+  solo se marca un punto en el mapa para lo que no está en las categorías.
 - **Fuera de alcance por ahora**: Roads API (ajuste del recorrido a la calle) y Navigation SDK.
   Fleet Engine se descartó: exige contrato y apunta a flotas con despachante, no a grupos de pares.
 - **Versión de `react-native-maps` fijada en 1.29.11** (06/11/2026), por encima de la 1.27.2 que

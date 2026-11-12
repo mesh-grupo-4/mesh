@@ -16,6 +16,7 @@ import { useTripRealtime } from '@/context/TripRealtimeContext'
 import { resolveBackendUserId } from '@/lib/apiClient'
 import { TopBar, useTheme, Badge, ActivityTile } from '@/components/MeshUI'
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
+import { CampanitaNotificaciones } from '@/components/notificaciones/CampanitaNotificaciones'
 import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda'
 import { AYUDA_VIAJES } from '@/components/ayuda/contenidoAyuda'
 import { HerramientasLista } from '@/components/BarraFiltros'
@@ -674,36 +675,25 @@ export default function ViajesScreen() {
             <PasoAyuda {...AYUDA_VIAJES[0]!}>
               <View style={styles.headerBtns}>
                 <Pressable
-                  style={styles.headerBtn}
+                  style={({ pressed }) => [
+                    styles.headerBtn,
+                    {
+                      backgroundColor: pressed ? theme.surface2 : theme.surface,
+                      borderColor: theme.border,
+                    },
+                  ]}
                   onPress={() => router.push('/escanear-qr')}
-                  hitSlop={8}
-                >
-                  <Feather name="camera" size={22} color={theme.text} />
-                </Pressable>
-                <Pressable
-                  style={styles.headerBtn}
-                  onPress={() => router.push('/viaje/invitaciones')}
                   accessibilityRole="button"
-                  accessibilityLabel={
-                    invitaciones.length > 0
-                      ? `Invitaciones a viajes, ${invitaciones.length} pendientes`
-                      : 'Invitaciones a viajes, sin pendientes'
-                  }
+                  accessibilityLabel="Escanear QR de invitación"
                   hitSlop={8}
                 >
-                  <Feather
-                    name="bell"
-                    size={22}
-                    color={invitaciones.length > 0 ? theme.accent : theme.text}
-                  />
-                  {invitaciones.length > 0 && (
-                    <View style={[styles.bellBadge, { backgroundColor: theme.accent }]}>
-                      <Text style={styles.bellBadgeText}>
-                        {invitaciones.length > 9 ? '9+' : String(invitaciones.length)}
-                      </Text>
-                    </View>
-                  )}
+                  <Feather name="camera" size={19} color={theme.text} />
                 </Pressable>
+                <CampanitaNotificaciones
+                  pendientes={invitaciones.length}
+                  etiqueta="Invitaciones a viajes"
+                  onPress={() => router.push('/viaje/invitaciones')}
+                />
               </View>
             </PasoAyuda>
           }
@@ -942,20 +932,16 @@ const styles = StyleSheet.create({
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
   // Header derecho
-  headerBtns: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  headerBtn: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center' },
-  bellBadge: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
+  // Mismo formato que `CampanitaNotificaciones` (botón redondo con borde).
+  headerBtns: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  headerBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 3,
   },
-  bellBadgeText: { color: '#fff', fontSize: 9, fontWeight: '800', lineHeight: 12 },
 
   // Tabs internos
   segmentWrap: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 12 },

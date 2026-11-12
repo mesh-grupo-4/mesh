@@ -11,7 +11,10 @@ import { esMotorizado } from '../../lib/actividad'
 import type { GeoJsonLineString } from '../../lib/geo'
 import { computeDistanciaPuntoARutaM, computeProgresoEnRutaM } from '../../lib/postgis'
 import { gravedadDeAlerta, type GravedadAviso } from '../../lib/gravedadAlerta'
+import { HttpError } from '../../lib/httpError'
 import { getIo } from '../../realtime/ioRegistry'
+import { googleMapsApiKey } from '../../config/googleMaps'
+import { RoutingService } from '../routing/routing.service'
 import { armarLeaderboard, type IntegranteEnRuta } from '../viajes/leaderboard'
 import { WHERE_INTEGRANTE_ACTIVO } from '../viajes/viajes.membership'
 import {
@@ -19,6 +22,7 @@ import {
   prefijoAlertaAfectado,
   umbralesMotorPorActividad,
 } from './motorEventos.config'
+import { recalcularRutaDesde, type RutaRecalculada } from './recalculoRuta'
 
 type PingInput = {
   viajeId: string
@@ -66,6 +70,34 @@ type ProgresoCacheado = {
 /** Alertas del sistema abiertas para el integrante, leídas una vez por ping. */
 type AlertaSistemaActiva = { id: string; tipo: string }
 
+/**
+ * RN-034b: el líder salió de la ruta. Mientras dura, quien va con él no genera
+ * desvío individual y no se evalúa el atraso (la ruta vieja ya no es referencia).
+ * - `pendiente`: se le preguntó al líder si recalcular; vence a los 2 min.
+ * - `rechazado`: el líder dijo "volvemos"; dura hasta que vuelva a la ruta.
+ * - `recalculando`: hay un recálculo en vuelo (evita dos a la vez).
+ */
+export type EstadoDesvioGrupal = 'pendiente' | 'rechazado' | 'recalculando'
+
+type DesvioGrupal = {
+  estado: EstadoDesvioGrupal
+  /** Reloj del servidor cuando se detectó (o se reintentó) el desvío. */
+  desde: number
+  liderLat: number
+  liderLng: number
+}
+
+export type DesvioGrupalSnapshot = {
+  estado: EstadoDesvioGrupal | 'ninguno'
+  desde: string | null
+  recalculo_automatico_en: string | null
+}
+
+export type MotivoRecalculo = 'lider' | 'automatico'
+
+/** RN-034b: sin respuesta del líder, la ruta se recalcula sola pasado este tiempo. */
+export const ESPERA_RECALCULO_AUTOMATICO_MS = 2 * 60_000
+
 /** Progresos más viejos que esto no entran al cálculo del bloque principal. */
 const PROGRESO_MAX_EDAD_MS = 30_000
 /** RN-071: el leaderboard se re-emite como máximo cada tanto por viaje. */
@@ -107,6 +139,14 @@ export class MotorEventosService {
    * re-arma con el próximo ping en ruta.
    */
   private readonly armados = new Set<string>()
+  /** RN-034b: desvío del líder (y del grupo que lo sigue) por viaje. */
+  private readonly desvioGrupalPorViaje = new Map<string, DesvioGrupal>()
+  /**
+   * RN-034b: participantes que avisaron que se desvían a propósito. No se les genera
+   * otro desvío hasta que vuelvan a la ruta.
+   */
+  private readonly desvioVoluntario = new Set<string>()
+  private routing: RoutingService | null = null
 
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -188,6 +228,10 @@ export class MotorEventosService {
     for (const key of this.armados) {
       if (key.startsWith(prefijo)) this.armados.delete(key)
     }
+    for (const key of this.desvioVoluntario) {
+      if (key.startsWith(prefijo)) this.desvioVoluntario.delete(key)
+    }
+    this.desvioGrupalPorViaje.delete(viajeId)
   }
 
   /** Olvida el estado en memoria de un integrante (cuando sale del viaje). */
@@ -196,6 +240,103 @@ export class MotorEventosService {
     this.detencionPorClave.delete(key)
     this.progresoPorClave.delete(key)
     this.armados.delete(key)
+    this.desvioVoluntario.delete(key)
+  }
+
+  /** RN-034b: estado del desvío grupal, para hidratar la pantalla al abrirla. */
+  estadoDesvioGrupal(viajeId: string): DesvioGrupalSnapshot {
+    const d = this.desvioGrupalPorViaje.get(viajeId)
+    if (!d) return { estado: 'ninguno', desde: null, recalculo_automatico_en: null }
+    return {
+      estado: d.estado,
+      desde: new Date(d.desde).toISOString(),
+      recalculo_automatico_en:
+        d.estado === 'pendiente' ? new Date(d.desde + ESPERA_RECALCULO_AUTOMATICO_MS).toISOString() : null,
+    }
+  }
+
+  /**
+   * RN-034b: el líder dice "no, volvemos a la ruta". No se recalcula y quien va con
+   * él sigue sin generar desvío individual hasta que vuelvan al trazado.
+   * La autorización (que sea el líder) la valida quien llama.
+   */
+  rechazarDesvioGrupal(viajeId: string): DesvioGrupalSnapshot {
+    const d = this.desvioGrupalPorViaje.get(viajeId)
+    if (!d || d.estado !== 'pendiente') {
+      throw new HttpError(409, 'No hay un desvío del grupo esperando respuesta', 'SIN_DESVIO_PENDIENTE')
+    }
+    d.estado = 'rechazado'
+    const snapshot = this.estadoDesvioGrupal(viajeId)
+    this.emitir(viajeId, 'viaje:desvio_grupal', { viajeId, ...snapshot })
+    return snapshot
+  }
+
+  /**
+   * RN-034b: el líder confirma que el grupo tomó otro camino. Recalcula la ruta desde
+   * su última posición. Vale también si antes había dicho "volvemos" y cambió de idea.
+   * La autorización (que sea el líder) la valida quien llama.
+   */
+  async confirmarDesvioGrupal(viajeId: string): Promise<RutaRecalculada> {
+    const d = this.desvioGrupalPorViaje.get(viajeId)
+    if (!d) {
+      throw new HttpError(409, 'No hay un desvío del grupo para confirmar', 'SIN_DESVIO_PENDIENTE')
+    }
+    if (d.estado === 'recalculando') {
+      throw new HttpError(409, 'La ruta ya se está recalculando', 'RECALCULO_EN_CURSO')
+    }
+    return this.recalcularRuta(viajeId, d, 'lider')
+  }
+
+  /**
+   * RN-034b: un participante avisa que se desvía a propósito (va a cargar nafta, se
+   * vuelve antes). Se cierra su alerta de desvío y no se le genera otra hasta que
+   * vuelva a la ruta. La ruta del grupo no cambia: eso es solo del líder (RN-030).
+   */
+  async marcarDesvioVoluntario(viajeId: string, usuarioId: string): Promise<void> {
+    const abiertas = await this.prisma.alerta.findMany({
+      where: {
+        viaje_id: viajeId,
+        origen: 'sistema',
+        tipo: 'desvio',
+        estado: 'activa',
+        mensaje: { startsWith: prefijoAlertaAfectado(usuarioId) },
+      },
+      select: { id: true },
+    })
+    if (abiertas.length === 0) {
+      throw new HttpError(409, 'No tenés un desvío abierto', 'SIN_DESVIO_ACTIVO')
+    }
+    this.desvioVoluntario.add(this.clave(viajeId, usuarioId))
+    await this.resolverAlertas(
+      viajeId,
+      abiertas.map((a) => a.id)
+    )
+    const nombre = await this.nombreUsuario(usuarioId)
+    void this.notificarPush(
+      viajeId,
+      usuarioId,
+      'Desvío a propósito',
+      `${nombre} avisó que se desvía a propósito`,
+      true,
+      'informativa'
+    )
+  }
+
+  /**
+   * La ruta de un viaje en curso cambió desde afuera del motor (PUT de la ruta). El
+   * progreso cacheado y el desvío grupal quedaron medidos contra el trazado viejo.
+   */
+  rutaReemplazada(viajeId: string): void {
+    const prefijo = `${viajeId}:`
+    for (const key of this.progresoPorClave.keys()) {
+      if (key.startsWith(prefijo)) this.progresoPorClave.delete(key)
+    }
+    if (this.desvioGrupalPorViaje.delete(viajeId)) {
+      this.emitir(viajeId, 'viaje:desvio_grupal', {
+        viajeId,
+        ...this.estadoDesvioGrupal(viajeId),
+      })
+    }
   }
 
   /**
@@ -257,11 +398,32 @@ export class MotorEventosService {
     if (distM == null) return
 
     const umbralDesvioM = viaje.distancia_max_separacion
-
     const activa = activas.find((a) => a.tipo === 'desvio')
+
+    // RN-034b: el desvío del líder es el del grupo. No se alerta: se le pregunta.
+    if (input.usuarioId === viaje.creador_id) {
+      await this.evaluarDesvioDelLider(input, distM, umbralDesvioM, tieneParadaVoluntaria, activa)
+      return
+    }
+
+    const key = this.clave(input.viajeId, input.usuarioId)
+    const vuelveALaRuta = distM <= umbralDesvioM * FACTOR_RESOLUCION
+    if (vuelveALaRuta) this.desvioVoluntario.delete(key)
+
+    // RN-034b: quien va con el líder mientras el grupo está fuera de la ruta no se
+    // desvió solo. Si ya tenía una alerta (dobló antes que el líder), se cierra.
+    const grupal = this.desvioGrupalPorViaje.get(input.viajeId)
+    if (
+      grupal &&
+      distanciaMetros(input.lat, input.lng, grupal.liderLat, grupal.liderLng) <= umbralDesvioM
+    ) {
+      if (activa) await this.resolverAlertas(input.viajeId, [activa.id])
+      return
+    }
+
     if (activa) {
       // Volvió a la ruta: la alerta se cierra sola y habilita detectar el próximo desvío.
-      if (distM <= umbralDesvioM * FACTOR_RESOLUCION) {
+      if (vuelveALaRuta) {
         await this.resolverAlertas(input.viajeId, [activa.id])
       }
       return
@@ -270,6 +432,8 @@ export class MotorEventosService {
     // Una parada voluntaria fuera del trazado (estación de servicio, mirador) no es un desvío.
     if (tieneParadaVoluntaria) return
     if (distM <= umbralDesvioM) return
+    // RN-034b: avisó que se desvía a propósito; no se insiste hasta que vuelva.
+    if (this.desvioVoluntario.has(key)) return
 
     const nombre = await this.nombreUsuario(input.usuarioId)
     await this.crearAlertaSistema({
@@ -282,6 +446,142 @@ export class MotorEventosService {
       tituloPush: 'Desvío en la ruta',
       notificarSoloLider: true,
     })
+  }
+
+  /**
+   * RN-034b: el líder salió de la ruta. En vez de una alerta por cada integrante que
+   * lo sigue, se le pregunta una sola vez si recalcular. Sin respuesta, a los 2 min se
+   * recalcula solo (en moto o auto no puede tocar el teléfono). Si vuelve al trazado,
+   * el desvío grupal se descarta.
+   */
+  private async evaluarDesvioDelLider(
+    input: PingInput,
+    distM: number,
+    umbralDesvioM: number,
+    tieneParadaVoluntaria: boolean,
+    alertaPropia: AlertaSistemaActiva | undefined
+  ): Promise<void> {
+    const { viajeId } = input
+    const d = this.desvioGrupalPorViaje.get(viajeId)
+
+    if (distM <= umbralDesvioM * FACTOR_RESOLUCION) {
+      if (alertaPropia) await this.resolverAlertas(viajeId, [alertaPropia.id])
+      if (d && d.estado !== 'recalculando') {
+        this.desvioGrupalPorViaje.delete(viajeId)
+        this.emitir(viajeId, 'viaje:desvio_grupal', { viajeId, ...this.estadoDesvioGrupal(viajeId) })
+      }
+      return
+    }
+
+    if (d) {
+      d.liderLat = input.lat
+      d.liderLng = input.lng
+      // Parado en una estación de servicio fuera del trazado: no se recalcula solo.
+      if (tieneParadaVoluntaria) return
+      if (d.estado === 'pendiente' && Date.now() - d.desde >= ESPERA_RECALCULO_AUTOMATICO_MS) {
+        try {
+          await this.recalcularRuta(viajeId, d, 'automatico')
+        } catch (e) {
+          console.warn('[motor-eventos] recálculo automático falló:', e)
+        }
+      }
+      return
+    }
+
+    if (tieneParadaVoluntaria || distM <= umbralDesvioM) return
+
+    const nuevo: DesvioGrupal = {
+      estado: 'pendiente',
+      desde: Date.now(),
+      liderLat: input.lat,
+      liderLng: input.lng,
+    }
+    this.desvioGrupalPorViaje.set(viajeId, nuevo)
+    this.emitir(viajeId, 'viaje:desvio_grupal', { viajeId, ...this.estadoDesvioGrupal(viajeId) })
+    // Solo al líder (autorExcluido vacío + soloLider): es quien decide.
+    void this.notificarPush(
+      viajeId,
+      '',
+      '¿Recalculamos la ruta?',
+      'El grupo salió del recorrido. Si no respondés, se recalcula solo en 2 minutos.',
+      true,
+      'importante'
+    )
+  }
+
+  /**
+   * RN-034b: recalcula la ruta desde la posición del líder, reinicia lo que el motor
+   * tenía medido contra el trazado viejo y avisa a todo el grupo.
+   */
+  private async recalcularRuta(
+    viajeId: string,
+    d: DesvioGrupal,
+    motivo: MotivoRecalculo
+  ): Promise<RutaRecalculada> {
+    d.estado = 'recalculando'
+    let ruta: RutaRecalculada
+    try {
+      ruta = await recalcularRutaDesde(this.prisma, this.obtenerRouting(), viajeId, {
+        lat: d.liderLat,
+        lng: d.liderLng,
+      })
+    } catch (e) {
+      // Vuelve a esperar: el automático reintenta en otros 2 min y el líder puede reintentar ya.
+      d.estado = 'pendiente'
+      d.desde = Date.now()
+      this.emitir(viajeId, 'viaje:desvio_grupal', { viajeId, ...this.estadoDesvioGrupal(viajeId) })
+      throw e
+    }
+
+    this.desvioGrupalPorViaje.delete(viajeId)
+    const prefijo = `${viajeId}:`
+    for (const key of this.progresoPorClave.keys()) {
+      if (key.startsWith(prefijo)) this.progresoPorClave.delete(key)
+    }
+    for (const key of this.desvioVoluntario) {
+      if (key.startsWith(prefijo)) this.desvioVoluntario.delete(key)
+    }
+
+    // Desvíos y atrasos estaban medidos contra la ruta vieja. Se cierran todos: el
+    // próximo ping de cada uno los vuelve a evaluar contra la nueva.
+    const abiertas = await this.prisma.alerta.findMany({
+      where: { viaje_id: viajeId, origen: 'sistema', estado: 'activa', tipo: { in: ['desvio', 'atraso'] } },
+      select: { id: true },
+    })
+    await this.resolverAlertas(
+      viajeId,
+      abiertas.map((a) => a.id)
+    )
+
+    this.emitir(viajeId, 'viaje:ruta_actualizada', {
+      viajeId,
+      motivo,
+      linestring: ruta.linestring,
+      distanciaPlaneadaM: ruta.distancia_planeada_m,
+      tiempoEstimadoSeg: ruta.tiempo_estimado_seg,
+      recalculadaEn: new Date().toISOString(),
+    })
+    this.emitir(viajeId, 'viaje:desvio_grupal', { viajeId, ...this.estadoDesvioGrupal(viajeId) })
+
+    const viaje = await this.prisma.viaje.findUnique({
+      where: { id: viajeId },
+      select: { creador_id: true },
+    })
+    void this.notificarPush(
+      viajeId,
+      // Si lo confirmó el líder, él ya lo sabe; si fue automático, también le avisa.
+      motivo === 'lider' ? (viaje?.creador_id ?? '') : '',
+      'Ruta recalculada',
+      'El grupo tomó otro camino: el recorrido se actualizó en el mapa.',
+      false,
+      'importante'
+    )
+    return ruta
+  }
+
+  private obtenerRouting(): RoutingService {
+    this.routing ??= new RoutingService(googleMapsApiKey())
+    return this.routing
   }
 
   private async evaluarDetencionSospechosa(
@@ -409,6 +709,9 @@ export class MotorEventosService {
     }
 
     if (tieneParadaVoluntaria) return
+    // RN-034b: con el grupo fuera de la ruta, el progreso sobre el trazado viejo no
+    // dice quién va atrás. Se retoma cuando vuelven o se recalcula la ruta.
+    if (this.desvioGrupalPorViaje.has(input.viajeId)) return
 
     const prefijo = `${input.viajeId}:`
     const miembros: MiembroEnRuta[] = []

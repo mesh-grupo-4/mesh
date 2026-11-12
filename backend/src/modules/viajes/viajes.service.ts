@@ -641,7 +641,7 @@ export class ViajesService {
 
     const paradasOrdenadas = [...input.paradas].sort((a, b) => a.orden - b.orden)
 
-    return this.prisma.$transaction(async (tx) => {
+    const guardada = await this.prisma.$transaction(async (tx) => {
       const ruta = await tx.ruta.upsert({
         where: { viaje_id: viajeId },
         create: {
@@ -685,6 +685,25 @@ export class ViajesService {
 
       return ruta
     })
+
+    // RN-034b: con el viaje en curso, el motor tenía medido el progreso contra el
+    // trazado viejo y los mapas abiertos siguen dibujándolo.
+    if (viaje.estado === 'en_curso') {
+      this.motor.rutaReemplazada(viajeId)
+      try {
+        getIo().to(`viaje:${viajeId}`).emit('viaje:ruta_actualizada', {
+          viajeId,
+          motivo: 'edicion',
+          linestring: input.linestring,
+          distanciaPlaneadaM: distanciaM,
+          tiempoEstimadoSeg: input.tiempoEstimadoSeg ?? null,
+          recalculadaEn: new Date().toISOString(),
+        })
+      } catch (e) {
+        console.warn('[viajes] No se pudo emitir viaje:ruta_actualizada:', e)
+      }
+    }
+    return guardada
   }
 
   async viajeEnCurso(usuarioId: string) {

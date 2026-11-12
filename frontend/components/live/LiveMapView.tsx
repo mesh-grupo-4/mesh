@@ -179,6 +179,8 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
 
   useImperativeHandle(ref, () => ({
     focusOnCoordinate(lat, lng) {
+      // Deja terminar la animación: el seguimiento continuo la cortaría de golpe.
+      pausaCamaraRef.current = Date.now() + DURACION_ANIMACION_MS + 50
       mapRef.current?.animateTo({ latitude: lat, longitude: lng }, 15)
     },
     fitBoundsToCoords(coords) {
