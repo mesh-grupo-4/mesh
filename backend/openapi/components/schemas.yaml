@@ -2357,11 +2357,17 @@ ActualizarViajeRequest:
   type: object
   description: |
     Campos editables del viaje por el líder (RN-030).
-    Enviá al menos uno. La fecha solo se puede cambiar en estado `planificado`;
+    Enviá al menos uno. El nombre y la fecha solo se pueden cambiar en estado `planificado`;
     la configuración de alertas de incidente y los parámetros del grupo (RN-025)
     aplican en `planificado` y `en_curso`.
   minProperties: 1
   properties:
+    nombre:
+      type: string
+      minLength: 1
+      maxLength: 100
+      description: Nuevo nombre del viaje. Solo en estado `planificado`.
+      example: Sierras de Córdoba
     velocidadEsperada:
       type: number
       minimum: 1
@@ -2421,6 +2427,9 @@ ViajeReprogramado:
     id:
       type: string
       format: uuid
+    nombre:
+      type: string
+      nullable: true
     fecha_programada:
       type: string
       format: date-time

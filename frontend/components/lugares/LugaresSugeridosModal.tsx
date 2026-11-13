@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, FlatList, Modal, StyleSheet, Text, View } from 'react-native'
 import { Pressable } from '@/components/Pressable'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
@@ -8,6 +8,7 @@ import { DragToDismiss } from '@/components/DragToDismiss'
 import { Btn, useTheme } from '@/components/MeshUI'
 import { MeshApiError } from '@/lib/apiClient'
 import { CATEGORIAS_LUGAR, type CategoriaLugar, type LugarSugerido } from '@/lib/lugaresApi'
+import { ofreceCombustible } from '@/lib/activityDefaults'
 
 type Props = {
   visible: boolean
@@ -25,6 +26,8 @@ type Props = {
     label: string
     onElegir: (lugar: LugarSugerido, categoria: CategoriaLugar) => void
   }
+  /** Sin vehículo (bici, running, trekking) no se ofrece Combustible. */
+  tipoActividad?: string | null
 }
 
 function mensajeError(e: unknown): string {
@@ -50,10 +53,15 @@ export function LugaresSugeridosModal({
   onCerrar,
   detalle,
   accionSecundaria,
+  tipoActividad,
 }: Props) {
   const theme = useTheme()
   const insets = useSafeAreaInsets()
-  const [categoria, setCategoria] = useState<CategoriaLugar>('combustible')
+  const categorias = useMemo(
+    () => CATEGORIAS_LUGAR.filter((c) => c.value !== 'combustible' || ofreceCombustible(tipoActividad)),
+    [tipoActividad]
+  )
+  const [categoria, setCategoria] = useState<CategoriaLugar>(() => categorias[0]!.value)
   const [lugares, setLugares] = useState<LugarSugerido[]>([])
   const [cargando, setCargando] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -108,7 +116,7 @@ export function LugaresSugeridosModal({
       >
 
         <View style={styles.chips}>
-          {CATEGORIAS_LUGAR.map((c) => {
+          {categorias.map((c) => {
             const activa = c.value === categoria
             return (
               <Pressable

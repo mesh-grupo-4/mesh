@@ -139,7 +139,7 @@ export default function PerfilUsuarioScreen() {
   const relacion: RelacionAmistad =
     relacionLocal !== undefined ? relacionLocal : perfil?.relacion_amistad ?? null;
 
-  // Todo lo de amistad vive en un solo control, arriba a la izquierda junto a "volver".
+  // Todo lo de amistad vive en un solo control, arriba a la derecha.
   const controlAmistad = (() => {
     if (!perfil || perfil.es_yo) return null;
     const conf =
@@ -226,6 +226,7 @@ export default function PerfilUsuarioScreen() {
           alto={ALTO_FONDO}
           colorRacha={theme.fire}
           intensidadRacha={intensidadRacha(semanas)}
+          animado
         />
       ) : null}
       <TopBar
@@ -233,7 +234,7 @@ export default function PerfilUsuarioScreen() {
         onBack={() => router.back()}
         bordered={false}
         transparente
-        izquierda={controlAmistad}
+        right={controlAmistad}
       />
 
       {cargando && !perfil ? (
@@ -366,7 +367,7 @@ const styles = StyleSheet.create({
   nombre: { fontSize: 26, fontWeight: '600', letterSpacing: -0.3, marginTop: 12, textAlign: 'center' },
   actividadRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
   actividadTxt: { fontSize: 14, fontWeight: '600' },
-  // Misma altura que el botón de volver, al que queda pegado.
+  // Misma altura que el botón de volver.
   amistadBtn: {
     flexDirection: 'row',
     alignItems: 'center',

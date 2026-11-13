@@ -9,10 +9,12 @@ import {
   Share,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native'
 import { Pressable } from '@/components/Pressable'
-import { meshAlert } from '@/lib/meshAlert';
+import { meshAlert, meshSuccess } from '@/lib/meshAlert';
+import { InvitarGruposAmigosModal } from '@/components/viaje-rapido/InvitarGruposAmigosModal'
 import { esMotorizado } from '@/lib/activityDefaults';
 import { abrirRepetirEntrenamiento } from '@/lib/nuevoViaje';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker'
@@ -106,6 +108,12 @@ function badgeParticipante(estado: ViajeParticipanteApi['estado']): {
   }
 }
 
+/** Mismo tope que al crear el viaje (backend: `nombre` máx. 100). */
+const MAX_NOMBRE_VIAJE = 100
+
+/** El mapita mide 148 px: con los márgenes del mapa grande la ruta quedaba corrida. */
+const PADDING_MAPITA = { top: 24, right: 24, bottom: 24, left: 24 }
+
 /** Mapa OSM real (solo lectura) con la ruta planificada del viaje. */
 function RutaMapaPreview({ ruta }: { ruta: RutaMapa }) {
   const primero = ruta.waypoints.find(waypointTieneCoords)
@@ -118,10 +126,14 @@ function RutaMapaPreview({ ruta }: { ruta: RutaMapa }) {
       }
     : REGION_FALLBACK
 
-  const fitCoords =
-    ruta.routeLine.length > 1
-      ? ruta.routeLine.map(([lat, lng]) => ({ latitude: lat, longitude: lng }))
-      : null
+  // Memoizado: un array nuevo en cada render volvía a encuadrar el mapa.
+  const fitCoords = useMemo(
+    () =>
+      ruta.routeLine.length > 1
+        ? ruta.routeLine.map(([lat, lng]) => ({ latitude: lat, longitude: lng }))
+        : null,
+    [ruta.routeLine]
+  )
 
   return (
     <View style={styles.mapBox}>
@@ -131,6 +143,7 @@ function RutaMapaPreview({ ruta }: { ruta: RutaMapa }) {
         initialRegion={initialRegion}
         cameraTarget={null}
         fitRouteCoords={fitCoords}
+        fitPadding={PADDING_MAPITA}
         mapPickMode={false}
       />
     </View>
@@ -171,6 +184,10 @@ export default function ViajeDetalleScreen() {
   const [guardandoFecha, setGuardandoFecha] = useState(false)
   const [guardandoAlertaConfig, setGuardandoAlertaConfig] = useState(false)
   const [guardandoParametros, setGuardandoParametros] = useState(false)
+  /** Borrador del nombre mientras el líder lo edita; null = no se está editando. */
+  const [nombreBorrador, setNombreBorrador] = useState<string | null>(null)
+  const [guardandoNombre, setGuardandoNombre] = useState(false)
+  const [invitarAbierto, setInvitarAbierto] = useState(false)
   const [participantesAbierto, setParticipantesAbierto] = useState(false)
 
   const esLider = viaje != null && userId === viaje.creador_id
@@ -379,6 +396,23 @@ export default function ViajeDetalleScreen() {
     },
     [viajeId, userId, puedeConfigurarAlertas]
   )
+
+  // RN-030: solo el líder renombra, y solo con el viaje planificado (el backend lo valida).
+  const guardarNombre = useCallback(async () => {
+    if (nombreBorrador == null) return
+    const nuevo = nombreBorrador.trim().slice(0, MAX_NOMBRE_VIAJE)
+    setNombreBorrador(null)
+    if (!viajeId || !userId || !puedeEditarPlan || !nuevo || nuevo === viaje?.nombre?.trim()) return
+    setGuardandoNombre(true)
+    try {
+      const actualizado = await actualizarViaje(viajeId, userId, { nombre: nuevo })
+      setViaje((prev) => (prev ? { ...prev, nombre: actualizado.nombre ?? nuevo } : prev))
+    } catch (e) {
+      meshAlert('Error', e instanceof Error ? e.message : 'No se pudo cambiar el nombre')
+    } finally {
+      setGuardandoNombre(false)
+    }
+  }, [nombreBorrador, viajeId, userId, puedeEditarPlan, viaje?.nombre])
 
   // RN-025 / RN-030: el líder ajusta los parámetros mientras el viaje no esté finalizado.
   const puedeEditarParametros = esLider && viaje?.estado !== 'finalizado'
@@ -798,9 +832,42 @@ export default function ViajeDetalleScreen() {
                 <ActivityTile activity={viaje.tipo_actividad} size={28} />
               </View>
               <View style={styles.titleRow}>
-                <Text style={[styles.title, { color: theme.text }]}>
-                  {viaje.nombre?.trim() || (viaje.es_grupal ? 'Salida grupal' : 'Salida individual')}
-                </Text>
+                {nombreBorrador != null ? (
+                  <TextInput
+                    value={nombreBorrador}
+                    onChangeText={setNombreBorrador}
+                    // "Listo" del teclado quita el foco: se guarda una sola vez, en el blur.
+                    onBlur={() => void guardarNombre()}
+                    autoFocus
+                    selectTextOnFocus
+                    maxLength={MAX_NOMBRE_VIAJE}
+                    returnKeyType="done"
+                    placeholder="Nombre del viaje"
+                    placeholderTextColor={theme.textMute}
+                    accessibilityLabel="Nombre del viaje"
+                    style={[
+                      styles.title,
+                      styles.titleInput,
+                      { color: theme.text, borderBottomColor: theme.accent },
+                    ]}
+                  />
+                ) : (
+                  // El líder lo renombra tocándolo mientras el viaje está planificado.
+                  <Pressable
+                    onPress={() =>
+                      setNombreBorrador(viaje.nombre?.trim() ?? '')
+                    }
+                    disabled={!puedeEditarPlan || guardandoNombre}
+                    feedback={false}
+                    accessibilityRole={puedeEditarPlan ? 'button' : 'text'}
+                    accessibilityHint={puedeEditarPlan ? 'Tocá para cambiar el nombre del viaje' : undefined}
+                    style={styles.titlePressable}
+                  >
+                    <Text style={[styles.title, { color: theme.text, opacity: guardandoNombre ? 0.6 : 1 }]}>
+                      {viaje.nombre?.trim() || (viaje.es_grupal ? 'Salida grupal' : 'Salida individual')}
+                    </Text>
+                  </Pressable>
+                )}
                 {viaje.nombre?.trim() ? (
                   <Text style={[styles.titleAside, { color: theme.textDim }]}>
                     {viaje.es_grupal ? 'Salida grupal' : 'Salida individual'}
@@ -1020,6 +1087,19 @@ export default function ViajeDetalleScreen() {
                       {participantes.length > 4 ? 'Ver todos los miembros' : 'Ver miembros'}
                     </Btn>
                   </>
+                ) : null}
+
+                {/* Mientras esté planificado el líder puede seguir sumando gente (al iniciar se corta, RN-015). */}
+                {puedeEditarPlan ? (
+                  <Btn
+                    variant={participantesAbierto ? 'outline' : 'secondary'}
+                    block
+                    size="sm"
+                    icon="user-plus"
+                    onPress={() => setInvitarAbierto(true)}
+                  >
+                    Invitar amigos y grupos
+                  </Btn>
                 ) : null}
               </View>
             )}
@@ -1314,6 +1394,23 @@ export default function ViajeDetalleScreen() {
         onCancel={() => setSelectorSucesor(null)}
       />
 
+      {viajeId && userId && puedeEditarPlan ? (
+        <InvitarGruposAmigosModal
+          visible={invitarAbierto}
+          viajeId={viajeId}
+          userId={userId}
+          onClose={() => setInvitarAbierto(false)}
+          onInvitados={(n) => {
+            setInvitarAbierto(false)
+            void cargar()
+            meshSuccess(
+              n > 0 ? 'Invitaciones enviadas' : 'Sin invitaciones nuevas',
+              n > 0 ? `Se invitó a ${n} ${n === 1 ? 'persona' : 'personas'}.` : 'Esas personas ya estaban en el viaje.'
+            )
+          }}
+        />
+      ) : null}
+
       {/* GPS Permissions Modal */}
       <Modal
         visible={modalPermisos}
@@ -1388,6 +1485,15 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: -0.5,
     flexShrink: 1,
+  },
+  titlePressable: {
+    flexShrink: 1,
+  },
+  titleInput: {
+    flex: 1,
+    paddingVertical: 2,
+    paddingHorizontal: 0,
+    borderBottomWidth: 2,
   },
   titleAside: {
     marginLeft: 'auto',

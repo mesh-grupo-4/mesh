@@ -56,17 +56,21 @@ const ruta = {
     ],
   },
   tiempo_estimado_seg: 3600,
+  // Largo ficticio: a un punto cada 25 km pide 5 puntos y obliga a sumar dos tramos.
+  distancia_planeada_m: 110_000,
   paradas_intermedias: [{ lat: -31.42, lng: -64.3, nombre: 'YPF' }],
 }
 
-function armar(opts: { estado?: string; conRuta?: boolean; fecha?: Date } = {}) {
+function armar(
+  opts: { estado?: string; conRuta?: boolean; fecha?: Date; ruta?: Record<string, unknown> } = {}
+) {
   const viajeFindUnique = vi.fn().mockResolvedValue({
     creador_id: liderId,
     estado: opts.estado ?? 'planificado',
     fecha_programada: opts.fecha ?? inicio,
     fecha_inicio_real: null,
     integrantes: [],
-    ruta: opts.conRuta === false ? null : ruta,
+    ruta: opts.conRuta === false ? null : { ...ruta, ...opts.ruta },
   })
   const prisma = { viaje: { findUnique: viajeFindUnique } } as unknown as PrismaClient
   const fetchMock = vi.fn()
@@ -99,6 +103,27 @@ describe('ClimaService (SCRUM-27, RN-108)', () => {
     const url = String(m.fetchMock.mock.calls[0]![0])
     expect(url).toContain('api.open-meteo.com')
     expect(url).toContain('timezone=UTC')
+  })
+
+  it('una ruta corta sin paradas consulta solo origen y destino', async () => {
+    const m = armar({ ruta: { distancia_planeada_m: 5_000, paradas_intermedias: [] } })
+    m.fetchMock.mockResolvedValue(respuesta([hourly({}), hourly({})]))
+    const service = new ClimaService(m.prisma, m.fetchMock as unknown as typeof fetch)
+
+    const out = await service.obtenerParaViaje(liderId, viajeId)
+
+    expect(out.puntos.map((p) => p.nombre)).toEqual(['Córdoba', 'Carlos Paz'])
+  })
+
+  it('sin distancia guardada la calcula con el trazado', async () => {
+    // El trazado de prueba mide ~29 km: a un punto cada 25 km alcanzan origen, parada y destino.
+    const m = armar({ ruta: { distancia_planeada_m: null } })
+    m.fetchMock.mockResolvedValue(respuesta([hourly({}), hourly({}), hourly({})]))
+    const service = new ClimaService(m.prisma, m.fetchMock as unknown as typeof fetch)
+
+    const out = await service.obtenerParaViaje(liderId, viajeId)
+
+    expect(out.puntos.map((p) => p.nombre)).toEqual(['Córdoba', 'YPF', 'Carlos Paz'])
   })
 
   it('alerta lluvia y viento fuerte según los umbrales', async () => {

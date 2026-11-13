@@ -217,6 +217,7 @@ export default function AlertasViajeScreen() {
         visible={componiendo}
         enviando={enviando}
         centroMapaInicial={centroMapaAlerta}
+        tipoActividad={viaje?.tipo_actividad}
         onPublicar={handlePublicar}
         onCancelar={() => setComponiendo(false)}
       />

@@ -30,7 +30,10 @@ export function CercaMioButton({ topOffset, guiaActiva, onPress, tipoActividad =
       accessibilityRole="button"
       accessibilityLabel={guiaActiva ? 'Quitar la guía al lugar' : 'Buscar lugares cerca mío'}
     >
+      {/* `key`: al cambiar solo el `name`, el glifo a veces no se redibujaba y el botón
+          quedaba vacío. Con la key el ícono se monta de nuevo en cada cambio. */}
       <Feather
+        key={guiaActiva ? 'quitar' : 'buscar'}
         name={guiaActiva ? 'x' : 'map-pin'}
         size={Math.round(22 * escalaBotones)}
         color={guiaActiva ? '#0e7490' : '#1f2937'}

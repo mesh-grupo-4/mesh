@@ -896,6 +896,7 @@ export class ViajesService {
     }
 
     const data: {
+      nombre?: string
       fecha_programada?: Date
       alerta_incidente_habilitada?: boolean
       alerta_incidente_minutos?: number | null
@@ -912,6 +913,13 @@ export class ViajesService {
       data.distancia_max_separacion = input.distanciaMaxSeparacion
     }
     if (input.toleranciaAtrasoMin !== undefined) data.tolerancia_atraso_min = input.toleranciaAtrasoMin
+
+    if (input.nombre != null) {
+      if (viaje.estado !== 'planificado') {
+        throw new HttpError(409, 'Solo se puede renombrar un viaje planificado', 'INVALID_STATE')
+      }
+      data.nombre = input.nombre
+    }
 
     if (input.fechaProgramada != null) {
       if (viaje.estado !== 'planificado') {
@@ -961,6 +969,7 @@ export class ViajesService {
 
     return {
       id: actualizado.id,
+      nombre: actualizado.nombre,
       fecha_programada: actualizado.fecha_programada,
       estado: actualizado.estado,
       alerta_incidente_habilitada: actualizado.alerta_incidente_habilitada,

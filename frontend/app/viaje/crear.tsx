@@ -374,7 +374,9 @@ export default function CrearViajeScreen() {
         userId
       )
 
-      if (conRecorrido) {
+      // Con la ruta ya copiada (ruta guardada o repetición) no hay nada que definir en
+      // el mapa: queda en el detalle del viaje creado. Solo sin ruta se va a armarla.
+      if (conRecorrido && !viaje.ruta_precargada) {
         router.replace({
           pathname: '/configurar-ruta/[viajeId]',
           params: { viajeId: viaje.id, userId },

@@ -47,6 +47,8 @@ type Props = {
   onRegionChangeComplete?: (region: LatLng) => void
   /** Padding inferior al ajustar la ruta (default 280 del editor). */
   fitBottomPadding?: number
+  /** Márgenes completos al ajustar la ruta; reemplaza los del editor (p. ej. en una miniatura). */
+  fitPadding?: { top: number; right: number; bottom: number; left: number }
   /** Ubicación GPS actual del usuario. */
   userLocation?: { latitude: number; longitude: number } | null
 }
@@ -64,6 +66,7 @@ export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function Route
     mapPickMode = false,
     onRegionChangeComplete,
     fitBottomPadding = 280,
+    fitPadding,
     userLocation = null,
   },
   ref
@@ -72,11 +75,15 @@ export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function Route
   const mapRef = useRef<MeshMapViewHandle>(null)
   const [capaElegida] = useCapaMapa()
   const capa = getMapStyle(mapStyle ?? capaElegida)
+  const padding = useMemo(
+    () => fitPadding ?? { top: 80, right: 40, bottom: fitBottomPadding, left: 40 },
+    [fitPadding, fitBottomPadding]
+  )
 
   useImperativeHandle(ref, () => ({
     fitRoute(coords) {
       if (coords.length < 2) return
-      mapRef.current?.fitBounds(coords, { top: 80, right: 40, bottom: fitBottomPadding, left: 40 }, true)
+      mapRef.current?.fitBounds(coords, padding, true)
     },
     focusPoint(target) {
       mapRef.current?.animateTo(target, 15)
@@ -93,8 +100,8 @@ export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function Route
     if (mapPickMode) return
     const coords = fitRouteCoords ?? (routeLineLatLng?.map(([lat, lng]) => ({ latitude: lat, longitude: lng })) ?? null)
     if (!coords || coords.length < 2) return
-    mapRef.current?.fitBounds(coords, { top: 80, right: 40, bottom: fitBottomPadding, left: 40 }, true)
-  }, [fitRouteCoords, routeLineLatLng, mapPickMode, fitBottomPadding])
+    mapRef.current?.fitBounds(coords, padding, true)
+  }, [fitRouteCoords, routeLineLatLng, mapPickMode, padding])
 
   const polylines = useMemo((): PolylineSpec[] => {
     if (mapPickMode) return []

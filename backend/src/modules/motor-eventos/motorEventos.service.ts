@@ -57,6 +57,13 @@ type EstadoDetencion = {
    * líder lo resolvió). No se dispara otro hasta que la persona se aleje.
    */
   silenciado?: boolean
+  /**
+   * Primer ping que cayó fuera del radio, a la espera de confirmarse. Quieto, el GPS
+   * "tiembla" y un punto suelto puede saltar más allá del radio: si con eso se
+   * reiniciaba el conteo, el posible incidente llegaba minutos tarde. Solo dos pings
+   * seguidos fuera del radio cuentan como movimiento real.
+   */
+  fueraDesde?: Date
 }
 
 type ProgresoCacheado = {
@@ -626,19 +633,31 @@ export class MotorEventosService {
     if (input.timestamp.getTime() < prev.quietoDesde.getTime()) return
 
     const movimientoM = distanciaMetros(prev.anchorLat, prev.anchorLng, input.lat, input.lng)
+    let estado = prev
     if (movimientoM > umbrales.radioDetenidoM) {
-      this.detencionPorClave.set(key, {
+      if (!prev.fueraDesde) {
+        // Punto suelto: puede ser el temblor del GPS. Se espera al próximo para decidir.
+        this.detencionPorClave.set(key, { ...prev, fueraDesde: input.timestamp })
+        return
+      }
+      // Segundo ping seguido fuera del radio: se movió de verdad. El conteo nuevo
+      // arranca en el primero de los dos, que es cuando dejó el punto anterior.
+      estado = {
         anchorLat: input.lat,
         anchorLng: input.lng,
-        quietoDesde: input.timestamp,
-      })
-      return
+        quietoDesde: prev.fueraDesde,
+      }
+      this.detencionPorClave.set(key, estado)
+    } else if (prev.fueraDesde) {
+      // El punto suelto era temblor: volvió dentro del radio y el conteo sigue.
+      estado = { ...prev, fueraDesde: undefined }
+      this.detencionPorClave.set(key, estado)
     }
 
     // Sigue en el punto de un incidente ya cerrado: no se repite la alerta.
-    if (prev.silenciado) return
+    if (estado.silenciado) return
 
-    const quietoMs = input.timestamp.getTime() - prev.quietoDesde.getTime()
+    const quietoMs = input.timestamp.getTime() - estado.quietoDesde.getTime()
     const umbralMs = detencionMinutos * 60 * 1000
     if (quietoMs < umbralMs) return
 

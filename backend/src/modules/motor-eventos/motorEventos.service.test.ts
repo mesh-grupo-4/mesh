@@ -388,6 +388,36 @@ describe('MotorEventosService — detención sospechosa (RN-036)', () => {
     expect(m.paradaCreate).not.toHaveBeenCalled()
   })
 
+  it('un punto suelto fuera del radio (temblor del GPS) no reinicia el contador', async () => {
+    const m = armarPrisma()
+    const service = new MotorEventosService(m.prisma)
+
+    await service.procesarPing(ping('2026-08-21T14:00:00.000Z', -31.42, -64.18))
+    // ~28 m: supera el radio de trekking (12 m) en un solo ping y vuelve.
+    await service.procesarPing(ping('2026-08-21T14:02:00.000Z', -31.4202, -64.1802))
+    await service.procesarPing(ping('2026-08-21T14:02:05.000Z', -31.42, -64.18))
+    await service.procesarPing(ping('2026-08-21T14:05:00.000Z', -31.42, -64.18))
+
+    // El umbral (5 min) se cuenta desde el primer ping, sin el reinicio del punto suelto.
+    expect(m.paradaCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ tipo: 'incidente_detectado' }) })
+    )
+  })
+
+  it('dos pings seguidos fuera del radio reinician el contador desde el primero', async () => {
+    const m = armarPrisma()
+    const service = new MotorEventosService(m.prisma)
+
+    await service.procesarPing(ping('2026-08-21T14:00:00.000Z', -31.42, -64.18))
+    await service.procesarPing(ping('2026-08-21T14:02:00.000Z', -31.4202, -64.1802))
+    await service.procesarPing(ping('2026-08-21T14:02:05.000Z', -31.4202, -64.1802))
+    await service.procesarPing(ping('2026-08-21T14:06:00.000Z', -31.4202, -64.1802))
+    expect(m.paradaCreate).not.toHaveBeenCalled()
+
+    await service.procesarPing(ping('2026-08-21T14:07:00.000Z', -31.4202, -64.1802))
+    expect(m.paradaCreate).toHaveBeenCalledTimes(1)
+  })
+
   it('tras cerrar un incidente, seguir quieto en el mismo punto no genera otro', async () => {
     const m = armarPrisma()
     const service = new MotorEventosService(m.prisma)

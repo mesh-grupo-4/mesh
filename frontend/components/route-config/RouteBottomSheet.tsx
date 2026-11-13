@@ -144,6 +144,7 @@ export const RouteBottomSheet = forwardRef<RouteBottomSheetHandle, Props>(functi
         onPickOnMap={() => onPickOnMap(waypoint.id)}
         mapPickMode={mapPickMode}
         InputComponent={BottomSheetTextInput}
+        tipoActividad={tipoActividad}
       />
     </View>
   )

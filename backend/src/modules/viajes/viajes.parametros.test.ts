@@ -166,6 +166,47 @@ describe('ViajesService — parámetros de actividad (SCRUM-26)', () => {
     expect(reset.tolerancia_atraso_min_efectivo).toBe(5)
   })
 
+  it('renombra un viaje planificado', async () => {
+    const viaje = {
+      id: viajeId,
+      creador_id: creadorId,
+      estado: 'planificado',
+      es_grupal: true,
+      tipo_actividad: 'bici',
+      tolerancia_atraso_min: null,
+      fecha_programada: futura,
+    }
+    const viajeUpdate = vi.fn().mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({
+      ...viaje,
+      ...data,
+    }))
+    const prisma = {
+      viaje: { findUnique: vi.fn().mockResolvedValue(viaje), update: viajeUpdate },
+    } as unknown as PrismaClient
+
+    const out = await new ViajesService(prisma).actualizarViaje(creadorId, viajeId, { nombre: 'Sierras' })
+
+    expect(viajeUpdate.mock.calls[0]![0].data).toEqual({ nombre: 'Sierras' })
+    expect(out).toMatchObject({ nombre: 'Sierras' })
+  })
+
+  it('no renombra un viaje que ya arrancó', async () => {
+    const prisma = {
+      viaje: {
+        findUnique: vi.fn().mockResolvedValue({ id: viajeId, creador_id: creadorId, estado: 'en_curso' }),
+        update: vi.fn(),
+      },
+    } as unknown as PrismaClient
+    await expect(
+      new ViajesService(prisma).actualizarViaje(creadorId, viajeId, { nombre: 'Sierras' })
+    ).rejects.toMatchObject({ status: 409, code: 'INVALID_STATE' })
+  })
+
+  it('el nombre no puede quedar vacío', () => {
+    expect(actualizarViajeSchema.safeParse({ nombre: '   ' }).success).toBe(false)
+    expect(actualizarViajeSchema.safeParse({ nombre: 'Sierras' }).success).toBe(true)
+  })
+
   it('RN-030: solo el creador edita parámetros', async () => {
     const prisma = {
       viaje: { findUnique: vi.fn().mockResolvedValue({ id: viajeId, creador_id: creadorId, estado: 'planificado' }) },

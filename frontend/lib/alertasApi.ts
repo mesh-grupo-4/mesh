@@ -1,4 +1,5 @@
 import { apiUrl, meshFetchAuthed, parseJson } from './apiClient'
+import { ofreceCombustible } from './activityDefaults'
 
 /** RN-041: temas que el líder elige al crear la alerta. */
 export type TipoAlertaApi = 'parada' | 'combustible' | 'desvio' | 'peligro' | 'informacion' | 'atraso'
@@ -91,6 +92,19 @@ export const TIPOS_ALERTA: {
   { id: 'peligro', label: 'Peligro', emoji: '⚠', color: '#dc2626' },
   { id: 'informacion', label: 'Información', emoji: 'ℹ', color: '#6b7280' },
 ]
+
+/** Tipos que indican un lugar: solo estos ofrecen "Marcar en el mapa". */
+export const TIPOS_ALERTA_CON_LUGAR: ReadonlySet<TipoAlertaApi> = new Set<TipoAlertaApi>([
+  'parada',
+  'combustible',
+  'desvio',
+  'peligro',
+])
+
+/** Tipos que se pueden crear según la actividad: sin vehículo no hay alerta de Combustible. */
+export function tiposAlertaPara(tipoActividad: string | null | undefined) {
+  return TIPOS_ALERTA.filter((t) => t.id !== 'combustible' || ofreceCombustible(tipoActividad))
+}
 
 /** RN-041: mensajes predeterminados editables al elegir el tipo. */
 export const MENSAJE_PREDETERMINADO: Record<TipoAlertaApi, string> = {

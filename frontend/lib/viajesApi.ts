@@ -326,6 +326,7 @@ export async function obtenerViaje(
 
 export type ViajeActualizadoApi = {
   id: string
+  nombre: string | null
   fecha_programada: string
   estado: 'planificado' | 'en_curso' | 'finalizado'
   alerta_incidente_habilitada: boolean
@@ -358,6 +359,8 @@ export async function actualizarViaje(
   viajeId: string,
   userId: string,
   input: {
+    /** Solo con el viaje planificado (lo valida el backend). */
+    nombre?: string
     fechaProgramada?: Date
     alertaIncidenteHabilitada?: boolean
     alertaIncidenteMinutos?: number | null
@@ -366,6 +369,7 @@ export async function actualizarViaje(
   baseUrl: string = API_BASE_URL
 ): Promise<ViajeActualizadoApi> {
   const body: Record<string, unknown> = {}
+  if (input.nombre != null) body.nombre = input.nombre
   if (input.velocidadEsperada != null) body.velocidadEsperada = input.velocidadEsperada
   if (input.distanciaMaxSeparacion != null) body.distanciaMaxSeparacion = input.distanciaMaxSeparacion
   if (input.toleranciaAtrasoMin !== undefined) body.toleranciaAtrasoMin = input.toleranciaAtrasoMin

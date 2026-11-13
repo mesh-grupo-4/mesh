@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
-import { StyleSheet, View } from 'react-native'
+import { ActivityIndicator, StyleSheet, View } from 'react-native'
 
 import Colors from '@/constants/Colors'
 import { getMapStyle, type MapStyleId } from '@/components/route-config/mapStyles'
@@ -43,6 +43,12 @@ import { motivoParadaLegible } from '@/lib/paradasApi'
 
 /** Zoom con el que se centra el mapa en tu posición al entrar. */
 const ZOOM_INICIAL = 17
+/**
+ * En vivo el mapa espera a tener dónde centrarse (tu GPS o, si no responde, la salida)
+ * antes de crearse: creado antes nacía en la posición por defecto y quedaba ahí si el
+ * primer centrado se perdía. Pasado este tiempo se crea igual.
+ */
+const ESPERA_CENTRO_MS = 10_000
 const COLOR_GUIA_LUGAR = '#0e7490'
 /** Naranja de la app: el recorrido tiene que leerse claro sobre cualquier capa, también de noche. */
 const COLOR_RECORRIDO = Colors.light.accent
@@ -363,8 +369,22 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
     return () => clearInterval(id)
   }, [movimientoFluido, currentUserId])
 
+  const [esperaCentroVencida, setEsperaCentroVencida] = useState(false)
+  const tieneCentro = initialCenter != null
+  useEffect(() => {
+    if (!movimientoFluido || tieneCentro) return
+    const t = setTimeout(() => setEsperaCentroVencida(true), ESPERA_CENTRO_MS)
+    return () => clearTimeout(t)
+  }, [movimientoFluido, tieneCentro])
+  const montarMapa = !movimientoFluido || tieneCentro || esperaCentroVencida
+
   const fallbackCenter = initialCenter ?? { latitude: -31.4167, longitude: -64.1833 }
-  const fallbackZoom = zoomFromLatDelta(initialCenter ? 0.04 : 0.08)
+  // En vivo nace ya con el zoom de seguimiento: no hace falta animar el primer centrado.
+  const fallbackZoom = initialCenter
+    ? movimientoFluido
+      ? ZOOM_INICIAL
+      : zoomFromLatDelta(0.04)
+    : zoomFromLatDelta(0.08)
 
   const markers = useMemo<MarkerSpec[]>(() => {
     const integrantes: MarkerSpec[] = members.map((m) => ({
@@ -569,20 +589,26 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
 
   return (
     <View style={styles.container}>
-      <MeshMapView
-        ref={mapRef}
-        initialCenter={fallbackCenter}
-        initialZoom={fallbackZoom}
-        mapStyle={capa}
-        markers={markers}
-        polylines={polylines}
-        onUserDrag={onUserDrag}
-        interactive={interactive}
-        onReady={() => {
-          setMapaListo(true)
-          onReady?.()
-        }}
-      />
+      {montarMapa ? (
+        <MeshMapView
+          ref={mapRef}
+          initialCenter={fallbackCenter}
+          initialZoom={fallbackZoom}
+          mapStyle={capa}
+          markers={markers}
+          polylines={polylines}
+          onUserDrag={onUserDrag}
+          interactive={interactive}
+          onReady={() => {
+            setMapaListo(true)
+            onReady?.()
+          }}
+        />
+      ) : (
+        <View style={styles.esperandoCentro}>
+          <ActivityIndicator color={COLOR_RECORRIDO} size="large" />
+        </View>
+      )}
     </View>
   )
 })
@@ -590,5 +616,10 @@ export const LiveMapView = forwardRef<LiveMapViewHandle, Props>(function LiveMap
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  esperandoCentro: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 })

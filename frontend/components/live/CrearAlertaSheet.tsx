@@ -18,7 +18,8 @@ import { DragToDismiss } from '@/components/DragToDismiss'
 import { useTheme } from '@/components/MeshUI'
 import {
   MENSAJE_PREDETERMINADO,
-  TIPOS_ALERTA,
+  TIPOS_ALERTA_CON_LUGAR,
+  tiposAlertaPara,
   type TipoAlertaApi,
 } from '@/lib/alertasApi'
 
@@ -46,20 +47,32 @@ type Props = {
   inicial?: AlertaInicial | null
   /** Centro inicial para el picker de mapa (posición actual o fallback). */
   centroMapaInicial: { latitude: number; longitude: number }
+  /** Sin vehículo (bici, running, trekking) no se ofrece el tipo Combustible. */
+  tipoActividad?: string | null
   onPublicar: (tipo: TipoAlertaApi, mensaje: string, ubicacion?: UbicacionAlerta) => void
   onCancelar: () => void
 }
 
 const MAX_MENSAJE = 280
 
+/** Título de la sección de lugar según qué marca la alerta. */
+const ETIQUETA_LUGAR: Partial<Record<TipoAlertaApi, string>> = {
+  parada: 'Dónde paran (opcional)',
+  combustible: 'Dónde cargan (opcional)',
+  desvio: 'Dónde es el desvío (opcional)',
+  peligro: 'Dónde está el peligro (opcional)',
+}
+
 export function CrearAlertaSheet({
   visible,
   enviando,
   inicial,
   centroMapaInicial,
+  tipoActividad,
   onPublicar,
   onCancelar,
 }: Props) {
+  const tipos = useMemo(() => tiposAlertaPara(tipoActividad), [tipoActividad])
   const [tipo, setTipo] = useState<TipoAlertaApi>('informacion')
   const [mensaje, setMensaje] = useState(MENSAJE_PREDETERMINADO.informacion)
   const [mensajeEditado, setMensajeEditado] = useState(false)
@@ -114,8 +127,11 @@ export function CrearAlertaSheet({
     tipoAnterior.current = nuevo
   }
 
+  // Solo los tipos que indican un lugar llevan "Marcar en el mapa" (y ubicación).
+  const conLugar = TIPOS_ALERTA_CON_LUGAR.has(tipo)
+
   const publicar = () => {
-    onPublicar(tipo, mensaje.trim(), ubicacion ?? undefined)
+    onPublicar(tipo, mensaje.trim(), conLugar ? (ubicacion ?? undefined) : undefined)
     setMensaje(MENSAJE_PREDETERMINADO.informacion)
     setMensajeEditado(false)
     setTipo('informacion')
@@ -148,7 +164,7 @@ export function CrearAlertaSheet({
             >
               <Text style={styles.label}>Tipo</Text>
               <View style={styles.tipos}>
-                {TIPOS_ALERTA.map((t) => {
+                {tipos.map((t) => {
                   const activo = t.id === tipo
                   return (
                     <Pressable
@@ -187,31 +203,37 @@ export function CrearAlertaSheet({
                 {mensaje.length}/{MAX_MENSAJE}
               </Text>
 
-              <Text style={styles.label}>Dónde paran (opcional)</Text>
-              {ubicacion ? (
-                <View style={styles.ubicacionRow}>
-                  <Text style={styles.ubicacionTxt} numberOfLines={2}>
-                    {nombreUbicacion ?? `${ubicacion.lat.toFixed(5)}, ${ubicacion.lng.toFixed(5)}`}
-                  </Text>
-                  <Pressable onPress={quitarUbicacion} hitSlop={8}>
-                    <Text style={styles.quitarUbicacion}>Quitar</Text>
-                  </Pressable>
-                </View>
-              ) : (
+              {conLugar ? (
                 <>
-                  <Text style={styles.ayudaUbicacion}>
-                    Para estaciones, baños o comida usá el botón 📍 del mapa.
-                  </Text>
-                  <Pressable
-                    style={({ pressed }) => [styles.marcarMapa, pressed && styles.presionado]}
-                    onPress={() => setEligiendoMapa(true)}
-                    accessibilityRole="button"
-                    accessibilityLabel="Marcar en el mapa dónde van a parar"
-                  >
-                    <Text style={styles.marcarMapaTxt}>📍 Marcar en el mapa</Text>
-                  </Pressable>
+                  <Text style={styles.label}>{ETIQUETA_LUGAR[tipo] ?? 'Dónde (opcional)'}</Text>
+                  {ubicacion ? (
+                    <View style={styles.ubicacionRow}>
+                      <Text style={styles.ubicacionTxt} numberOfLines={2}>
+                        {nombreUbicacion ?? `${ubicacion.lat.toFixed(5)}, ${ubicacion.lng.toFixed(5)}`}
+                      </Text>
+                      <Pressable onPress={quitarUbicacion} hitSlop={8}>
+                        <Text style={styles.quitarUbicacion}>Quitar</Text>
+                      </Pressable>
+                    </View>
+                  ) : (
+                    <>
+                      {tipo === 'parada' || tipo === 'combustible' ? (
+                        <Text style={styles.ayudaUbicacion}>
+                          Para estaciones, baños o comida usá el botón 📍 del mapa.
+                        </Text>
+                      ) : null}
+                      <Pressable
+                        style={({ pressed }) => [styles.marcarMapa, pressed && styles.presionado]}
+                        onPress={() => setEligiendoMapa(true)}
+                        accessibilityRole="button"
+                        accessibilityLabel="Marcar el lugar en el mapa"
+                      >
+                        <Text style={styles.marcarMapaTxt}>📍 Marcar en el mapa</Text>
+                      </Pressable>
+                    </>
+                  )}
                 </>
-              )}
+              ) : null}
 
               <View style={styles.acciones}>
                 <Pressable
