@@ -80,6 +80,15 @@ export function esMotorizado(tipo: string | null | undefined): boolean {
   return tipo === 'moto' || tipo === 'auto'
 }
 
+/**
+ * Combustible solo tiene sentido con vehículo: en bici, running y trekking no se
+ * ofrece como lugar para parar, tipo de alerta ni categoría de parada. En "otro"
+ * no se sabe qué hace el grupo, así que queda.
+ */
+export function ofreceCombustible(tipo: string | null | undefined): boolean {
+  return tipo !== 'bici' && tipo !== 'running' && tipo !== 'trekking'
+}
+
 export function actividadInicialDesdePerfil(
   actividadPreferida: string | undefined | null
 ): TipoActividadApi {

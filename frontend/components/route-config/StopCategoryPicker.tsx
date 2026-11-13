@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native'
 import { Pressable } from '@/components/Pressable'
 
 import { useTheme } from '@/components/MeshUI'
+import { ofreceCombustible } from '@/lib/activityDefaults'
 
 import type { StopCategory } from './routeTypes'
 
@@ -24,16 +25,19 @@ const OPTIONS: CategoryOption[] = [
 type Props = {
   value: StopCategory
   onChange: (category: StopCategory) => void
+  /** Sin vehículo (bici, running, trekking) no se ofrece Combustible. */
+  tipoActividad?: string | null
 }
 
-export function StopCategoryPicker({ value, onChange }: Props) {
+export function StopCategoryPicker({ value, onChange, tipoActividad }: Props) {
   const theme = useTheme()
+  const opciones = OPTIONS.filter((o) => o.value !== 'combustible' || ofreceCombustible(tipoActividad))
 
   return (
     // Sin scroll horizontal: dentro del bottom sheet el gesto lateral lo captura
     // la hoja y los chips del final quedaban inalcanzables. Se acomodan en varias líneas.
     <View style={styles.row}>
-      {OPTIONS.map((opt) => {
+      {opciones.map((opt) => {
         const selected = value === opt.value
         return (
           <Pressable

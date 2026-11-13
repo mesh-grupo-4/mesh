@@ -960,10 +960,11 @@ ViajePorId:
     operationId: actualizarViaje
     summary: Actualizar un viaje
     description: |
-      Permite reprogramar la salida o ajustar la detección automática de posible incidente.
+      Permite renombrar el viaje, reprogramar la salida o ajustar la detección
+      automática de posible incidente.
 
-      **Solo el creador** puede hacerlo (RN-030). La fecha solo se edita en estado
-      `planificado` y debe ser futura (RN-107). La config de alertas de incidente
+      **Solo el creador** puede hacerlo (RN-030). El nombre y la fecha solo se editan
+      en estado `planificado`; la fecha debe ser futura (RN-107). La config de alertas de incidente
       solo aplica a viajes grupales, en `planificado` o `en_curso`.
 
       Emite `viaje:actualizado` a la sala para que el resto refresque el detalle.
@@ -977,13 +978,35 @@ ViajePorId:
         application/json:
           schema:
             $ref: '../components/schemas.yaml#/ActualizarViajeRequest'
+          examples:
+            renombrar:
+              summary: Renombrar un viaje planificado
+              value:
+                nombre: Sierras de Córdoba
+            reprogramar:
+              summary: Reprogramar la salida
+              value:
+                fechaProgramada: '2026-09-02T13:00:00.000Z'
     responses:
       '200':
-        description: Viaje reprogramado.
+        description: Viaje actualizado.
         content:
           application/json:
             schema:
               $ref: '../components/schemas.yaml#/ViajeReprogramado'
+            example:
+              id: 3f6b1c2e-8a4d-4f1e-9b7a-2c5d8e9f0a1b
+              nombre: Sierras de Córdoba
+              fecha_programada: '2026-09-02T13:00:00.000Z'
+              estado: planificado
+              alerta_incidente_habilitada: true
+              alerta_incidente_minutos: null
+              alerta_incidente_minutos_efectivo: 3
+              alertas_solo_lider: true
+              velocidad_esperada: 20
+              distancia_max_separacion: 300
+              tolerancia_atraso_min: null
+              tolerancia_atraso_min_efectivo: 5
       '400':
         description: Validación fallida o fecha en el pasado (`FECHA_PASADA`, RN-107).
         content:
@@ -1007,13 +1030,15 @@ ViajePorId:
       '404':
         $ref: '../components/responses.yaml#/NotFound'
       '409':
-        description: El viaje ya no está planificado (`INVALID_STATE`).
+        description: |
+          El viaje ya no admite el cambio pedido (`INVALID_STATE`): por ejemplo,
+          renombrar o reprogramar uno que ya no está planificado.
         content:
           application/json:
             schema:
               $ref: '../components/schemas.yaml#/Error'
             example:
-              error: Solo se puede editar un viaje planificado
+              error: Solo se puede renombrar un viaje planificado
               code: INVALID_STATE
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'

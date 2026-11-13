@@ -9,6 +9,7 @@ import {
   cambiarEstadoAlerta,
   crearAlerta,
   listarAlertas,
+  metaTipoAlerta,
   usuarioAfectadoDesdeMensaje,
   type AlertaApi,
   type TipoAlertaApi,
@@ -230,35 +231,55 @@ export function useAlertas({
     setAlertasEntrantes((prev) => prev.slice(1))
   }, [viajeId, alertaEntrante])
 
+  /** Calcula la ruta desde tu posición hasta el punto de la alerta y la deja activa. */
+  const seguirHasta = useCallback(
+    async (alertaId: string, destino: { lat: number; lng: number }, label: string) => {
+      const pos = myPositionRef.current
+      if (!pos) {
+        meshWarning('Sin ubicación', 'No tenemos tu posición para calcular la ruta hasta el punto.')
+        return null
+      }
+
+      setCalculandoSeguir(true)
+      try {
+        const polyline = await calcularGuiaHastaDestino(pos, destino, tipoActividad)
+        const activa: SeguirAlertaActiva = { alertaId, lat: destino.lat, lng: destino.lng, label, polyline }
+        setSeguirAlerta(activa)
+        return activa
+      } finally {
+        setCalculandoSeguir(false)
+      }
+    },
+    [tipoActividad]
+  )
+
   const activarSeguirAlerta = useCallback(async () => {
     const entrante = alertasEntrantes[0]
     if (!entrante || entrante.lat == null || entrante.lng == null) return null
 
-    const pos = myPositionRef.current
-    if (!pos) {
-      meshWarning('Sin ubicación', 'No tenemos tu posición para calcular la ruta hasta el punto.')
-      return null
-    }
-
-    setCalculandoSeguir(true)
-    try {
-      const destino = { lat: entrante.lat, lng: entrante.lng }
-      const polyline = await calcularGuiaHastaDestino(pos, destino, tipoActividad)
-      const activa: SeguirAlertaActiva = {
-        alertaId: entrante.id,
-        lat: destino.lat,
-        lng: destino.lng,
-        label: entrante.creada_por_nombre ?? 'Punto de parada',
-        polyline,
-      }
-      setSeguirAlerta(activa)
+    const activa = await seguirHasta(
+      entrante.id,
+      { lat: entrante.lat, lng: entrante.lng },
+      entrante.creada_por_nombre ?? 'Punto de parada'
+    )
+    if (activa) {
       marcarAlertasVistas(viajeId, [entrante.id])
       setAlertasEntrantes((prev) => prev.filter((a) => a.id !== entrante.id))
-      return activa
-    } finally {
-      setCalculandoSeguir(false)
     }
-  }, [alertasEntrantes, tipoActividad, viajeId])
+    return activa
+  }, [alertasEntrantes, seguirHasta, viajeId])
+
+  /**
+   * Quien publica una alerta con lugar también va hacia ahí: se le dibuja la ruta
+   * sin tener que tocar "Seguir" (los demás la siguen desde el banner).
+   */
+  const seguirAlertaPropia = useCallback(
+    async (alerta: AlertaApi) => {
+      if (alerta.lat == null || alerta.lng == null) return null
+      return seguirHasta(alerta.id, { lat: alerta.lat, lng: alerta.lng }, metaTipoAlerta(alerta.tipo).label)
+    },
+    [seguirHasta]
+  )
 
   const dejarDeSeguirAlerta = useCallback(() => {
     setSeguirAlerta(null)
@@ -279,6 +300,7 @@ export function useAlertas({
     refrescar,
     ignorarAlertaEntrante,
     activarSeguirAlerta,
+    seguirAlertaPropia,
     dejarDeSeguirAlerta,
   }
 }

@@ -25,6 +25,7 @@ import { AYUDA_GRUPO_DETALLE } from '@/components/ayuda/contenidoAyuda';
 import { AvatarGrupo } from '@/components/grupos/AvatarGrupo';
 import { HojaInferior } from '@/components/HojaInferior';
 import { FilaOpcion } from '@/components/perfil/FilaOpcion';
+import { FondoMesh, FundidoMesh } from '@/components/perfil/FondoMesh';
 import {
   elegirFoto,
   PermisoFotoDenegado,
@@ -37,6 +38,9 @@ import { abrirNuevoViaje } from '@/lib/nuevoViaje';
 
 /** Cuántos integrantes se muestran en el detalle; el resto, en "Ver todos". */
 const MIEMBROS_PREVIEW = 5;
+
+/** Alto del patrón de logos detrás de la cabecera (como en el Perfil). */
+const ALTO_FONDO = 420;
 
 export default function GrupoDetalleScreen() {
   const { grupoId } = useLocalSearchParams<{ grupoId: string }>();
@@ -258,10 +262,16 @@ export default function GrupoDetalleScreen() {
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
 
+      {/* Mismo fondo que el Perfil (sin racha): el logo de Mesh repetido detrás de la cabecera. */}
+      {grupo ? (
+        <FondoMesh color={theme.text} alto={ALTO_FONDO} colorRacha={theme.fire} intensidadRacha={0} />
+      ) : null}
+
       <TopBar
         title=""
         onBack={() => router.back()}
         bordered={false}
+        transparente
         onAyuda={() => start()}
       />
 
@@ -276,212 +286,201 @@ export default function GrupoDetalleScreen() {
         }
       >
         {loading ? (
-          <DetalleEsqueleto />
+          <View style={styles.cuerpo}>
+            <DetalleEsqueleto />
+          </View>
         ) : error || !grupo ? (
-          <Text style={[styles.error, { color: theme.danger }]}>{error}</Text>
+          <View style={styles.cuerpo}>
+            <Text style={[styles.error, { color: theme.danger }]}>{error}</Text>
+          </View>
         ) : (
           <>
             {/* Identidad del grupo + estadísticas */}
-            <PasoAyuda {...AYUDA_GRUPO_DETALLE[0]!}>
-              <View style={styles.hero}>
-                <Pressable
-                  onPress={() => setHojaFoto(true)}
-                  disabled={guardandoFoto}
-                  accessibilityRole="button"
-                  accessibilityLabel={foto ? 'Cambiar la foto del grupo' : 'Agregar una foto al grupo'}
-                >
-                  <AvatarGrupo nombre={grupo.nombre} foto={foto} size={96} radio={28} conBorde />
+            <View style={styles.cabecera}>
+              <View style={styles.fundido}>
+                <FundidoMesh color={theme.background} />
+              </View>
+              <PasoAyuda {...AYUDA_GRUPO_DETALLE[0]!}>
+                <View style={styles.hero}>
+                  <Pressable
+                    onPress={() => setHojaFoto(true)}
+                    disabled={guardandoFoto}
+                    accessibilityRole="button"
+                    accessibilityLabel={foto ? 'Cambiar la foto del grupo' : 'Agregar una foto al grupo'}
+                  >
+                    <AvatarGrupo nombre={grupo.nombre} foto={foto} size={96} radio={28} conBorde />
+                    <View
+                      style={[
+                        styles.fotoBadge,
+                        { backgroundColor: theme.accent, borderColor: theme.background },
+                      ]}
+                    >
+                      {guardandoFoto ? (
+                        <ActivityIndicator size="small" color={theme.onAccent} />
+                      ) : (
+                        <Feather name="camera" size={15} color={theme.onAccent} />
+                      )}
+                    </View>
+                  </Pressable>
+
+                  <Text style={[styles.nombre, { color: theme.text }]} numberOfLines={2}>
+                    {grupo.nombre}
+                  </Text>
+
                   <View
                     style={[
-                      styles.fotoBadge,
-                      { backgroundColor: theme.accent, borderColor: theme.background },
+                      styles.miRol,
+                      { backgroundColor: esLider ? theme.goldWeak : theme.surface2 },
                     ]}
                   >
-                    {guardandoFoto ? (
-                      <ActivityIndicator size="small" color={theme.onAccent} />
+                    {esLider ? (
+                      <MaterialCommunityIcons name="crown" size={14} color={theme.gold} />
                     ) : (
-                      <Feather name="camera" size={15} color={theme.onAccent} />
+                      <Feather name="user" size={13} color={theme.textDim} />
                     )}
+                    <Text style={[styles.miRolTexto, { color: esLider ? theme.gold : theme.textDim }]}>
+                      {esLider ? 'Sos el líder' : 'Sos participante'}
+                    </Text>
                   </View>
-                </Pressable>
 
-                <Text style={[styles.nombre, { color: theme.text }]} numberOfLines={2}>
-                  {grupo.nombre}
-                </Text>
-
-                <View
-                  style={[
-                    styles.miRol,
-                    { backgroundColor: esLider ? theme.goldWeak : theme.surface2 },
-                  ]}
-                >
-                  {esLider ? (
-                    <MaterialCommunityIcons name="crown" size={14} color={theme.gold} />
-                  ) : (
-                    <Feather name="user" size={13} color={theme.textDim} />
-                  )}
-                  <Text style={[styles.miRolTexto, { color: esLider ? theme.gold : theme.textDim }]}>
-                    {esLider ? 'Sos el líder' : 'Sos participante'}
-                  </Text>
+                  <View style={styles.stats}>
+                    <Stat
+                      icono="users"
+                      valor={String(grupo.cantidad_miembros)}
+                      etiqueta={grupo.cantidad_miembros === 1 ? 'Miembro' : 'Miembros'}
+                    />
+                    <Stat
+                      icono="map"
+                      valor={String(grupo.cantidad_viajes)}
+                      etiqueta={grupo.cantidad_viajes === 1 ? 'Viaje' : 'Viajes'}
+                      onPress={verViajes}
+                    />
+                    <Stat
+                      icono="calendar"
+                      valor={formatearEnArg(grupo.fecha_creacion, { month: 'short', year: '2-digit' })}
+                      etiqueta="Desde"
+                    />
+                  </View>
                 </View>
-
-                <View style={styles.stats}>
-                  <Stat
-                    icono="users"
-                    valor={String(grupo.cantidad_miembros)}
-                    etiqueta={grupo.cantidad_miembros === 1 ? 'Miembro' : 'Miembros'}
-                  />
-                  <Stat
-                    icono="map"
-                    valor={String(grupo.cantidad_viajes)}
-                    etiqueta={grupo.cantidad_viajes === 1 ? 'Viaje' : 'Viajes'}
-                    onPress={verViajes}
-                  />
-                  <Stat
-                    icono="calendar"
-                    valor={formatearEnArg(grupo.fecha_creacion, { month: 'short', year: '2-digit' })}
-                    etiqueta="Desde"
-                  />
-                </View>
-              </View>
-            </PasoAyuda>
-
-            {/* Acciones principales */}
-            <View style={styles.acciones}>
-              <PasoAyuda {...AYUDA_GRUPO_DETALLE[1]!} estilo={styles.flex}>
-                <Btn
-                  variant="primary"
-                  size="lg"
-                  block
-                  icon="plus"
-                  onPress={() => abrirNuevoViaje({ grupo: grupo.id })}
-                >
-                  Nuevo viaje
-                </Btn>
               </PasoAyuda>
-              {esLider ? (
-                <PasoAyuda {...AYUDA_GRUPO_DETALLE[3]!}>
-                  <Btn variant="secondary" size="lg" icon="user-plus" onPress={invitar}>
-                    Invitar
-                  </Btn>
-                </PasoAyuda>
-              ) : null}
             </View>
 
-            {/* Miembros */}
-            <PasoAyuda {...AYUDA_GRUPO_DETALLE[2]!}>
-              <View style={styles.seccion}>
-                <View style={styles.seccionHeader}>
-                  <Text style={[styles.eyebrow, { color: theme.textDim }]}>
-                    MIEMBROS ({miembros.length})
-                  </Text>
-                  <Pressable onPress={verMiembros} hitSlop={8} accessibilityRole="button">
-                    <Text style={[styles.verTodos, { color: theme.accent }]}>Ver todos</Text>
-                  </Pressable>
-                </View>
-
-                <View
-                  style={[styles.tarjeta, { backgroundColor: theme.surface, borderColor: theme.border }]}
-                >
-                  {preview.map((m, i) => {
-                    const esYo = m.id === backendUserId;
-                    return (
-                      <FilaMiembro
-                        key={m.id}
-                        miembro={m}
-                        esYo={esYo}
-                        separador={i > 0}
-                        onPress={esYo ? undefined : () => verPerfil(m.id)}
-                      />
-                    );
-                  })}
-
-                  {miembros.length > MIEMBROS_PREVIEW ? (
-                    <Pressable
-                      onPress={verMiembros}
-                      style={({ pressed }) => [
-                        styles.filaExtra,
-                        { borderTopColor: theme.border },
-                        pressed && { backgroundColor: theme.surface2 },
-                      ]}
-                    >
-                      <Text style={[styles.filaExtraTexto, { color: theme.text }]}>
-                        Ver los {miembros.length} miembros
-                      </Text>
-                      <Feather name="chevron-right" size={18} color={theme.textMute} />
-                    </Pressable>
-                  ) : null}
-
-                  {esLider ? (
-                    <Pressable
-                      onPress={invitar}
-                      style={({ pressed }) => [
-                        styles.filaExtra,
-                        { borderTopColor: theme.border },
-                        pressed && { backgroundColor: theme.surface2 },
-                      ]}
-                    >
-                      <View style={[styles.iconoInvitar, { backgroundColor: theme.accentWeak }]}>
-                        <Feather name="user-plus" size={18} color={theme.accent} />
-                      </View>
-                      <View style={styles.flex}>
-                        <Text style={[styles.filaExtraTexto, { color: theme.accent }]}>
-                          Invitar personas
-                        </Text>
-                        <Text style={[styles.filaExtraSub, { color: theme.textDim }]}>
-                          Por usuario o desde otros grupos
-                        </Text>
-                      </View>
-                    </Pressable>
-                  ) : null}
-                </View>
-              </View>
-            </PasoAyuda>
-
-            {/* Zona de peligro: al final de todo */}
-            <PasoAyuda {...AYUDA_GRUPO_DETALLE[4]!}>
-              <View
-                style={[
-                  styles.zonaPeligro,
-                  { backgroundColor: theme.dangerWeak, borderColor: theme.danger },
-                ]}
-              >
-                <View style={styles.dangerHeader}>
-                  <Feather name="shield" size={16} color={theme.danger} style={{ marginRight: 6 }} />
-                  <Text style={[styles.zonaTitulo, { color: theme.danger }]}>Zona de peligro</Text>
-                </View>
-                <Text style={[styles.zonaHint, { color: theme.textDim }]}>
-                  Estas acciones son permanentes y no se pueden deshacer.
-                </Text>
-
-                <Btn
-                  variant="danger-outline"
-                  size="sm"
-                  block
-                  onPress={iniciarAbandono}
-                  disabled={procesandoAccion}
-                >
-                  {procesandoAccion && !modalTransferir ? (
-                    <ActivityIndicator color={theme.danger} size="small" />
-                  ) : (
-                    'Abandonar Grupo'
-                  )}
-                </Btn>
-
-                {esLider && (
+            {/* Fondo liso: tapa el patrón de la cabecera, que queda fijo detrás del scroll. */}
+            <View style={[styles.cuerpo, { backgroundColor: theme.background }]}>
+              {/* Acciones principales */}
+              <View style={styles.acciones}>
+                <PasoAyuda {...AYUDA_GRUPO_DETALLE[1]!} estilo={styles.flex}>
                   <Btn
-                    variant="danger"
-                    size="sm"
+                    variant="primary"
+                    size="lg"
                     block
-                    onPress={ejecutarEliminacion}
-                    disabled={procesandoAccion}
-                    style={{ marginTop: 6 }}
+                    icon="plus"
+                    onPress={() => abrirNuevoViaje({ grupo: grupo.id })}
                   >
-                    Eliminar Grupo
+                    Nuevo viaje
                   </Btn>
-                )}
+                </PasoAyuda>
+                {esLider ? (
+                  <PasoAyuda {...AYUDA_GRUPO_DETALLE[3]!}>
+                    <Btn variant="secondary" size="lg" icon="user-plus" onPress={invitar}>
+                      Invitar
+                    </Btn>
+                  </PasoAyuda>
+                ) : null}
               </View>
-            </PasoAyuda>
+
+              {/* Miembros */}
+              <PasoAyuda {...AYUDA_GRUPO_DETALLE[2]!}>
+                <View style={styles.seccion}>
+                  <View style={styles.seccionHeader}>
+                    <Text style={[styles.eyebrow, { color: theme.textDim }]}>
+                      MIEMBROS ({miembros.length})
+                    </Text>
+                    <Pressable onPress={verMiembros} hitSlop={8} accessibilityRole="button">
+                      <Text style={[styles.verTodos, { color: theme.accent }]}>Ver todos</Text>
+                    </Pressable>
+                  </View>
+
+                  <View
+                    style={[styles.tarjeta, { backgroundColor: theme.surface, borderColor: theme.border }]}
+                  >
+                    {preview.map((m, i) => {
+                      const esYo = m.id === backendUserId;
+                      return (
+                        <FilaMiembro
+                          key={m.id}
+                          miembro={m}
+                          esYo={esYo}
+                          separador={i > 0}
+                          onPress={esYo ? undefined : () => verPerfil(m.id)}
+                        />
+                      );
+                    })}
+
+                    {miembros.length > MIEMBROS_PREVIEW ? (
+                      <Pressable
+                        onPress={verMiembros}
+                        style={({ pressed }) => [
+                          styles.filaExtra,
+                          { borderTopColor: theme.border },
+                          pressed && { backgroundColor: theme.surface2 },
+                        ]}
+                      >
+                        <Text style={[styles.filaExtraTexto, { color: theme.text }]}>
+                          Ver los {miembros.length} miembros
+                        </Text>
+                        <Feather name="chevron-right" size={18} color={theme.textMute} />
+                      </Pressable>
+                    ) : null}
+
+                    {esLider ? (
+                      <Pressable
+                        onPress={invitar}
+                        style={({ pressed }) => [
+                          styles.filaExtra,
+                          { borderTopColor: theme.border },
+                          pressed && { backgroundColor: theme.surface2 },
+                        ]}
+                      >
+                        <View style={[styles.iconoInvitar, { backgroundColor: theme.accentWeak }]}>
+                          <Feather name="user-plus" size={18} color={theme.accent} />
+                        </View>
+                        <View style={styles.flex}>
+                          <Text style={[styles.filaExtraTexto, { color: theme.accent }]}>
+                            Invitar personas
+                          </Text>
+                          <Text style={[styles.filaExtraSub, { color: theme.textDim }]}>
+                            Por usuario o desde otros grupos
+                          </Text>
+                        </View>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                </View>
+              </PasoAyuda>
+
+              {/* Acciones de salida al final, como "Cerrar sesión" en el Perfil: filas simples en rojo. */}
+              <PasoAyuda {...AYUDA_GRUPO_DETALLE[4]!}>
+                <View style={styles.accionesSalida}>
+                  <FilaOpcion
+                    icono="log-out"
+                    titulo="Abandonar grupo"
+                    peligro
+                    disabled={procesandoAccion}
+                    onPress={iniciarAbandono}
+                  />
+                  {esLider ? (
+                    <FilaOpcion
+                      icono="trash-2"
+                      titulo="Eliminar grupo"
+                      peligro
+                      disabled={procesandoAccion}
+                      onPress={ejecutarEliminacion}
+                    />
+                  ) : null}
+                </View>
+              </PasoAyuda>
+            </View>
           </>
         )}
       </ScrollViewAyuda>
@@ -587,30 +586,23 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
+    flexGrow: 1,
+  },
+  cabecera: {
     paddingHorizontal: 20,
     paddingTop: 4,
+    paddingBottom: 22,
+  },
+  fundido: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 170 },
+  cuerpo: {
+    flexGrow: 1,
+    paddingHorizontal: 20,
     paddingBottom: 40,
     gap: 22,
   },
-  zonaPeligro: {
-    padding: 16,
-    borderRadius: 14,
-    borderWidth: 1.2,
-    gap: 10,
-  },
-  dangerHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  zonaTitulo: {
-    fontSize: 15.5,
-    fontWeight: '700',
-  },
-  zonaHint: {
-    fontSize: 12.5,
-    lineHeight: 18,
-    marginTop: -4,
-    marginBottom: 4,
+  // Las filas traen su propio padding: ocupan todo el ancho, como en el Perfil.
+  accionesSalida: {
+    marginHorizontal: -20,
   },
   hero: {
     alignItems: 'center',

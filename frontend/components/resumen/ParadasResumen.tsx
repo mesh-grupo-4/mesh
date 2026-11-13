@@ -1,9 +1,15 @@
+import { useState } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
+
+import { Pressable } from '@/components/Pressable'
 
 import { Badge, useTheme } from '@/components/MeshUI'
 import { formatDurationHm, formatHoraCorta } from '@/lib/format'
 import { CATEGORIAS_PARADA } from '@/lib/paradasApi'
 import type { ParadaResumenApi } from '@/lib/viajesApi'
+
+/** Paradas visibles antes de "Ver más": con muchas, la lista tapaba el resto del resumen. */
+const PARADAS_VISIBLES = 3
 
 function duracionLegible(segundos: number): string {
   return segundos < 60 ? 'menos de 1 min' : formatDurationHm(segundos)
@@ -36,7 +42,11 @@ export function ParadasResumen({
   esGrupal: boolean
 }) {
   const theme = useTheme()
+  const [verTodas, setVerTodas] = useState(false)
   if (paradas.length === 0) return null
+
+  const ocultas = paradas.length - PARADAS_VISIBLES
+  const visibles = verTodas || ocultas <= 0 ? paradas : paradas.slice(0, PARADAS_VISIBLES)
 
   const masLarga = Math.max(...paradas.map((p) => p.duracion_seg ?? 0))
   const resumen = [
@@ -53,7 +63,7 @@ export function ParadasResumen({
         <Text style={[styles.resumen, { color: theme.textDim }]}>{resumen}</Text>
       </View>
       <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        {paradas.map((parada, idx) => {
+        {visibles.map((parada, idx) => {
           const persona = quien(parada, esGrupal)
           return (
             <View key={parada.id}>
@@ -78,6 +88,20 @@ export function ParadasResumen({
             </View>
           )
         })}
+        {ocultas > 0 ? (
+          <>
+            <View style={[styles.separador, { backgroundColor: theme.border }]} />
+            <Pressable
+              onPress={() => setVerTodas((v) => !v)}
+              accessibilityRole="button"
+              style={styles.verMas}
+            >
+              <Text style={[styles.verMasTxt, { color: theme.accent }]}>
+                {verTodas ? 'Ver menos' : `Ver más (${ocultas})`}
+              </Text>
+            </Pressable>
+          </>
+        ) : null}
       </View>
     </>
   )
@@ -93,4 +117,6 @@ const styles = StyleSheet.create({
   encabezadoFila: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   titulo: { flex: 1, fontSize: 14, fontWeight: '600' },
   detalle: { fontSize: 13, lineHeight: 18 },
+  verMas: { paddingVertical: 12, alignItems: 'center' },
+  verMasTxt: { fontSize: 14, fontWeight: '700' },
 })

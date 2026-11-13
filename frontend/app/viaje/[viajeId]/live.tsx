@@ -40,7 +40,7 @@ import { LiveBottomPanel } from '@/components/live/LiveBottomPanel'
 import { LiveMapView, type LiveMapViewHandle } from '@/components/live/LiveMapView'
 import type { LiveMember } from '@/components/live/LiveMembersBar'
 import { ALTO_HEADER_COMPACTO, LiveTripHeader } from '@/components/live/LiveTripHeader'
-import { MapStylePicker } from '@/components/route-config/MapStylePicker'
+import { SelectorCapaMapa } from '@/components/route-config/SelectorCapaMapa'
 import { useCapaMapa } from '@/hooks/useCapaMapa'
 import { useTheme } from '@/components/MeshUI'
 import { BotonAyuda } from '@/components/ayuda/BotonAyuda'
@@ -102,6 +102,10 @@ import {
 } from '@/lib/viajesApi'
 
 /** A pie o en bici se llega al punto; en moto o auto se estaciona cerca. */
+/** Más lejos que esto de la salida al arrancar, se guía hasta ella primero. */
+const DISTANCIA_GUIA_SALIDA_M = 1000
+/** A esta distancia de la salida se da por llegado y la guía se borra. */
+const RADIO_LLEGADA_SALIDA_M = 100
 const RADIO_LLEGADA_M = 40
 const RADIO_LLEGADA_MOTOR_M = 70
 /** Tope de espera de una lectura GPS fresca al entrar: adentro de un edificio puede no llegar nunca. */
@@ -319,6 +323,7 @@ export default function ViajeLiveScreen() {
     publicar: publicarAlerta,
     ignorarAlertaEntrante,
     activarSeguirAlerta,
+    seguirAlertaPropia,
   } = useAlertas({
     viajeId: viajeId ?? '',
     userId,
@@ -357,6 +362,7 @@ export default function ViajeLiveScreen() {
     setBuscandoCerca(false)
     if (!myPosition) return
     const coords = await calcularGuiaHastaDestino(myPosition, lugar, tipoActividad)
+    guiaSalidaActivaRef.current = false
     setGuiaLugar({ coords, destino: { lat: lugar.lat, lng: lugar.lng, nombre: lugar.nombre } })
     // El encuadre de la guía es deliberado: como un arrastre manual, pausa el "seguirme".
     setSiguiendo(false)
@@ -507,6 +513,46 @@ export default function ViajeLiveScreen() {
     pos: myPosition,
     distanciaRecorridaM: distanceM,
   })
+
+  // Lejos de la salida al arrancar: primero se guía hasta ella (como "Cerca mío").
+  // Una sola vez por pantalla: si la persona corta la guía, no vuelve a aparecer.
+  const guiaSalidaEvaluadaRef = useRef(false)
+  const guiaSalidaActivaRef = useRef(false)
+  const origenRuta = routeLine?.[0] ?? null
+  useEffect(() => {
+    if (guiaSalidaEvaluadaRef.current) return
+    if (viaje?.estado !== 'en_curso' || !sumado || !myPosition || !origenRuta) return
+    guiaSalidaEvaluadaRef.current = true
+    // Ya en camino (volvió a entrar a mitad del viaje): no se lo manda a la salida.
+    if (distanceM > DISTANCIA_GUIA_SALIDA_M) return
+    const [latSalida, lngSalida] = origenRuta
+    if (haversineDistanceM(myPosition.lat, myPosition.lng, latSalida, lngSalida) <= DISTANCIA_GUIA_SALIDA_M) return
+    void (async () => {
+      const coords = await calcularGuiaHastaDestino(
+        myPosition,
+        { lat: latSalida, lng: lngSalida },
+        tipoActividad
+      )
+      // Si mientras tanto eligió otro lugar, no se lo pisa.
+      setGuiaLugar((actual) => {
+        if (actual) return actual
+        guiaSalidaActivaRef.current = true
+        return { coords, destino: { lat: latSalida, lng: lngSalida, nombre: 'Salida' } }
+      })
+      setSiguiendo(false)
+      mapRef.current?.fitBoundsToCoords(coords)
+    })()
+  }, [viaje?.estado, sumado, myPosition, origenRuta, distanceM, tipoActividad])
+
+  // Al llegar a la salida la guía se borra sola y el mapa vuelve a seguirte.
+  useEffect(() => {
+    if (!guiaSalidaActivaRef.current || !guiaLugar || !myPosition) return
+    const { lat, lng } = guiaLugar.destino
+    if (haversineDistanceM(myPosition.lat, myPosition.lng, lat, lng) > RADIO_LLEGADA_SALIDA_M) return
+    guiaSalidaActivaRef.current = false
+    setGuiaLugar(null)
+    setSiguiendo(true)
+  }, [guiaLugar, myPosition])
 
   const nextStop = useNextStopEta({
     ruta: rutaPreparada,
@@ -1032,13 +1078,23 @@ export default function ViajeLiveScreen() {
   ) => {
     void (async () => {
       try {
-        await publicarAlerta({
+        const alerta = await publicarAlerta({
           tipo,
           mensaje: mensaje.trim() || undefined,
           lat: ubicacion?.lat,
           lng: ubicacion?.lng,
         })
         setComponiendoAlerta(false)
+        // Con lugar, quien la crea también va: se le dibuja la ruta hasta ahí.
+        // Si la ruta no se puede calcular, la alerta igual salió: no se avisa como error.
+        if (alerta.lat != null && alerta.lng != null) {
+          const activa = await seguirAlertaPropia(alerta).catch(() => null)
+          if (activa && activa.polyline.length > 1) {
+            // Encuadre deliberado, como en "Cerca mío": pausa el "seguirme".
+            setSiguiendo(false)
+            mapRef.current?.fitBoundsToCoords(activa.polyline)
+          }
+        }
       } catch (e) {
         meshAlert('No se pudo enviar la alerta', mensajeDeError(e))
       }
@@ -1298,11 +1354,18 @@ export default function ViajeLiveScreen() {
             />
           </PasoAyuda>
 
-          <MapStylePicker value={mapStyle} onChange={setMapStyle} topAbsolute={topFlotantes + 14} light />
+          {/* Mismo selector de vista que el Inicio. */}
+          <SelectorCapaMapa
+            value={mapStyle}
+            onChange={setMapStyle}
+            menuTop={topFlotantes + 14 + TAM_SELECTOR_CAPA + 8}
+            menuLado="derecha"
+            style={[styles.selectorCapa, { top: topFlotantes + 14 }]}
+          />
 
           {viaje?.estado === 'en_curso' ? (
             <CercaMioButton
-              topOffset={topFlotantes + 14 + 44 + 10}
+              topOffset={topFlotantes + 14 + TAM_SELECTOR_CAPA + 10}
               guiaActiva={guiaLugar != null}
               onPress={() => (guiaLugar ? setGuiaLugar(null) : setBuscandoCerca(true))}
               tipoActividad={tipoActividad}
@@ -1451,6 +1514,7 @@ export default function ViajeLiveScreen() {
           accionGrupoLugar ? { label: 'Solo yo', onElegir: (lugar) => void irALugar(lugar) } : undefined
         }
         buscar={buscarCercaMio}
+        tipoActividad={tipoActividad}
         detalle={distanciaHastaLugar}
         onCerrar={() => setBuscandoCerca(false)}
       />
@@ -1478,6 +1542,7 @@ export default function ViajeLiveScreen() {
         enviando={alertaEnviando}
         inicial={alertaInicial}
         centroMapaInicial={centroMapaAlerta}
+        tipoActividad={tipoActividad}
         onPublicar={handlePublicarAlerta}
         onCancelar={() => setComponiendoAlerta(false)}
       />
@@ -1485,7 +1550,20 @@ export default function ViajeLiveScreen() {
   )
 }
 
+/** Diámetro del botón de `SelectorCapaMapa`: el de "Cerca mío" va debajo. */
+const TAM_SELECTOR_CAPA = 48
+
 const styles = StyleSheet.create({
+  selectorCapa: {
+    position: 'absolute',
+    right: 12,
+    zIndex: 30,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 5,
+  },
   root: {
     flex: 1,
   },

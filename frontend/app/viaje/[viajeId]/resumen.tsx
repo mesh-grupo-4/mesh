@@ -9,6 +9,8 @@ import {
   View,
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { Feather } from '@expo/vector-icons'
+import { Pressable } from '@/components/Pressable'
 
 import { useCopilot } from 'react-native-copilot'
 import { AvatarFallback } from '@/components/AvatarFallback'
@@ -87,6 +89,8 @@ export default function ViajeResumenScreen() {
   const [compartirChecklist, setCompartirChecklist] = useState(false)
   const [itemsChecklist, setItemsChecklist] = useState(0)
   const [pestania, setPestania] = useState<'resumen' | 'gastos'>('resumen')
+  /** Gastos cargados según el panel: decide si el botón de la barra edita o agrega. */
+  const [cantidadGastos, setCantidadGastos] = useState<number | null>(null)
   // Solo se publica el recorrido propio: si se abrió el resumen de otro usuario
   // (`?userId=`), la tarjeta no aparece. El backend igual publica solo lo de quien llama.
   const esPropio = !params.userId || userId === backendUserId
@@ -243,6 +247,23 @@ export default function ViajeResumenScreen() {
         bordered={false}
         // El tour recorre la pestaña de resumen: desde gastos no tendría a qué apuntar.
         onAyuda={pestania === 'resumen' ? () => start() : undefined}
+        right={
+          pestania === 'gastos' && cantidadGastos != null ? (
+            // Lápiz en un círculo, como en el resto de la app; "+" si todavía no hay gastos.
+            <Pressable
+              onPress={() => router.push({ pathname: '/viaje/[viajeId]/gastos', params: { viajeId } })}
+              accessibilityRole="button"
+              accessibilityLabel={cantidadGastos > 0 ? 'Agregar o editar gastos' : 'Agregar un gasto'}
+              hitSlop={8}
+              style={({ pressed }) => [
+                styles.botonCirculo,
+                { backgroundColor: pressed ? theme.surface2 : theme.surface, borderColor: theme.border },
+              ]}
+            >
+              <Feather name={cantidadGastos > 0 ? 'edit-2' : 'plus'} size={19} color={theme.text} />
+            </Pressable>
+          ) : undefined
+        }
       />
 
       {esGrupal ? (
@@ -258,7 +279,9 @@ export default function ViajeResumenScreen() {
         />
       ) : null}
 
-      {pestania === 'gastos' ? <GastosCierrePanel viajeId={viajeId} /> : null}
+      {pestania === 'gastos' ? (
+        <GastosCierrePanel viajeId={viajeId} onCantidad={setCantidadGastos} />
+      ) : null}
 
       {loading ? (
         <View style={styles.center}>
@@ -610,6 +633,14 @@ function IntegranteRow({ integrante, rankingHabilitado, tipoActividad }: Integra
 }
 
 const styles = StyleSheet.create({
+  botonCirculo: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   container: {
     flex: 1,
   },

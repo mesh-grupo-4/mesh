@@ -257,6 +257,7 @@ export default function ConfigurarRutaScreen() {
           subtitulo="Lugares a lo largo del recorrido"
           accionLabel="Agregar"
           buscar={buscarEnRuta}
+          tipoActividad={tipoActividad}
           onElegir={agregarLugar}
           onCerrar={() => setSugiriendoParadas(false)}
         />

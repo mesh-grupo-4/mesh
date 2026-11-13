@@ -1,4 +1,4 @@
-import { useFocusEffect, useRouter } from 'expo-router'
+import { useFocusEffect } from 'expo-router'
 import { useCallback, useMemo, useState } from 'react'
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -11,7 +11,7 @@ import {
   ResumenGastosCard,
   type FiltroGastos,
 } from '@/components/gastos/GastoCards'
-import { Btn, useTheme } from '@/components/MeshUI'
+import { useTheme } from '@/components/MeshUI'
 import { DEV_USER_ID } from '@/constants/Config'
 import { useAuth } from '@/context/AuthContext'
 import {
@@ -26,9 +26,17 @@ import {
  * ajustando después del viaje; cargar, editar y borrar se hace en la pantalla de
  * gastos, y al volver esta pestaña se actualiza sola.
  */
-export function GastosCierrePanel({ viajeId }: { viajeId: string }) {
+type Props = {
+  viajeId: string
+  /**
+   * Cantidad de gastos cargados (null mientras carga o si falló). La pantalla la usa
+   * para el botón de la barra: lápiz para editar, "+" si todavía no hay ninguno.
+   */
+  onCantidad?: (cantidad: number | null) => void
+}
+
+export function GastosCierrePanel({ viajeId, onCantidad }: Props) {
   const theme = useTheme()
-  const router = useRouter()
   const insets = useSafeAreaInsets()
   const { backendUserId } = useAuth()
   const miId = backendUserId || DEV_USER_ID || ''
@@ -48,12 +56,14 @@ export function GastosCierrePanel({ viajeId }: { viajeId: string }) {
       ])
       setGastos(lista)
       setBalance(saldo)
+      onCantidad?.(lista.length)
     } catch (e) {
+      onCantidad?.(null)
       setError(e instanceof Error ? e.message : 'No se pudieron cargar los gastos.')
     } finally {
       setCargando(false)
     }
-  }, [viajeId])
+  }, [viajeId, onCantidad])
 
   // Al volver de la pantalla de gastos hay que traer lo que se cargó o corrigió ahí.
   useFocusEffect(
@@ -63,9 +73,6 @@ export function GastosCierrePanel({ viajeId }: { viajeId: string }) {
   )
 
   const visibles = useMemo(() => filtrarGastos(gastos, filtro, miId), [gastos, filtro, miId])
-
-  const abrirGastos = () =>
-    router.push({ pathname: '/viaje/[viajeId]/gastos', params: { viajeId } })
 
   return (
     <ScrollView
@@ -98,12 +105,6 @@ export function GastosCierrePanel({ viajeId }: { viajeId: string }) {
           <ResumenGastosCard gastos={gastos} miId={miId} theme={theme} />
           <BalanceCard balance={balance} miId={miId} theme={theme} />
         </>
-      ) : null}
-
-      {!error ? (
-        <Btn variant="outline" icon={gastos.length > 0 ? 'edit-2' : 'plus'} block onPress={abrirGastos}>
-          {gastos.length > 0 ? 'Agregar o editar gastos' : 'Agregar un gasto'}
-        </Btn>
       ) : null}
 
       {gastos.length > 1 ? (

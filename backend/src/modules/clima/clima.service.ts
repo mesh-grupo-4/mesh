@@ -16,8 +16,12 @@ const HORIZONTE_DIAS = 16
 const CACHE_TTL_MS = 15 * 60 * 1000
 /** Como máximo esta cantidad de puntos de la ruta se consultan. */
 const MAX_PUNTOS = 8
-/** Si la ruta trae pocas paradas, se agregan tramos intermedios hasta llegar a esto. */
-const MIN_PUNTOS = 5
+/**
+ * Un punto de pronóstico cada tantos metros de ruta. Si las paradas no alcanzan, se
+ * agregan tramos intermedios hasta esa densidad: una ruta corta queda con origen y
+ * destino, sin tramos repetidos sobre la misma zona.
+ */
+const METROS_POR_PUNTO = 25_000
 
 /** RN-108: umbrales a partir de los cuales se alerta. */
 export const UMBRALES_CLIMA = {
@@ -115,6 +119,17 @@ function fraccionEnTrazado(lat: number, lng: number, coords: [number, number][])
   return mejor / (coords.length - 1)
 }
 
+/** Largo del trazado sumando sus tramos, para rutas sin distancia planeada guardada. */
+function largoTrazadoMetros(coords: [number, number][]): number {
+  let total = 0
+  for (let i = 1; i < coords.length; i++) {
+    const [lng1, lat1] = coords[i - 1]!
+    const [lng2, lat2] = coords[i]!
+    total += distanciaMetros(lat1, lng1, lat2, lng2)
+  }
+  return total
+}
+
 export class ClimaService {
   private readonly cache = new Map<string, { at: number; data: ClimaViaje }>()
 
@@ -142,6 +157,7 @@ export class ClimaService {
             destino_nombre: true,
             linestring_geojson: true,
             tiempo_estimado_seg: true,
+            distancia_planeada_m: true,
             paradas_intermedias: {
               orderBy: { orden: 'asc' },
               select: { lat: true, lng: true, nombre: true },
@@ -209,7 +225,8 @@ export class ClimaService {
       { lat: ruta.origen_lat, lng: ruta.origen_lng, nombre: ruta.origen_nombre },
       { lat: ruta.destino_lat, lng: ruta.destino_lng, nombre: ruta.destino_nombre },
       ruta.paradas_intermedias,
-      coords
+      coords,
+      ruta.distancia_planeada_m ?? largoTrazadoMetros(coords)
     )
 
     const duracionSeg = ruta.tiempo_estimado_seg ?? 0
@@ -234,13 +251,18 @@ export class ClimaService {
     return data
   }
 
-  /** Origen, paradas y destino; si son pocos, tramos intermedios del trazado. Máximo MAX_PUNTOS. */
+  /**
+   * Origen, paradas y destino; si son pocos para el largo de la ruta, tramos
+   * intermedios del trazado (uno cada METROS_POR_PUNTO). Máximo MAX_PUNTOS.
+   */
   private elegirMuestras(
     origen: { lat: number; lng: number; nombre: string | null },
     destino: { lat: number; lng: number; nombre: string | null },
     paradas: { lat: number; lng: number; nombre: string | null }[],
-    coords: [number, number][]
+    coords: [number, number][],
+    distanciaM: number
   ): PuntoMuestra[] {
+    const objetivo = Math.min(MAX_PUNTOS, Math.max(2, Math.round(distanciaM / METROS_POR_PUNTO) + 1))
     const muestras: PuntoMuestra[] = [
       { nombre: origen.nombre?.trim() || 'Origen', lat: origen.lat, lng: origen.lng, fraccion: 0 },
     ]
@@ -252,7 +274,7 @@ export class ClimaService {
         fraccion: fraccionEnTrazado(p.lat, p.lng, coords),
       })
     }
-    const faltan = MIN_PUNTOS - muestras.length - 1
+    const faltan = objetivo - muestras.length - 1
     if (faltan > 0 && coords.length >= 2) {
       for (let k = 1; k <= faltan; k++) {
         const fraccion = k / (faltan + 1)

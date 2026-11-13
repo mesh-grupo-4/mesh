@@ -1,5 +1,14 @@
-import { memo, useMemo } from 'react'
+import { memo, useEffect, useMemo } from 'react'
 import { StyleSheet, useWindowDimensions, View } from 'react-native'
+import Animated, {
+  cancelAnimation,
+  Easing,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated'
 import Svg, { Defs, G, LinearGradient, Path, Rect, Stop, Use } from 'react-native-svg'
 
 import {
@@ -45,6 +54,69 @@ type FondoProps = {
   colorRacha: string
   /** De 0 a 1: parte de los logotipos que se encienden con la racha. */
   intensidadRacha: number
+  /**
+   * Perfiles: el patrón se mece lento en diagonal y los logotipos de la racha "respiran"
+   * a destiempo. Se apaga si el sistema pide reducir el movimiento.
+   */
+  animado?: boolean
+}
+
+type Posicion = { x: number; y: number; umbral: number }
+
+/**
+ * Ida y vuelta de un paso del patrón. Es un vaivén y no un loop que vuelve a empezar:
+ * al reiniciar, cada lugar quedaba con otro logotipo y la racha encendida saltaba.
+ */
+const DURACION_VAIVEN_MS = 14_000
+/** Ciclo de brillo de los logotipos de la racha; tres grupos desfasados entre sí. */
+const DURACION_DESTELLO_MS = 3_200
+const GRUPOS_DESTELLO = 3
+/** Cuánto baja el brillo de un logotipo encendido en el punto más bajo del ciclo. */
+const BAJA_DESTELLO = 0.55
+
+/** Opacidad del grupo `k` en el instante `v` (0 a 1) del ciclo de destello. */
+function brilloDestello(v: number, k: number): number {
+  'worklet'
+  const fase = v + k / GRUPOS_DESTELLO
+  return 1 - BAJA_DESTELLO * (0.5 - 0.5 * Math.cos(2 * Math.PI * fase))
+}
+
+const logotipo = (id: string, fill: string) => (
+  <G id={id} fill={fill} transform={`translate(${-M_CAJA.x} ${-M_CAJA.y})`}>
+    <Path d={M_CON_RUEDAS} fillRule="evenodd" />
+    {LETRAS.map((letra) => (
+      <Path key={letra.x} d={letra.d} transform={`translate(${letra.x} ${LETRAS_Y})`} />
+    ))}
+  </G>
+)
+
+/** Una capa de logotipos en su propio Svg, para poder animar su opacidad por separado. */
+function CapaLogos({
+  posiciones,
+  id,
+  color,
+  opacidad,
+  ancho,
+  alto,
+}: {
+  posiciones: Posicion[]
+  id: string
+  color: string
+  opacidad: number
+  ancho: number
+  alto: number
+}) {
+  if (posiciones.length === 0) return null
+  return (
+    <Svg width={ancho} height={alto} style={StyleSheet.absoluteFill}>
+      <Defs>{logotipo(id, color)}</Defs>
+      <G opacity={opacidad}>
+        {posiciones.map(({ x, y }) => (
+          <Use key={`${x}-${y}`} href={`#${id}`} transform={`translate(${x} ${y}) scale(${ESCALA})`} />
+        ))}
+      </G>
+    </Svg>
+  )
 }
 
 /**
@@ -56,13 +128,19 @@ export const FondoMesh = memo(function FondoMesh({
   alto,
   colorRacha,
   intensidadRacha,
+  animado = false,
 }: FondoProps) {
   const { width } = useWindowDimensions()
+  const movimientoReducido = useReducedMotion()
+  const mover = animado && !movimientoReducido
+  // Con vaivén se dibuja un paso de más hacia la derecha y hacia abajo, para no dejar huecos.
+  const ancho = width + PASO_X
+  const altoDibujo = alto + PASO_Y
 
   const posiciones = useMemo(() => {
-    const filas = Math.ceil(alto / PASO_Y) + 1
-    const columnas = Math.ceil(width / PASO_X) + 2
-    const lista: { x: number; y: number; umbral: number }[] = []
+    const filas = Math.ceil(altoDibujo / PASO_Y) + 1
+    const columnas = Math.ceil(ancho / PASO_X) + 2
+    const lista: Posicion[] = []
     for (let fila = 0; fila < filas; fila++) {
       const desfase = fila % 2 === 0 ? 0 : PASO_X / 2
       for (let columna = -1; columna < columnas; columna++) {
@@ -75,42 +153,80 @@ export const FondoMesh = memo(function FondoMesh({
       }
     }
     return lista
-  }, [alto, width])
+  }, [altoDibujo, ancho])
 
-  const dibujar = (lista: typeof posiciones, id: string) =>
-    lista.map(({ x, y }) => (
-      <Use key={`${x}-${y}`} href={`#${id}`} transform={`translate(${x} ${y}) scale(${ESCALA})`} />
-    ))
-
-  const logotipo = (id: string, fill: string) => (
-    <G id={id} fill={fill} transform={`translate(${-M_CAJA.x} ${-M_CAJA.y})`}>
-      <Path d={M_CON_RUEDAS} fillRule="evenodd" />
-      {LETRAS.map((letra) => (
-        <Path key={letra.x} d={letra.d} transform={`translate(${letra.x} ${LETRAS_Y})`} />
-      ))}
-    </G>
+  const base = useMemo(
+    () => posiciones.filter((p) => p.umbral >= intensidadRacha),
+    [posiciones, intensidadRacha]
   )
+  // Los encendidos se reparten en grupos que respiran desfasados.
+  const encendidos = useMemo(() => {
+    const grupos: Posicion[][] = Array.from({ length: GRUPOS_DESTELLO }, () => [])
+    posiciones
+      .filter((p) => p.umbral < intensidadRacha)
+      .forEach((p, i) => grupos[i % GRUPOS_DESTELLO]!.push(p))
+    return grupos
+  }, [posiciones, intensidadRacha])
+
+  const vaiven = useSharedValue(0)
+  const destello = useSharedValue(0)
+  useEffect(() => {
+    cancelAnimation(vaiven)
+    cancelAnimation(destello)
+    vaiven.value = 0
+    destello.value = 0
+    if (!mover) return
+    vaiven.value = withRepeat(
+      withTiming(1, { duration: DURACION_VAIVEN_MS, easing: Easing.inOut(Easing.sin) }),
+      -1,
+      true
+    )
+    destello.value = withRepeat(
+      withTiming(1, { duration: DURACION_DESTELLO_MS, easing: Easing.linear }),
+      -1,
+      false
+    )
+    return () => {
+      cancelAnimation(vaiven)
+      cancelAnimation(destello)
+    }
+  }, [mover, vaiven, destello])
+
+  const estiloVaiven = useAnimatedStyle(() => ({
+    transform: [{ translateX: -vaiven.value * PASO_X }, { translateY: -vaiven.value * PASO_Y }],
+  }))
+  // Tres hooks fijos (uno por grupo): la cantidad de grupos no cambia.
+  const estiloGrupo0 = useAnimatedStyle(() => ({ opacity: mover ? brilloDestello(destello.value, 0) : 1 }))
+  const estiloGrupo1 = useAnimatedStyle(() => ({ opacity: mover ? brilloDestello(destello.value, 1) : 1 }))
+  const estiloGrupo2 = useAnimatedStyle(() => ({ opacity: mover ? brilloDestello(destello.value, 2) : 1 }))
+  const estilosGrupo = [estiloGrupo0, estiloGrupo1, estiloGrupo2]
+
+  const opacidadRacha = OPACIDAD_RACHA_MIN + OPACIDAD_RACHA_RANGO * intensidadRacha
 
   return (
     <View pointerEvents="none" style={[styles.fondo, { height: alto }]}>
-      <Svg width={width} height={alto}>
-        <Defs>
-          {logotipo(ID_LOGOTIPO, color)}
-          {logotipo(ID_LOGOTIPO_RACHA, colorRacha)}
-        </Defs>
-        <G opacity={OPACIDAD}>
-          {dibujar(
-            posiciones.filter((p) => p.umbral >= intensidadRacha),
-            ID_LOGOTIPO
-          )}
-        </G>
-        <G opacity={OPACIDAD_RACHA_MIN + OPACIDAD_RACHA_RANGO * intensidadRacha}>
-          {dibujar(
-            posiciones.filter((p) => p.umbral < intensidadRacha),
-            ID_LOGOTIPO_RACHA
-          )}
-        </G>
-      </Svg>
+      <Animated.View style={[{ width: ancho, height: altoDibujo }, estiloVaiven]}>
+        <CapaLogos
+          posiciones={base}
+          id={ID_LOGOTIPO}
+          color={color}
+          opacidad={OPACIDAD}
+          ancho={ancho}
+          alto={altoDibujo}
+        />
+        {encendidos.map((grupo, k) => (
+          <Animated.View key={k} style={[StyleSheet.absoluteFill, estilosGrupo[k]]}>
+            <CapaLogos
+              posiciones={grupo}
+              id={`${ID_LOGOTIPO_RACHA}-${k}`}
+              color={colorRacha}
+              opacidad={opacidadRacha}
+              ancho={ancho}
+              alto={altoDibujo}
+            />
+          </Animated.View>
+        ))}
+      </Animated.View>
     </View>
   )
 })
@@ -138,5 +254,7 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
+    // El dibujo es un paso más grande que el fondo para el vaivén: se recorta.
+    overflow: 'hidden',
   },
 })

@@ -919,6 +919,7 @@ const styles = StyleSheet.create({
   topBarRight: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
     marginLeft: 10,
   },
   backButton: {

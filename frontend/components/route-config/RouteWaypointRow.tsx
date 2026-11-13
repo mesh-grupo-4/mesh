@@ -33,6 +33,8 @@ type Props = {
   onPickOnMap: () => void
   mapPickMode?: boolean
   InputComponent?: ComponentType<TextInputProps>
+  /** Filtra las categorías de parada que no aplican a la actividad. */
+  tipoActividad?: string | null
 }
 
 export function RouteWaypointRow({
@@ -45,6 +47,7 @@ export function RouteWaypointRow({
   onPickOnMap,
   mapPickMode = false,
   InputComponent = TextInput,
+  tipoActividad,
 }: Props) {
   const theme = useTheme()
   const [query, setQuery] = useState(waypoint.name)
@@ -183,6 +186,7 @@ export function RouteWaypointRow({
         <StopCategoryPicker
           value={(waypoint.category ?? 'otro') as StopCategory}
           onChange={(category) => onUpdate(waypoint.id, { category })}
+          tipoActividad={tipoActividad}
         />
       ) : null}
 

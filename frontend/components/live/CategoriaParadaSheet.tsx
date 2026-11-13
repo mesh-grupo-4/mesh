@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useTheme } from '@/components/MeshUI'
 import { DragToDismiss } from '@/components/DragToDismiss'
 import { tamanoOutdoor } from '@/constants/Typography'
+import { ofreceCombustible } from '@/lib/activityDefaults'
 import { uiConfigPorActividad } from '@/lib/activityUi'
 import { CATEGORIAS_PARADA, type CategoriaParadaApi } from '@/lib/paradasApi'
 import type { TipoActividadApi } from '@/lib/viajesApi'
@@ -44,7 +45,9 @@ export function CategoriaParadaSheet({
   const elegir = (categoria: CategoriaParadaApi) => onSeleccionar(categoria, puedeDetenerGrupo && todoElGrupo)
 
   const accidente = CATEGORIAS_PARADA.find((c) => c.id === 'accidente')
-  const resto = CATEGORIAS_PARADA.filter((c) => c.id !== 'accidente')
+  const resto = CATEGORIAS_PARADA.filter(
+    (c) => c.id !== 'accidente' && (c.id !== 'combustible' || ofreceCombustible(tipoActividad))
+  )
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancelar}>

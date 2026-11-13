@@ -155,6 +155,7 @@ export default function PerfilScreen() {
           alto={ALTO_FONDO}
           colorRacha={theme.fire}
           intensidadRacha={intensidadRacha(semanasRacha)}
+          animado
         />
 
         <TopBar

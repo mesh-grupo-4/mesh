@@ -176,6 +176,8 @@ export const cederLiderazgoSchema = z.object({
 
 export const actualizarViajeSchema = z
   .object({
+    /** Solo con el viaje planificado (lo valida el servicio). */
+    nombre: z.string().trim().min(1, 'El nombre del viaje es obligatorio').max(100).optional(),
     fechaProgramada: fechaProgramadaFuturaSchema.optional(),
     alertaIncidenteHabilitada: z.boolean().optional(),
     alertaIncidenteMinutos: z.number().int().min(1).max(30).nullable().optional(),
@@ -187,6 +189,7 @@ export const actualizarViajeSchema = z
   })
   .superRefine((data, ctx) => {
     const tieneCampo =
+      data.nombre != null ||
       data.fechaProgramada != null ||
       data.alertaIncidenteHabilitada != null ||
       data.alertaIncidenteMinutos !== undefined ||
