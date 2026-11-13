@@ -284,6 +284,7 @@ export const VIAJES_VITRINA: ViajeVitrina[] = [
     ],
     alertas: [
       { f: 0.1, tipo: 'combustible', origen: 'lider', por: 'lucia', mensaje: 'Cargamos todos en la YPF de Carlos Paz, después no hay hasta Mina Clavero' },
+      { f: 0.46, tipo: 'desvio', origen: 'sistema', por: 'facundo', metros: 180 },
       { f: 0.5, tipo: 'peligro', origen: 'lider', por: 'lucia', mensaje: 'Neblina en la subida, bajen la velocidad y prendan las luces' },
       { f: 0.58, tipo: 'atraso', origen: 'sistema', por: 'facundo', metros: 1450 },
       { f: 0.74, tipo: 'informacion', origen: 'integrante', por: 'martin', mensaje: 'Animales sueltos sobre la ruta pasando el parador' },
@@ -326,6 +327,7 @@ export const VIAJES_VITRINA: ViajeVitrina[] = [
     alertas: [
       { f: 0.25, tipo: 'parada', origen: 'lider', por: 'lucia', mensaje: 'Reagrupamos en la plaza de Villa Allende' },
       { f: 0.62, tipo: 'atraso', origen: 'sistema', por: 'matias', metros: 420 },
+      { f: 0.72, tipo: 'peligro', origen: 'lider', por: 'lucia', mensaje: 'Perro suelto en la bajada', estado: 'cancelada' },
     ],
     solicitudes: [{ f: 0.55, por: 'florencia', motivo: 'Necesito cargar agua', estado: 'aprobada' }],
     gastos: [{ por: 'sofia', monto: 18500, descripcion: 'Facturas y café en Río Ceballos' }],
@@ -386,6 +388,8 @@ export const VIAJES_VITRINA: ViajeVitrina[] = [
       { en: 0.42, min: 10, categoria: 'combustible' },
       { en: 0.74, min: 15, categoria: 'descanso' },
     ],
+    // RN-022: una parada por accidente avisa sola a todo el grupo con una alerta de peligro.
+    paradasDe: [{ quien: 'nicolas', en: 0.55, min: 9, categoria: 'accidente' }],
     alertas: [{ f: 0.35, tipo: 'combustible', origen: 'lider', por: 'lucia', mensaje: 'Cargamos en la Shell de Alta Gracia' }],
     solicitudes: [{ f: 0.6, por: 'nicolas', motivo: 'Paramos a sacar fotos en el dique?', estado: 'aprobada' }],
     gastos: [
@@ -517,7 +521,7 @@ export const VIAJES_VITRINA: ViajeVitrina[] = [
       votoProtagonista: true,
     },
   },
-  { clave: 'run-s4', nombre: 'Vuelta al parque', ruta: 'run-sarmiento', modo: 'entrenamiento', haceDias: 64, hora: 7.5, creador: 'lucia', integrantes: [], ritmos: { lucia: 0.91 } },
+  { clave: 'run-s4', nombre: 'Vuelta al parque', ruta: 'run-sarmiento', modo: 'entrenamiento', haceDias: 64, hora: 7.5, creador: 'lucia', integrantes: [], cortarEnKm: 4, ritmos: { lucia: 0.91 } },
   {
     clave: 'cumbrecita',
     nombre: 'Rodada a La Cumbrecita',
@@ -531,7 +535,8 @@ export const VIAJES_VITRINA: ViajeVitrina[] = [
     paradas: [{ en: 0.55, min: 10, categoria: 'descanso' }],
     gastos: [{ por: 'joaquin', monto: 48000, descripcion: 'Merienda en La Cumbrecita' }],
   },
-  { clave: 'run-s5', nombre: 'Arranco a correr', ruta: 'run-sarmiento', modo: 'entrenamiento', haceDias: 71, hora: 7.5, creador: 'lucia', integrantes: [], ritmos: { lucia: 0.88 } },
+  // Las dos primeras salidas fueron más cortas: en el circuito se ve cómo fue sumando distancia.
+  { clave: 'run-s5', nombre: 'Arranco a correr', ruta: 'run-sarmiento', modo: 'entrenamiento', haceDias: 71, hora: 7.5, creador: 'lucia', integrantes: [], cortarEnKm: 3, ritmos: { lucia: 0.88 } },
   // Antes de la racha actual: salidas sueltas.
   { clave: 'bici-paseo', nombre: 'Paseo en bici', ruta: 'bici-ciudad', modo: 'recreativo', haceDias: 96, hora: 17, creador: 'lucia', integrantes: [] },
   {
@@ -553,7 +558,58 @@ export const VIAJES_VITRINA: ViajeVitrina[] = [
     ],
   },
 
+  // ── Tab Entrenar (RN-066): lo que alimenta circuitos y sesiones además de los trotes de arriba ──
+  // Bici: cuatro salidas desde la misma ruta guardada ("Ciclovía del Suquía"), cada vez más largas.
+  { clave: 'bici-e1', nombre: 'Ciclovía suave', ruta: 'bici-ciudad', modo: 'entrenamiento', haceDias: 45, hora: 18, creador: 'lucia', integrantes: [], vuelta: true, cortarEnKm: 19, ritmos: { lucia: 0.92 } },
+  { clave: 'bici-e2', nombre: 'Ciclovía a ritmo', ruta: 'bici-ciudad', modo: 'entrenamiento', haceDias: 27, hora: 18, creador: 'lucia', integrantes: [], vuelta: true, cortarEnKm: 24, ritmos: { lucia: 0.97 } },
+  { clave: 'bici-e3', nombre: 'Cambios de ritmo en la ciclovía', ruta: 'bici-ciudad', modo: 'entrenamiento', haceDias: 11, hora: 18, creador: 'lucia', integrantes: [], vuelta: true, ritmos: { lucia: 1.02 } },
+  { clave: 'bici-e4', nombre: 'Ciclovía contrarreloj', ruta: 'bici-ciudad', modo: 'entrenamiento', haceDias: 3, hora: 18.5, creador: 'lucia', integrantes: [], vuelta: true, ritmos: { lucia: 1.05 } },
+  // Sesiones sueltas: sin circuito, para mostrar "Repetir" armando uno en vivo.
+  { clave: 'run-fondo-suelto', nombre: 'Fondo largo al Kempes', ruta: 'run-fondo', modo: 'entrenamiento', haceDias: 12, hora: 8, creador: 'lucia', integrantes: [], ritmos: { lucia: 0.98 } },
+  { clave: 'otro-caminata', nombre: 'Caminata rápida por el parque', ruta: 'run-sarmiento', actividad: 'otro', modo: 'entrenamiento', haceDias: 9, hora: 19, creador: 'lucia', integrantes: [] },
+  // Entrenamiento grupal que armó Martín: a Lucía le queda como sesión "armada por otra persona".
+  { clave: 'martin-p1', nombre: 'Progresivos por la costanera', ruta: 'run-costanera', modo: 'entrenamiento', haceDias: 30, hora: 19, creador: 'martin', integrantes: [], ritmos: { martin: 1.04 } },
+  {
+    clave: 'runners-progresivos',
+    nombre: 'Progresivos con los Runners',
+    ruta: 'run-costanera',
+    modo: 'entrenamiento',
+    haceDias: 16,
+    hora: 19.5,
+    creador: 'martin',
+    integrantes: ['lucia', 'camila', 'agustina'],
+    grupo: 'runners',
+    libre: true,
+    ritmos: { martin: 1.1, lucia: 1.02, camila: 1.05, agustina: 1.12 },
+    checklistLider: ['Luz frontal'],
+  },
+  { clave: 'martin-p3', nombre: 'Progresivos en solitario', ruta: 'run-costanera', modo: 'entrenamiento', haceDias: 5, hora: 19, creador: 'martin', integrantes: [], ritmos: { martin: 1.09 } },
+  // Trekking: Sofía entrena en el Cerro Wank; Lucía fue una vez invitada y después lo repitió sola,
+  // así que cada una tiene su propio circuito sobre el mismo recorrido.
+  { clave: 'sofia-w1', nombre: 'Subida al Cerro Wank', ruta: 'trek-wank', modo: 'entrenamiento', haceDias: 52, hora: 9, creador: 'sofia', integrantes: [], vuelta: true, ritmos: { sofia: 0.95 } },
+  { clave: 'wank-grupal', nombre: 'Cerro Wank a ritmo', ruta: 'trek-wank', modo: 'entrenamiento', haceDias: 34, hora: 9, creador: 'sofia', integrantes: ['lucia'], vuelta: true, ritmos: { sofia: 1.02 } },
+  // Reciente a propósito: el ranking mensual es por mes calendario y así figura también en trekking.
+  { clave: 'lucia-w2', nombre: 'Cerro Wank sin pausas', ruta: 'trek-wank', modo: 'entrenamiento', haceDias: 5, hora: 9, creador: 'lucia', integrantes: [], vuelta: true, ritmos: { lucia: 1.07 } },
+  { clave: 'sofia-w3', nombre: 'Cerro Wank contra el reloj', ruta: 'trek-wank', modo: 'entrenamiento', haceDias: 10, hora: 9, creador: 'sofia', integrantes: [], vuelta: true, ritmos: { sofia: 1.08 } },
+
   // ── Recorridos que publicó el resto de la comunidad ──
+  {
+    clave: 'pub-suquia',
+    nombre: 'Ciclovía del Suquía, ida y vuelta',
+    ruta: 'bici-ciudad',
+    modo: 'recreativo',
+    haceDias: 58,
+    hora: 8,
+    creador: 'florencia',
+    integrantes: [],
+    vuelta: true,
+    publicar: {
+      por: 'florencia',
+      comentario: 'Ida y vuelta por la ciclovía sin cruzar avenidas. Los domingos temprano está casi vacía: ideal para entrenar.',
+      votos: [6, 0],
+      votoProtagonista: true,
+    },
+  },
   {
     clave: 'pub-costanera',
     nombre: 'Costanera al amanecer',
@@ -654,25 +710,40 @@ export const RUTAS_GUARDADAS: { viaje: string; conChecklist?: boolean; haceDias:
   { viaje: 'pub-cumbrecita', haceDias: 9 },
   { viaje: 'pub-costanera', conChecklist: true, haceDias: 5 },
   { viaje: 'condorito', conChecklist: true, haceDias: 30 },
+  // De esta ruta salen sus entrenamientos en bici: forman un circuito (ver CIRCUITOS).
+  { viaje: 'pub-suquia', haceDias: 49 },
 ]
 
 // ── Circuitos de entrenamiento ───────────────────────────────────────────────
 
 /**
- * RN-066: circuitos de la tab Entrenar. Cada uno agrupa sesiones de entrenamiento
- * de una persona sobre el mismo recorrido, como si las hubiera hecho con "Repetir".
+ * RN-066: circuitos de la tab Entrenar. Cada uno agrupa sesiones de entrenamiento de una
+ * persona sobre el mismo recorrido. Se arman de las dos maneras que tiene la app: con
+ * "Repetir" (por defecto) o saliendo varias veces desde la misma ruta guardada (`plantilla`).
+ *
+ * Las sesiones de entrenamiento que no figuran en ningún circuito quedan sueltas en la
+ * pestaña Sesiones, con su botón "Repetir".
  */
 export type CircuitoDemo = {
   nombre: string
-  /** Dueño del circuito: tiene que haber hecho todas las sesiones. */
+  /** Dueño del circuito: tiene que haber participado de todas las sesiones. */
   de: string
-  /** Claves de `VIAJES_VITRINA` en modo entrenamiento, de la más vieja a la más nueva. */
+  /**
+   * Claves de `VIAJES_VITRINA` en modo entrenamiento, de la más vieja a la más nueva.
+   * Puede incluir una sesión que armó otra persona (un entrenamiento grupal).
+   */
   sesiones: string[]
   /**
-   * Clave de `VIAJES_PLANIFICADOS` que repite la última sesión: al iniciarlo, el
+   * Clave de `RUTAS_GUARDADAS.viaje`: el circuito sale de esa ruta guardada en lugar de
+   * "Repetir". Solo para la protagonista, que es quien tiene rutas guardadas.
+   */
+  plantilla?: string
+  /**
+   * Clave de `VIAJES_PLANIFICADOS` del dueño que ya está sumado al circuito. Si el
+   * circuito es de "Repetir", ese viaje repite la última sesión: al iniciarlo, el
    * fantasma de esa sesión aparece solo en el mapa.
    */
-  repeticionPlanificada?: string
+  proximaSesion?: string
 }
 
 export const CIRCUITOS: CircuitoDemo[] = [
@@ -685,8 +756,20 @@ export const CIRCUITOS: CircuitoDemo[] = [
     nombre: '10K costanera',
     de: 'lucia',
     sesiones: ['run-10k-4', 'run-10k-3', 'run-10k-2', 'run-10k'],
-    repeticionPlanificada: 'plan-run',
+    proximaSesion: 'plan-run',
   },
+  {
+    nombre: 'Ciclovía del Suquía, ida y vuelta',
+    de: 'lucia',
+    sesiones: ['bici-e1', 'bici-e2', 'bici-e3', 'bici-e4'],
+    plantilla: 'pub-suquia',
+    proximaSesion: 'plan-ciclovia',
+  },
+  // El circuito de una invitada nace cuando repite ella: arranca con la sesión grupal de Sofía.
+  { nombre: 'Cerro Wank a ritmo', de: 'lucia', sesiones: ['wank-grupal', 'lucia-w2'] },
+  // Los otros dos usuarios con login también tienen qué mostrar en Entrenar.
+  { nombre: 'Cerro Wank a ritmo', de: 'sofia', sesiones: ['sofia-w1', 'wank-grupal', 'sofia-w3'] },
+  { nombre: 'Progresivos por la costanera', de: 'martin', sesiones: ['martin-p1', 'runners-progresivos', 'martin-p3'] },
 ]
 
 // ── Viajes planificados ──────────────────────────────────────────────────────
@@ -726,6 +809,33 @@ export const VIAJES_PLANIFICADOS: ViajePlanificado[] = [
     confirmados: ['lucia', 'camila', 'agustina'],
     pendientes: ['rocio', 'paula', 'carolina', 'sofia'],
     checklistLider: ['Luz frontal', 'Remera del grupo'],
+  },
+  // Invitación a un entrenamiento sin responder: prende la campanita de la tab Entrenar.
+  {
+    clave: 'plan-pasadas',
+    nombre: 'Pasadas de 1000 en el parque',
+    ruta: 'run-sarmiento',
+    modo: 'entrenamiento',
+    enDias: 3,
+    hora: 19,
+    creador: 'camila',
+    grupo: 'runners',
+    confirmados: ['agustina', 'rocio'],
+    pendientes: ['lucia', 'martin', 'paula'],
+    checklistLider: ['Reloj para tomar los parciales'],
+  },
+  // Entrenamiento grupal que arma la protagonista desde su ruta guardada: ya cuenta para el circuito.
+  {
+    clave: 'plan-ciclovia',
+    nombre: 'Ciclovía del Suquía en grupo',
+    ruta: 'bici-ciudad',
+    modo: 'entrenamiento',
+    enDias: 5,
+    hora: 8,
+    creador: 'lucia',
+    grupo: 'pedal',
+    confirmados: ['valentina'],
+    pendientes: ['sofia', 'florencia', 'matias'],
   },
   {
     clave: 'plan-calamuchita',

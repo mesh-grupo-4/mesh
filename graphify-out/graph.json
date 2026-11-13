@@ -26051,8 +26051,8 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\viajes\\viajes.service.ts",
       "source_location": "L358",
       "weight": 1.0,
-      "_src": "viajes_service_viajesservice_notificarinvitados",
-      "_tgt": "expopush_sendexpopush",
+      "_src": "expopush_sendexpopush",
+      "_tgt": "viajes_service_viajesservice_notificarinvitados",
       "source": "expopush_sendexpopush",
       "target": "viajes_service_viajesservice_notificarinvitados"
     },

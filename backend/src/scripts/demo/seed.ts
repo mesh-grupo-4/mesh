@@ -1,12 +1,17 @@
 /**
  * Seed de demo: deja la plataforma como si la usara una comunidad activa.
  *
+ *   npm run demo:verificar                    revisa el guion y la base sin escribir nada
  *   npm run demo:seed                         borra lo demo anterior y lo vuelve a crear
  *   npm run demo:seed -- --password otra123   idem, con otra contraseña para las cuentas
  *   npm run demo:limpiar                      borra todo lo demo, incluidas las cuentas de Firebase
  *
  * Escribe en la base de `backend/.env.demo` si ese archivo existe, y si no en la de
  * `.env` (ver `entorno.ts`). Lo primero que muestra es contra qué base va a correr.
+ *
+ * Antes de borrar nada revisa el guion (`verificar.ts`) y que la base tenga todas las
+ * migraciones del repo: si falta alguna, corta ahí en lugar de fallar a mitad de camino
+ * con lo demo ya borrado.
  *
  * Todo lo que crea se reconoce por el dominio de email `@demo.mesh`: nunca toca cuentas
  * ni viajes reales. Las fechas son relativas al día en que se corre, así que conviene
@@ -27,6 +32,7 @@ import { firebaseAuth } from '../../config/firebase'
 import { prisma } from '../../config/prisma'
 import { nombreVisible } from '../../lib/nombres'
 import { itemsSugeridos } from '../../modules/checklist/checklistDefaults'
+import { EntrenamientosService } from '../../modules/entrenamientos/entrenamientos.service'
 import { InsigniasService } from '../../modules/insignias/insignias.service'
 import { prefijoAlertaAfectado } from '../../modules/motor-eventos/motorEventos.config'
 import { VERSION_CONSENTIMIENTO_UBICACION } from '../../modules/privacidad/privacidad.schemas'
@@ -65,7 +71,8 @@ import {
   type ViajeVitrina,
 } from './guion'
 import { DIAS_SUSPENSION, generarRelleno } from './relleno'
-import { crearAzar, simularViaje, type PuntoGps } from './trazas'
+import { crearAzar, type PuntoGps } from './trazas'
+import { actividadDe, informeGuion, migracionesFaltantes, simularVitrina, verificarGuion } from './verificar'
 
 const email = (clave: string) => `${clave}@${DOMINIO_DEMO}`
 const FILTRO_DEMO = { email: { endsWith: `@${DOMINIO_DEMO}` } }
@@ -281,42 +288,20 @@ function filasChecklist(op: {
 }
 
 async function sembrarVitrina(v: ViajeVitrina, ctx: Contexto): Promise<ViajeSembrado | null> {
-  const ruta = rutaDemo(v.ruta)
-  const actividad = v.actividad ?? ruta.def.actividad
+  const actividad = actividadDe(v)
   const azar = crearAzar(semillaDe(`extras:${v.clave}`))
   const claves = [v.creador, ...v.integrantes]
   const id = ctx.usuario
   const nombre = (clave: string) => nombreVisible(ctx.ficha(clave).nombre, ctx.ficha(clave).apellido)
 
-  const simular = (inicio: Date) =>
-    simularViaje({
-      camino: ruta.puntos,
-      actividad,
-      altura: ruta.def.altura,
-      inicio,
-      semilla: semillaDe(v.clave),
-      vuelta: v.vuelta,
-      cortarEnM: v.cortarEnKm ? v.cortarEnKm * 1000 : undefined,
-      libre: v.libre,
-      paradasGrupo: (v.paradas ?? []).map((p) => ({ fraccion: p.en, minutos: p.min })),
-      integrantes: claves.map((clave) => ({
-        clave,
-        ritmo: v.ritmos?.[clave],
-        paradas: (v.paradasDe ?? [])
-          .filter((p) => p.quien === clave)
-          .map((p) => ({ fraccion: p.en, minutos: p.min })),
-        saleEnFraccion: v.sale?.quien === clave ? v.sale.en : undefined,
-      })),
-    })
-
   // El viaje se programa a una hora redonda y arranca unos minutos después.
   let programado = momento(ctx.hoy, v.haceDias, v.hora)
-  let sim = simular(new Date(programado.getTime() + 4 * MS_MIN))
+  let sim = simularVitrina(v, new Date(programado.getTime() + 4 * MS_MIN))
   if (sim.fin.getTime() > ctx.ahora.getTime() - 20 * MS_MIN) {
     // Todavía no pudo haber terminado: se omite o se corre a la semana anterior.
     if (v.opcional) return null
     programado = new Date(programado.getTime() - 7 * MS_DIA)
-    sim = simular(new Date(programado.getTime() + 4 * MS_MIN))
+    sim = simularVitrina(v, new Date(programado.getTime() + 4 * MS_MIN))
   }
   const inicio = new Date(programado.getTime() + 4 * MS_MIN)
   const fin = new Date(sim.fin.getTime() + MS_MIN)
@@ -469,6 +454,20 @@ async function sembrarVitrina(v: ViajeVitrina, ctx: Contexto): Promise<ViajeSemb
           lng: p.lng,
           estado: 'resuelta',
           created_at: new Date(p.inicio.getTime() + 5 * MS_MIN),
+          resolved_at: p.fin,
+        })
+      } else if (g?.categoria === 'accidente') {
+        // RN-022: reportar un accidente crea la alerta de peligro, igual que `paradas.service`.
+        alertas.push({
+          viaje_id: viajeId,
+          creada_por_id: id(clave),
+          tipo: 'peligro',
+          origen: 'integrante',
+          mensaje: `Accidente — ${nombre(clave)} reportó un accidente`,
+          lat: p.lat,
+          lng: p.lng,
+          estado: 'resuelta',
+          created_at: p.inicio,
           resolved_at: p.fin,
         })
       }
@@ -648,63 +647,67 @@ async function sembrarPlanificado(p: ViajePlanificado, ctx: Contexto): Promise<s
 }
 
 /**
- * RN-066: circuitos de entrenamiento de la tab Entrenar. Se escriben igual que los
- * deja "Repetir": cada sesión apunta a la anterior (`repite_viaje_id`) y todas quedan
- * en el circuito de su dueño. Una sesión `opcional` que no se sembró se saltea.
+ * RN-066: circuitos de entrenamiento de la tab Entrenar, escritos como los deja la app.
+ *
+ * - Con "Repetir": cada sesión del dueño apunta a la anterior (`repite_viaje_id`), que
+ *   es de donde sale el fantasma automático.
+ * - Desde una ruta guardada (`plantilla`): el circuito queda atado a esa ruta y las
+ *   sesiones no se repiten entre sí.
+ *
+ * Una sesión `opcional` que no se sembró se saltea. El guion ya lo validó `verificarGuion`.
  */
 async function sembrarCircuitos(
   ctx: Contexto,
   vitrina: ViajeSembrado[],
-  planificados: Map<string, string>
+  planificados: Map<string, string>,
+  plantillas: Map<string, string>
 ): Promise<number> {
-  let creados = 0
-  for (const c of CIRCUITOS) {
+  const creados = await enParalelo(CIRCUITOS, 4, async (c) => {
     const usuarioId = ctx.usuario(c.de)
-    const sesiones = c.sesiones.flatMap((clave) => {
-      const def = VIAJES_VITRINA.find((v) => v.clave === clave)
-      if (!def) throw new Error(`El circuito "${c.nombre}" nombra el viaje "${clave}" que no existe`)
-      if (def.modo !== 'entrenamiento' || ![def.creador, ...def.integrantes].includes(c.de)) {
-        throw new Error(`"${clave}" no es una sesión de entrenamiento de ${c.de} (circuito "${c.nombre}")`)
-      }
-      const sembrado = vitrina.find((v) => v.clave === clave)
-      return sembrado ? [{ ...sembrado, actividad: def.actividad ?? rutaDemo(def.ruta).def.actividad }] : []
-    })
+    const sesiones = c.sesiones.flatMap((clave) => vitrina.filter((v) => v.clave === clave))
     const primera = sesiones[0]
     const ultima = sesiones[sesiones.length - 1]
-    if (!primera || !ultima) continue
+    if (!primera || !ultima) return false
+
+    const plantillaId = c.plantilla ? plantillas.get(c.plantilla) : undefined
+    if (c.plantilla && !plantillaId) {
+      throw new Error(`El circuito "${c.nombre}" sale de la ruta guardada "${c.plantilla}", que no se sembró`)
+    }
+    const proximaId = c.proximaSesion ? planificados.get(c.proximaSesion) : undefined
 
     const circuito = await prisma.circuitoEntrenamiento.create({
       data: {
         usuario_id: usuarioId,
         nombre: c.nombre,
-        tipo_actividad: primera.actividad,
-        // El circuito nace con la primera repetición.
-        created_at: (sesiones[1] ?? primera).fin,
+        tipo_actividad: actividadDe(VIAJES_VITRINA.find((v) => v.clave === primera.clave)!),
+        ruta_plantilla_id: plantillaId ?? null,
+        // Nace con la primera repetición o, si sale de una ruta guardada, con la primera salida.
+        created_at: (plantillaId ? primera : (sesiones[1] ?? primera)).fin,
         sesiones: {
-          create: sesiones.map((s) => ({ usuario_id: usuarioId, viaje_id: s.viajeId, created_at: s.fin })),
+          create: [
+            ...sesiones.map((s) => ({ usuario_id: usuarioId, viaje_id: s.viajeId, created_at: s.fin })),
+            ...(proximaId ? [{ usuario_id: usuarioId, viaje_id: proximaId }] : []),
+          ],
         },
       },
       select: { id: true },
     })
-    await Promise.all(
-      sesiones.slice(1).map((s, i) =>
-        prisma.viaje.update({ where: { id: s.viajeId }, data: { repite_viaje_id: sesiones[i]!.viajeId } })
-      )
-    )
 
-    if (c.repeticionPlanificada) {
-      const viajeId = planificados.get(c.repeticionPlanificada)
-      if (!viajeId) {
-        throw new Error(`El circuito "${c.nombre}" nombra el planificado "${c.repeticionPlanificada}" que no existe`)
-      }
-      await prisma.viaje.update({ where: { id: viajeId }, data: { repite_viaje_id: ultima.viajeId } })
-      await prisma.circuitoSesion.create({
-        data: { usuario_id: usuarioId, viaje_id: viajeId, circuito_id: circuito.id },
-      })
+    if (!plantillaId) {
+      // Solo quien armó el viaje lo "repitió": la sesión grupal de otra persona no se toca.
+      const repeticiones = sesiones
+        .map((s, i) => ({ viajeId: s.viajeId, creadorId: s.creadorId, origen: sesiones[i - 1]?.viajeId }))
+        .filter((r) => r.origen && r.creadorId === usuarioId)
+      if (proximaId) repeticiones.push({ viajeId: proximaId, creadorId: usuarioId, origen: ultima.viajeId })
+      await Promise.all(
+        repeticiones.map((r) =>
+          prisma.viaje.update({ where: { id: r.viajeId }, data: { repite_viaje_id: r.origen } })
+        )
+      )
     }
-    creados++
-  }
-  return creados
+    return Boolean(circuito.id)
+  })
+  return creados.filter(Boolean).length
 }
 
 // ── Cierre: métricas, insignias y rachas ─────────────────────────────────────
@@ -722,6 +725,33 @@ async function main() {
   }
 
   log(`Base de datos: ${baseDestino()} (según ${ARCHIVO_ENV})`)
+
+  // Todo lo que puede fallar sin haber tocado nada se revisa antes de borrar.
+  const ahoraVerif = new Date()
+  const { errores, avisos } = verificarGuion(diaArg(ahoraVerif), ahoraVerif)
+  for (const aviso of avisos) log(`Aviso: ${aviso}`)
+  if (errores.length > 0) {
+    throw new Error(`El guion tiene ${errores.length} error(es):\n  - ${errores.join('\n  - ')}`)
+  }
+  const faltantes = await migracionesFaltantes(prisma)
+  const avisoMigraciones =
+    `A esta base le faltan ${faltantes.length} migración(es) del repo:\n  - ${faltantes.join('\n  - ')}\n` +
+    'Aplicalas con `npx prisma migrate deploy` apuntando a esta base antes de correr el seed.'
+  if (args.includes('--verificar')) {
+    console.log(informeGuion(diaArg(ahoraVerif)))
+    if (faltantes.length > 0) {
+      console.error(avisoMigraciones)
+      process.exitCode = 1
+    } else {
+      log('Guion y migraciones en orden.')
+    }
+    log('Modo verificación: no se escribió nada.')
+    return
+  }
+  if (faltantes.length > 0 && !soloLimpiar) {
+    throw new Error(`${avisoMigraciones}\nNo se borró ni se creó nada.`)
+  }
+
   const borrados = await limpiar()
   log(`Limpieza: ${borrados} usuarios demo anteriores y todo lo que colgaba de ellos`)
   if (soloLimpiar) {
@@ -882,10 +912,12 @@ async function main() {
     if (p.protagonistaGuardaRuta) await compartidas.importarPorToken(protagonistaId, token)
   })
   await enParalelo(relleno.compartir, 4, (c) => compartidas.compartirRuta(c.creadorId, c.viajeId))
+  const plantillas = new Map<string, string>()
   for (const g of RUTAS_GUARDADAS) {
     const recorridoId = publicados.get(g.viaje)
     if (!recorridoId) continue
     const { plantilla } = await recorridos.importar(protagonistaId, recorridoId, { guardarChecklist: g.conChecklist })
+    plantillas.set(g.viaje, plantilla.id)
     await prisma.rutaPlantilla.update({
       where: { id: plantilla.id },
       data: { created_at: momento(hoy, g.haceDias, 21) },
@@ -893,8 +925,9 @@ async function main() {
   }
   log(`${VIAJES_PLANIFICADOS.length} viajes planificados y las rutas guardadas de la protagonista`)
 
-  // Circuitos de entrenamiento (RN-066): necesitan las sesiones cerradas y los planificados.
-  const circuitos = await sembrarCircuitos(ctx, vitrina, planificados)
+  // Circuitos de entrenamiento (RN-066): necesitan las sesiones cerradas, los planificados
+  // y las rutas guardadas.
+  const circuitos = await sembrarCircuitos(ctx, vitrina, planificados, plantillas)
   log(`${circuitos} circuitos de entrenamiento`)
 
   // Bitácora del backoffice (RN-121). `demo: true` la distingue de acciones reales.
@@ -943,6 +976,27 @@ async function resumenFinal(ctx: Contexto, password: string) {
     })
   )
 
+  // Tab Entrenar de cada cuenta con login, leída con el servicio real (RN-066).
+  const entrenamientos = new EntrenamientosService(prisma)
+  const viajes = new ViajesService(prisma)
+  const entrenar = await Promise.all(
+    ELENCO.filter((u) => u.login).map(async (u) => {
+      const usuarioId = ctx.usuario(u.clave)
+      const [circuitos, sesiones, invitaciones] = await Promise.all([
+        entrenamientos.listarCircuitos(usuarioId, {}),
+        entrenamientos.listarSesiones(usuarioId, {}),
+        viajes.listarInvitacionesPendientes(usuarioId),
+      ])
+      const sueltas = sesiones.filter((s) => !s.circuito).length
+      const invitado = invitaciones.filter((i) => i.modo === 'entrenamiento').length
+      const detalle = circuitos.map((c) => `${c.nombre} (${c.tipo_actividad}, ${c.total_sesiones})`).join(' · ')
+      return (
+        `  ${u.nombre.padEnd(7)} ${circuitos.length} circuitos, ${sesiones.length} sesiones (${sueltas} sueltas), ` +
+        `${invitado} invitación(es) a entrenamientos sin responder\n          ${detalle}`
+      )
+    })
+  )
+
   console.log(`
 Listo. Cuentas para iniciar sesión (contraseña: ${password})
 ${ELENCO.filter((u) => u.login)
@@ -954,6 +1008,9 @@ ${ficha.nombre} hoy:
   racha de ${racha.semanas_consecutivas} semanas${racha.en_riesgo ? ' (en riesgo: todavía sin actividad esta semana)' : ''}
   ${insignias.length} de ${catalogo} insignias: ${insignias.map((i) => i.nombre).join(', ')}
   ranking mensual: ${posiciones.join(' · ')}
+
+Tab Entrenar:
+${entrenar.join('\n')}
 `)
 }
 

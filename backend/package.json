@@ -19,7 +19,11 @@
     "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "admin:promover": "ts-node src/scripts/promover-superadmin.ts",
-    "storage:setup": "ts-node src/scripts/crear-bucket-avatares.ts"
+    "storage:setup": "ts-node src/scripts/crear-bucket-avatares.ts",
+    "demo:verificar": "ts-node src/scripts/demo/seed.ts --verificar",
+    "demo:seed": "ts-node src/scripts/demo/seed.ts",
+    "demo:limpiar": "ts-node src/scripts/demo/seed.ts --limpiar",
+    "demo:rutas": "ts-node src/scripts/demo/generar-rutas.ts"
   },
   "keywords": [],
   "author": "",
