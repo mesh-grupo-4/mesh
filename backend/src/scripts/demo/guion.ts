@@ -66,25 +66,25 @@ export type UsuarioDemo = {
 
 export const ELENCO: UsuarioDemo[] = [
   { clave: 'lucia', nombre: 'Lucía', apellido: 'Fernández', actividad: 'bici', altaHaceDias: 400, login: true, superadmin: true },
-  { clave: 'martin', nombre: 'Martín', apellido: 'Acosta', actividad: 'running', altaHaceDias: 300, login: true },
-  { clave: 'sofia', nombre: 'Sofía', apellido: 'Pereyra', actividad: 'trekking', altaHaceDias: 210, login: true },
+  { clave: 'martin', nombre: 'Martín', apellido: 'Acosta', actividad: 'running', altaHaceDias: 300, login: true, foto: 'martin.jpg' },
+  { clave: 'sofia', nombre: 'Sofía', apellido: 'Pereyra', actividad: 'trekking', altaHaceDias: 210, login: true, foto: 'sofia.jpg' },
 
-  { clave: 'diego', nombre: 'Diego', apellido: 'Maldonado', actividad: 'trekking', altaHaceDias: 420, rachaSemanas: 14 },
-  { clave: 'valentina', nombre: 'Valentina', apellido: 'Ríos', actividad: 'bici', altaHaceDias: 380, rachaSemanas: 9 },
-  { clave: 'joaquin', nombre: 'Joaquín', apellido: 'Sosa', actividad: 'moto', altaHaceDias: 350 },
-  { clave: 'camila', nombre: 'Camila', apellido: 'Ortiz', actividad: 'running', altaHaceDias: 330, rachaSemanas: 6 },
-  { clave: 'nicolas', nombre: 'Nicolás', apellido: 'Bustos', actividad: 'moto', altaHaceDias: 310 },
+  { clave: 'diego', nombre: 'Diego', apellido: 'Maldonado', actividad: 'trekking', altaHaceDias: 420, rachaSemanas: 14, foto: 'diego.jpg' },
+  { clave: 'valentina', nombre: 'Valentina', apellido: 'Ríos', actividad: 'bici', altaHaceDias: 380, rachaSemanas: 9, foto: 'valentina.jpg' },
+  { clave: 'joaquin', nombre: 'Joaquín', apellido: 'Sosa', actividad: 'moto', altaHaceDias: 350, foto: 'joaquin.jpg' },
+  { clave: 'camila', nombre: 'Camila', apellido: 'Ortiz', actividad: 'running', altaHaceDias: 330, rachaSemanas: 6, foto: 'camila.jpg' },
+  { clave: 'nicolas', nombre: 'Nicolás', apellido: 'Bustos', actividad: 'moto', altaHaceDias: 310, foto: 'nicolas.jpg' },
   { clave: 'florencia', nombre: 'Florencia', apellido: 'Luna', actividad: 'bici', altaHaceDias: 280, rachaSemanas: 4 },
-  { clave: 'tomas', nombre: 'Tomás', apellido: 'Ferreyra', actividad: 'auto', altaHaceDias: 260 },
-  { clave: 'agustina', nombre: 'Agustina', apellido: 'Molina', actividad: 'running', altaHaceDias: 240, rachaSemanas: 11 },
+  { clave: 'tomas', nombre: 'Tomás', apellido: 'Ferreyra', actividad: 'auto', altaHaceDias: 260, foto: 'tomas.jpg' },
+  { clave: 'agustina', nombre: 'Agustina', apellido: 'Molina', actividad: 'running', altaHaceDias: 240, rachaSemanas: 11, foto: 'agustina.jpg' },
   { clave: 'facundo', nombre: 'Facundo', apellido: 'Giménez', actividad: 'moto', altaHaceDias: 220 },
-  { clave: 'julieta', nombre: 'Julieta', apellido: 'Paz', actividad: 'trekking', altaHaceDias: 200, visibilidad: 'amigos' },
+  { clave: 'julieta', nombre: 'Julieta', apellido: 'Paz', actividad: 'trekking', altaHaceDias: 200, visibilidad: 'amigos', foto: 'julieta.jpg' },
   { clave: 'matias', nombre: 'Matías', apellido: 'Córdoba', actividad: 'bici', altaHaceDias: 180, rachaSemanas: 3 },
   { clave: 'ramiro', nombre: 'Ramiro', apellido: 'Funes', actividad: 'moto', altaHaceDias: 170, suspendido: 'Reportes reiterados por conducta en viajes grupales' },
-  { clave: 'carolina', nombre: 'Carolina', apellido: 'Vega', actividad: 'running', altaHaceDias: 160, visibilidad: 'solo_yo' },
+  { clave: 'carolina', nombre: 'Carolina', apellido: 'Vega', actividad: 'running', altaHaceDias: 160, visibilidad: 'solo_yo', foto: 'carolina.jpg' },
   { clave: 'ezequiel', nombre: 'Ezequiel', apellido: 'Ledesma', actividad: 'auto', altaHaceDias: 150 },
-  { clave: 'micaela', nombre: 'Micaela', apellido: 'Romero', actividad: 'trekking', altaHaceDias: 130, rachaSemanas: 5 },
-  { clave: 'lautaro', nombre: 'Lautaro', apellido: 'Benítez', actividad: 'bici', altaHaceDias: 110 },
+  { clave: 'micaela', nombre: 'Micaela', apellido: 'Romero', actividad: 'trekking', altaHaceDias: 130, rachaSemanas: 5, foto: 'micaela.jpg' },
+  { clave: 'lautaro', nombre: 'Lautaro', apellido: 'Benítez', actividad: 'bici', altaHaceDias: 110, foto: 'lautaro.jpg' },
   { clave: 'rocio', nombre: 'Rocío', apellido: 'Aguirre', actividad: 'running', altaHaceDias: 95 },
   { clave: 'bruno', nombre: 'Bruno', apellido: 'Castillo', actividad: 'moto', altaHaceDias: 80 },
   { clave: 'antonella', nombre: 'Antonella', apellido: 'Herrera', actividad: 'trekking', altaHaceDias: 75 },
@@ -131,17 +131,19 @@ export type GrupoDemo = {
   lider: string
   miembros: string[]
   creadoHaceDias: number
+  /** Foto del grupo: archivo JPEG de `scripts/demo/fotos/`. */
+  foto?: string
 }
 
 export const GRUPOS: GrupoDemo[] = [
-  { clave: 'moteros', nombre: 'Moteros de las Sierras', lider: 'lucia', miembros: ['martin', 'joaquin', 'nicolas', 'facundo', 'bruno', 'ramiro'], creadoHaceDias: 320 },
-  { clave: 'pedal', nombre: 'Pedal Cordobés', lider: 'lucia', miembros: ['sofia', 'valentina', 'florencia', 'matias', 'lautaro', 'ignacio'], creadoHaceDias: 250 },
-  { clave: 'runners', nombre: 'Runners del Suquía', lider: 'martin', miembros: ['lucia', 'camila', 'agustina', 'carolina', 'rocio', 'paula', 'sofia'], creadoHaceDias: 290 },
-  { clave: 'trekking', nombre: 'Trekking Champaquí', lider: 'diego', miembros: ['lucia', 'sofia', 'julieta', 'micaela', 'antonella'], creadoHaceDias: 400 },
-  { clave: 'clasicos', nombre: 'Autos Clásicos Córdoba', lider: 'tomas', miembros: ['ezequiel', 'santiago', 'nicolas', 'joaquin'], creadoHaceDias: 240 },
-  { clave: 'gravel', nombre: 'Gravel Punilla', lider: 'valentina', miembros: ['florencia', 'lautaro', 'matias', 'ignacio', 'diego'], creadoHaceDias: 170 },
-  { clave: 'caminantes', nombre: 'Caminantes de Calamuchita', lider: 'julieta', miembros: ['micaela', 'antonella', 'diego', 'carolina'], creadoHaceDias: 120 },
-  { clave: 'nocturna', nombre: 'Rodada Nocturna', lider: 'facundo', miembros: ['bruno', 'nicolas', 'ezequiel'], creadoHaceDias: 70 },
+  { clave: 'moteros', nombre: 'Moteros de las Sierras', lider: 'lucia', miembros: ['martin', 'joaquin', 'nicolas', 'facundo', 'bruno', 'ramiro'], creadoHaceDias: 320, foto: 'grupo-moteros.jpg' },
+  { clave: 'pedal', nombre: 'Pedal Cordobés', lider: 'lucia', miembros: ['sofia', 'valentina', 'florencia', 'matias', 'lautaro', 'ignacio'], creadoHaceDias: 250, foto: 'grupo-pedal.jpg' },
+  { clave: 'runners', nombre: 'Runners del Suquía', lider: 'martin', miembros: ['lucia', 'camila', 'agustina', 'carolina', 'rocio', 'paula', 'sofia'], creadoHaceDias: 290, foto: 'grupo-runners.jpg' },
+  { clave: 'trekking', nombre: 'Trekking Champaquí', lider: 'diego', miembros: ['lucia', 'sofia', 'julieta', 'micaela', 'antonella'], creadoHaceDias: 400, foto: 'grupo-trekking.jpg' },
+  { clave: 'clasicos', nombre: 'Autos Clásicos Córdoba', lider: 'tomas', miembros: ['ezequiel', 'santiago', 'nicolas', 'joaquin'], creadoHaceDias: 240, foto: 'grupo-clasicos.jpg' },
+  { clave: 'gravel', nombre: 'Gravel Punilla', lider: 'valentina', miembros: ['florencia', 'lautaro', 'matias', 'ignacio', 'diego'], creadoHaceDias: 170, foto: 'grupo-gravel.jpg' },
+  { clave: 'caminantes', nombre: 'Caminantes de Calamuchita', lider: 'julieta', miembros: ['micaela', 'antonella', 'diego', 'carolina'], creadoHaceDias: 120, foto: 'grupo-caminantes.jpg' },
+  { clave: 'nocturna', nombre: 'Rodada Nocturna', lider: 'facundo', miembros: ['bruno', 'nicolas', 'ezequiel'], creadoHaceDias: 70, foto: 'grupo-nocturna.jpg' },
 ]
 
 export type InvitacionGrupoDemo = {
@@ -357,6 +359,7 @@ export const VIAJES_VITRINA: ViajeVitrina[] = [
     noComparte: ['nicolas'],
     sinSenal: { quien: 'joaquin', de: 0.6, a: 0.68 },
     publicar: {
+      foto: 'recorrido-altas-cumbres.jpg',
       por: 'lucia',
       comentario: 'Asfalto impecable y curvas todo el camino. Cargar nafta en Carlos Paz: después no hay hasta Mina Clavero. Arriba hace frío aunque sea verano.',
       checklist: true,
@@ -388,6 +391,7 @@ export const VIAJES_VITRINA: ViajeVitrina[] = [
     gastos: [{ por: 'sofia', monto: 18500, descripcion: 'Facturas y café en Río Ceballos' }],
     checklistLider: ['Luz trasera cargada'],
     publicar: {
+      foto: 'recorrido-quebrada.jpg',
       por: 'sofia',
       comentario: 'Subida tendida y con poco tránsito temprano. Ideal para arrancar con salidas largas.',
       votos: [5, 0],
@@ -422,6 +426,7 @@ export const VIAJES_VITRINA: ViajeVitrina[] = [
     checklistLider: ['Bastones de trekking', 'Efectivo para la entrada'],
     sinSenal: { quien: 'lucia', de: 0.4, a: 0.52 },
     publicar: {
+      foto: 'recorrido-uritorco.jpg',
       por: 'lucia',
       comentario: 'Salir temprano: la subida pega fuerte desde el primer tramo y arriba no hay sombra. Llevar 2 litros de agua por persona.',
       checklist: true,
@@ -468,6 +473,7 @@ export const VIAJES_VITRINA: ViajeVitrina[] = [
     libre: true,
     ritmos: { lucia: 1.0, valentina: 1.07, florencia: 0.95, lautaro: 0.9 },
     publicar: {
+      foto: 'recorrido-san-roque.jpg',
       por: 'valentina',
       comentario: 'Exigente pero muy linda. El tramo de La Calera al dique tiene banquina angosta: ir en fila.',
       votos: [6, 2],
@@ -510,6 +516,7 @@ export const VIAJES_VITRINA: ViajeVitrina[] = [
     ritmos: { martin: 1.08, lucia: 0.99, camila: 1.03, agustina: 1.12, rocio: 0.9 },
     checklistLider: ['Dorsal', 'Remera del grupo'],
     publicar: {
+      foto: 'recorrido-media-suquia.jpg',
       por: 'martin',
       comentario: 'Circuito plano y rápido por la costanera. Hay bebederos en la Isla de los Patos.',
       checklist: true,
@@ -569,6 +576,7 @@ export const VIAJES_VITRINA: ViajeVitrina[] = [
     gastos: [{ por: 'diego', monto: 30000, descripcion: 'Nafta del viaje hasta La Pampilla' }],
     checklistLider: ['Binoculares'],
     publicar: {
+      foto: 'recorrido-condorito.jpg',
       por: 'diego',
       comentario: 'Sendero muy bien marcado. En el Balcón Norte se ven cóndores casi siempre antes del mediodía.',
       checklist: true,
@@ -659,6 +667,7 @@ export const VIAJES_VITRINA: ViajeVitrina[] = [
     integrantes: [],
     vuelta: true,
     publicar: {
+      foto: 'recorrido-ciclovia-suquia.jpg',
       por: 'florencia',
       comentario: 'Ida y vuelta por la ciclovía sin cruzar avenidas. Los domingos temprano está casi vacía: ideal para entrenar.',
       votos: [6, 0],
@@ -677,6 +686,7 @@ export const VIAJES_VITRINA: ViajeVitrina[] = [
     vuelta: true,
     ritmos: { agustina: 1.1 },
     publicar: {
+      foto: 'recorrido-costanera.jpg',
       por: 'agustina',
       comentario: 'Ida y vuelta de 12K sin cruzar avenidas. Bien iluminado hasta la Isla de los Patos.',
       checklist: true,
@@ -692,7 +702,7 @@ export const VIAJES_VITRINA: ViajeVitrina[] = [
     hora: 18,
     creador: 'ignacio',
     integrantes: [],
-    publicar: { por: 'ignacio', votos: [0, 0] },
+    publicar: { foto: 'recorrido-parque-naciones.jpg', por: 'ignacio', votos: [0, 0] },
   },
   {
     clave: 'pub-wank',
@@ -705,6 +715,7 @@ export const VIAJES_VITRINA: ViajeVitrina[] = [
     integrantes: [],
     vuelta: true,
     publicar: {
+      foto: 'recorrido-wank.jpg',
       por: 'micaela',
       comentario: 'Corto y con vista a todo el valle. Se puede hacer con chicos.',
       votos: [2, 0],
@@ -721,6 +732,7 @@ export const VIAJES_VITRINA: ViajeVitrina[] = [
     creador: 'joaquin',
     integrantes: [],
     publicar: {
+      foto: 'recorrido-punilla.jpg',
       por: 'joaquin',
       comentario: 'La ruta 38 se carga mucho los domingos a la tarde: conviene volver antes de las 17.',
       votos: [4, 3],
@@ -736,6 +748,7 @@ export const VIAJES_VITRINA: ViajeVitrina[] = [
     creador: 'tomas',
     integrantes: [],
     publicar: {
+      foto: 'recorrido-sierras-chicas.jpg',
       por: 'tomas',
       comentario: 'Mucho lomo de burro entre Villa Allende y Río Ceballos. Lindo paseo, pero lento.',
       votos: [1, 2],
@@ -752,6 +765,7 @@ export const VIAJES_VITRINA: ViajeVitrina[] = [
     creador: 'nicolas',
     integrantes: [],
     publicar: {
+      foto: 'recorrido-cumbrecita.jpg',
       por: 'nicolas',
       comentario: 'Camino de montaña con curvas cerradas y mirador a mitad de recorrido. El pueblo es peatonal: se deja la moto en la entrada.',
       votos: [3, 0],
@@ -769,7 +783,8 @@ export const VIAJES_VITRINA: ViajeVitrina[] = [
     haceDias: haceDiasDesde(CARAVANA_CAMPEON),
     hora: 15,
     creador: 'zielinski',
-    integrantes: ['cardozo', 'falcon', 'morales', 'maldonado', 'sporle', 'sanchez', 'longo', 'rigoni', 'zelarayan', 'velazquez', 'passerini'],
+    // Lucía también fue (en el micro, como invitada): así lo ve en sus viajes pasados con todo el plantel.
+    integrantes: ['lucia', 'cardozo', 'falcon', 'morales', 'maldonado', 'sporle', 'sanchez', 'longo', 'rigoni', 'zelarayan', 'velazquez', 'passerini'],
     // La caravana avanzó entre la gente: unos 8 km/h en lugar de los 70 de un auto.
     ritmos: { zielinski: 0.12 },
     checklistLider: ['La copa', 'Bandera de Belgrano'],
