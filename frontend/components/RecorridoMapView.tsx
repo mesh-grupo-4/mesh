@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
 
 import { useTheme } from '@/components/MeshUI'
+import { BotonEncuadrar } from '@/components/maps/BotonEncuadrar'
 import { MeshMapView, zoomFromLatDelta, type MeshMapViewHandle, type MarkerSpec } from '@/components/maps/MeshMapView'
 import { PinMarker, PIN_ANCHOR } from '@/components/maps/PinMarker'
 import { getMapStyle } from '@/components/route-config/mapStyles'
@@ -31,16 +32,16 @@ export function RecorridoMapView({ segmentos, cargando = false, altura = 220 }: 
   const capa = getMapStyle(capaElegida)
   const puntos = useMemo(() => segmentos.flat(), [segmentos])
   const hayTraza = puntos.length > 1
+  const coordsFit = useMemo(
+    () => puntos.map(([lat, lng]) => ({ latitude: lat, longitude: lng })),
+    [puntos]
+  )
 
   useEffect(() => {
     if (!hayTraza) return
     // Si el mapa todavía no está listo, MeshMapView aplica el fit en onMapReady.
-    mapRef.current?.fitBounds(
-      puntos.map(([lat, lng]) => ({ latitude: lat, longitude: lng })),
-      PADDING_FIT,
-      false
-    )
-  }, [puntos, hayTraza])
+    mapRef.current?.fitBounds(coordsFit, PADDING_FIT, false)
+  }, [coordsFit, hayTraza])
 
   const polylines = useMemo(
     () =>
@@ -97,16 +98,16 @@ export function RecorridoMapView({ segmentos, cargando = false, altura = 220 }: 
   const inicio = puntos[0]!
 
   return (
-    <View style={[styles.caja, { height: altura }]} pointerEvents="none">
+    <View style={[styles.caja, { height: altura }]}>
       <MeshMapView
         ref={mapRef}
         initialCenter={{ latitude: inicio[0], longitude: inicio[1] }}
         initialZoom={zoomFromLatDelta(0.08)}
         mapStyle={capa}
-        interactive={false}
         markers={markers}
         polylines={polylines}
       />
+      <BotonEncuadrar onPress={() => mapRef.current?.fitBounds(coordsFit, PADDING_FIT, true)} />
     </View>
   )
 }

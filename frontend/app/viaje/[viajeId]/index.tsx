@@ -16,6 +16,7 @@ import { Pressable } from '@/components/Pressable'
 import { meshAlert, meshSuccess } from '@/lib/meshAlert';
 import { InvitarGruposAmigosModal } from '@/components/viaje-rapido/InvitarGruposAmigosModal'
 import { esMotorizado } from '@/lib/activityDefaults';
+import { ETIQUETA_MODO, TONO_MODO } from '@/lib/modoViaje';
 import { abrirRepetirEntrenamiento } from '@/lib/nuevoViaje';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { Feather } from '@expo/vector-icons'
@@ -115,7 +116,7 @@ const MAX_NOMBRE_VIAJE = 100
 const PADDING_MAPITA = { top: 24, right: 24, bottom: 24, left: 24 }
 
 /** Mapa OSM real (solo lectura) con la ruta planificada del viaje. */
-function RutaMapaPreview({ ruta }: { ruta: RutaMapa }) {
+function RutaMapaPreview({ ruta, bloquearGestos }: { ruta: RutaMapa; bloquearGestos: boolean }) {
   const primero = ruta.waypoints.find(waypointTieneCoords)
   const initialRegion = primero
     ? {
@@ -145,6 +146,8 @@ function RutaMapaPreview({ ruta }: { ruta: RutaMapa }) {
         fitRouteCoords={fitCoords}
         fitPadding={PADDING_MAPITA}
         mapPickMode={false}
+        botonEncuadrar
+        bloquearGestos={bloquearGestos}
       />
     </View>
   )
@@ -824,11 +827,12 @@ export default function ViajeDetalleScreen() {
           <ScrollViewAyuda contentContainerStyle={styles.scrollContent}>
             <View style={styles.headerInfo}>
               <View style={styles.badgeRow}>
-                <Badge tone={viaje.estado === 'en_curso' ? 'live' : viaje.estado === 'planificado' ? 'accent' : 'mute'} pulse={viaje.estado === 'en_curso'}>
-                  {viaje.estado === 'en_curso' ? 'En vivo' : viaje.estado === 'planificado' ? 'Planificado' : 'Finalizado'}
-                </Badge>
-                {viaje.modo === 'entrenamiento' ? <Badge tone="good">Entrenamiento</Badge> : null}
-                {viaje.modo === 'competitivo' ? <Badge tone="warning">Competitivo</Badge> : null}
+                {viaje.estado === 'en_curso' ? (
+                  <Badge tone="live" pulse>
+                    En vivo
+                  </Badge>
+                ) : null}
+                <Badge tone={TONO_MODO[viaje.modo]}>{ETIQUETA_MODO[viaje.modo]}</Badge>
                 <ActivityTile activity={viaje.tipo_actividad} size={28} />
               </View>
               <View style={styles.titleRow}>
@@ -908,10 +912,7 @@ export default function ViajeDetalleScreen() {
                 </>
               ) : rutaMapa ? (
                 <>
-                  <View>
-                    <RutaMapaPreview ruta={rutaMapa} />
-                    {puedeEditarPlan ? <View style={StyleSheet.absoluteFill} /> : null}
-                  </View>
+                  <RutaMapaPreview ruta={rutaMapa} bloquearGestos={puedeEditarPlan} />
                   {puntosRuta}
                 </>
               ) : (

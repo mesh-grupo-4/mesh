@@ -18,6 +18,10 @@
  * volver a correrlo el día anterior a una presentación (las rachas se cortan solas
  * después de una semana sin actividad).
  *
+ * Las fotos (perfil y recorridos publicados) salen de `fotos/` y se suben a Supabase
+ * Storage con los mismos servicios del backend. Sin `SUPABASE_URL` y
+ * `SUPABASE_SERVICE_ROLE_KEY` el seed corre igual, sin fotos.
+ *
  * Es una herramienta aparte: la app no importa nada de esta carpeta. Las trazas GPS son
  * simuladas (`trazas.ts`), pero las métricas, insignias, rachas, publicaciones y rutas
  * guardadas se generan con los mismos servicios que usa el backend, para que lo que se
@@ -27,9 +31,12 @@
  */
 import { ARCHIVO_ENV, baseDestino } from './entorno'
 import { randomUUID } from 'node:crypto'
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import type { CategoriaParada, Prisma, TipoActividad } from '@prisma/client'
 import { firebaseAuth } from '../../config/firebase'
 import { prisma } from '../../config/prisma'
+import { BUCKET_AVATARES, supabaseStorage } from '../../config/supabase'
 import { nombreVisible } from '../../lib/nombres'
 import { itemsSugeridos } from '../../modules/checklist/checklistDefaults'
 import { EntrenamientosService } from '../../modules/entrenamientos/entrenamientos.service'
@@ -37,10 +44,12 @@ import { InsigniasService } from '../../modules/insignias/insignias.service'
 import { prefijoAlertaAfectado } from '../../modules/motor-eventos/motorEventos.config'
 import { VERSION_CONSENTIMIENTO_UBICACION } from '../../modules/privacidad/privacidad.schemas'
 import { RachasService } from '../../modules/rachas/rachas.service'
+import { carpetaFotoRecorrido } from '../../modules/recorridos-publicados/recorridos-publicados.fotos'
 import { RecorridosPublicadosService } from '../../modules/recorridos-publicados/recorridos-publicados.service'
 import { diaArg } from '../../modules/reportes/reportes.periodo'
 import { RutasCompartidasService } from '../../modules/rutas-compartidas/rutas-compartidas.service'
 import { TablaPosicionesService } from '../../modules/tabla-posiciones/tabla-posiciones.service'
+import { FotosPerfilService } from '../../modules/usuarios/usuarios.fotos'
 import { parametrosPorActividad } from '../../modules/viajes/activityDefaults'
 import { ViajesService } from '../../modules/viajes/viajes.service'
 import {
@@ -88,6 +97,40 @@ function esUsuarioInexistente(err: unknown): boolean {
   return Boolean(err && typeof err === 'object' && 'code' in err && err.code === 'auth/user-not-found')
 }
 
+// ── Fotos (Supabase Storage) ─────────────────────────────────────────────────
+
+const DIR_FOTOS = path.join(__dirname, 'fotos')
+
+/**
+ * Sube un JPEG de `fotos/` al bucket de avatares con la service role, como haría la app con
+ * la URL firmada. Devuelve false si Storage no está configurado en este entorno.
+ */
+async function subirFoto(archivo: string, destino: string): Promise<boolean> {
+  const cliente = supabaseStorage()
+  if (!cliente) return false
+  const { error } = await cliente.storage
+    .from(BUCKET_AVATARES)
+    .upload(destino, readFileSync(path.join(DIR_FOTOS, archivo)), { contentType: 'image/jpeg', upsert: true })
+  if (error) throw new Error(`No se pudo subir la foto ${archivo}: ${error.message}`)
+  return true
+}
+
+/** Las fotos de las cuentas demo (perfil y recorridos) viven en Storage, fuera de la base. */
+async function borrarFotosDemo(ids: string[]) {
+  const cliente = supabaseStorage()
+  if (!cliente || ids.length === 0) return
+  const bucket = cliente.storage.from(BUCKET_AVATARES)
+  const nombres = async (carpeta: string) =>
+    ((await bucket.list(carpeta, { limit: 1000 })).data ?? []).map((a) => a.name)
+  await enParalelo(ids, 6, async (id) => {
+    const paths = (await nombres(id)).map((n) => `${id}/${n}`)
+    for (const viaje of await nombres(`recorridos/${id}`)) {
+      paths.push(...(await nombres(`recorridos/${id}/${viaje}`)).map((n) => `recorridos/${id}/${viaje}/${n}`))
+    }
+    if (paths.length > 0) await bucket.remove(paths)
+  })
+}
+
 // ── Limpieza ─────────────────────────────────────────────────────────────────
 
 /**
@@ -98,6 +141,7 @@ function esUsuarioInexistente(err: unknown): boolean {
 async function limpiar(): Promise<number> {
   const usuarios = await prisma.usuario.findMany({ where: FILTRO_DEMO, select: { id: true } })
   const ids = usuarios.map((u) => u.id)
+  await borrarFotosDemo(ids)
 
   // La bitácora del backoffice no tiene FK a propósito (RN-121): se limpia a mano.
   await prisma.auditoriaAdmin.deleteMany({
@@ -178,6 +222,24 @@ async function crearUsuarios(hoy: string, password: string): Promise<Map<string,
   }
   await prisma.usuario.createMany({ data: filas })
   return ids
+}
+
+/** Fotos de perfil del guion: se suben y se confirman con el servicio real (RN-030). */
+async function fotosDePerfil(ctx: Contexto): Promise<number> {
+  const conFoto = ELENCO.filter((u) => u.foto)
+  if (conFoto.length === 0) return 0
+  if (!supabaseStorage()) {
+    log('Aviso: sin SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY no se suben fotos de perfil ni de recorridos')
+    return 0
+  }
+  const fotos = new FotosPerfilService(prisma)
+  await enParalelo(conFoto, 4, async (u) => {
+    const id = ctx.usuario(u.clave)
+    const destino = `${id}/${Date.now()}.jpg`
+    await subirFoto(u.foto!, destino)
+    await fotos.confirmar(id, destino)
+  })
+  return conFoto.length
 }
 
 async function crearGrupos(ctx: Contexto): Promise<Map<string, string>> {
@@ -782,6 +844,8 @@ async function main() {
   for (const [clave, id] of await crearGrupos(ctx)) grupos.set(clave, id)
   await crearRelaciones(ctx)
   log(`${ELENCO.length} usuarios, ${GRUPOS.length} grupos, ${AMISTADES.length} amistades, ${INVITACIONES_GRUPO.length} invitaciones a grupos`)
+  const conFoto = await fotosDePerfil(ctx)
+  if (conFoto > 0) log(`${conFoto} fotos de perfil`)
 
   // Viajes con traza.
   const vitrina = (await enParalelo(VIAJES_VITRINA, 5, (v) => sembrarVitrina(v, ctx))).filter(
@@ -870,12 +934,23 @@ async function main() {
   await enParalelo(VIAJES_VITRINA, 4, async (v) => {
     const sembrado = vitrina.find((x) => x.clave === v.clave)
     if (!v.publicar || !sembrado) return
-    const pub = await recorridos.publicar(ctx.usuario(v.publicar.por), sembrado.viajeId, {
+    const autorId = ctx.usuario(v.publicar.por)
+    // La foto se sube antes y el servicio real la verifica al publicar, como desde la app.
+    let fotoPath: string | undefined
+    if (v.publicar.foto) {
+      const destino = `${carpetaFotoRecorrido(autorId, sembrado.viajeId)}/${Date.now()}.jpg`
+      if (await subirFoto(v.publicar.foto, destino)) fotoPath = destino
+    }
+    const pub = await recorridos.publicar(autorId, sembrado.viajeId, {
       comentario: v.publicar.comentario ?? null,
       compartirChecklist: v.publicar.checklist,
+      fotoPath,
     })
     publicados.set(v.clave, pub.id)
-    const publicadoAt = new Date(Math.min(sembrado.fin.getTime() + 20 * MS_HORA, ahora.getTime() - 2 * MS_HORA))
+    const publicadoAt =
+      v.publicar.publicadoHaceHoras !== undefined
+        ? new Date(ahora.getTime() - v.publicar.publicadoHaceHoras * MS_HORA)
+        : new Date(Math.min(sembrado.fin.getTime() + 20 * MS_HORA, ahora.getTime() - 2 * MS_HORA))
     await prisma.recorridoPublicado.update({ where: { id: pub.id }, data: { publicado_at: publicadoAt } })
 
     const azar = crearAzar(semillaDe(`votos:${v.clave}`))
@@ -962,11 +1037,12 @@ async function main() {
 async function resumenFinal(ctx: Contexto, password: string) {
   const id = ctx.usuario(PROTAGONISTA)
   const ficha = ctx.ficha(PROTAGONISTA)
-  const [stats, racha, insignias, catalogo] = await Promise.all([
+  const [stats, racha, insignias, catalogo, explorar] = await Promise.all([
     new ViajesService(prisma).estadisticasUsuario(id),
     new RachasService(prisma).obtenerRachaVigente(id),
     new InsigniasService(prisma).listarDeUsuario(id),
     prisma.insignia.count({ where: { activa: true } }),
+    new RecorridosPublicadosService(prisma).listar(id, { limit: 3, offset: 0 }),
   ])
   const tabla = new TablaPosicionesService(prisma)
   const posiciones = await Promise.all(
@@ -1008,6 +1084,14 @@ ${ficha.nombre} hoy:
   racha de ${racha.semanas_consecutivas} semanas${racha.en_riesgo ? ' (en riesgo: todavía sin actividad esta semana)' : ''}
   ${insignias.length} de ${catalogo} insignias: ${insignias.map((i) => i.nombre).join(', ')}
   ranking mensual: ${posiciones.join(' · ')}
+
+Explorar (los 3 primeros):
+${explorar
+  .map(
+    (r, i) =>
+      `  ${i + 1}. ${r.nombre} — ${r.autor.nombre} ${r.autor.apellido ?? ''} · ${r.valoracion.recomiendan} recomiendan${r.foto ? ' · con foto' : ''}`
+  )
+  .join('\n')}
 
 Tab Entrenar:
 ${entrenar.join('\n')}

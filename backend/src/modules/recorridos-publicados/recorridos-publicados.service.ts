@@ -4,6 +4,7 @@ import type { GeoJsonLineString } from '../../lib/geo'
 import { HttpError } from '../../lib/httpError'
 import { computeLineStringLengthMeters, computeTrazaRecorrido } from '../../lib/postgis'
 import { mapPlantilla } from '../rutas-compartidas/rutas-compartidas.service'
+import { FotosRecorridoService } from './recorridos-publicados.fotos'
 import { aReputacion, type ReputacionAutor } from './recorridos-publicados.reputacion'
 
 type Segmentos = [number, number][][]
@@ -68,6 +69,7 @@ type FilaResumen = {
   publicado_at: Date
   comentario: string | null
   checklist: string[]
+  foto: string | null
   usuario: { id: string; nombre: string; apellido: string | null }
 }
 
@@ -85,6 +87,7 @@ function aResumen(r: FilaResumen) {
     tiempo_seg: r.tiempo_seg,
     publicado_at: r.publicado_at.toISOString(),
     comentario: r.comentario,
+    foto: r.foto,
     tiene_checklist: r.checklist.length > 0,
     autor: { id: r.usuario.id, nombre: r.usuario.nombre, apellido: r.usuario.apellido },
   }
@@ -100,6 +103,7 @@ const SELECT_RESUMEN = {
   publicado_at: true,
   comentario: true,
   checklist: true,
+  foto: true,
   usuario: { select: { id: true, nombre: true, apellido: true } },
 } as const
 
@@ -112,19 +116,16 @@ type FiltrosListado = {
 }
 
 export class RecorridosPublicadosService {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly fotos: FotosRecorridoService = new FotosRecorridoService()
+  ) {}
 
   /**
-   * RN-081: publica un viaje del historial propio (finalizado y en el que el usuario
-   * participó, incluido quien salió a mitad). Congela un snapshot de SU traza y SUS
-   * métricas. Idempotente: republicar refresca el snapshot y reactiva el recorrido.
-   * El comentario y el checklist también son parte del snapshot: se reemplazan al republicar.
+   * Viaje que el usuario puede publicar: finalizado y en el que participó (incluido quien
+   * salió a mitad). Si no, 404 / 403 / 409.
    */
-  async publicar(
-    usuarioId: string,
-    viajeId: string,
-    opciones: { comentario?: string | null; compartirChecklist?: boolean } = {}
-  ) {
+  private async viajePublicable(usuarioId: string, viajeId: string) {
     const viaje = await this.prisma.viaje.findUnique({
       where: { id: viajeId },
       select: {
@@ -148,6 +149,31 @@ export class RecorridosPublicadosService {
     if (viaje.estado !== 'finalizado') {
       throw new HttpError(409, 'Solo se pueden publicar viajes finalizados', 'VIAJE_NO_FINALIZADO')
     }
+    return viaje
+  }
+
+  /**
+   * RN-081: paso 1 de la foto opcional del recorrido. Mismas condiciones que publicar: solo
+   * quien participó de un viaje finalizado puede subirla (RN-030).
+   */
+  async crearSubidaFoto(usuarioId: string, viajeId: string) {
+    await this.viajePublicable(usuarioId, viajeId)
+    return this.fotos.crearSubida(usuarioId, viajeId)
+  }
+
+  /**
+   * RN-081: publica un viaje del historial propio (finalizado y en el que el usuario
+   * participó, incluido quien salió a mitad). Congela un snapshot de SU traza y SUS
+   * métricas. Idempotente: republicar refresca el snapshot y reactiva el recorrido.
+   * El comentario, el checklist y la foto también son parte del snapshot: se reemplazan
+   * al republicar. La foto se sube antes (`crearSubidaFoto`) y llega como `fotoPath`.
+   */
+  async publicar(
+    usuarioId: string,
+    viajeId: string,
+    opciones: { comentario?: string | null; compartirChecklist?: boolean; fotoPath?: string } = {}
+  ) {
+    const viaje = await this.viajePublicable(usuarioId, viajeId)
 
     const [metrica, segmentos, checklist] = await Promise.all([
       this.prisma.metricaViaje.findUnique({
@@ -165,6 +191,10 @@ export class RecorridosPublicadosService {
       )
     }
 
+    const foto = opciones.fotoPath
+      ? await this.fotos.verificar(usuarioId, viajeId, opciones.fotoPath)
+      : null
+
     const inicio = segmentos.flat()[0]!
     const datos = {
       nombre: viaje.nombre,
@@ -176,6 +206,7 @@ export class RecorridosPublicadosService {
       inicio_lng: inicio[1],
       comentario: opciones.comentario ?? null,
       checklist,
+      foto,
     }
     const publicado = await this.prisma.recorridoPublicado.upsert({
       where: { viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId } },
@@ -183,6 +214,8 @@ export class RecorridosPublicadosService {
       update: { ...datos, activo: true, publicado_at: new Date() },
       select: SELECT_RESUMEN,
     })
+    // Recién con el snapshot guardado se borra la foto anterior (y subidas sin publicar).
+    await this.fotos.borrarSobrantes(usuarioId, viajeId, foto ? opciones.fotoPath! : null)
     return aResumen(publicado)
   }
 

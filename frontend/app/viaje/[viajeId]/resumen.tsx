@@ -2,6 +2,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
+  Image,
   StyleSheet,
   Switch,
   Text,
@@ -14,6 +15,8 @@ import { Pressable } from '@/components/Pressable'
 
 import { useCopilot } from 'react-native-copilot'
 import { AvatarFallback } from '@/components/AvatarFallback'
+import { HojaInferior } from '@/components/HojaInferior'
+import { FilaOpcion } from '@/components/perfil/FilaOpcion'
 import { RecorridoMapView } from '@/components/RecorridoMapView'
 import { ActivityTile, Badge, Btn, TopBar, useTheme } from '@/components/MeshUI'
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
@@ -33,7 +36,13 @@ import {
   formatPace,
   formatSpeedKmh,
 } from '@/lib/format'
-import { meshError } from '@/lib/meshAlert'
+import {
+  elegirFoto,
+  PermisoFotoDenegado,
+  subirFotoRecorrido,
+  type OrigenFoto,
+} from '@/lib/fotoPerfil'
+import { meshAlert, meshError } from '@/lib/meshAlert'
 import { esMotorizado } from '@/lib/activityDefaults'
 import { listarChecklist } from '@/lib/checklistApi'
 import {
@@ -52,6 +61,8 @@ import {
 
 /** Mismo tope que valida el backend para la nota del autor. */
 const COMENTARIO_MAX = 280
+/** La hoja inferior tiene que terminar de cerrarse antes de abrir la galería o la cámara. */
+const CIERRE_HOJA_MS = 400
 
 export default function ViajeResumenScreen() {
   const router = useRouter()
@@ -88,6 +99,9 @@ export default function ViajeResumenScreen() {
   const [comentario, setComentario] = useState('')
   const [compartirChecklist, setCompartirChecklist] = useState(false)
   const [itemsChecklist, setItemsChecklist] = useState(0)
+  // Foto opcional del recorrido (RN-081): queda local hasta que se toca "Publicar".
+  const [fotoUri, setFotoUri] = useState<string | null>(null)
+  const [hojaFoto, setHojaFoto] = useState(false)
   const [pestania, setPestania] = useState<'resumen' | 'gastos'>('resumen')
   /** Gastos cargados según el panel: decide si el botón de la barra edita o agrega. */
   const [cantidadGastos, setCantidadGastos] = useState<number | null>(null)
@@ -177,6 +191,27 @@ export default function ViajeResumenScreen() {
     }
   }, [viajeId, esPropio])
 
+  const elegirFotoRecorrido = (origen: OrigenFoto) => {
+    setHojaFoto(false)
+    setTimeout(async () => {
+      try {
+        const uri = await elegirFoto(origen, 'recorrido')
+        if (uri) setFotoUri(uri)
+      } catch (e) {
+        if (e instanceof PermisoFotoDenegado) {
+          meshAlert(
+            'Permiso necesario',
+            origen === 'camara'
+              ? 'Habilitá el acceso a la cámara desde los ajustes del teléfono para sacar una foto.'
+              : 'Habilitá el acceso a tus fotos desde los ajustes del teléfono para elegir una.'
+          )
+        } else {
+          meshAlert('Error', 'No se pudo abrir la imagen. Probá con otra.')
+        }
+      }
+    }, CIERRE_HOJA_MS)
+  }
+
   const alternarPublicacion = async () => {
     if (!viajeId || publicado === null) return
     setPublicando(true)
@@ -185,9 +220,12 @@ export default function ViajeResumenScreen() {
         await despublicarRecorrido(viajeId)
         setPublicado(false)
       } else {
+        // La foto se sube primero; el backend la verifica al publicar.
+        const fotoPath = fotoUri ? await subirFotoRecorrido(viajeId, fotoUri) : undefined
         await publicarRecorrido(viajeId, {
           comentario: comentario.trim() || undefined,
           compartirChecklist: itemsChecklist > 0 && compartirChecklist,
+          fotoPath,
         })
         setPublicado(true)
       }
@@ -563,6 +601,45 @@ export default function ViajeResumenScreen() {
                         />
                       </View>
                     ) : null}
+                    {fotoUri ? (
+                      <View style={styles.fotoPrevia}>
+                        <Image
+                          source={{ uri: fotoUri }}
+                          style={[styles.fotoImagen, { backgroundColor: theme.surface2 }]}
+                          accessibilityLabel="Foto del recorrido"
+                        />
+                        <View style={styles.fotoAcciones}>
+                          <Btn
+                            variant="outline"
+                            size="sm"
+                            icon="refresh-cw"
+                            onPress={() => setHojaFoto(true)}
+                            disabled={publicando}
+                          >
+                            Cambiar
+                          </Btn>
+                          <Btn
+                            variant="outline"
+                            size="sm"
+                            icon="trash-2"
+                            onPress={() => setFotoUri(null)}
+                            disabled={publicando}
+                          >
+                            Quitar
+                          </Btn>
+                        </View>
+                      </View>
+                    ) : (
+                      <Btn
+                        variant="outline"
+                        block
+                        icon="image"
+                        onPress={() => setHojaFoto(true)}
+                        disabled={publicando}
+                      >
+                        Agregar una foto (opcional)
+                      </Btn>
+                    )}
                   </>
                 ) : null}
                 <Btn
@@ -585,6 +662,11 @@ export default function ViajeResumenScreen() {
         </ScrollViewAyuda>
         </View>
       )}
+
+      <HojaInferior visible={hojaFoto} titulo="Foto del recorrido" onCerrar={() => setHojaFoto(false)}>
+        <FilaOpcion icono="image" titulo="Elegir de la galería" onPress={() => elegirFotoRecorrido('galeria')} />
+        <FilaOpcion icono="camera" titulo="Sacar una foto" onPress={() => elegirFotoRecorrido('camara')} />
+      </HojaInferior>
     </View>
   )
 }
@@ -736,6 +818,18 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     fontWeight: '600',
+  },
+  fotoPrevia: {
+    gap: 8,
+  },
+  fotoImagen: {
+    width: '100%',
+    aspectRatio: 4 / 3,
+    borderRadius: 10,
+  },
+  fotoAcciones: {
+    flexDirection: 'row',
+    gap: 8,
   },
   grupoCard: {
     borderWidth: 1.2,

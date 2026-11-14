@@ -118,9 +118,12 @@ export function useLiveLocations({ viajeId, userId, nameByUserId = {}, selfSeed 
   const [staleTick, setStaleTick] = useState(0)
   const namesRef = useRef(nameByUserId)
   namesRef.current = nameByUserId
+  /** La posición propia en `members` es la semilla del GPS local, todavía sin ticks. */
+  const selfDesdeSemillaRef = useRef(false)
 
   const mergeMember = useCallback(
     (member: MemberSnapshot, opciones?: { conservarEstado?: boolean }) => {
+      if (member.usuarioId === userId) selfDesdeSemillaRef.current = false
       setMembers((prev) => {
         const anterior = prev[member.usuarioId]
         const conservar =
@@ -137,7 +140,7 @@ export function useLiveLocations({ viajeId, userId, nameByUserId = {}, selfSeed 
         return { ...prev, [member.usuarioId]: siguiente }
       })
     },
-    []
+    [userId]
   )
 
   /** US1/US3: aplica el cambio de estado que llega por socket, sin tocar la posición. */
@@ -168,6 +171,7 @@ export function useLiveLocations({ viajeId, userId, nameByUserId = {}, selfSeed 
         if (!next[userId] && prev[userId]) {
           return { ...next, [userId]: prev[userId] }
         }
+        if (next[userId]) selfDesdeSemillaRef.current = false
         return next
       })
     } catch {
@@ -185,7 +189,10 @@ export function useLiveLocations({ viajeId, userId, nameByUserId = {}, selfSeed 
   useEffect(() => {
     if (!selfSeed || !userId.trim()) return
     setMembers((prev) => {
-      if (prev[userId]) return prev
+      // Una semilla nueva (la lectura fresca que corrige a la última conocida)
+      // reemplaza a la anterior; lo que vino del tracking o del socket, no.
+      if (prev[userId] && !selfDesdeSemillaRef.current) return prev
+      selfDesdeSemillaRef.current = true
       return {
         ...prev,
         [userId]: {

@@ -9,8 +9,10 @@ const refId = '44444444-4444-4444-4444-444444444444'
 const plantillaId = '55555555-5555-5555-5555-555555555555'
 
 const computeTrazaFantasma = vi.fn()
+const computeMismoRecorrido = vi.fn()
 vi.mock('../../lib/postgis', () => ({
   computeTrazaFantasma: (...a: unknown[]) => computeTrazaFantasma(...a),
+  computeMismoRecorrido: (...a: unknown[]) => computeMismoRecorrido(...a),
 }))
 
 function armar(opts: { tipo?: string; modo?: string; refEstado?: string; refCreador?: string } = {}) {
@@ -71,6 +73,7 @@ function armar(opts: { tipo?: string; modo?: string; refEstado?: string; refCrea
 
 beforeEach(() => {
   vi.clearAllMocks()
+  computeMismoRecorrido.mockResolvedValue(null)
   computeTrazaFantasma.mockResolvedValue([
     { t_seg: 0, lat: -31.42, lng: -64.19, d_m: 0 },
     { t_seg: 60, lat: -31.42, lng: -64.18, d_m: 950 },
@@ -97,6 +100,26 @@ describe('RN-073 — fantasma', () => {
       status: 409,
       code: 'FANTASMA_NO_DISPONIBLE',
     })
+  })
+
+  it('RN-073: en modo competitivo tampoco (el leaderboard ya compara en vivo)', async () => {
+    const m = armar({ modo: 'competitivo' })
+    await expect(new FantasmaService(m.prisma).listarCandidatos(yo, viajeId)).rejects.toMatchObject({
+      status: 409,
+      code: 'FANTASMA_NO_DISPONIBLE',
+    })
+  })
+
+  it('RN-073: con ruta, solo candidatos del mismo recorrido', async () => {
+    const m = armar()
+    computeMismoRecorrido.mockResolvedValue({ viajeIds: [refId], plantillaIds: [] })
+    await new FantasmaService(m.prisma).listarCandidatos(yo, viajeId)
+
+    expect(computeMismoRecorrido).toHaveBeenCalledWith(m.prisma, viajeId, yo)
+    const whereMetricas = vi.mocked(m.prisma.metricaViaje.findMany).mock.calls[0]![0]!.where!
+    expect(whereMetricas.viaje_id).toEqual({ in: [refId], not: viajeId })
+    const wherePlantillas = vi.mocked(m.prisma.rutaPlantilla.findMany).mock.calls[0]![0]!.where!
+    expect(wherePlantillas.id).toEqual({ in: [] })
   })
 
   it.each(['moto', 'auto'])('RN-070: en %s no hay fantasma', async (tipo) => {

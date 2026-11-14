@@ -16,6 +16,8 @@ export type RecorridoPublicadoApi = {
   publicado_at: string
   /** Nota del autor al publicar. La comunidad no comenta (RN-083). */
   comentario: string | null
+  /** Foto que el autor adjuntó al publicar (URL pública); null si publicó sin foto. */
+  foto: string | null
   tiene_checklist: boolean
   autor: { id: string; nombre: string; apellido: string | null }
 }
@@ -83,10 +85,23 @@ export type RecorridoPublicadoDetalleApi = RecorridoPublicadoApi & {
   checklist: string[]
 }
 
-/** Publica (o republica) un viaje finalizado propio. */
+/** Paso 1 de la foto del recorrido: URL firmada para subir el JPEG antes de publicar. */
+export async function crearSubidaFotoRecorrido(
+  viajeId: string
+): Promise<{ path: string; upload_url: string }> {
+  const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}/recorrido/foto/subida`), {
+    method: 'POST',
+  })
+  return parseJson<{ path: string; upload_url: string }>(res)
+}
+
+/**
+ * Publica (o republica) un viaje finalizado propio. `fotoPath` es el `path` de una foto ya
+ * subida con `crearSubidaFotoRecorrido`; sin él se publica sin foto.
+ */
 export async function publicarRecorrido(
   viajeId: string,
-  opciones: { comentario?: string; compartirChecklist?: boolean } = {}
+  opciones: { comentario?: string; compartirChecklist?: boolean; fotoPath?: string } = {}
 ): Promise<RecorridoPublicadoApi> {
   const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}/recorrido/publicar`), {
     method: 'POST',

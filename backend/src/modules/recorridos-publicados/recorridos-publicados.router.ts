@@ -20,4 +20,5 @@ recorridosPublicadosRouter.post('/:recorridoId/valoracion', requireUser, c.valor
 export const recorridoPublicadoViajeHandlers = {
   publicar: c.publicar,
   despublicar: c.despublicar,
+  crearSubidaFoto: c.crearSubidaFoto,
 }

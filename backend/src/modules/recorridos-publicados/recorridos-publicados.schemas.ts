@@ -61,8 +61,9 @@ export const valorarRecorridoBody = z
   .strict()
 
 /**
- * RN-081: al publicar, el autor puede sumar una nota y elegir si comparte su checklist.
- * Ambos son opcionales: publicar sin cuerpo sigue siendo válido.
+ * RN-081: al publicar, el autor puede sumar una nota, elegir si comparte su checklist y
+ * adjuntar una foto ya subida (`fotoPath`, el `path` de `POST .../recorrido/foto/subida`).
+ * Todo es opcional: publicar sin cuerpo sigue siendo válido.
  */
 export const publicarRecorridoBody = z
   .object({
@@ -73,6 +74,7 @@ export const publicarRecorridoBody = z
       .optional()
       .transform((v) => v || null),
     compartirChecklist: z.boolean().default(false),
+    fotoPath: z.string().trim().min(1).max(200).optional(),
   })
   .strict()
 

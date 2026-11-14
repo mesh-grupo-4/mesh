@@ -262,19 +262,6 @@ export default function GrupoDetalleScreen() {
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
 
-      {/* Mismo fondo que el Perfil (sin racha): el logo de Mesh repetido detrás de la cabecera. */}
-      {grupo ? (
-        <FondoMesh color={theme.text} alto={ALTO_FONDO} colorRacha={theme.fire} intensidadRacha={0} />
-      ) : null}
-
-      <TopBar
-        title=""
-        onBack={() => router.back()}
-        bordered={false}
-        transparente
-        onAyuda={() => start()}
-      />
-
       <ScrollViewAyuda
         contentContainerStyle={styles.content}
         refreshControl={
@@ -285,6 +272,19 @@ export default function GrupoDetalleScreen() {
           />
         }
       >
+        {/* Mismo fondo que el Perfil (sin racha), y como ahí, el fondo y la barra van dentro
+            del scroll: nada queda fijo arriba cortando el contenido. */}
+        {grupo ? (
+          <FondoMesh color={theme.text} alto={ALTO_FONDO} colorRacha={theme.fire} intensidadRacha={0} />
+        ) : null}
+
+        <TopBar
+          title=""
+          onBack={() => router.back()}
+          bordered={false}
+          transparente
+          onAyuda={() => start()}
+        />
         {loading ? (
           <View style={styles.cuerpo}>
             <DetalleEsqueleto />

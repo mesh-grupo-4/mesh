@@ -1,7 +1,8 @@
 /**
  * Calcula la geometría de las rutas del catálogo y la congela en `rutas.geometria.json`.
  *
- *   npm run demo:rutas
+ *   npm run demo:rutas                         todas las rutas
+ *   npm run demo:rutas -- --solo clave1,clave2 solo esas; las demás quedan como están
  *
  * Solo hace falta correrlo si se agrega o cambia una ruta en `rutas.catalogo.ts`: el
  * archivo generado se commitea y el seed lo lee sin salir a internet.
@@ -9,7 +10,7 @@
  * Usa el Valhalla público de OpenStreetMap (el mismo respaldo que `routing.service.ts`)
  * porque es el único de los tres proveedores que rutea senderos de trekking.
  */
-import { writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import polyline from '@mapbox/polyline'
 import { RUTAS, type RutaCatalogo } from './rutas.catalogo'
@@ -100,8 +101,18 @@ async function calcular(ruta: RutaCatalogo): Promise<GeometriaRuta> {
 }
 
 async function main() {
-  const salida: Record<string, GeometriaRuta> = {}
-  for (const ruta of RUTAS) {
+  const destino = path.join(__dirname, 'rutas.geometria.json')
+  const args = process.argv.slice(2)
+  const iSolo = args.indexOf('--solo')
+  const solo = iSolo >= 0 ? (args[iSolo + 1] ?? '').split(',').filter(Boolean) : null
+  const desconocidas = (solo ?? []).filter((c) => !RUTAS.some((r) => r.clave === c))
+  if (desconocidas.length > 0) throw new Error(`No están en el catálogo: ${desconocidas.join(', ')}`)
+
+  // Con --solo se parte de lo ya generado: recalcular todo cambiaría trazas que no se tocaron.
+  const salida: Record<string, GeometriaRuta> =
+    solo && existsSync(destino) ? JSON.parse(readFileSync(destino, 'utf8')) : {}
+  const aCalcular = solo ? RUTAS.filter((r) => solo.includes(r.clave)) : RUTAS
+  for (const ruta of aCalcular) {
     const g = await calcular(ruta)
     salida[ruta.clave] = g
     const puntos = polyline.decode(g.polyline, PRECISION_POLYLINE).length
@@ -112,9 +123,10 @@ async function main() {
     // El servidor público pide como mucho un pedido por segundo.
     await new Promise((r) => setTimeout(r, 1200))
   }
-  const destino = path.join(__dirname, 'rutas.geometria.json')
   writeFileSync(destino, `${JSON.stringify(salida, null, 1)}\n`)
-  console.log(`\n${RUTAS.length} rutas guardadas en ${destino}`)
+  console.log(
+    `\n${aCalcular.length} ruta(s) calculadas, ${Object.keys(salida).length} guardadas en ${destino}`
+  )
 }
 
 if (require.main === module) {

@@ -6,7 +6,7 @@ import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanim
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { AvatarFallback } from '@/components/AvatarFallback'
-import { useTheme } from '@/components/MeshUI'
+import { Btn, useTheme } from '@/components/MeshUI'
 import { tamanoOutdoor } from '@/constants/Typography'
 import { uiConfigPorActividad } from '@/lib/activityUi'
 import { ICONO_VOLVER } from '@/lib/plataforma'
@@ -30,6 +30,8 @@ type Props = {
   /** Para que el mapa esconda sus controles flotantes mientras el panel está abierto. */
   onExpandedChange?: (expanded: boolean) => void
   tipoActividad?: TipoActividadApi
+  /** RN-029e: solo el líder, con confirmados que todavía no se sumaron. */
+  avisoFaltantes?: { cantidad: number; avisando: boolean; onAvisar: () => void } | null
 }
 
 const MAX_AVATARES_COMPACTOS = 4
@@ -47,6 +49,7 @@ export function LiveTripHeader({
   onBack,
   onExpandedChange,
   tipoActividad = 'otro',
+  avisoFaltantes = null,
 }: Props) {
   const { altoContraste } = uiConfigPorActividad(tipoActividad)
   const theme = useTheme(altoContraste)
@@ -232,6 +235,19 @@ export function LiveTripHeader({
                 onListaAbiertaChange={setListaAbierta}
               />
             ) : null}
+            {avisoFaltantes && avisoFaltantes.cantidad > 0 ? (
+              <Btn
+                variant="secondary"
+                block
+                icon="bell"
+                onPress={avisoFaltantes.onAvisar}
+                disabled={avisoFaltantes.avisando}
+                loading={avisoFaltantes.avisando}
+                style={styles.avisoFaltantes}
+              >
+                {`Avisar a los que faltan (${avisoFaltantes.cantidad})`}
+              </Btn>
+            ) : null}
           </Animated.View>
         ) : null}
       </Pressable>
@@ -320,6 +336,9 @@ const styles = StyleSheet.create({
     marginTop: 10,
     marginBottom: 4,
     lineHeight: 18,
+  },
+  avisoFaltantes: {
+    marginTop: 10,
   },
   expandedBlock: {
     borderTopWidth: StyleSheet.hairlineWidth,

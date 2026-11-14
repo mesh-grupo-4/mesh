@@ -204,11 +204,11 @@ function TarjetaViaje({
         </Text>
         {dimmed ? (
           <Badge tone="mute">No realizado</Badge>
-        ) : (
-          <Badge tone={v.estado === 'en_curso' ? 'live' : 'accent'} pulse={v.estado === 'en_curso'}>
-            {v.estado === 'en_curso' ? 'En vivo' : 'Planificado'}
+        ) : v.estado === 'en_curso' ? (
+          <Badge tone="live" pulse>
+            En vivo
           </Badge>
-        )}
+        ) : null}
         {onQuitar && !selectionActive ? (
           <BotonQuitar nombre={nombre} onPress={onQuitar} theme={theme} />
         ) : null}
@@ -296,7 +296,6 @@ function TarjetaFinalizado({
         <Text style={[styles.tarjetaTitulo, { color: theme.textDim }]} numberOfLines={1}>
           {nombre}
         </Text>
-        <Badge tone="mute">Finalizado</Badge>
         {onQuitar && !selectionActive ? (
           <BotonQuitar nombre={nombre} onPress={onQuitar} theme={theme} />
         ) : null}
@@ -704,8 +703,8 @@ export default function ViajesScreen() {
           <View style={styles.segmentWrap}>
             <SegmentTabs
               tabs={[
-                { key: 'mis_viajes', label: 'Mis viajes' },
-                { key: 'pasados', label: 'Viajes pasados' },
+                { key: 'mis_viajes', label: 'Planificados' },
+                { key: 'pasados', label: 'Finalizados' },
               ]}
               active={tab}
               onChange={(key) => {

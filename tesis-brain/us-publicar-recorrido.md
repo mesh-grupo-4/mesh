@@ -33,6 +33,7 @@
 | **Despublicar = `activo = false`** | La fila no se borra; volver a publicar reactiva la misma fila (idempotente por `(viaje, usuario)`) | Conserva las valoraciones recibidas ([[us-valorar-recorridos]]) si el autor despublica y vuelve a publicar |
 | **Nunca velocidad (RN-070)** | El contrato solo tiene `distancia_m` y `tiempo_seg`. También en moto: se puede publicar como referencia de ruta, pero no se compara rendimiento | Regla de seguridad vial no negociable |
 | **Comentario del autor** | Nota opcional de hasta 280 caracteres, escrita una sola vez al publicar | Da contexto al recorrido sin abrir hilos: RN-083 sigue prohibiendo los comentarios de la comunidad |
+| **Foto opcional** | El autor puede adjuntar una foto al publicar (galería o cámara, recorte 4:3 a 1280 px). Mismo flujo de tres pasos que la foto de perfil: URL firmada → subida directa a Supabase Storage → el backend la verifica (carpeta de quien publica, JPEG de hasta 2 MB) al recibir `fotoPath` en el publicar. Se reemplaza al republicar; republicar sin foto la borra | Una imagen dice mucho de un recorrido sin abrir comentarios (RN-083). Los bytes no pasan por el VPS y el backend decide la ruta del archivo (RN-030) |
 | **Checklist opcional** | Interruptor al publicar, apagado por defecto. Se copian solo los textos de **su** checklist; el tilde de completado no viaja | Compartir el checklist es una decisión explícita de quien publica. Si no tiene ítems, no se ofrece |
 | **Solo el recorrido propio** | La tarjeta de publicación aparece solo en el resumen propio (no con `?userId=` de otra persona); el backend igual publica siempre lo de quien llama | El frontend orienta, el backend valida (RN-030) |
 
@@ -43,7 +44,11 @@
 `RecorridoPublicado` (`recorrido_publicado`): `viaje_id`, `usuario_id`, `nombre`,
 `tipo_actividad`, `distancia_m`, `tiempo_seg`, `segmentos` (JSON `[lat, lng][][]`),
 `inicio_lat`/`inicio_lng` (primer punto, para el filtro por zona de
-[[us-explorar-recorridos]]), `comentario`, `checklist` (`text[]`), `activo`, `publicado_at`. Único por `(viaje_id, usuario_id)`.
+[[us-explorar-recorridos]]), `comentario`, `checklist` (`text[]`), `foto` (URL pública o `null`), `activo`, `publicado_at`. Único por `(viaje_id, usuario_id)`.
+
+La foto vive en el bucket `avatares` de Supabase Storage, carpeta
+`recorridos/{usuario_id}/{viaje_id}/`. Al publicar se borra todo lo demás de esa carpeta
+(la foto anterior y subidas que nunca se publicaron).
 
 ---
 
@@ -51,7 +56,8 @@
 
 | Método | Ruta | Quién |
 |---|---|---|
-| `POST` | `/api/viajes/{viajeId}/recorrido/publicar` | Participante del viaje finalizado |
+| `POST` | `/api/viajes/{viajeId}/recorrido/foto/subida` | Participante del viaje finalizado (URL firmada para la foto) |
+| `POST` | `/api/viajes/{viajeId}/recorrido/publicar` | Participante del viaje finalizado (`fotoPath` opcional) |
 | `DELETE` | `/api/viajes/{viajeId}/recorrido/publicar` | Autor del recorrido |
 | `GET` | `/api/recorridos-publicados/mios` | Usuario autenticado (ids de sus viajes publicados) |
 
@@ -60,11 +66,13 @@
 ## Interfaz
 
 - **Resumen del viaje** (`app/viaje/[viajeId]/resumen.tsx`): tarjeta "Compartir con la
-  comunidad" con comentario opcional, interruptor para compartir el checklist y
-  **Publicar recorrido** / **Despublicar**. Solo aparece si hay métricas propias y al
+  comunidad" con comentario opcional, interruptor para compartir el checklist, foto
+  opcional (vista previa con **Cambiar** / **Quitar**) y **Publicar recorrido** /
+  **Despublicar**. La foto se sube recién al tocar Publicar. Solo aparece si hay métricas propias y al
   menos dos puntos de traza (mismas condiciones que valida el backend).
-- **Detalle del recorrido** (`app/recorridos-publicados/[recorridoId].tsx`): si es
-  propio, botón **Despublicar** con confirmación.
+- **Detalle del recorrido** (`app/recorridos-publicados/[recorridoId].tsx`): muestra la
+  foto si la hay; si es propio, botón **Despublicar** con confirmación.
+- **Explorar** (`RecorridoComunidadCard`): la foto va arriba de la tarjeta, en 4:3.
 - **Entrada a la comunidad:** pestaña Rutas → Explorar, que ya muestra la lista.
 
 ### Ayuda en línea (E14)

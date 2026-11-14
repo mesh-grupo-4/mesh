@@ -120,6 +120,30 @@ export const RUTAS: RutaCatalogo[] = [
     altura: { forma: 'subida', base: 420, pico: 720 },
   },
 
+  {
+    // La caravana de Belgrano campeón (25/05/2026): sale del Kempes y da toda la vuelta a
+    // la Circunvalación Agustín Tosco en sentido antihorario. Los puntos de paso son nodos
+    // de la calzada de ese sentido (OSM), para que el ruteo no haga retornos. Valhalla
+    // acepta hasta 10 puntos en total: origen, destino y 8 de paso.
+    clave: 'circunvalacion',
+    actividad: 'auto',
+    perfil: 'auto',
+    origen: { nombre: 'Estadio Mario Alberto Kempes, Córdoba', lat: KEMPES.lat, lng: KEMPES.lng },
+    destino: { nombre: 'Estadio Mario Alberto Kempes, Córdoba', lat: KEMPES.lat, lng: KEMPES.lng },
+    via: [
+      { lat: -31.39632, lng: -64.26732 },
+      { lat: -31.46168, lng: -64.23607 },
+      { lat: -31.46648, lng: -64.20089 },
+      { lat: -31.46906, lng: -64.16626 },
+      { lat: -31.44986, lng: -64.13321 },
+      { lat: -31.41397, lng: -64.11678 },
+      { lat: -31.3601, lng: -64.16052 },
+      { lat: -31.35455, lng: -64.21576 },
+    ],
+    paradas: [],
+    altura: { forma: 'llano', base: 420, pico: 470 },
+  },
+
   // ── Bici ───────────────────────────────────────────────────────────────────
   {
     clave: 'bici-quebrada',

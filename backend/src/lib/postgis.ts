@@ -356,6 +356,61 @@ export async function computeTrazaRecorrido(
   return segmentos
 }
 
+/** Salida y llegada a menos de esto cuentan como el mismo recorrido (RN-073). */
+export const RADIO_MISMO_RECORRIDO_M = 500
+/** Diferencia de largo tolerada entre dos trazados del mismo recorrido (fracción). */
+export const TOLERANCIA_LARGO_MISMO_RECORRIDO = 0.2
+
+/**
+ * RN-073: viajes y plantillas (de `usuarioId`) cuyo trazado es el mismo
+ * recorrido que la ruta del viaje: salida y llegada dentro de
+ * `RADIO_MISMO_RECORRIDO_M` (en el mismo sentido) y largo planeado parecido,
+ * para que dos vueltas distintas desde el mismo punto no se mezclen. Devuelve
+ * null si el viaje no tiene ruta: sin recorrido no hay contra qué filtrar.
+ */
+export async function computeMismoRecorrido(
+  prisma: PrismaClient,
+  viajeId: string,
+  usuarioId: string
+): Promise<{ viajeIds: string[]; plantillaIds: string[] } | null> {
+  const filas = await prisma.$queryRaw<{ tipo: 'ruta' | 'viaje' | 'plantilla'; id: string }[]>(
+    Prisma.sql`
+      WITH actual AS (
+        SELECT
+          ST_SetSRID(ST_MakePoint(origen_lng, origen_lat), 4326)::geography AS origen,
+          ST_SetSRID(ST_MakePoint(destino_lng, destino_lat), 4326)::geography AS destino,
+          distancia_planeada_m AS largo
+        FROM ruta
+        WHERE viaje_id = ${viajeId}::uuid
+      ),
+      trazados AS (
+        SELECT 'viaje' AS tipo, viaje_id AS id, origen_lat, origen_lng, destino_lat, destino_lng, distancia_planeada_m
+        FROM ruta
+        WHERE viaje_id <> ${viajeId}::uuid
+        UNION ALL
+        SELECT 'plantilla' AS tipo, id, origen_lat, origen_lng, destino_lat, destino_lng, distancia_planeada_m
+        FROM ruta_plantilla
+        WHERE usuario_id = ${usuarioId}::uuid
+      )
+      SELECT 'ruta' AS tipo, NULL::text AS id FROM actual
+      UNION ALL
+      SELECT t.tipo, t.id::text
+      FROM trazados t, actual a
+      WHERE ST_DWithin(ST_SetSRID(ST_MakePoint(t.origen_lng, t.origen_lat), 4326)::geography, a.origen, ${RADIO_MISMO_RECORRIDO_M})
+        AND ST_DWithin(ST_SetSRID(ST_MakePoint(t.destino_lng, t.destino_lat), 4326)::geography, a.destino, ${RADIO_MISMO_RECORRIDO_M})
+        AND (
+          a.largo IS NULL OR t.distancia_planeada_m IS NULL OR a.largo <= 0
+          OR ABS(t.distancia_planeada_m - a.largo) <= a.largo * ${TOLERANCIA_LARGO_MISMO_RECORRIDO}
+        )
+    `
+  )
+  if (!filas.some((f) => f.tipo === 'ruta')) return null
+  return {
+    viajeIds: filas.filter((f) => f.tipo === 'viaje').map((f) => f.id),
+    plantillaIds: filas.filter((f) => f.tipo === 'plantilla').map((f) => f.id),
+  }
+}
+
 export type PuntoFantasma = {
   /** Segundos desde el primer punto de la traza. */
   t_seg: number

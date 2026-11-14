@@ -344,7 +344,7 @@ ModoViaje:
   type: string
   description: |
     Modo del viaje. `recreativo` (RN-072) sin rankings ni comparaciones;
-    `entrenamiento` (RN-065) con métricas de sesión, nunca en moto ni auto (RN-070);
+    `entrenamiento` (RN-065) con métricas de sesión y fantasma (RN-073), nunca en moto ni auto (RN-070);
     `competitivo` (RN-071) con leaderboard en vivo y recap con puestos. Solo grupal
     y no motorizado (moto/auto) para competir.
   enum: [recreativo, competitivo, entrenamiento]
@@ -6559,6 +6559,7 @@ RecorridoPublicadoResumen:
     - tiempo_seg
     - publicado_at
     - comentario
+    - foto
     - tiene_checklist
     - autor
   properties:
@@ -6586,6 +6587,14 @@ RecorridoPublicadoResumen:
       nullable: true
       maxLength: 280
       description: Nota del autor al publicar. No hay comentarios de la comunidad (RN-083).
+    foto:
+      type: string
+      format: uri
+      nullable: true
+      description: |
+        Foto que el autor adjuntó al publicar (URL pública de Supabase Storage), o `null`
+        si publicó sin foto. Se reemplaza al republicar.
+      example: https://ddmnzklvxbijpcpckwez.supabase.co/storage/v1/object/public/avatares/recorridos/9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d/3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d/1792000000000.jpg
     tiene_checklist:
       type: boolean
       description: Si el autor compartió su checklist. Los ítems vienen en el detalle.
@@ -6614,6 +6623,34 @@ PublicarRecorridoRequest:
       type: boolean
       default: false
       description: Copia al recorrido los textos del checklist propio de ese viaje.
+    fotoPath:
+      type: string
+      minLength: 1
+      maxLength: 200
+      description: |
+        El `path` que devolvió `POST /api/viajes/{viajeId}/recorrido/foto/subida`, con el
+        JPEG ya subido. Ausente, se publica sin foto (y se borra la anterior si había).
+      example: recorridos/9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d/3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d/1792000000000.jpg
+
+SubidaFotoRecorrido:
+  type: object
+  description: |
+    Paso 1 de la foto opcional de un recorrido publicado. `upload_url` es una URL firmada
+    de Supabase Storage que solo permite escribir en `path` (la carpeta de quien publica
+    para ese viaje). La app sube ahí el JPEG con un `PUT` y después publica con
+    `POST /api/viajes/{viajeId}/recorrido/publicar` enviando `fotoPath`.
+  required:
+    - path
+    - upload_url
+  properties:
+    path:
+      type: string
+      description: Ruta dentro del bucket `avatares`, siempre `recorridos/{usuarioId}/{viajeId}/{timestamp}.jpg`.
+      example: recorridos/9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d/3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d/1792000000000.jpg
+    upload_url:
+      type: string
+      format: uri
+  additionalProperties: false
 
 ImportarRecorridoRequest:
   type: object

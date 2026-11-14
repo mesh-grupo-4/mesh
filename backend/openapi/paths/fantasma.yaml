@@ -4,7 +4,7 @@
 # Ghost tracking: un recorrido histórico (traza GPS de un viaje finalizado, propia
 # o de otro integrante de un viaje compartido, o una ruta compartida importada como
 # plantilla) que el cliente anima sobre el mapa en vivo para comparar tiempos.
-# RN-070: nunca en moto ni auto. RN-072: no en modo recreativo.
+# Solo en modo entrenamiento (RN-073). RN-070: nunca en moto ni auto.
 
 FantasmaCandidatos:
   get:
@@ -13,9 +13,12 @@ FantasmaCandidatos:
     description: |
       Viajes finalizados en los que participó el usuario (su traza y la de los demás
       integrantes) y sus plantillas de rutas compartidas con tiempo estimado.
+      Si el entrenamiento tiene ruta, solo los del **mismo recorrido**: salida y
+      llegada a menos de 500 m (en el mismo sentido) y largo planeado con hasta 20 %
+      de diferencia, calculado en PostGIS. Sin ruta no se filtra por recorrido.
       Primero los de la misma actividad y, dentro de eso, los propios.
       Responde `409 FANTASMA_NO_DISPONIBLE` si el viaje es de moto o auto (RN-070) o
-      está en modo recreativo (RN-072).
+      no está en modo entrenamiento (RN-073).
     tags:
       - Fantasma
     parameters:
@@ -43,13 +46,13 @@ FantasmaCandidatos:
       '404':
         $ref: '../components/responses.yaml#/NotFound'
       '409':
-        description: Moto o modo recreativo (`FANTASMA_NO_DISPONIBLE`).
+        description: Moto, auto o un modo que no es entrenamiento (`FANTASMA_NO_DISPONIBLE`).
         content:
           application/json:
             schema:
               $ref: '../components/schemas.yaml#/Error'
             example:
-              error: El modo recreativo no muestra comparaciones (RN-072)
+              error: El fantasma es solo para entrenamientos (RN-073)
               code: FANTASMA_NO_DISPONIBLE
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'
@@ -134,7 +137,7 @@ FantasmaRecurso:
               code: FANTASMA_SIN_TRAZA
       '409':
         description: |
-          Moto o modo recreativo (`FANTASMA_NO_DISPONIBLE`), o viaje de referencia sin
+          Moto, auto o un modo que no es entrenamiento (`FANTASMA_NO_DISPONIBLE`), o viaje de referencia sin
           finalizar (`TRIP_NOT_FINISHED`).
         content:
           application/json:

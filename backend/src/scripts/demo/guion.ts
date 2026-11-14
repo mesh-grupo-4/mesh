@@ -17,12 +17,24 @@ import type {
   TipoAlerta,
   VisibilidadLogros,
 } from '@prisma/client'
+import { diaArg, inicioDiaArg } from '../../modules/reportes/reportes.periodo'
 
 /** Todo lo que crea el seed se reconoce por este dominio; `demo:limpiar` borra solo eso. */
 export const DOMINIO_DEMO = 'demo.mesh'
 export const PASSWORD_POR_DEFECTO = 'admin1234'
 /** Usuario con el que se recorre la app en la presentación. */
 export const PROTAGONISTA = 'lucia'
+
+/**
+ * Días entre una fecha fija (`YYYY-MM-DD`, hora argentina) y el día en que se corre el
+ * seed. Para lo que pasó un día concreto y tiene que seguir en esa fecha.
+ */
+function haceDiasDesde(fecha: string): number {
+  return Math.round((inicioDiaArg(diaArg(new Date())).getTime() - inicioDiaArg(fecha).getTime()) / 86_400_000)
+}
+
+/** Belgrano le ganó 3-2 a River la final del Apertura 2026 el 24/05 y la caravana fue al día siguiente. */
+const CARAVANA_CAMPEON = '2026-05-25'
 
 // ── Elenco ───────────────────────────────────────────────────────────────────
 
@@ -43,6 +55,13 @@ export type UsuarioDemo = {
   suspendido?: string
   /** Recién registrado: todavía no aceptó el aviso de ubicación ni hizo viajes. */
   nuevo?: boolean
+  /** Foto de perfil: archivo JPEG de `scripts/demo/fotos/`. */
+  foto?: string
+  /**
+   * Solo aparece en sus viajes de vitrina: el relleno no le inventa viajes, así no entra en
+   * rankings ni reportes. Sí puede valorar recorridos.
+   */
+  soloVitrina?: boolean
 }
 
 export const ELENCO: UsuarioDemo[] = [
@@ -73,6 +92,35 @@ export const ELENCO: UsuarioDemo[] = [
   { clave: 'paula', nombre: 'Paula', apellido: 'Navarro', actividad: 'running', altaHaceDias: 30 },
   { clave: 'santiago', nombre: 'Santiago', apellido: 'Quiroga', actividad: 'auto', altaHaceDias: 18 },
   { clave: 'milagros', nombre: 'Milagros', apellido: 'Domínguez', actividad: 'otro', altaHaceDias: 3, nuevo: true },
+
+  // El once que le ganó la final del Apertura 2026 a River en el Kempes y su técnico. Solo
+  // aparecen en "La Vuelta Del Campeón". Fotos: sitio oficial de Belgrano y FotMob.
+  ...(
+    [
+      ['cardozo', 'Thiago', 'Cardozo'],
+      ['falcon', 'Agustín', 'Falcón'],
+      ['morales', 'Leonardo', 'Morales'],
+      ['maldonado', 'Alexis', 'Maldonado'],
+      ['sporle', 'Adrián', 'Spörle'],
+      ['sanchez', 'Adrián', 'Sánchez'],
+      ['longo', 'Santiago', 'Longo'],
+      ['rigoni', 'Emiliano', 'Rigoni'],
+      ['zelarayan', 'Lucas', 'Zelarayán'],
+      ['velazquez', 'Juan', 'Velázquez'],
+      ['passerini', 'Lucas', 'Passerini'],
+      ['zielinski', 'Ricardo', 'Zielinski'],
+    ] as const
+  ).map(
+    ([clave, nombre, apellido]): UsuarioDemo => ({
+      clave,
+      nombre,
+      apellido,
+      actividad: 'running',
+      altaHaceDias: haceDiasDesde('2026-05-18'),
+      foto: `${clave}.jpg`,
+      soloVitrina: true,
+    })
+  ),
 ]
 
 // ── Grupos, invitaciones y amistades ─────────────────────────────────────────
@@ -216,6 +264,13 @@ export type PublicacionGuion = {
   votos: [number, number]
   /** Valoración de la protagonista; sin definir = no votó (para votar en vivo). */
   votoProtagonista?: boolean
+  /** Foto del recorrido: archivo JPEG de `scripts/demo/fotos/`. */
+  foto?: string
+  /**
+   * Se publicó hace estas horas, aunque el viaje sea viejo. Por defecto, al día siguiente
+   * del viaje. Entre los muy recomendados manda la fecha de publicación (RN-082).
+   */
+  publicadoHaceHoras?: number
 }
 
 export type ViajeVitrina = {
@@ -701,6 +756,30 @@ export const VIAJES_VITRINA: ViajeVitrina[] = [
       comentario: 'Camino de montaña con curvas cerradas y mirador a mitad de recorrido. El pueblo es peatonal: se deja la moto en la entrada.',
       votos: [3, 0],
       votoProtagonista: true,
+    },
+  },
+  {
+    // La caravana de Belgrano campeón: toda la vuelta a la Circunvalación en el micro
+    // descapotable, a paso de hombre entre la gente. En auto (motorizado): fuera de todo
+    // ranking (RN-070). Publicado hace una hora y con muchos votos: primero en Explorar.
+    clave: 'vuelta-campeon',
+    nombre: 'La Vuelta Del Campeón',
+    ruta: 'circunvalacion',
+    modo: 'recreativo',
+    haceDias: haceDiasDesde(CARAVANA_CAMPEON),
+    hora: 15,
+    creador: 'zielinski',
+    integrantes: ['cardozo', 'falcon', 'morales', 'maldonado', 'sporle', 'sanchez', 'longo', 'rigoni', 'zelarayan', 'velazquez', 'passerini'],
+    // La caravana avanzó entre la gente: unos 8 km/h en lugar de los 70 de un auto.
+    ritmos: { zielinski: 0.12 },
+    checklistLider: ['La copa', 'Bandera de Belgrano'],
+    publicar: {
+      por: 'zelarayan',
+      comentario:
+        'No es para cualquiera. La Circunvalación la da cualquiera; esta vuelta no: antes hay que ganarle a River una final en el Kempes. Horas a paso de hombre, con Córdoba entera de celeste alrededor del micro. Gracias, Pirata. 💙',
+      foto: 'vuelta-del-campeon.jpg',
+      votos: [30, 0],
+      publicadoHaceHoras: 1,
     },
   },
 ]
