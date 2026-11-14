@@ -5,6 +5,7 @@ import { useCopilot } from 'react-native-copilot'
 import { Feather } from '@expo/vector-icons'
 
 import { CorazonGuardar } from '@/components/CorazonGuardar'
+import { coloresValoracion, nivelValoracion } from '@/components/tabs/coloresValoracion'
 import { RecorridoMapView } from '@/components/RecorridoMapView'
 import { StatCard, StatCardRow } from '@/components/StatCard'
 import { ActivityTile, Btn, TopBar, useTheme } from '@/components/MeshUI'
@@ -72,6 +73,9 @@ export default function RecorridoPublicadoScreen() {
   }, [recorridoId])
 
   const esMio = recorrido != null && recorrido.autor.id === backendUserId
+  const colorValoracion = recorrido
+    ? coloresValoracion(nivelValoracion(recorrido.valoracion), theme).color
+    : theme.textMute
 
   // RN-081: el autor despublica en cualquier momento; el recorrido deja de verse para todos.
   const confirmarDespublicar = () => {
@@ -207,15 +211,6 @@ export default function RecorridoPublicadoScreen() {
             />
           </View>
 
-          {recorrido.foto ? (
-            <Image
-              source={{ uri: recorrido.foto }}
-              style={[styles.foto, { backgroundColor: theme.surface2 }]}
-              resizeMode="cover"
-              accessibilityLabel="Foto del recorrido"
-            />
-          ) : null}
-
           {recorrido.comentario ? (
             <View
               style={[
@@ -255,7 +250,7 @@ export default function RecorridoPublicadoScreen() {
                 Valoración de la comunidad
               </Text>
               <View style={styles.valoracionResumen}>
-                <Text style={[styles.porcentaje, { color: theme.accent }]}>
+                <Text style={[styles.porcentaje, { color: colorValoracion }]}>
                   {recorrido.valoracion.porcentaje_recomienda !== null
                     ? `${recorrido.valoracion.porcentaje_recomienda} %`
                     : '—'}
@@ -352,6 +347,15 @@ export default function RecorridoPublicadoScreen() {
               </Btn>
             </View>
           </PasoAyuda>
+
+          {recorrido.foto ? (
+            <Image
+              source={{ uri: recorrido.foto }}
+              style={[styles.foto, { backgroundColor: theme.surface2 }]}
+              resizeMode="cover"
+              accessibilityLabel="Foto del recorrido"
+            />
+          ) : null}
 
           {esMio ? (
             <PasoAyuda {...AYUDA_RECORRIDO_PUBLICADO[4]!}>
