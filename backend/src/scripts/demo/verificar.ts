@@ -119,6 +119,7 @@ export function verificarGuion(hoy: string, ahora: Date): { errores: string[]; a
   const fotos = [
     ...ELENCO.flatMap((u) => (u.foto ? [{ archivo: u.foto, de: `Usuario "${u.clave}"` }] : [])),
     ...VIAJES_VITRINA.flatMap((v) => (v.publicar?.foto ? [{ archivo: v.publicar.foto, de: `Viaje "${v.clave}"` }] : [])),
+    ...GRUPOS.flatMap((g) => (g.foto ? [{ archivo: g.foto, de: `Grupo "${g.clave}"` }] : [])),
   ]
   for (const f of fotos) {
     if (!existsSync(path.join(__dirname, 'fotos', f.archivo))) errores.push(`${f.de}: no existe la foto fotos/${f.archivo}`)

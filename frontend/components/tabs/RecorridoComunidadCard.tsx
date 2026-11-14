@@ -2,6 +2,7 @@ import { Image, StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 
 import { CorazonGuardar } from '@/components/CorazonGuardar';
+import { coloresValoracion, nivelValoracion } from '@/components/tabs/coloresValoracion';
 import { ActivityTile, Avatar, useTheme } from '@/components/MeshUI';
 import { Pressable } from '@/components/Pressable';
 import { formatDurationHm, formatKm } from '@/lib/format';
@@ -42,13 +43,16 @@ export function RecorridoComunidadCard({
   const insigniasOcultas = reputacion.insignias_total - reputacion.insignias_destacadas.length;
   const nombreAutor = nombreCompleto(autor.nombre, autor.apellido);
   const nombreRecorrido = r.nombre?.trim() || 'Recorrido sin nombre';
+  const colores = coloresValoracion(nivelValoracion(valoracion), theme);
 
   const borde =
     esLeyenda || muyRecomendado
       ? { borderColor: theme.goldLine, borderWidth: 2 }
-      : esDestacado
-        ? { borderColor: theme.accentLine, borderWidth: 1.5 }
-        : { borderColor: theme.border, borderWidth: 1 };
+      : colores.borde
+        ? { borderColor: colores.borde, borderWidth: 1.5 }
+        : esDestacado
+          ? { borderColor: theme.accentLine, borderWidth: 1.5 }
+          : { borderColor: theme.border, borderWidth: 1 };
 
   return (
     <Pressable
@@ -195,22 +199,12 @@ export function RecorridoComunidadCard({
         </View>
 
         <View style={styles.pie}>
-          <Feather
-            name="thumbs-up"
-            size={muyRecomendado ? 16 : 14}
-            color={muyRecomendado ? theme.gold : valoracion.total > 0 ? theme.accent : theme.textMute}
-          />
+          <Feather name={colores.icono} size={muyRecomendado ? 16 : 14} color={colores.color} />
           <Text
             style={[
               styles.valoracion,
               muyRecomendado && styles.valoracionFuerte,
-              {
-                color: muyRecomendado
-                  ? theme.gold
-                  : valoracion.total > 0
-                    ? theme.textDim
-                    : theme.textMute,
-              },
+              { color: colores.color },
             ]}
             numberOfLines={1}
           >

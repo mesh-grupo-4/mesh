@@ -14,7 +14,7 @@ import { router, useFocusEffect } from 'expo-router'
 import { ActivityTile, Btn, Field, TopBar, useTheme } from '@/components/MeshUI'
 import { HerramientasLista } from '@/components/BarraFiltros'
 import { FranjaEstado } from '@/components/FranjaEstado'
-import { BotonFlotante, ESPACIO_BOTON_FLOTANTE } from '@/components/BotonFlotante'
+import { BotonFlotante, ESPACIO_BOTON_FLOTANTE, useBotonFlotante } from '@/components/BotonFlotante'
 import {
   OpcionFiltro,
   OpcionesFiltro,
@@ -61,6 +61,7 @@ function fechaCorta(iso: string | null): string {
 export default function EntrenarScreen() {
   const theme = useTheme()
   const espacioTabBar = useEspacioTabBar()
+  const botonFlotante = useBotonFlotante()
   const { backendUserId } = useAuth()
 
   /** Invitaciones a entrenamientos sin responder: el puntito de la campanita. */
@@ -211,6 +212,8 @@ export default function EntrenarScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <ScrollView
+        onScroll={botonFlotante.onScroll}
+        scrollEventThrottle={16}
         contentContainerStyle={{ paddingBottom: espacioTabBar + ESPACIO_BOTON_FLOTANTE }}
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
@@ -323,7 +326,12 @@ export default function EntrenarScreen() {
 
       <FranjaEstado />
 
-      <BotonFlotante icon="plus" label="Nuevo entrenamiento" onPress={abrirNuevoEntrenamiento} />
+      <BotonFlotante
+        icono="heartbeat"
+        label="Nuevo entrenamiento"
+        onPress={abrirNuevoEntrenamiento}
+        extendido={botonFlotante.extendido}
+      />
 
       <PantallaFiltros
         visible={pantallaFiltros}

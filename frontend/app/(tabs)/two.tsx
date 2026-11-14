@@ -21,7 +21,7 @@ import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda'
 import { AYUDA_VIAJES } from '@/components/ayuda/contenidoAyuda'
 import { HerramientasLista } from '@/components/BarraFiltros'
 import { FranjaEstado } from '@/components/FranjaEstado'
-import { BotonFlotante, ESPACIO_BOTON_FLOTANTE } from '@/components/BotonFlotante'
+import { BotonFlotante, ESPACIO_BOTON_FLOTANTE, useBotonFlotante } from '@/components/BotonFlotante'
 import { PantallaFiltrosViajes } from '@/components/viajes/PantallaFiltrosViajes'
 import {
   ETIQUETA_ORDEN_PASADOS,
@@ -347,6 +347,7 @@ export default function ViajesScreen() {
   const { backendUserId, backendSyncing } = useAuth()
   const { syncKnownTripIds } = useTripRealtime()
   const selection = useSelectionMode()
+  const botonFlotante = useBotonFlotante()
   const { start } = useCopilot()
 
   const [tab, setTab] = useState<Tab>('mis_viajes')
@@ -654,6 +655,7 @@ export default function ViajesScreen() {
   return (
     <View style={[styles.root, { backgroundColor: theme.background }]}>
       <ScrollViewAyuda
+        onScroll={botonFlotante.onScroll}
         contentContainerStyle={[styles.scroll, { paddingBottom: espacioTabBar + ESPACIO_BOTON_FLOTANTE }]}
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
@@ -896,8 +898,9 @@ export default function ViajesScreen() {
       <FranjaEstado />
 
       <BotonFlotante
-        icon="plus"
+        icono="map"
         label="Nuevo viaje"
+        extendido={botonFlotante.extendido}
         onPress={() => abrirNuevoViaje()}
         visible={!selection.active}
         ayuda={AYUDA_VIAJES[3]}

@@ -15,7 +15,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { AvatarFallback } from '@/components/AvatarFallback';
 import { HerramientasLista } from '@/components/BarraFiltros';
 import { SelectionActionBar } from '@/components/SelectionActionBar';
-import { BotonFlotante, ESPACIO_BOTON_FLOTANTE } from '@/components/BotonFlotante';
+import { BotonFlotante, ESPACIO_BOTON_FLOTANTE, useBotonFlotante } from '@/components/BotonFlotante';
 import { AYUDA_GRUPOS } from '@/components/ayuda/contenidoAyuda';
 import { BotonSeleccionar, SelectionHeader } from '@/components/SelectionHeader';
 import { useAuth } from '@/context/AuthContext';
@@ -65,6 +65,7 @@ export function AmigosTabPanel({ encabezado, onAbrirSolicitudes }: Props) {
   const { width } = useWindowDimensions();
   const { backendUserId } = useAuth();
   const selection = useSelectionMode();
+  const botonFlotante = useBotonFlotante();
   const [amigos, setAmigos] = useState<AmigoApi[]>([]);
   const [cantidadSolicitudes, setCantidadSolicitudes] = useState(0);
   const [resultadosBusqueda, setResultadosBusqueda] = useState<UsuarioBusquedaAmistadApi[]>([]);
@@ -448,12 +449,15 @@ export function AmigosTabPanel({ encabezado, onAbrirSolicitudes }: Props) {
             { paddingBottom: espacioTabBar + (selection.active ? 88 : ESPACIO_BOTON_FLOTANTE) },
           ]}
           refreshControl={refresh}
+          onScroll={botonFlotante.onScroll}
+          scrollEventThrottle={16}
         />
       )}
 
       <BotonFlotante
-        icon="user-plus"
+        icono="user"
         label="Agregar amigo"
+        extendido={botonFlotante.extendido}
         onPress={abrirBuscador}
         visible={!selection.active}
         ayuda={AYUDA_GRUPOS[2]}

@@ -35,7 +35,7 @@ import { meshAlert, meshConfirmDestructive, meshError, meshWarning } from '@/lib
 import { SegmentTabs } from '@/components/SegmentTabs';
 import { HerramientasLista } from '@/components/BarraFiltros';
 import { FranjaEstado } from '@/components/FranjaEstado';
-import { BotonFlotante, ESPACIO_BOTON_FLOTANTE } from '@/components/BotonFlotante';
+import { BotonFlotante, ESPACIO_BOTON_FLOTANTE, useBotonFlotante } from '@/components/BotonFlotante';
 import { AmigosTabPanel } from '@/components/tabs/AmigosTabPanel';
 import { coincideBusqueda, normalizarBusqueda } from '@/lib/busqueda';
 import { setInvitacionesPendientesCount, usePendientes } from '@/lib/pendientesStore';
@@ -62,6 +62,8 @@ export default function GruposScreen() {
   const selection = useSelectionMode();
   const pendientes = usePendientes();
   const [seccion, setSeccion] = useState<SeccionGruposAmigos>(tab === 'amigos' ? 'amigos' : 'grupos');
+  // Al volver de Amigos a Grupos se extiende de nuevo.
+  const botonFlotante = useBotonFlotante(seccion);
 
   useEffect(() => {
     if (tab === 'amigos') setSeccion('amigos');
@@ -314,6 +316,7 @@ export default function GruposScreen() {
       ) : (
     <View style={styles.flex}>
       <ScrollViewAyuda
+        onScroll={botonFlotante.onScroll}
         contentContainerStyle={{ paddingBottom: espacioTabBar + ESPACIO_BOTON_FLOTANTE }}
         keyboardShouldPersistTaps="handled"
         refreshControl={
@@ -416,8 +419,9 @@ export default function GruposScreen() {
       </ScrollViewAyuda>
 
       <BotonFlotante
-        icon="plus"
+        icono="users"
         label="Crear grupo"
+        extendido={botonFlotante.extendido}
         onPress={() => setCreandoAbierto(true)}
         visible={!selection.active}
         ayuda={AYUDA_GRUPOS[2]}

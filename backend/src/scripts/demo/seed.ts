@@ -49,6 +49,7 @@ import { RecorridosPublicadosService } from '../../modules/recorridos-publicados
 import { diaArg } from '../../modules/reportes/reportes.periodo'
 import { RutasCompartidasService } from '../../modules/rutas-compartidas/rutas-compartidas.service'
 import { TablaPosicionesService } from '../../modules/tabla-posiciones/tabla-posiciones.service'
+import { FotosGrupoService } from '../../modules/grupos/grupos.fotos'
 import { FotosPerfilService } from '../../modules/usuarios/usuarios.fotos'
 import { parametrosPorActividad } from '../../modules/viajes/activityDefaults'
 import { ViajesService } from '../../modules/viajes/viajes.service'
@@ -115,8 +116,11 @@ async function subirFoto(archivo: string, destino: string): Promise<boolean> {
   return true
 }
 
-/** Las fotos de las cuentas demo (perfil y recorridos) viven en Storage, fuera de la base. */
-async function borrarFotosDemo(ids: string[]) {
+/**
+ * Las fotos de las cuentas demo (perfil y recorridos) y de sus grupos viven en Storage,
+ * fuera de la base.
+ */
+async function borrarFotosDemo(ids: string[], grupoIds: string[]) {
   const cliente = supabaseStorage()
   if (!cliente || ids.length === 0) return
   const bucket = cliente.storage.from(BUCKET_AVATARES)
@@ -127,6 +131,10 @@ async function borrarFotosDemo(ids: string[]) {
     for (const viaje of await nombres(`recorridos/${id}`)) {
       paths.push(...(await nombres(`recorridos/${id}/${viaje}`)).map((n) => `recorridos/${id}/${viaje}/${n}`))
     }
+    if (paths.length > 0) await bucket.remove(paths)
+  })
+  await enParalelo(grupoIds, 6, async (id) => {
+    const paths = (await nombres(`grupos/${id}`)).map((n) => `grupos/${id}/${n}`)
     if (paths.length > 0) await bucket.remove(paths)
   })
 }
@@ -141,7 +149,11 @@ async function borrarFotosDemo(ids: string[]) {
 async function limpiar(): Promise<number> {
   const usuarios = await prisma.usuario.findMany({ where: FILTRO_DEMO, select: { id: true } })
   const ids = usuarios.map((u) => u.id)
-  await borrarFotosDemo(ids)
+  const grupos = await prisma.grupo.findMany({ where: { lider_id: { in: ids } }, select: { id: true } })
+  await borrarFotosDemo(
+    ids,
+    grupos.map((g) => g.id)
+  )
 
   // La bitácora del backoffice no tiene FK a propósito (RN-121): se limpia a mano.
   await prisma.auditoriaAdmin.deleteMany({
@@ -238,6 +250,20 @@ async function fotosDePerfil(ctx: Contexto): Promise<number> {
     const destino = `${id}/${Date.now()}.jpg`
     await subirFoto(u.foto!, destino)
     await fotos.confirmar(id, destino)
+  })
+  return conFoto.length
+}
+
+/** Fotos de grupo del guion: las sube y confirma el líder, como desde la app (RN-030). */
+async function fotosDeGrupos(ctx: Contexto, grupos: Map<string, string>): Promise<number> {
+  const conFoto = GRUPOS.filter((g) => g.foto)
+  if (conFoto.length === 0 || !supabaseStorage()) return 0
+  const fotos = new FotosGrupoService(prisma)
+  await enParalelo(conFoto, 4, async (g) => {
+    const grupoId = grupos.get(g.clave)!
+    const destino = `grupos/${grupoId}/${Date.now()}.jpg`
+    await subirFoto(g.foto!, destino)
+    await fotos.confirmar(ctx.usuario(g.lider), grupoId, destino)
   })
   return conFoto.length
 }
@@ -846,6 +872,8 @@ async function main() {
   log(`${ELENCO.length} usuarios, ${GRUPOS.length} grupos, ${AMISTADES.length} amistades, ${INVITACIONES_GRUPO.length} invitaciones a grupos`)
   const conFoto = await fotosDePerfil(ctx)
   if (conFoto > 0) log(`${conFoto} fotos de perfil`)
+  const conFotoGrupo = await fotosDeGrupos(ctx, grupos)
+  if (conFotoGrupo > 0) log(`${conFotoGrupo} fotos de grupo`)
 
   // Viajes con traza.
   const vitrina = (await enParalelo(VIAJES_VITRINA, 5, (v) => sembrarVitrina(v, ctx))).filter(
