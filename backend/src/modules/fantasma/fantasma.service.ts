@@ -4,7 +4,7 @@ import { distanciaMetros } from '../../lib/geo2d'
 import type { GeoJsonLineString } from '../../lib/geo'
 import { HttpError } from '../../lib/httpError'
 import { ACTIVIDADES_MOTORIZADAS, esMotorizado } from '../../lib/actividad'
-import { computeTrazaFantasma, type PuntoFantasma } from '../../lib/postgis'
+import { computeMismoRecorrido, computeTrazaFantasma, type PuntoFantasma } from '../../lib/postgis'
 import type { FantasmaQuery } from '../viajes/viajes.schemas'
 
 /** Cantidad máxima de puntos que viajan al cliente para animar el fantasma. */
@@ -53,7 +53,11 @@ function nombreDe(u: { nombre: string; apellido: string | null }): string {
 export class FantasmaService {
   constructor(private readonly prisma: PrismaClient) {}
 
-  /** RN-070 / RN-072: sin fantasma en vehículos motorizados ni en modo recreativo. */
+  /**
+   * RN-073: el fantasma es solo de entrenamiento (nunca en recreativo, RN-072, ni
+   * en competitivo, que ya compara en vivo con el leaderboard, RN-071) y nunca en
+   * vehículos motorizados (RN-070).
+   */
   private async assertViajeAdmiteFantasma(viajeId: string, usuarioId: string) {
     const viaje = await this.prisma.viaje.findUnique({
       where: { id: viajeId },
@@ -71,25 +75,25 @@ export class FantasmaService {
     if (esMotorizado(viaje.tipo_actividad)) {
       throw new HttpError(409, 'Las modalidades motorizadas (moto, auto) no admiten fantasma (RN-070)', 'FANTASMA_NO_DISPONIBLE')
     }
-    if (viaje.modo === 'recreativo') {
-      throw new HttpError(
-        409,
-        'El modo recreativo no muestra comparaciones (RN-072)',
-        'FANTASMA_NO_DISPONIBLE'
-      )
+    if (viaje.modo !== 'entrenamiento') {
+      throw new HttpError(409, 'El fantasma es solo para entrenamientos (RN-073)', 'FANTASMA_NO_DISPONIBLE')
     }
     return viaje
   }
 
-  /** SCRUM-50: viajes anteriores (propios o compartidos) y plantillas elegibles. */
+  /**
+   * SCRUM-50: viajes anteriores (propios o compartidos) y plantillas elegibles.
+   * Si el entrenamiento tiene ruta, solo las del mismo recorrido (RN-073).
+   */
   async listarCandidatos(usuarioId: string, viajeId: string): Promise<CandidatoFantasma[]> {
     const viaje = await this.assertViajeAdmiteFantasma(viajeId, usuarioId)
+    const mismoRecorrido = await computeMismoRecorrido(this.prisma, viajeId, usuarioId)
 
     const [metricas, plantillas] = await Promise.all([
       // Trazas de viajes finalizados en los que participé: la mía y las de los demás.
       this.prisma.metricaViaje.findMany({
         where: {
-          viaje_id: { not: viajeId },
+          viaje_id: mismoRecorrido ? { in: mismoRecorrido.viajeIds, not: viajeId } : { not: viajeId },
           viaje: {
             estado: 'finalizado',
             tipo_actividad: { notIn: [...ACTIVIDADES_MOTORIZADAS] },
@@ -112,7 +116,12 @@ export class FantasmaService {
         take: 60,
       }),
       this.prisma.rutaPlantilla.findMany({
-        where: { usuario_id: usuarioId, tipo_actividad: { notIn: [...ACTIVIDADES_MOTORIZADAS] }, tiempo_estimado_seg: { gt: 0 } },
+        where: {
+          usuario_id: usuarioId,
+          tipo_actividad: { notIn: [...ACTIVIDADES_MOTORIZADAS] },
+          tiempo_estimado_seg: { gt: 0 },
+          ...(mismoRecorrido ? { id: { in: mismoRecorrido.plantillaIds } } : {}),
+        },
         select: {
           id: true,
           nombre: true,

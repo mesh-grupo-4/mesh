@@ -59,6 +59,8 @@ viajesRouter.delete('/:viajeId/ruta/compartir', requireUser, rutasCompartirHandl
 // RN-081 (E10): publicar / despublicar el recorrido propio para la comunidad.
 viajesRouter.post('/:viajeId/recorrido/publicar', requireUser, recorridoPublicadoViajeHandlers.publicar)
 viajesRouter.delete('/:viajeId/recorrido/publicar', requireUser, recorridoPublicadoViajeHandlers.despublicar)
+// Foto opcional del recorrido: URL firmada para subirla antes de publicar.
+viajesRouter.post('/:viajeId/recorrido/foto/subida', requireUser, recorridoPublicadoViajeHandlers.crearSubidaFoto)
 viajesRouter.post('/:viajeId/iniciar', requireUser, c.iniciar)
 viajesRouter.post('/:viajeId/finalizar', requireUser, c.finalizar)
 viajesRouter.post('/:viajeId/salir', requireUser, c.salir)

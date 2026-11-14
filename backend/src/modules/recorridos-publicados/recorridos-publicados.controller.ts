@@ -23,6 +23,11 @@ export function crearRecorridosPublicadosController(service: RecorridosPublicado
       res.status(201).json(await service.publicar(req.userId!, viajeId, opciones))
     }),
 
+    crearSubidaFoto: asyncHandler(async (req, res) => {
+      const { viajeId } = viajeIdParamSchema.parse(req.params)
+      res.json(await service.crearSubidaFoto(req.userId!, viajeId))
+    }),
+
     despublicar: asyncHandler(async (req, res) => {
       const { viajeId } = viajeIdParamSchema.parse(req.params)
       await service.despublicar(req.userId!, viajeId)

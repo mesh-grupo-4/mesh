@@ -69,6 +69,13 @@ describe('publicarRecorridoBody', () => {
     expect(publicarRecorridoBody.safeParse({ comentario: 'x'.repeat(281) }).success).toBe(false)
     expect(publicarRecorridoBody.safeParse({ otro: true }).success).toBe(false)
   })
+
+  it('acepta el path de una foto ya subida y rechaza uno vacío o demasiado largo', () => {
+    const fotoPath = 'recorridos/u/v/1792000000000.jpg'
+    expect(publicarRecorridoBody.parse({ fotoPath }).fotoPath).toBe(fotoPath)
+    expect(publicarRecorridoBody.safeParse({ fotoPath: '  ' }).success).toBe(false)
+    expect(publicarRecorridoBody.safeParse({ fotoPath: 'x'.repeat(201) }).success).toBe(false)
+  })
 })
 
 describe('importarRecorridoBody', () => {

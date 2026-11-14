@@ -216,39 +216,48 @@ export default function PerfilUsuarioScreen() {
   const nivel = nivelRacha(semanas);
   const insignias = perfil?.insignias ? ordenarPorRareza(perfil.insignias) : [];
 
+  const barra = (
+    <TopBar
+      title=""
+      onBack={() => router.back()}
+      bordered={false}
+      transparente
+      right={controlAmistad}
+    />
+  );
+
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      {/* Recién con el perfil cargado: sin la cabecera encima, el patrón quedaba cortado en seco. */}
-      {perfil ? (
-        <FondoMesh
-          color={theme.text}
-          alto={ALTO_FONDO}
-          colorRacha={theme.fire}
-          intensidadRacha={intensidadRacha(semanas)}
-          animado
-        />
-      ) : null}
-      <TopBar
-        title=""
-        onBack={() => router.back()}
-        bordered={false}
-        transparente
-        right={controlAmistad}
-      />
-
       {cargando && !perfil ? (
-        <View style={styles.centrado}>
-          <ActivityIndicator color={theme.accent} size="large" />
-        </View>
+        <>
+          {barra}
+          <View style={styles.centrado}>
+            <ActivityIndicator color={theme.accent} size="large" />
+          </View>
+        </>
       ) : error || !perfil ? (
-        <View style={styles.centrado}>
-          <Text style={[styles.errorText, { color: theme.danger }]}>
-            {error ?? 'No se pudo cargar el perfil.'}
-          </Text>
-        </View>
+        <>
+          {barra}
+          <View style={styles.centrado}>
+            <Text style={[styles.errorText, { color: theme.danger }]}>
+              {error ?? 'No se pudo cargar el perfil.'}
+            </Text>
+          </View>
+        </>
       ) : (
+        // Como en el Perfil: el fondo y la barra van dentro del scroll, así nada queda
+        // fijo arriba cortando el contenido. Recién con el perfil cargado: sin la
+        // cabecera encima, el patrón quedaba cortado en seco.
         <ScrollView contentContainerStyle={styles.scroll}>
+          <FondoMesh
+            color={theme.text}
+            alto={ALTO_FONDO}
+            colorRacha={theme.fire}
+            intensidadRacha={intensidadRacha(semanas)}
+            animado
+          />
+          {barra}
           <View style={styles.cabecera}>
             <View style={styles.fundido}>
               <FundidoMesh color={theme.background} />

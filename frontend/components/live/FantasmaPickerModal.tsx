@@ -59,7 +59,7 @@ export function FantasmaPickerModal({ visible, viajeId, ocupado, onElegir, onCer
             <ActivityIndicator color={theme.accent} style={{ marginVertical: 24 }} />
           ) : candidatos.length === 0 ? (
             <Text style={[styles.hint, { color: theme.textDim }]}>
-              Todavía no tenés recorridos finalizados ni rutas compartidas para comparar.
+              Todavía no tenés sesiones ni rutas guardadas de este mismo recorrido para comparar.
             </Text>
           ) : (
             <ScrollView style={{ maxHeight: 380 }}>

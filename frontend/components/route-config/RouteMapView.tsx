@@ -10,6 +10,7 @@ import {
   type PolylineSpec,
   type LatLng,
 } from '@/components/maps/MeshMapView'
+import { BotonEncuadrar } from '@/components/maps/BotonEncuadrar'
 import { PinMarker, PIN_ANCHOR } from '@/components/maps/PinMarker'
 import { useCapaMapa } from '@/hooks/useCapaMapa'
 
@@ -51,6 +52,10 @@ type Props = {
   fitPadding?: { top: number; right: number; bottom: number; left: number }
   /** Ubicación GPS actual del usuario. */
   userLocation?: { latitude: number; longitude: number } | null
+  /** Botón abajo a la derecha que vuelve a encuadrar la ruta (miniaturas). */
+  botonEncuadrar?: boolean
+  /** Capa transparente sobre el mapa que se come los gestos (el toque lo maneja el padre); el botón queda encima. */
+  bloquearGestos?: boolean
 }
 
 export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function RouteMapView(
@@ -68,6 +73,8 @@ export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function Route
     fitBottomPadding = 280,
     fitPadding,
     userLocation = null,
+    botonEncuadrar = false,
+    bloquearGestos = false,
   },
   ref
 ) {
@@ -96,12 +103,19 @@ export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function Route
     onCameraTargetApplied?.()
   }, [cameraTarget, onCameraTargetApplied])
 
+  const coordsEncuadre = useMemo(
+    () =>
+      fitRouteCoords ??
+      routeLineLatLng?.map(([lat, lng]) => ({ latitude: lat, longitude: lng })) ??
+      null,
+    [fitRouteCoords, routeLineLatLng]
+  )
+  const puedeEncuadrar = !mapPickMode && coordsEncuadre != null && coordsEncuadre.length > 1
+
   useEffect(() => {
-    if (mapPickMode) return
-    const coords = fitRouteCoords ?? (routeLineLatLng?.map(([lat, lng]) => ({ latitude: lat, longitude: lng })) ?? null)
-    if (!coords || coords.length < 2) return
-    mapRef.current?.fitBounds(coords, padding, true)
-  }, [fitRouteCoords, routeLineLatLng, mapPickMode, padding])
+    if (!puedeEncuadrar) return
+    mapRef.current?.fitBounds(coordsEncuadre!, padding, true)
+  }, [coordsEncuadre, puedeEncuadrar, padding])
 
   const polylines = useMemo((): PolylineSpec[] => {
     if (mapPickMode) return []
@@ -154,6 +168,10 @@ export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function Route
         userLocation={userLocation}
         onRegionChangeComplete={onRegionChangeComplete}
       />
+      {bloquearGestos ? <View style={StyleSheet.absoluteFill} /> : null}
+      {botonEncuadrar && puedeEncuadrar ? (
+        <BotonEncuadrar onPress={() => mapRef.current?.fitBounds(coordsEncuadre!, padding, true)} />
+      ) : null}
     </View>
   )
 })

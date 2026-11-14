@@ -152,7 +152,8 @@ tags:
   - name: Fantasma
     description: |
       Ghost tracking (RN-073): recorrido histórico para superponer en el mapa en vivo
-      y comparar tiempos. Nunca en moto ni auto (RN-070) ni en modo recreativo (RN-072).
+      y comparar tiempos. Solo en modo entrenamiento y con recorridos del mismo trazado;
+      nunca en moto ni auto (RN-070).
   - name: Entrenamientos
     description: |
       Entrenamientos como serie (RN-066): sesiones propias, circuitos que las agrupan
@@ -261,6 +262,8 @@ paths:
     $ref: './paths/recorridos-publicados.yaml#/ValorarRecorridoPublicado'
   /api/viajes/{viajeId}/recorrido/publicar:
     $ref: './paths/recorridos-publicados.yaml#/PublicarRecorrido'
+  /api/viajes/{viajeId}/recorrido/foto/subida:
+    $ref: './paths/recorridos-publicados.yaml#/SubidaFotoRecorrido'
 
   # ── Geocoding ──────────────────────────────────────────────────────────────
   /api/geocoding/buscar:

@@ -19,9 +19,12 @@ PublicarRecorrido:
       snapshot y lo deja activo.
 
       El cuerpo es opcional. `comentario` es una nota del autor y `compartirChecklist`
-      copia al snapshot los textos de **su** checklist de ese viaje. Ambos se reemplazan
-      al republicar. La nota es única y solo la escribe el autor: la comunidad sigue sin
-      poder comentar (RN-083).
+      copia al snapshot los textos de **su** checklist de ese viaje. `fotoPath` adjunta
+      una foto ya subida con `POST /api/viajes/{viajeId}/recorrido/foto/subida`: el
+      backend comprueba que el archivo esté en la carpeta de quien publica y que sea un
+      JPEG de hasta 2 MB. Los tres se reemplazan al republicar (sin `fotoPath`, la foto
+      anterior se borra). La nota es única y solo la escribe el autor: la comunidad
+      sigue sin poder comentar (RN-083).
     tags:
       - RecorridosPublicados
     parameters:
@@ -35,6 +38,7 @@ PublicarRecorrido:
           example:
             comentario: Conviene salir temprano, a la tarde se llena de gente.
             compartirChecklist: true
+            fotoPath: recorridos/9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d/3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d/1792000000000.jpg
     responses:
       '201':
         description: Recorrido publicado.
@@ -51,6 +55,7 @@ PublicarRecorrido:
               tiempo_seg: 6300
               publicado_at: '2026-10-23T15:00:00.000Z'
               comentario: Conviene salir temprano, a la tarde se llena de gente.
+              foto: https://ddmnzklvxbijpcpckwez.supabase.co/storage/v1/object/public/avatares/recorridos/9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d/3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d/1792000000000.jpg
               tiene_checklist: true
               autor:
                 id: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d
@@ -59,19 +64,32 @@ PublicarRecorrido:
       '400':
         description: |
           `viajeId` no es un UUID, el comentario supera los 280 caracteres o se envió
-          un campo desconocido (`VALIDATION_ERROR`).
+          un campo desconocido (`VALIDATION_ERROR`). Con `fotoPath`: la ruta no es de la
+          carpeta de quien publica para ese viaje (`FOTO_PATH_INVALIDO`), el archivo no
+          se subió (`FOTO_NO_SUBIDA`) o no es un JPEG de hasta 2 MB (`FOTO_INVALIDA`, el
+          archivo se borra).
         content:
           application/json:
             schema:
-              $ref: '../components/schemas.yaml#/ValidationError'
-            example:
-              error: Validación fallida
-              code: VALIDATION_ERROR
-              details:
-                formErrors: []
-                fieldErrors:
-                  viajeId:
-                    - viajeId debe ser un UUID válido
+              oneOf:
+                - $ref: '../components/schemas.yaml#/ValidationError'
+                - $ref: '../components/schemas.yaml#/Error'
+            examples:
+              validacion:
+                summary: Cuerpo inválido
+                value:
+                  error: Validación fallida
+                  code: VALIDATION_ERROR
+                  details:
+                    formErrors: []
+                    fieldErrors:
+                      viajeId:
+                        - viajeId debe ser un UUID válido
+              fotoNoSubida:
+                summary: La foto todavía no está en Storage
+                value:
+                  error: La foto todavía no se subió
+                  code: FOTO_NO_SUBIDA
       '401':
         $ref: '../components/responses.yaml#/Unauthorized'
       '403':
@@ -110,6 +128,24 @@ PublicarRecorrido:
             example:
               error: El viaje no tiene un recorrido GPS para publicar
               code: RECORRIDO_SIN_TRAZA
+      '502':
+        description: Con `fotoPath`, Supabase Storage no respondió al verificar la foto (`FOTO_SUBIDA_FALLIDA`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: No se pudo verificar la foto
+              code: FOTO_SUBIDA_FALLIDA
+      '503':
+        description: Se envió `fotoPath` pero Storage no está configurado en este entorno (`FOTOS_NO_DISPONIBLES`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Las fotos no están disponibles
+              code: FOTOS_NO_DISPONIBLES
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'
   delete:
@@ -255,6 +291,7 @@ RecorridosPublicadosColeccion:
                 tiempo_seg: 6300
                 publicado_at: '2026-10-23T15:00:00.000Z'
                 comentario: Conviene salir temprano, a la tarde se llena de gente.
+                foto: null
                 tiene_checklist: true
                 autor:
                   id: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d
@@ -361,6 +398,7 @@ RecorridoPublicadoPorId:
               tiempo_seg: 6300
               publicado_at: '2026-10-23T15:00:00.000Z'
               comentario: Conviene salir temprano, a la tarde se llena de gente.
+              foto: null
               tiene_checklist: true
               autor:
                 id: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d
@@ -619,5 +657,96 @@ ValorarRecorridoPublicado:
             example:
               error: Ya valoraste este recorrido
               code: VALORACION_EXISTENTE
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+SubidaFotoRecorrido:
+  post:
+    operationId: crearSubidaFotoRecorrido
+    summary: Preparar la subida de la foto de un recorrido a publicar
+    description: |
+      Paso 1 de 3 de la foto opcional de un recorrido publicado (RN-081). Mismas
+      condiciones que publicar: el viaje está finalizado y quien pide es el creador o
+      un integrante `confirmado`/`salido` (RN-030). Devuelve una URL firmada de Supabase
+      Storage para subir un JPEG en la carpeta de quien pide para ese viaje. Los bytes
+      van directo del dispositivo a Storage.
+
+      Paso 2: `PUT {upload_url}` con el JPEG (`Content-Type: image/jpeg`, hasta 2 MB).
+      Paso 3: `POST /api/viajes/{viajeId}/recorrido/publicar` con `fotoPath` = `path`.
+    tags:
+      - RecorridosPublicados
+    parameters:
+      - $ref: '../components/parameters.yaml#/ViajeId'
+    responses:
+      '200':
+        description: URL firmada lista para subir.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/SubidaFotoRecorrido'
+            example:
+              path: recorridos/9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d/3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d/1792000000000.jpg
+              upload_url: https://ddmnzklvxbijpcpckwez.supabase.co/storage/v1/object/upload/sign/avatares/recorridos/9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d/3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d/1792000000000.jpg?token=eyJhbGciOi
+      '400':
+        description: '`viajeId` no es un UUID (`VALIDATION_ERROR`).'
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ValidationError'
+            example:
+              error: Validación fallida
+              code: VALIDATION_ERROR
+              details:
+                formErrors: []
+                fieldErrors:
+                  viajeId:
+                    - viajeId debe ser un UUID válido
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        description: El usuario no participó en el viaje (`FORBIDDEN`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Sin acceso a este viaje
+              code: FORBIDDEN
+      '404':
+        description: Viaje no encontrado (`VIAJE_NOT_FOUND`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Viaje no encontrado
+              code: VIAJE_NOT_FOUND
+      '409':
+        description: El viaje todavía no finalizó (`VIAJE_NO_FINALIZADO`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Solo se pueden publicar viajes finalizados
+              code: VIAJE_NO_FINALIZADO
+      '502':
+        description: Supabase Storage no respondió (`FOTO_SUBIDA_FALLIDA`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: No se pudo preparar la subida de la foto
+              code: FOTO_SUBIDA_FALLIDA
+      '503':
+        description: Storage no está configurado en este entorno (`FOTOS_NO_DISPONIBLES`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/Error'
+            example:
+              error: Las fotos no están disponibles
+              code: FOTOS_NO_DISPONIBLES
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'

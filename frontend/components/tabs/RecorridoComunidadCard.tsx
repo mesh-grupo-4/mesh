@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 
 import { CorazonGuardar } from '@/components/CorazonGuardar';
@@ -64,6 +64,15 @@ export function RecorridoComunidadCard({
             Muy recomendado · {valoracion.porcentaje_recomienda} %
           </Text>
         </View>
+      ) : null}
+
+      {r.foto ? (
+        <Image
+          source={{ uri: r.foto }}
+          style={[styles.foto, { backgroundColor: theme.surface2 }]}
+          resizeMode="cover"
+          accessibilityLabel={`Foto de ${nombreRecorrido}`}
+        />
       ) : null}
 
       <View style={styles.cuerpo}>
@@ -231,6 +240,7 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
   },
   cintaTexto: { fontSize: 14, fontWeight: '800' },
+  foto: { width: '100%', aspectRatio: 4 / 3 },
   cuerpo: { padding: 14, gap: 10 },
   autorFila: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   autorTexto: { flex: 1, gap: 1 },

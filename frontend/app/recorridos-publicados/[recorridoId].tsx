@@ -1,6 +1,6 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
-import { ActivityIndicator, StyleSheet, Switch, Text, View } from 'react-native'
+import { ActivityIndicator, Image, StyleSheet, Switch, Text, View } from 'react-native'
 import { useCopilot } from 'react-native-copilot'
 import { Feather } from '@expo/vector-icons'
 
@@ -207,6 +207,15 @@ export default function RecorridoPublicadoScreen() {
             />
           </View>
 
+          {recorrido.foto ? (
+            <Image
+              source={{ uri: recorrido.foto }}
+              style={[styles.foto, { backgroundColor: theme.surface2 }]}
+              resizeMode="cover"
+              accessibilityLabel="Foto del recorrido"
+            />
+          ) : null}
+
           {recorrido.comentario ? (
             <View
               style={[
@@ -389,6 +398,7 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   comentario: { flex: 1, fontSize: 15, lineHeight: 21 },
+  foto: { width: '100%', aspectRatio: 4 / 3, borderRadius: 12 },
   acciones: { gap: 10 },
   flex1: { flex: 1 },
   checklistFila: { flexDirection: 'row', alignItems: 'center', gap: 8 },

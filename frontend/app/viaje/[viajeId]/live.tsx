@@ -52,6 +52,7 @@ import { useAuth } from '@/context/AuthContext'
 import { useAvanceRuta } from '@/hooks/useAvanceRuta'
 import { useBreadcrumbTrail } from '@/hooks/useBreadcrumbTrail'
 import { useFantasma } from '@/hooks/useFantasma'
+import { contarFaltantes, useAvisarFaltantes } from '@/hooks/useAvisarFaltantes'
 import { useLeaderboard } from '@/hooks/useLeaderboard'
 import { useLiveLocations } from '@/hooks/useLiveLocations'
 import { useLlegadaDestino } from '@/hooks/useLlegadaDestino'
@@ -142,6 +143,11 @@ export default function ViajeLiveScreen() {
   const [routeStops, setRouteStops] = useState<RouteStop[]>([])
   /** Posición propia leída del GPS al entrar: centra el mapa y pinta "vos" sin esperar al primer ping. */
   const [posicionGps, setPosicionGps] = useState<{ latitude: number; longitude: number } | null>(null)
+  /**
+   * Terminó el intento de lectura fresca (llegó o se venció la espera). Hasta
+   * entonces la posición puede ser la última conocida, vieja o por antena.
+   */
+  const [gpsListo, setGpsListo] = useState(false)
   const [gpsCenterFailed, setGpsCenterFailed] = useState(false)
   /** Modo "seguirme": el mapa se recentra solo mientras es true; se pausa si el usuario arrastra a mano. */
   const [siguiendo, setSiguiendo] = useState(true)
@@ -458,6 +464,8 @@ export default function ViajeLiveScreen() {
   // RN-072 / RN-070: sin comparaciones en recreativo ni en moto/auto.
   const permiteComparar =
     viaje?.estado === 'en_curso' && viaje.modo !== 'recreativo' && !esMotorizado(viaje.tipo_actividad)
+  // RN-073: el fantasma es solo de entrenamiento; en competitivo compara el leaderboard.
+  const permiteFantasma = permiteComparar && viaje?.modo === 'entrenamiento'
 
   // RN-073: fantasma contra el reloj del viaje.
   const {
@@ -471,13 +479,22 @@ export default function ViajeLiveScreen() {
     viajeId: viajeId ?? '',
     fechaInicioReal: viaje?.fecha_inicio_real ?? null,
     miDistanciaM: distanceM,
-    habilitado: Boolean(permiteComparar),
+    habilitado: Boolean(permiteFantasma),
     // RN-066: quien repite una sesión corre contra su propia traza de esa vez.
     refAutomatica:
       viaje?.repite_viaje_id && backendUserId && viaje.creador_id === backendUserId
         ? `viaje:${viaje.repite_viaje_id}:${backendUserId}`
         : null,
   })
+
+  // RN-029e: el líder les avisa por push a los confirmados que todavía no tocaron
+  // "Me sumo". El backend valida el rol y vuelve a calcular a quién le llega.
+  const { avisando: avisandoFaltantes, avisar: avisarFaltantes } = useAvisarFaltantes(viajeId)
+  const faltantes = useMemo(() => contarFaltantes(participantes, userId), [participantes, userId])
+  const avisoFaltantes =
+    esLider && viaje?.estado === 'en_curso' && viaje.es_grupal
+      ? { cantidad: faltantes, avisando: avisandoFaltantes, onAvisar: () => void avisarFaltantes() }
+      : null
 
   // RN-071: leaderboard en vivo solo en competitivo.
   const { filas: leaderboard } = useLeaderboard({
@@ -516,12 +533,14 @@ export default function ViajeLiveScreen() {
 
   // Lejos de la salida al arrancar: primero se guía hasta ella (como "Cerca mío").
   // Una sola vez por pantalla: si la persona corta la guía, no vuelve a aparecer.
+  // Espera la lectura GPS fresca: con la última posición conocida (vieja o por
+  // antena) la guía quedaba arrancando a cientos de metros de donde estás.
   const guiaSalidaEvaluadaRef = useRef(false)
   const guiaSalidaActivaRef = useRef(false)
   const origenRuta = routeLine?.[0] ?? null
   useEffect(() => {
     if (guiaSalidaEvaluadaRef.current) return
-    if (viaje?.estado !== 'en_curso' || !sumado || !myPosition || !origenRuta) return
+    if (viaje?.estado !== 'en_curso' || !sumado || !gpsListo || !myPosition || !origenRuta) return
     guiaSalidaEvaluadaRef.current = true
     // Ya en camino (volvió a entrar a mitad del viaje): no se lo manda a la salida.
     if (distanceM > DISTANCIA_GUIA_SALIDA_M) return
@@ -542,7 +561,7 @@ export default function ViajeLiveScreen() {
       setSiguiendo(false)
       mapRef.current?.fitBoundsToCoords(coords)
     })()
-  }, [viaje?.estado, sumado, myPosition, origenRuta, distanceM, tipoActividad])
+  }, [viaje?.estado, sumado, gpsListo, myPosition, origenRuta, distanceM, tipoActividad])
 
   // Al llegar a la salida la guía se borra sola y el mapa vuelve a seguirte.
   useEffect(() => {
@@ -814,6 +833,7 @@ export default function ViajeLiveScreen() {
           new Promise<null>((resolve) => setTimeout(() => resolve(null), ESPERA_GPS_MS)),
         ])
         if (!centrarEn(fresca) && !previa && !cancelled) setGpsCenterFailed(true)
+        if (!cancelled) setGpsListo(true)
       })()
 
       await iniciarTrackingViaje(viajeId, userId.trim(), viaje.tipo_actividad)
@@ -1239,6 +1259,7 @@ export default function ViajeLiveScreen() {
           onBack={() => router.back()}
           onExpandedChange={setHeaderExpandido}
           tipoActividad={tipoActividad}
+          avisoFaltantes={avisoFaltantes}
         />
       </PasoAyuda>
 
@@ -1348,7 +1369,7 @@ export default function ViajeLiveScreen() {
                     }
                   : undefined
               }
-              onFantasma={permiteComparar ? () => setEligiendoFantasma(true) : undefined}
+              onFantasma={permiteFantasma ? () => setEligiendoFantasma(true) : undefined}
               fantasmaActivo={fantasmaActivo}
               tipoActividad={tipoActividad}
             />

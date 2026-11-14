@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PrismaClient } from '@prisma/client'
+import type { FotosRecorridoService } from './recorridos-publicados.fotos'
 import { RecorridosPublicadosService } from './recorridos-publicados.service'
 
 const computeTrazaRecorrido = vi.fn()
@@ -28,6 +29,7 @@ const FILA = {
   publicado_at: new Date('2026-10-23T15:00:00.000Z'),
   comentario: null,
   checklist: [] as string[],
+  foto: null as string | null,
   usuario: { id: usuarioId, nombre: 'Ana', apellido: 'Pérez' },
 }
 
@@ -49,7 +51,9 @@ const PLANTILLA = {
   paradas: [],
 }
 
-function armar(overrides: { viaje?: unknown; metrica?: unknown } = {}) {
+function armar(
+  overrides: { viaje?: unknown; metrica?: unknown; fotos?: FotosRecorridoService } = {}
+) {
   const viaje =
     'viaje' in overrides
       ? overrides.viaje
@@ -102,7 +106,7 @@ function armar(overrides: { viaje?: unknown; metrica?: unknown } = {}) {
     $queryRaw: queryRaw,
   } as unknown as PrismaClient
   return {
-    service: new RecorridosPublicadosService(prisma),
+    service: new RecorridosPublicadosService(prisma, overrides.fotos),
     upsert,
     updateMany,
     findFirst,
@@ -248,6 +252,86 @@ describe('RecorridosPublicadosService.publicar', () => {
     await expect(sinMetrica.service.publicar(usuarioId, viajeId)).rejects.toMatchObject({
       status: 422,
     })
+  })
+})
+
+describe('RecorridosPublicadosService foto del recorrido (RN-081)', () => {
+  const fotoPath = `recorridos/${usuarioId}/${viajeId}/1792000000000.jpg`
+  const fotoUrl = `https://proyecto.supabase.co/storage/v1/object/public/avatares/${fotoPath}`
+
+  function fotosFalsas() {
+    return {
+      crearSubida: vi.fn().mockResolvedValue({ path: fotoPath, upload_url: 'https://firmada' }),
+      verificar: vi.fn().mockResolvedValue(fotoUrl),
+      borrarSobrantes: vi.fn().mockResolvedValue(undefined),
+    }
+  }
+
+  it('con fotoPath verifica el archivo, guarda la URL y recién después limpia lo anterior', async () => {
+    const fotos = fotosFalsas()
+    const { service, upsert } = armar({ fotos: fotos as unknown as FotosRecorridoService })
+    await service.publicar(usuarioId, viajeId, { fotoPath })
+
+    expect(fotos.verificar).toHaveBeenCalledWith(usuarioId, viajeId, fotoPath)
+    const args = upsert.mock.calls[0]![0]
+    expect(args.create).toMatchObject({ foto: fotoUrl })
+    expect(args.update).toMatchObject({ foto: fotoUrl })
+    expect(fotos.borrarSobrantes).toHaveBeenCalledWith(usuarioId, viajeId, fotoPath)
+    expect(upsert.mock.invocationCallOrder[0]!).toBeLessThan(
+      fotos.borrarSobrantes.mock.invocationCallOrder[0]!
+    )
+  })
+
+  it('sin fotoPath publica sin foto y borra la que hubiera de antes', async () => {
+    const fotos = fotosFalsas()
+    const { service, upsert } = armar({ fotos: fotos as unknown as FotosRecorridoService })
+    const r = await service.publicar(usuarioId, viajeId)
+
+    expect(fotos.verificar).not.toHaveBeenCalled()
+    expect(upsert.mock.calls[0]![0].update).toMatchObject({ foto: null })
+    expect(fotos.borrarSobrantes).toHaveBeenCalledWith(usuarioId, viajeId, null)
+    expect(r).toHaveProperty('foto', null)
+  })
+
+  it('si la foto no es válida no publica nada', async () => {
+    const fotos = fotosFalsas()
+    fotos.verificar.mockRejectedValue(Object.assign(new Error('x'), { status: 400, code: 'FOTO_INVALIDA' }))
+    const { service, upsert } = armar({ fotos: fotos as unknown as FotosRecorridoService })
+
+    await expect(service.publicar(usuarioId, viajeId, { fotoPath })).rejects.toMatchObject({
+      code: 'FOTO_INVALIDA',
+    })
+    expect(upsert).not.toHaveBeenCalled()
+    expect(fotos.borrarSobrantes).not.toHaveBeenCalled()
+  })
+
+  it('la subida exige las mismas condiciones que publicar (RN-030)', async () => {
+    const fotos = fotosFalsas()
+    const { service } = armar({
+      fotos: fotos as unknown as FotosRecorridoService,
+      viaje: {
+        creador_id: 'otro',
+        nombre: 'Vuelta',
+        tipo_actividad: 'bici',
+        estado: 'finalizado',
+        integrantes: [{ estado: 'pendiente' }],
+      },
+    })
+    await expect(service.crearSubidaFoto(usuarioId, viajeId)).rejects.toMatchObject({
+      status: 403,
+      code: 'FORBIDDEN',
+    })
+    expect(fotos.crearSubida).not.toHaveBeenCalled()
+  })
+
+  it('quien participó recibe la URL firmada de su carpeta', async () => {
+    const fotos = fotosFalsas()
+    const { service } = armar({ fotos: fotos as unknown as FotosRecorridoService })
+    await expect(service.crearSubidaFoto(usuarioId, viajeId)).resolves.toEqual({
+      path: fotoPath,
+      upload_url: 'https://firmada',
+    })
+    expect(fotos.crearSubida).toHaveBeenCalledWith(usuarioId, viajeId)
   })
 })
 

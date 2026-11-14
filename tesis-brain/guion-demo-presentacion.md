@@ -176,7 +176,7 @@ Preparar de antemano: dos celulares (líder y participante) o un celular + un se
 8. **Offline**: modo avión en el participante, seguir, reconectar → el recorrido se completa sin huecos.
 9. **Privacidad**: apagar "compartir ubicación" en el participante → desaparece del mapa del líder, pero el GPS propio se sigue guardando.
 10. **Finalizar viaje** → métricas individuales y grupales, resumen visual y ranking (elegir bici o running para poder mostrar ranking; **si el viaje es de moto, el ranking no existe y hay que decirlo como feature, no como falta**).
-11. Opcional si pasa testing: modo competitivo con leaderboard en vivo, o competir contra fantasma de un recorrido anterior.
+11. Opcional si pasa testing: modo competitivo con leaderboard en vivo, o, en un entrenamiento, correr contra el fantasma de una sesión anterior del mismo recorrido.
 12. Cerrar mostrando **Swagger UI en `/api/docs`** del ambiente productivo como evidencia de la API documentada.
 
 Plan B por si falla la red en la sala: tener un video corto grabado del flujo 4–8 y capturas de cada pantalla.

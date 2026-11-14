@@ -131,6 +131,7 @@ export default function RutaGuardadaScreen() {
                 fitRouteCoords={fitCoords}
                 mapPickMode={false}
                 fitBottomPadding={40}
+                botonEncuadrar
               />
             </View>
           </PasoAyuda>

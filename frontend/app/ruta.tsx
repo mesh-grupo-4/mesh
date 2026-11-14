@@ -130,6 +130,7 @@ export default function RutaCompartidaPreviewScreen() {
                 fitRouteCoords={fitCoords}
                 mapPickMode={false}
                 fitBottomPadding={80}
+                botonEncuadrar
               />
             </View>
           </PasoAyuda>

@@ -30,8 +30,7 @@ export function CercaMioButton({ topOffset, guiaActiva, onPress, tipoActividad =
       accessibilityRole="button"
       accessibilityLabel={guiaActiva ? 'Quitar la guía al lugar' : 'Buscar lugares cerca mío'}
     >
-      {/* `key`: al cambiar solo el `name`, el glifo a veces no se redibujaba y el botón
-          quedaba vacío. Con la key el ícono se monta de nuevo en cada cambio. */}
+      {/* `key`: el ícono se monta de nuevo en cada cambio de estado. */}
       <Feather
         key={guiaActiva ? 'quitar' : 'buscar'}
         name={guiaActiva ? 'x' : 'map-pin'}
@@ -43,10 +42,15 @@ export function CercaMioButton({ topOffset, guiaActiva, onPress, tipoActividad =
 }
 
 const styles = StyleSheet.create({
+  // El borde está siempre (blanco = invisible) y solo cambia de color: quitarlo
+  // al cerrar la guía cambiaba el layout y en Android (Fabric) el ícono no se
+  // volvía a dibujar, quedaba el círculo blanco vacío.
   boton: {
     position: 'absolute',
     right: 12,
     backgroundColor: '#fff',
+    borderWidth: 2,
+    borderColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 20,
@@ -57,7 +61,6 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   activo: {
-    borderWidth: 2,
     borderColor: '#0e7490',
   },
   presionado: { opacity: 0.8 },

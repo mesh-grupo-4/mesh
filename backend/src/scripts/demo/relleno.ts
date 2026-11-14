@@ -83,7 +83,7 @@ export function generarRelleno(ctx: Contexto): Relleno {
     compartir: [],
   }
 
-  const candidatos = ELENCO.filter((u) => !u.login && !u.nuevo)
+  const candidatos = ELENCO.filter((u) => !u.login && !u.nuevo && !u.soloVitrina)
   const hoyInicio = inicioDiaArg(ctx.hoy).getTime()
 
   /** ¿Esa persona ya tenía cuenta (y no estaba suspendida) ese día? */

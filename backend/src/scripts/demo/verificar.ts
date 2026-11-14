@@ -8,7 +8,7 @@
  *
  * `npm run demo:verificar` corre las tres cosas y termina sin escribir.
  */
-import { readdirSync } from 'node:fs'
+import { existsSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import type { PrismaClient, TipoActividad } from '@prisma/client'
 import { esMotorizado } from '../../lib/actividad'
@@ -114,6 +114,15 @@ export function verificarGuion(hoy: string, ahora: Date): { errores: string[]; a
     for (const clave of repetidos(claves)) errores.push(`Hay más de un ${que} con la clave "${clave}"`)
   }
   if (!usuarios.get(PROTAGONISTA)?.login) errores.push(`La protagonista "${PROTAGONISTA}" no existe o no tiene login`)
+
+  // Las fotos se suben desde `fotos/`: si falta un archivo, mejor saberlo antes de borrar nada.
+  const fotos = [
+    ...ELENCO.flatMap((u) => (u.foto ? [{ archivo: u.foto, de: `Usuario "${u.clave}"` }] : [])),
+    ...VIAJES_VITRINA.flatMap((v) => (v.publicar?.foto ? [{ archivo: v.publicar.foto, de: `Viaje "${v.clave}"` }] : [])),
+  ]
+  for (const f of fotos) {
+    if (!existsSync(path.join(__dirname, 'fotos', f.archivo))) errores.push(`${f.de}: no existe la foto fotos/${f.archivo}`)
+  }
 
   for (const g of GRUPOS) {
     const donde = `Grupo "${g.clave}"`
