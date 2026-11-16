@@ -126,6 +126,7 @@ export default function AdminInsigniaScreen() {
   // Mientras no lo toquen, el código se sugiere a partir del nombre.
   const [codigoManual, setCodigoManual] = useState(false)
   const [ocupado, setOcupado] = useState(false)
+  const [intento, setIntento] = useState(0)
 
   const cargar = useCallback(async () => {
     if (esAlta) return
@@ -140,13 +141,17 @@ export default function AdminInsigniaScreen() {
       setOriginal(encontrada)
       setForm(aFormulario(encontrada))
     } catch (e) {
-      meshAlert('No se pudo cargar la insignia', mensajeError(e))
+      // Sin salida el detalle quedaba con el spinner para siempre.
+      meshAlert('No se pudo cargar la insignia', mensajeError(e), [
+        { text: 'Volver', style: 'cancel', onPress: () => router.back() },
+        { text: 'Reintentar', onPress: () => setIntento((n) => n + 1) },
+      ])
     }
   }, [esAlta, insigniaId, router])
 
   useEffect(() => {
     void cargar()
-  }, [cargar])
+  }, [cargar, intento])
 
   const validacion = useMemo(() => (form ? validar(form, esAlta) : null), [form, esAlta])
 

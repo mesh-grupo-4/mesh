@@ -272,7 +272,7 @@ export default function ViajeResumenScreen() {
     const signo = delta >= 0 ? '+' : ''
     return `Planeado ${formatKm(totales.distancia_planeada_m)} · Real ${formatKm(
       totales.distancia_real_m
-    )} (${signo}${delta.toFixed(1)} %)`
+    )} (${signo}${delta.toFixed(1).replace('.', ',')} %)`
   })()
 
   return (
@@ -370,7 +370,13 @@ export default function ViajeResumenScreen() {
 
           {/* ── Mapa del recorrido realizado (US2) ── */}
           <PasoAyuda {...AYUDA_VIAJE_RESUMEN[0]!}>
-            <RecorridoMapView segmentos={recorrido} cargando={cargandoRecorrido} />
+            <RecorridoMapView
+              segmentos={recorrido}
+              cargando={cargandoRecorrido}
+              onExpandir={() =>
+                router.push({ pathname: '/viaje/[viajeId]/recorrido', params: { viajeId } })
+              }
+            />
           </PasoAyuda>
 
           {/* ── El viaje (totales grupales) ── */}

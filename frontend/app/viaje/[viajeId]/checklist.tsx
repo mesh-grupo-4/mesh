@@ -30,7 +30,7 @@ import {
   listarChecklist,
   type ChecklistItemApi,
 } from '@/lib/checklistApi'
-import { meshAlert } from '@/lib/meshAlert'
+import { meshAlert, meshConfirmDestructive } from '@/lib/meshAlert'
 import {
   listarViajesFinalizados,
   listarViajesPlanificados,
@@ -142,14 +142,21 @@ export default function ChecklistViajeScreen() {
   const eliminar = useCallback(
     (item: ChecklistItemApi) => {
       if (!viajeId) return
-      const antes = items
-      setItems((prev) => prev.filter((i) => i.id !== item.id))
-      void eliminarItemChecklist(viajeId, item.id).catch((e) => {
-        setItems(antes)
-        meshAlert(
-          'No se pudo quitar el ítem',
-          e instanceof Error ? e.message : 'Intentá de nuevo.'
-        )
+      meshConfirmDestructive({
+        title: 'Quitar ítem',
+        message: `¿Querés quitar "${item.texto}" de la lista?`,
+        confirmLabel: 'Quitar',
+        onConfirm: () => {
+          const antes = items
+          setItems((prev) => prev.filter((i) => i.id !== item.id))
+          void eliminarItemChecklist(viajeId, item.id).catch((e) => {
+            setItems(antes)
+            meshAlert(
+              'No se pudo quitar el ítem',
+              e instanceof Error ? e.message : 'Intentá de nuevo.'
+            )
+          })
+        },
       })
     },
     [viajeId, items]

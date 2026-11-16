@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Modal,
@@ -10,10 +10,14 @@ import {
 } from 'react-native'
 import { Feather } from '@expo/vector-icons'
 import { router, useFocusEffect } from 'expo-router'
+import { useCopilot } from 'react-native-copilot'
 
 import { ActivityTile, Btn, Field, TopBar, useTheme } from '@/components/MeshUI'
 import { HerramientasLista } from '@/components/BarraFiltros'
 import { FranjaEstado } from '@/components/FranjaEstado'
+import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
+import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda'
+import { AYUDA_ENTRENAR } from '@/components/ayuda/contenidoAyuda'
 import { BotonFlotante, ESPACIO_BOTON_FLOTANTE, useBotonFlotante } from '@/components/BotonFlotante'
 import {
   OpcionFiltro,
@@ -62,6 +66,7 @@ export default function EntrenarScreen() {
   const theme = useTheme()
   const espacioTabBar = useEspacioTabBar()
   const botonFlotante = useBotonFlotante()
+  const { start } = useCopilot()
   const { backendUserId } = useAuth()
 
   /** Invitaciones a entrenamientos sin responder: el puntito de la campanita. */
@@ -86,6 +91,8 @@ export default function EntrenarScreen() {
   const [nombreNuevo, setNombreNuevo] = useState('')
   const [guardandoNombre, setGuardandoNombre] = useState(false)
 
+  const errorAvisado = useRef(false)
+
   const cargar = useCallback(async () => {
     // Aparte de la lista: si falla, la campanita queda como estaba y la pantalla carga igual.
     if (backendUserId) {
@@ -100,8 +107,13 @@ export default function EntrenarScreen() {
       ])
       setCircuitos(c)
       setSesiones(s)
+      errorAvisado.current = false
     } catch (e) {
-      meshAlert('Error', e instanceof Error ? e.message : 'No se pudieron cargar tus entrenamientos.')
+      // Con mala red la carga se repite en cada foco: el aviso sale una sola vez.
+      if (!errorAvisado.current) {
+        errorAvisado.current = true
+        meshAlert('Error', e instanceof Error ? e.message : 'No se pudieron cargar tus entrenamientos.')
+      }
     } finally {
       setCargando(false)
       setRefrescando(false)
@@ -211,7 +223,7 @@ export default function EntrenarScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <ScrollView
+      <ScrollViewAyuda
         onScroll={botonFlotante.onScroll}
         scrollEventThrottle={16}
         contentContainerStyle={{ paddingBottom: espacioTabBar + ESPACIO_BOTON_FLOTANTE }}
@@ -232,6 +244,7 @@ export default function EntrenarScreen() {
           title="Entrenar"
           raiz
           bordered={false}
+          onAyuda={() => start()}
           right={
             <CampanitaNotificaciones
               pendientes={invitaciones}
@@ -241,18 +254,21 @@ export default function EntrenarScreen() {
           }
         />
 
-        <View style={styles.cabecera}>
-          <SegmentTabs
-            tabs={[
-              { key: 'circuitos', label: 'Circuitos' },
-              { key: 'sesiones', label: 'Sesiones' },
-            ]}
-            active={seccion}
-            onChange={cambiarSeccion}
-            theme={theme}
-          />
-        </View>
+        <PasoAyuda {...AYUDA_ENTRENAR[0]!}>
+          <View style={styles.cabecera}>
+            <SegmentTabs
+              tabs={[
+                { key: 'circuitos', label: 'Circuitos' },
+                { key: 'sesiones', label: 'Sesiones' },
+              ]}
+              active={seccion}
+              onChange={cambiarSeccion}
+              theme={theme}
+            />
+          </View>
+        </PasoAyuda>
 
+        <PasoAyuda {...AYUDA_ENTRENAR[1]!}>
         <HerramientasLista
           resumen={resumen}
           busqueda={{
@@ -264,7 +280,9 @@ export default function EntrenarScreen() {
           }}
           filtros={{ cantidad: cantidadFiltros, onPress: abrirFiltros, onLimpiar: limpiarFiltros }}
         />
+        </PasoAyuda>
 
+        <PasoAyuda {...AYUDA_ENTRENAR[2]!}>
         <View style={styles.content}>
         {cargando ? (
           <View style={styles.center}>
@@ -322,7 +340,8 @@ export default function EntrenarScreen() {
           ))
         )}
         </View>
-      </ScrollView>
+        </PasoAyuda>
+      </ScrollViewAyuda>
 
       <FranjaEstado />
 
@@ -331,6 +350,7 @@ export default function EntrenarScreen() {
         label="Nuevo entrenamiento"
         onPress={abrirNuevoEntrenamiento}
         extendido={botonFlotante.extendido}
+        ayuda={AYUDA_ENTRENAR[3]}
       />
 
       <PantallaFiltros

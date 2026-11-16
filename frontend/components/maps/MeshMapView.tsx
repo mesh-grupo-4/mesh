@@ -109,6 +109,20 @@ const PROVIDER = Platform.OS === 'ios' && !usarGoogleEnIos ? PROVIDER_DEFAULT : 
  */
 export const SOPORTA_MARCADOR_PLANO = PROVIDER === PROVIDER_GOOGLE
 
+const ES_APPLE_MAPS = PROVIDER !== PROVIDER_GOOGLE
+
+/**
+ * Apple Maps ignora `zoom`: su cámara se acerca con `altitude` (metros). Equivalencia
+ * aproximada para una pantalla de teléfono (~800 pt de alto, campo visual de 30°).
+ * Google Maps ignora `altitude`, así que solo se agrega con Apple Maps.
+ */
+function camaraConZoom<T extends { center: LatLng }>(camara: T, zoom: number): T & { zoom: number; altitude?: number } {
+  if (!ES_APPLE_MAPS) return { ...camara, zoom }
+  const metrosPorPunto =
+    (156543.03392 * Math.cos((camara.center.latitude * Math.PI) / 180)) / 2 ** zoom
+  return { ...camara, zoom, altitude: metrosPorPunto * 800 * 1.866 }
+}
+
 /** Aproxima un zoom de Google Maps a partir de un `latitudeDelta`. */
 export function zoomFromLatDelta(latitudeDelta: number): number {
   const z = Math.round(Math.log2(360 / latitudeDelta))
@@ -201,7 +215,7 @@ export const MeshMapView = forwardRef<MeshMapViewHandle, Props>(function MeshMap
   const marcadoresRef = useRef(new Map<string, MarcadorNativo>())
 
   const initialCamera = useMemo(
-    () => ({ center: initialCenter, zoom: initialZoom, heading: 0, pitch: 0 }),
+    () => camaraConZoom({ center: initialCenter, heading: 0, pitch: 0 }, initialZoom),
     // La cámara inicial se fija una sola vez; después se mueve por el handle.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []
@@ -219,7 +233,7 @@ export const MeshMapView = forwardRef<MeshMapViewHandle, Props>(function MeshMap
     },
     animateTo(center, zoom) {
       ejecutar(() =>
-        mapRef.current?.animateCamera(zoom == null ? { center } : { center, zoom }, {
+        mapRef.current?.animateCamera(zoom == null ? { center } : camaraConZoom({ center }, zoom), {
           duration: DURACION_ANIMACION_MS,
         })
       )
@@ -274,6 +288,8 @@ export const MeshMapView = forwardRef<MeshMapViewHandle, Props>(function MeshMap
         onRegionChangeStart={(_region, details) => {
           if (details?.isGesture) onUserDrag?.()
         }}
+        // Apple Maps no manda `isGesture`: ahí el arrastre del usuario llega por `onPanDrag`.
+        onPanDrag={ES_APPLE_MAPS && onUserDrag ? () => onUserDrag() : undefined}
         onRegionChangeComplete={(region) =>
           onRegionChangeComplete?.({ latitude: region.latitude, longitude: region.longitude })
         }

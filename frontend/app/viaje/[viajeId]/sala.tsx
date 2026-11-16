@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Linking,
@@ -192,8 +192,11 @@ export default function SalaEsperaScreen() {
     setModalPermisos(true)
   }
 
+  // Un doble toque en "Acepto y arranco" no tiene que mandar dos veces el inicio.
+  const arranqueEnCurso = useRef(false)
   const ejecutarArrancar = async () => {
-    if (!viaje || !userId) return
+    if (!viaje || !userId || arranqueEnCurso.current) return
+    arranqueEnCurso.current = true
     setModalPermisos(false)
     setArrancando(true)
     try {
@@ -205,6 +208,7 @@ export default function SalaEsperaScreen() {
       )
       if (!avisado) meshAlert('Error', e instanceof Error ? e.message : 'No se pudo arrancar el viaje.')
       setArrancando(false)
+      arranqueEnCurso.current = false
     }
   }
 
@@ -386,7 +390,7 @@ export default function SalaEsperaScreen() {
                 Acepto y arranco el viaje
               </Btn>
               <Btn variant="secondary" block onPress={() => void Linking.openSettings()}>
-                Abrir ajustes de Android/iOS
+                Abrir ajustes de {Platform.OS === 'ios' ? 'iOS' : 'Android'}
               </Btn>
               <Btn variant="ghost" block onPress={() => setModalPermisos(false)}>
                 Cancelar

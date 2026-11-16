@@ -40,6 +40,7 @@ export default function AgregarIntegranteScreen() {
   const [invitandoId, setInvitandoId] = useState<string | null>(null);
   const [solicitandoAmistadId, setSolicitandoAmistadId] = useState<string | null>(null);
   const [idsInvitadosEnSesion, setIdsInvitadosEnSesion] = useState<Set<string>>(new Set());
+  const [idsSolicitadosEnSesion, setIdsSolicitadosEnSesion] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [idsAmigos, setIdsAmigos] = useState<Set<string>>(new Set());
@@ -125,10 +126,13 @@ export default function AgregarIntegranteScreen() {
   };
 
   const ejecutarSolicitudAmistad = async (usuario: UsuarioParaInvitarApi) => {
+    // Un segundo toque daba 409: la solicitud ya enviada deja el botón deshabilitado.
+    if (idsSolicitadosEnSesion.has(usuario.id)) return;
     setSolicitandoAmistadId(usuario.id);
     try {
       const userId = resolveBackendUserId(backendUserId);
       await solicitarAmistad(usuario.id, userId);
+      setIdsSolicitadosEnSesion((prev) => new Set([...prev, usuario.id]));
       setToast(`Solicitud de amistad enviada a ${usuario.nombre}`);
     } catch (e: unknown) {
       meshAlert('Error', e instanceof Error ? e.message : 'No se pudo enviar la solicitud.');
@@ -146,6 +150,7 @@ export default function AgregarIntegranteScreen() {
     const solicitando = solicitandoAmistadId === item.id;
     const esAmigo = idsAmigos.has(item.id);
     const yaInvitado = idsInvitadosEnSesion.has(item.id);
+    const yaSolicitado = idsSolicitadosEnSesion.has(item.id);
 
     const dummyPerson = {
       nombre: item.nombre,
@@ -171,11 +176,11 @@ export default function AgregarIntegranteScreen() {
               variant="outline"
               size="sm"
               onPress={() => void ejecutarSolicitudAmistad(item)}
-              disabled={solicitando || invitando}
+              disabled={solicitando || invitando || yaSolicitado}
               loading={solicitando}
               style={styles.addBtn}
             >
-              Agregar amigo
+              {yaSolicitado ? 'Solicitud enviada' : 'Agregar amigo'}
             </Btn>
           )}
           

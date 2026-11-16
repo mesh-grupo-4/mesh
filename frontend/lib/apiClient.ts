@@ -1,5 +1,4 @@
 import { API_BASE_URL, DEV_USER_ID } from '@/constants/Config'
-import Constants from 'expo-constants'
 import { auth } from '@/lib/firebase'
 
 const FETCH_TIMEOUT_MS = 12_000
@@ -51,17 +50,6 @@ export function isAuthApiError(error: unknown): boolean {
   return error instanceof MeshApiError && error.status === 401
 }
 
-/** Pista según a dónde apunta el backend: servidor remoto vs. backend local en la LAN. */
-function timeoutHint(): string {
-  if (API_BASE_URL.startsWith('https://')) {
-    return ' Revisá tu conexión a internet y reintentá; puede que el servidor esté saturado o caído.'
-  }
-  if (Constants.isDevice && API_BASE_URL.includes('localhost')) {
-    return ' En el celular, localhost no funciona: definí EXPO_PUBLIC_API_URL con la URL del servidor o la IP de tu PC (puerto 3000).'
-  }
-  return ' Verificá que el backend local esté corriendo (npm run dev), que el celular y la PC estén en la misma Wi‑Fi y que el firewall permita el puerto 3000.'
-}
-
 export async function meshFetch(url: string, init?: RequestInit): Promise<Response> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
@@ -69,7 +57,11 @@ export async function meshFetch(url: string, init?: RequestInit): Promise<Respon
     return await fetch(url, { ...init, signal: controller.signal })
   } catch (e) {
     if (e instanceof Error && e.name === 'AbortError') {
-      throw new Error(`Tiempo de espera agotado al conectar con ${API_BASE_URL}.${timeoutHint()}`)
+      throw new Error('No pudimos conectar con el servidor. Revisá tu conexión y reintentá.')
+    }
+    // fetch sin red rechaza con un TypeError en inglés ("Network request failed").
+    if (e instanceof TypeError) {
+      throw new Error('No pudimos conectar con el servidor. Revisá tu conexión y reintentá.')
     }
     throw e
   } finally {

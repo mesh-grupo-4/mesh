@@ -8,6 +8,15 @@ import { registerSocketHandlers } from './sockets'
 import { setIo } from './realtime/ioRegistry'
 import { iniciarJobRachas } from './jobs/rachasJob'
 
+// Una promesa rechazada sin catch no tiene que tirar el proceso: se caerían los sockets
+// y el estado en memoria del motor de eventos en medio de un viaje.
+process.on('unhandledRejection', (motivo) => {
+  console.error('[proceso] unhandledRejection:', motivo)
+})
+process.on('uncaughtException', (err) => {
+  console.error('[proceso] uncaughtException:', err)
+})
+
 const app = createApp()
 const httpServer = createServer(app)
 

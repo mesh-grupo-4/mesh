@@ -35,18 +35,23 @@ export default function AdminUsuarioScreen() {
   const [usuario, setUsuario] = useState<UsuarioAdminDetalle | null>(null)
   const [motivo, setMotivo] = useState('')
   const [ocupado, setOcupado] = useState(false)
+  const [intento, setIntento] = useState(0)
 
   const cargar = useCallback(async () => {
     try {
       setUsuario(await obtenerUsuarioAdmin(usuarioId))
     } catch (e) {
-      meshAlert('No se pudo cargar el usuario', mensajeError(e))
+      // Sin salida el detalle quedaba con el spinner para siempre.
+      meshAlert('No se pudo cargar el usuario', mensajeError(e), [
+        { text: 'Volver', style: 'cancel', onPress: () => router.back() },
+        { text: 'Reintentar', onPress: () => setIntento((n) => n + 1) },
+      ])
     }
   }, [usuarioId])
 
   useEffect(() => {
     void cargar()
-  }, [cargar])
+  }, [cargar, intento])
 
   const ejecutar = useCallback(
     async (accion: () => Promise<unknown>, exito?: string) => {

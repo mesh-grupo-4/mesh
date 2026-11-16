@@ -15,11 +15,14 @@ vi.mock('../../lib/postgis', () => ({
   computeMismoRecorrido: (...a: unknown[]) => computeMismoRecorrido(...a),
 }))
 
-function armar(opts: { tipo?: string; modo?: string; refEstado?: string; refCreador?: string } = {}) {
+function armar(
+  opts: { tipo?: string; modo?: string; refEstado?: string; refCreador?: string; repite?: string } = {}
+) {
   const viajeActual = {
     creador_id: yo,
     tipo_actividad: opts.tipo ?? 'running',
     modo: opts.modo ?? 'entrenamiento',
+    repite_viaje_id: opts.repite ?? null,
     integrantes: [],
   }
   const viajeRef = {
@@ -120,6 +123,15 @@ describe('RN-073 — fantasma', () => {
     expect(whereMetricas.viaje_id).toEqual({ in: [refId], not: viajeId })
     const wherePlantillas = vi.mocked(m.prisma.rutaPlantilla.findMany).mock.calls[0]![0]!.where!
     expect(wherePlantillas.id).toEqual({ in: [] })
+  })
+
+  it('RN-066: la sesión que el viaje repite es elegible aunque su trazado no coincida', async () => {
+    const m = armar({ repite: refId })
+    computeMismoRecorrido.mockResolvedValue({ viajeIds: [], plantillaIds: [] })
+    await new FantasmaService(m.prisma).listarCandidatos(yo, viajeId)
+
+    const whereMetricas = vi.mocked(m.prisma.metricaViaje.findMany).mock.calls[0]![0]!.where!
+    expect(whereMetricas.viaje_id).toEqual({ in: [refId], not: viajeId })
   })
 
   it.each(['moto', 'auto'])('RN-070: en %s no hay fantasma', async (tipo) => {

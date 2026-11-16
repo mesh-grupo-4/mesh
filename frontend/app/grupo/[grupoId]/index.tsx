@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { View, Text, StyleSheet, RefreshControl, ActivityIndicator } from 'react-native';
-import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { Stack, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useCopilot } from 'react-native-copilot';
 import { Pressable } from '@/components/Pressable';
@@ -87,9 +87,15 @@ export default function GrupoDetalleScreen() {
     [grupoId, backendUserId]
   );
 
-  useEffect(() => {
-    void cargar();
-  }, [cargar]);
+  // Se recarga al volver a foco: tras pasar el liderazgo o sumar miembros en otra
+  // pantalla, las acciones visibles tienen que coincidir con el rol actual.
+  const yaCargo = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      void cargar(yaCargo.current);
+      yaCargo.current = true;
+    }, [cargar])
+  );
 
   const esLider = grupo?.mi_rol === 'lider';
   const foto = grupo?.foto ?? null;
@@ -218,7 +224,7 @@ export default function GrupoDetalleScreen() {
     if (!grupo || !grupoId) return;
 
     if (grupo.mi_rol === 'participante') {
-      meshAlert('Abandonar grupo', '¿Estás seguro de que quieres abandonar este grupo?', [
+      meshAlert('Abandonar grupo', '¿Estás seguro de que querés abandonar este grupo?', [
         { text: 'Cancelar', style: 'cancel' },
         { text: 'Abandonar', style: 'destructive', onPress: () => void ejecutarAbandono() },
       ]);
@@ -450,7 +456,7 @@ export default function GrupoDetalleScreen() {
                             Invitar personas
                           </Text>
                           <Text style={[styles.filaExtraSub, { color: theme.textDim }]}>
-                            Por usuario o desde otros grupos
+                            Buscá por usuario o elegí entre tus amigos
                           </Text>
                         </View>
                       </Pressable>

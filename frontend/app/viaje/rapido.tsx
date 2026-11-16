@@ -126,12 +126,15 @@ export default function ViajeRapidoScreen() {
     void crear(actividad, destino)
   }
 
+  // Desde "Nuevo entrenamiento" los textos hablan de entrenamiento, no de viaje.
+  const entrena = modo === 'entrenamiento'
+
   if (paso === 'destino') {
     return (
       <>
         <Stack.Screen options={{ headerShown: false }} />
         <DestinoPicker
-          titulo="¿A dónde van?"
+          titulo={entrena ? '¿A dónde vas?' : '¿A dónde van?'}
           origen={ubicacion}
           onConfirm={elegirDestino}
           onSkip={() => void crear(actividad, null)}
@@ -146,7 +149,7 @@ export default function ViajeRapidoScreen() {
       <View style={[styles.center, { backgroundColor: theme.background }]}>
         <Stack.Screen options={{ headerShown: false }} />
         <ActivityIndicator size="large" color={theme.accent} />
-        <Text style={[styles.creando, { color: theme.textDim }]}>Armando el viaje…</Text>
+        <Text style={[styles.creando, { color: theme.textDim }]}>{entrena ? 'Armando el entrenamiento…' : 'Armando el viaje…'}</Text>
       </View>
     )
   }
@@ -155,7 +158,10 @@ export default function ViajeRapidoScreen() {
     return (
       <View style={[styles.container, { backgroundColor: theme.background }]}>
         <Stack.Screen options={{ headerShown: false }} />
-        <TopBar title={repetirViajeId ? 'Repetir entrenamiento' : 'Viaje YA'} bordered={false} />
+        <TopBar
+          title={repetirViajeId ? 'Repetir entrenamiento' : entrena ? 'Nuevo entrenamiento' : 'Viaje YA'}
+          bordered={false}
+        />
         <View style={styles.plantilla}>
           <ActivityTile activity={actividad} size={84} />
           {repetirViajeId ? (
@@ -199,7 +205,7 @@ export default function ViajeRapidoScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <TopBar title="Viaje YA" bordered={false} />
+      <TopBar title={entrena ? 'Nuevo entrenamiento' : 'Viaje YA'} bordered={false} />
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={[styles.etiqueta, { color: theme.textDim }]}>Modo</Text>
         <SelectorModo modo={modo} onChange={setModo} puedeCompetir />
@@ -210,7 +216,7 @@ export default function ViajeRapidoScreen() {
           </Text>
         ) : null}
 
-        <Text style={[styles.titulo, { color: theme.text }]}>¿Qué van a hacer?</Text>
+        <Text style={[styles.titulo, { color: theme.text }]}>{entrena ? '¿Qué vas a entrenar?' : '¿Qué van a hacer?'}</Text>
         <ActividadGrid
           deshabilitada={(a) => modo !== 'recreativo' && esMotorizado(a)}
           onElegir={(a) => {

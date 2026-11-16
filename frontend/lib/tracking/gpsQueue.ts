@@ -90,6 +90,19 @@ export function tieneCheckInPendiente(viajeId: string, userId: string): boolean 
   return (row?.n ?? 0) > 0
 }
 
+/** Tope de un envío de la cola: con la red colgada el flush no queda esperando para siempre. */
+const FLUSH_TIMEOUT_MS = 30_000
+
+async function fetchConTimeout(url: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), FLUSH_TIMEOUT_MS)
+  try {
+    return await fetch(url, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 /**
  * Envía los check-ins pendientes. Devuelve las claves `viaje\nusuario` que siguen sin
  * confirmar, para que `flushGpsQueue` no mande todavía las posiciones de esos viajes.
@@ -107,7 +120,7 @@ async function flushCheckIns(root: string): Promise<Set<string>> {
     try {
       const post = async (forceRefresh: boolean) => {
         const auth = await bearerAuthHeaders(forceRefresh)
-        return fetch(`${root}/api/viajes/${r.viaje_id}/check-in`, {
+        return fetchConTimeout(`${root}/api/viajes/${r.viaje_id}/check-in`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...auth },
           body: JSON.stringify({ check_in_at: new Date(r.ts).toISOString() }),
@@ -231,7 +244,7 @@ export async function flushGpsQueue(baseUrl: string = API_BASE_URL): Promise<voi
     try {
       const postBatch = async (forceRefresh: boolean) => {
         const auth = await bearerAuthHeaders(forceRefresh)
-        return fetch(`${root}/api/viajes/${viajeId}/posiciones`, {
+        return fetchConTimeout(`${root}/api/viajes/${viajeId}/posiciones`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

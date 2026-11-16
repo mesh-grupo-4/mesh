@@ -14,14 +14,7 @@ import { useAuth, ActividadPreferida } from '@/context/AuthContext';
 import { useVolverInterno } from '@/hooks/useVolver';
 import { Btn, Field, TopBar, ActivityTile, useTheme } from '@/components/MeshUI';
 import { Feather } from '@expo/vector-icons';
-
-function telefonoArgentinoValido(tel: string): boolean {
-  const soloDigitos = tel.replace(/\D/g, '');
-  const sinPrefijo = soloDigitos.startsWith('54')
-    ? soloDigitos.slice(2).replace(/^9/, '')
-    : soloDigitos.replace(/^0/, '');
-  return /^\d{10}$/.test(sinPrefijo);
-}
+import { telefonoArgentinoValido } from '@/lib/telefono';
 
 const ACTIVIDADES: { id: ActividadPreferida; label: string }[] = [
   { id: 'moto', label: 'Motociclismo' },
@@ -33,7 +26,7 @@ const ACTIVIDADES: { id: ActividadPreferida; label: string }[] = [
 ];
 
 export default function RegisterScreen() {
-  const { register, updateUserProfile } = useAuth();
+  const { register } = useAuth();
   const theme = useTheme();
 
   const [step, setStep] = useState(0);
@@ -50,6 +43,10 @@ export default function RegisterScreen() {
   const handleNextStep = () => {
     if (!nombre.trim() || !apellido.trim() || !telefono.trim() || !email.trim() || !password || !confirm) {
       meshAlert('Campos requeridos', 'Completá todos los campos.');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      meshAlert('Email inválido', 'Revisá el email. Ej: nombre@ejemplo.com');
       return;
     }
     if (!telefonoArgentinoValido(telefono)) {
@@ -77,16 +74,10 @@ export default function RegisterScreen() {
         telefono: telefono.trim(),
         email: email.trim(),
         password,
+        // Va en el mismo alta: guardarla después no funcionaba porque el usuario
+        // todavía no existía en el contexto.
+        actividadPreferida: activity,
       });
-      
-      // 2. Guardar la actividad preferida en su perfil de manera secundaria
-      if (activity) {
-        try {
-          await updateUserProfile({ actividadPreferida: activity });
-        } catch {
-          // Ignorar error menor si la actualización del perfil secundario falla en red
-        }
-      }
 
       router.replace('/(tabs)');
     } catch (e: any) {
@@ -272,6 +263,8 @@ function mensajeFirebase(code: string): string {
       return 'El email no es válido.';
     case 'auth/weak-password':
       return 'La contraseña es demasiado débil.';
+    case 'auth/network-request-failed':
+      return 'No pudimos conectar. Revisá tu conexión a internet y reintentá.';
     default:
       return 'Ocurrió un error. Intentá de nuevo.';
   }

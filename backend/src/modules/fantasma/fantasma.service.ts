@@ -65,6 +65,7 @@ export class FantasmaService {
         creador_id: true,
         tipo_actividad: true,
         modo: true,
+        repite_viaje_id: true,
         integrantes: { where: { usuario_id: usuarioId }, select: { estado: true } },
       },
     })
@@ -88,12 +89,18 @@ export class FantasmaService {
   async listarCandidatos(usuarioId: string, viajeId: string): Promise<CandidatoFantasma[]> {
     const viaje = await this.assertViajeAdmiteFantasma(viajeId, usuarioId)
     const mismoRecorrido = await computeMismoRecorrido(this.prisma, viajeId, usuarioId)
+    // RN-066: la sesión que este viaje repite es siempre elegible, aunque su trazado
+    // planeado no coincida (o no tenga): si no, al quitar el fantasma automático no
+    // habría forma de volver a ponerlo.
+    const viajeIdsElegibles = mismoRecorrido
+      ? [...mismoRecorrido.viajeIds, ...(viaje.repite_viaje_id ? [viaje.repite_viaje_id] : [])]
+      : null
 
     const [metricas, plantillas] = await Promise.all([
       // Trazas de viajes finalizados en los que participé: la mía y las de los demás.
       this.prisma.metricaViaje.findMany({
         where: {
-          viaje_id: mismoRecorrido ? { in: mismoRecorrido.viajeIds, not: viajeId } : { not: viajeId },
+          viaje_id: viajeIdsElegibles ? { in: viajeIdsElegibles, not: viajeId } : { not: viajeId },
           viaje: {
             estado: 'finalizado',
             tipo_actividad: { notIn: [...ACTIVIDADES_MOTORIZADAS] },

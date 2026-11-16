@@ -85,6 +85,10 @@ export function BotonFlotante({ icono, label, onPress, extendido, visible = true
   // Ancho natural del texto, medido con una copia invisible: la etiqueta
   // visible se anima entre ese ancho y 0.
   const anchoTexto = useSharedValue(0)
+  // El mismo ancho, para el texto visible: con un ancho fijo nunca se parte en
+  // palabras. Sin esto, mientras la etiqueta crece Android lo cortaba en "Nuevo"
+  // (primera línea de "Nuevo entrenamiento") hasta volver a medirlo.
+  const [anchoNatural, setAnchoNatural] = useState<number | null>(null)
   const progreso = useSharedValue(extendido ? 1 : 0)
 
   useEffect(() => {
@@ -132,7 +136,11 @@ export function BotonFlotante({ icono, label, onPress, extendido, visible = true
         <Animated.View style={[styles.etiqueta, estiloEtiqueta]}>
           {/* 19 px en negrita: texto grande, legible en blanco sobre el acento de la marca.
               Al contraerse se recorta por la derecha (sin "…"). */}
-          <Text style={[estiloTexto, styles.separacion]} numberOfLines={1} ellipsizeMode="clip">
+          <Text
+            style={[estiloTexto, styles.separacion, anchoNatural != null && { width: anchoNatural }]}
+            numberOfLines={1}
+            ellipsizeMode="clip"
+          >
             {label}
           </Text>
         </Animated.View>
@@ -156,7 +164,10 @@ export function BotonFlotante({ icono, label, onPress, extendido, visible = true
           numberOfLines={1}
           onLayout={(e) => {
             const ancho = Math.ceil(e.nativeEvent.layout.width)
-            if (ancho > 0) anchoTexto.value = ancho
+            if (ancho > 0) {
+              anchoTexto.value = ancho
+              setAnchoNatural(ancho)
+            }
           }}
         >
           {label}

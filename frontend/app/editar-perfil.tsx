@@ -10,6 +10,7 @@ import { Pressable } from '@/components/Pressable'
 import { FilaOpcion } from '@/components/perfil/FilaOpcion'
 import { ActividadPreferida, useAuth } from '@/context/AuthContext'
 import { meshAlert } from '@/lib/meshAlert'
+import { telefonoArgentinoValido } from '@/lib/telefono'
 import {
   elegirFoto,
   PermisoFotoDenegado,
@@ -119,6 +120,13 @@ export default function EditarPerfilScreen() {
   const guardar = () => {
     if (!nombre.trim() || !apellido.trim()) {
       meshAlert('Campos requeridos', 'El nombre y apellido no pueden estar vacíos.')
+      return
+    }
+    if (telefono.trim() && !telefonoArgentinoValido(telefono)) {
+      meshAlert(
+        'Teléfono inválido',
+        'Ingresá un número de teléfono argentino válido.\nEj: 351 123-4567 o +54 9 11 4567-8901'
+      )
       return
     }
     meshAlert('Guardar cambios', '¿Estás seguro que querés guardar los cambios?', [

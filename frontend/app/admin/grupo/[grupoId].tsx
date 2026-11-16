@@ -28,18 +28,23 @@ export default function AdminGrupoScreen() {
   const { start } = useCopilot()
   const [grupo, setGrupo] = useState<GrupoAdminDetalle | null>(null)
   const [ocupado, setOcupado] = useState(false)
+  const [intento, setIntento] = useState(0)
 
   const cargar = useCallback(async () => {
     try {
       setGrupo(await obtenerGrupoAdmin(grupoId))
     } catch (e) {
-      meshAlert('No se pudo cargar el grupo', mensajeError(e))
+      // Sin salida el detalle quedaba con el spinner para siempre.
+      meshAlert('No se pudo cargar el grupo', mensajeError(e), [
+        { text: 'Volver', style: 'cancel', onPress: () => router.back() },
+        { text: 'Reintentar', onPress: () => setIntento((n) => n + 1) },
+      ])
     }
   }, [grupoId])
 
   useEffect(() => {
     void cargar()
-  }, [cargar])
+  }, [cargar, intento])
 
   const ejecutar = useCallback(
     async (accion: () => Promise<unknown>) => {

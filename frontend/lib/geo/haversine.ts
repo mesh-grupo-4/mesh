@@ -21,7 +21,7 @@ export function haversineDistanceM(
 }
 
 export function formatDistanceKm(meters: number): string {
-  return `${(meters / 1000).toFixed(1)} km`
+  return `${(meters / 1000).toFixed(1).replace('.', ',')} km`
 }
 
 export function formatElapsedHms(totalSeconds: number): string {

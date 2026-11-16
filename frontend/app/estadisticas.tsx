@@ -4,7 +4,7 @@ import { router, useFocusEffect, type Href } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { Pressable } from '@/components/Pressable'
-import { TopBar, useTheme } from '@/components/MeshUI'
+import { Btn, TopBar, useTheme } from '@/components/MeshUI'
 import { useAuth } from '@/context/AuthContext'
 import { listarAmigos } from '@/lib/amistadesApi'
 import { resolveBackendUserId } from '@/lib/apiClient'
@@ -12,11 +12,12 @@ import { formatKmCompact } from '@/lib/format'
 import { listarGrupos } from '@/lib/gruposApi'
 import { obtenerEstadisticasUsuario } from '@/lib/viajesApi'
 
+/** `null` = ese dato no se pudo cargar (no es lo mismo que cero). */
 type Stats = {
-  viajes: number
-  grupos: number
-  amigos: number
-  distancia_m: number
+  viajes: number | null
+  grupos: number | null
+  amigos: number | null
+  distancia_m: number | null
 }
 
 const STATS_VACIAS: Stats = { viajes: 0, grupos: 0, amigos: 0, distancia_m: 0 }
@@ -44,11 +45,12 @@ export default function EstadisticasScreen() {
       listarAmigos(userId).catch(() => null),
     ])
 
+    // Un fallo de red no se muestra como "0 viajes / 0 km": queda sin dato y con reintento.
     setStats({
-      viajes: estadisticas?.viajes_finalizados ?? 0,
-      grupos: grupos?.length ?? 0,
-      amigos: amigos?.length ?? 0,
-      distancia_m: estadisticas?.distancia_total_m ?? 0,
+      viajes: estadisticas ? estadisticas.viajes_finalizados ?? 0 : null,
+      grupos: grupos ? grupos.length : null,
+      amigos: amigos ? amigos.length : null,
+      distancia_m: estadisticas ? estadisticas.distancia_total_m ?? 0 : null,
     })
   }, [backendUserId])
 
@@ -58,19 +60,23 @@ export default function EstadisticasScreen() {
     }, [cargar])
   )
 
+  const hayError = stats != null && Object.values(stats).some((v) => v == null)
+  const texto = (v: number | null | undefined, formato: (n: number) => string = String) =>
+    stats == null ? '·' : v == null ? '–' : formato(v)
+
   const celdas: { key: string; label: string; value: string; destino: Href }[] = [
-    { key: 'viajes', label: 'Viajes', value: stats ? String(stats.viajes) : '·', destino: '/(tabs)/two' },
-    { key: 'grupos', label: 'Grupos', value: stats ? String(stats.grupos) : '·', destino: '/(tabs)/grupos' },
+    { key: 'viajes', label: 'Viajes', value: texto(stats?.viajes), destino: '/(tabs)/two' },
+    { key: 'grupos', label: 'Grupos', value: texto(stats?.grupos), destino: '/(tabs)/grupos' },
     {
       key: 'amigos',
       label: 'Amigos',
-      value: stats ? String(stats.amigos) : '·',
+      value: texto(stats?.amigos),
       destino: '/(tabs)/grupos?tab=amigos',
     },
     {
       key: 'km',
       label: 'Km',
-      value: stats ? formatKmCompact(stats.distancia_m) : '·',
+      value: texto(stats?.distancia_m, formatKmCompact),
       destino: '/(tabs)/two',
     },
   ]
@@ -100,6 +106,16 @@ export default function EstadisticasScreen() {
             <Text style={[styles.etiqueta, { color: theme.textDim }]}>{celda.label}</Text>
           </Pressable>
         ))}
+        {hayError && (
+          <View style={styles.error}>
+            <Text style={[styles.errorTexto, { color: theme.textDim }]}>
+              No pudimos cargar todas tus estadísticas. Revisá tu conexión.
+            </Text>
+            <Btn variant="primary" onPress={() => void cargar()}>
+              Reintentar
+            </Btn>
+          </View>
+        )}
       </ScrollView>
     </View>
   )
@@ -123,6 +139,16 @@ const styles = StyleSheet.create({
     paddingVertical: 28,
     borderRadius: 16,
     borderWidth: 1,
+  },
+  error: {
+    width: '100%',
+    alignItems: 'center',
+    gap: 12,
+    paddingTop: 12,
+  },
+  errorTexto: {
+    fontSize: 14,
+    textAlign: 'center',
   },
   valor: {
     fontSize: 30,

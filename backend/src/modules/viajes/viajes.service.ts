@@ -2549,18 +2549,17 @@ export class ViajesService {
 
   async upsertUbicacionViva(usuarioId: string, viajeId: string, input: UpsertUbicacionVivaInput) {
     const viaje = await this.assertPuedeEnviarGps(viajeId, usuarioId)
-    await this.prisma.registroGPS.create({
-      data: {
-        viaje_id: viajeId,
-        usuario_id: usuarioId,
-        lat: input.lat,
-        lng: input.lng,
-        precision_m: input.precision ?? null,
-        ...columnasGpsExtra(input),
-        timestamp: input.recordedAt,
-        source: 'live',
-      },
+    const nuevo = await this.guardarPingUnico({
+      viaje_id: viajeId,
+      usuario_id: usuarioId,
+      lat: input.lat,
+      lng: input.lng,
+      precision_m: input.precision ?? null,
+      ...columnasGpsExtra(input),
+      timestamp: input.recordedAt,
+      source: 'live',
     })
+    if (!nuevo) return
     // RN-111: el punto queda en `registro_gps` igual, pero sin compartir no se
     // publica al grupo ni dispara alertas del motor sobre esta persona.
     if (!viaje.comparte) return { compartida: false, ubicacion: null }
@@ -2668,19 +2667,17 @@ export class ViajesService {
     const { viajeId, lat, lng, accuracy, recordedAt, source } = payload
     const viaje = await this.assertPuedeEnviarGps(viajeId, usuarioId)
     const ts = new Date(recordedAt)
-    await this.prisma.registroGPS.create({
-      data: {
-        viaje_id: viajeId,
-        usuario_id: usuarioId,
-        lat,
-        lng,
-        precision_m: accuracy ?? null,
-        ...columnasGpsExtra(payload),
-        timestamp: ts,
-        source,
-      },
+    const nuevo = await this.guardarPingUnico({
+      viaje_id: viajeId,
+      usuario_id: usuarioId,
+      lat,
+      lng,
+      precision_m: accuracy ?? null,
+      ...columnasGpsExtra(payload),
+      timestamp: ts,
+      source,
     })
-    if (!viaje.comparte) return
+    if (!nuevo || !viaje.comparte) return
 
     await this.publicarUbicacionViva(viaje.tipo_actividad, {
       viajeId,
@@ -2693,6 +2690,23 @@ export class ViajesService {
       source,
     })
     this.dispatchMotorPing(viajeId, usuarioId, lat, lng, ts)
+  }
+
+  /**
+   * Guarda un ping suelto. Un ping repetido (mismo viaje, usuario y timestamp: reintento
+   * del cliente) choca con el índice único: se trata como ya procesado, sin 500.
+   * Devuelve `false` si era un duplicado.
+   */
+  private async guardarPingUnico(
+    data: Parameters<PrismaClient['registroGPS']['create']>[0]['data']
+  ): Promise<boolean> {
+    try {
+      await this.prisma.registroGPS.create({ data })
+      return true
+    } catch (e) {
+      if (e && typeof e === 'object' && 'code' in e && e.code === 'P2002') return false
+      throw e
+    }
   }
 
   private dispatchMotorPing(

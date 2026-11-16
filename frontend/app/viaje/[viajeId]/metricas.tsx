@@ -383,7 +383,7 @@ function SplitsList({
         return (
           <View key={sp.km} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <Text style={{ width: 44, fontSize: 13, fontWeight: '700', color: textColor }}>
-              {parcial ? `${(sp.metros / 1000).toFixed(1)}` : `km ${sp.km}`}
+              {parcial ? `${(sp.metros / 1000).toFixed(1).replace('.', ',')}` : `km ${sp.km}`}
             </Text>
             <View style={{ flex: 1, height: 10, borderRadius: 5, backgroundColor: barColor, overflow: 'hidden' }}>
               <View style={{ width: `${Math.round(ancho * 100)}%`, height: '100%', backgroundColor: accentColor, opacity: parcial ? 0.55 : 1 }} />

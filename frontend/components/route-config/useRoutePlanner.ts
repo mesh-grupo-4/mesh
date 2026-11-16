@@ -38,7 +38,7 @@ function crearWaypoint(type: RouteWaypoint['type'], order: number): RouteWaypoin
 
 function formatDistance(m: number): string {
   if (m < 1000) return `${Math.round(m)} m`
-  return `${(m / 1000).toFixed(1)} km`
+  return `${(m / 1000).toFixed(1).replace('.', ',')} km`
 }
 
 /** Traduce la falla real de OSRM a algo accionable para el usuario. */

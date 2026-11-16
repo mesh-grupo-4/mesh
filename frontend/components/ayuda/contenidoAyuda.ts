@@ -42,6 +42,7 @@ export const ORDEN_PANTALLA = {
   recorridosPublicados: 3500,
   recorridoPublicado: 3600,
   rutaGuardada: 3700,
+  entrenar: 3800,
 } as const
 
 export type PasoDefinicion = {
@@ -89,6 +90,32 @@ export const AYUDA_VIAJES: PasoDefinicion[] = [
     nombre: 'viajes.nuevo',
     orden: ORDEN_PANTALLA.viajes + 3,
     texto: 'Creá un viaje nuevo para organizar tu próxima salida.',
+  },
+]
+
+export const AYUDA_ENTRENAR: PasoDefinicion[] = [
+  {
+    nombre: 'entrenar.secciones',
+    orden: ORDEN_PANTALLA.entrenar,
+    texto:
+      'En Sesiones ves cada entrenamiento que terminaste. En Circuitos, los recorridos que repetiste, para seguir cómo evolucionás en cada uno.',
+  },
+  {
+    nombre: 'entrenar.filtros',
+    orden: ORDEN_PANTALLA.entrenar + 1,
+    texto:
+      'Tocá la lupa para buscar por nombre. En Filtros elegí la actividad o un circuito; con "Limpiar filtros" volvés a ver todo.',
+  },
+  {
+    nombre: 'entrenar.lista',
+    orden: ORDEN_PANTALLA.entrenar + 2,
+    texto:
+      'Tocá una sesión para ver sus métricas. Con "Repetir" salís de nuevo por el mismo recorrido y corrés contra tu sesión anterior como fantasma.',
+  },
+  {
+    nombre: 'entrenar.nuevo',
+    orden: ORDEN_PANTALLA.entrenar + 3,
+    texto: 'Con este botón arrancás un entrenamiento nuevo: salís ahora o lo dejás planificado.',
   },
 ]
 

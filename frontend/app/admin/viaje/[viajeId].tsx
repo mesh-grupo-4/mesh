@@ -29,18 +29,23 @@ export default function AdminViajeScreen() {
   const { start } = useCopilot()
   const [viaje, setViaje] = useState<ViajeAdminAnonimo | null>(null)
   const [ocupado, setOcupado] = useState(false)
+  const [intento, setIntento] = useState(0)
 
   const cargar = useCallback(async () => {
     try {
       setViaje(await obtenerViajeAdmin(viajeId))
     } catch (e) {
-      meshAlert('No se pudo cargar el viaje', mensajeError(e))
+      // Sin salida el detalle quedaba con el spinner para siempre.
+      meshAlert('No se pudo cargar el viaje', mensajeError(e), [
+        { text: 'Volver', style: 'cancel', onPress: () => router.back() },
+        { text: 'Reintentar', onPress: () => setIntento((n) => n + 1) },
+      ])
     }
   }, [viajeId])
 
   useEffect(() => {
     void cargar()
-  }, [cargar])
+  }, [cargar, intento])
 
   const ejecutar = useCallback(async (accion: () => Promise<unknown>) => {
     setOcupado(true)

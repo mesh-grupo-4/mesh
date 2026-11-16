@@ -6,6 +6,11 @@
 
 import { formatearEnArg } from '@/lib/tiempoArg'
 
+/** Número con coma decimal, como el resto de la app (montos, es-AR). */
+export function conComaDecimal(valor: number, decimales = 1): string {
+  return valor.toFixed(decimales).replace('.', ',')
+}
+
 /** Duración legible: "45m", "1h 20m". */
 export function formatDurationHm(segundos: number | null | undefined): string {
   if (segundos == null || segundos <= 0) return '--'
@@ -18,22 +23,22 @@ export function formatDurationHm(segundos: number | null | undefined): string {
 /** Distancia en km con un decimal. Devuelve '--' si no hay dato. */
 export function formatKm(metros: number | null | undefined): string {
   if (metros == null) return '--'
-  return `${(metros / 1000).toFixed(1)} km`
+  return `${conComaDecimal(metros / 1000)} km`
 }
 
-/** Km compacto para stats (Inicio/Perfil): "0", "1.2", "120", "1.2k". */
+/** Km compacto para stats (Inicio/Perfil), sin unidad porque la etiqueta ya dice "Km": "0", "1,2", "120", "1,2k". */
 export function formatKmCompact(metros: number): string {
   const km = metros / 1000
   if (km === 0) return '0'
-  if (km < 10) return km.toFixed(1)
+  if (km < 10) return conComaDecimal(km)
   if (km < 1000) return Math.round(km).toString()
-  return `${(km / 1000).toFixed(1)}k`
+  return `${conComaDecimal(km / 1000)}k`
 }
 
 /** Velocidad promedio. Devuelve '--' si no hay dato. */
 export function formatSpeedKmh(kmh: number | null | undefined): string {
   if (kmh == null) return '--'
-  return `${kmh.toFixed(1)} km/h`
+  return `${conComaDecimal(kmh)} km/h`
 }
 
 /** Metros enteros para desnivel y altitud: "312 m". Devuelve '--' si no hay dato. */
@@ -71,7 +76,7 @@ export function formatPaceMinKm(minPorKm: number | null | undefined): string {
 export function formatDeltaKm(metros: number | null | undefined): string {
   if (metros == null) return '--'
   const signo = metros >= 0 ? '+' : '−'
-  return `${signo}${(Math.abs(metros) / 1000).toFixed(1)} km`
+  return `${signo}${conComaDecimal(Math.abs(metros) / 1000)} km`
 }
 
 export function formatDeltaPace(minPorKm: number | null | undefined): string {

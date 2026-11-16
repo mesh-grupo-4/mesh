@@ -21,7 +21,7 @@ function gapLegible(seg: number): string {
 
 function metrosLegibles(m: number): string {
   const abs = Math.abs(m)
-  return abs >= 1000 ? `${(abs / 1000).toFixed(2)} km` : `${Math.round(abs)} m`
+  return abs >= 1000 ? `${(abs / 1000).toFixed(2).replace('.', ',')} km` : `${Math.round(abs)} m`
 }
 
 /** RN-073 (SCRUM-49): adelante/atrás del fantasma, con pausar y quitar. */
@@ -39,7 +39,9 @@ export function FantasmaPanel({ fantasma, onPausar, onQuitar }: Props) {
             {fantasma.nombre} · {fantasma.autor}
           </Text>
           <Text style={[styles.sub, { color: theme.textDim }]} numberOfLines={1}>
-            {fantasma.pausado
+            {fantasma.esperandoSalida
+              ? 'Te espera en la salida'
+              : fantasma.pausado
               ? 'Fantasma en pausa'
               : fantasma.terminado
                 ? 'El fantasma ya llegó'
@@ -53,10 +55,16 @@ export function FantasmaPanel({ fantasma, onPausar, onQuitar }: Props) {
           <Feather name="x" size={16} color={theme.text} />
         </Pressable>
       </View>
-      <Text style={[styles.delta, { color, fontSize: tamanoOutdoor(16) }]}>
-        {adelante ? 'Vas adelante' : 'Vas atrás'} {metrosLegibles(fantasma.deltaM)} · {adelante ? '+' : '−'}
-        {gapLegible(fantasma.gapSeg)}
-      </Text>
+      {fantasma.esperandoSalida ? (
+        <Text style={[styles.delta, { color: theme.textDim, fontSize: tamanoOutdoor(16) }]}>
+          Larga cuando llegues a la salida
+        </Text>
+      ) : (
+        <Text style={[styles.delta, { color, fontSize: tamanoOutdoor(16) }]}>
+          {adelante ? 'Vas adelante' : 'Vas atrás'} {metrosLegibles(fantasma.deltaM)} · {adelante ? '+' : '−'}
+          {gapLegible(fantasma.gapSeg)}
+        </Text>
+      )}
     </View>
   )
 }

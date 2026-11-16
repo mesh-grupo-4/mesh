@@ -153,6 +153,8 @@ export default function ViajeLiveScreen() {
   const [siguiendo, setSiguiendo] = useState(true)
   const [fg, setFg] = useState<boolean | null>(null)
   const [loading, setLoading] = useState(true)
+  // Cambia para repetir la carga inicial cuando falló por red.
+  const [intentoCarga, setIntentoCarga] = useState(0)
   const [mapStyle, setMapStyle] = useCapaMapa()
   const [headerExpandido, setHeaderExpandido] = useState(false)
   const [accion, setAccion] = useState(false)
@@ -361,7 +363,7 @@ export default function ViajeLiveScreen() {
   const distanciaHastaLugar = (lugar: LugarSugerido): string | null => {
     if (!myPosition) return null
     const m = haversineDistanceM(myPosition.lat, myPosition.lng, lugar.lat, lugar.lng)
-    return m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`
+    return m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1).replace('.', ',')} km`
   }
 
   const irALugar = async (lugar: LugarSugerido) => {
@@ -477,7 +479,7 @@ export default function ViajeLiveScreen() {
     alternarPausa: pausarFantasma,
   } = useFantasma({
     viajeId: viajeId ?? '',
-    fechaInicioReal: viaje?.fecha_inicio_real ?? null,
+    miPosicion: myPosition,
     miDistanciaM: distanceM,
     habilitado: Boolean(permiteFantasma),
     // RN-066: quien repite una sesión corre contra su propia traza de esa vez.
@@ -714,6 +716,13 @@ export default function ViajeLiveScreen() {
         setParticipantes(parts)
         setCheckInLocal(checkInPendienteLocal(viajeId, userId))
         aplicarRuta(ruta)
+      } catch (e: unknown) {
+        // Sin esto un fallo de red dejaba el mapa vacío, sin aviso ni forma de reintentar.
+        if (cancelled) return
+        meshAlert('No pudimos cargar el viaje', mensajeDeError(e), [
+          { text: 'Volver', style: 'cancel', onPress: () => router.back() },
+          { text: 'Reintentar', onPress: () => setIntentoCarga((n) => n + 1) },
+        ])
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -722,7 +731,7 @@ export default function ViajeLiveScreen() {
     return () => {
       cancelled = true
     }
-  }, [viajeId, userId])
+  }, [viajeId, userId, intentoCarga])
 
   useEffect(() => {
     if (!viajeId || !userId.trim()) return
@@ -838,7 +847,7 @@ export default function ViajeLiveScreen() {
 
       await iniciarTrackingViaje(viajeId, userId.trim(), viaje.tipo_actividad)
       await centrado
-    })()
+    })().catch((e: unknown) => console.warn('No se pudo arrancar el tracking:', e))
     return () => {
       cancelled = true
     }

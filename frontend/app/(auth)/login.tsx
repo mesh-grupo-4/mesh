@@ -126,6 +126,8 @@ function mensajeFirebase(code: string): string {
       return 'Email o contraseña incorrectos.';
     case 'auth/too-many-requests':
       return 'Demasiados intentos fallidos. Intentá más tarde.';
+    case 'auth/network-request-failed':
+      return 'No pudimos conectar. Revisá tu conexión a internet y reintentá.';
     case 'auth/invalid-email':
       return 'El email no es válido.';
     case 'auth/user-disabled':

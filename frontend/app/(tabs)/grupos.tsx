@@ -56,7 +56,7 @@ const abrirSolicitudes = () => router.push('/amigos/solicitudes');
 export default function GruposScreen() {
   const espacioTabBar = useEspacioTabBar()
   const { tab, abrir } = useLocalSearchParams<{ tab?: string; abrir?: string }>();
-  const { backendUserId, backendSyncing } = useAuth();
+  const { backendUserId, backendSyncing, reintentarSync } = useAuth();
   const theme = useTheme();
   const { start } = useCopilot();
   const selection = useSelectionMode();
@@ -234,7 +234,7 @@ export default function GruposScreen() {
       meshError(
         'Error',
         esRed || !msg
-          ? 'Hubo un error al crear el grupo. Inténtalo más tarde.'
+          ? 'Hubo un error al crear el grupo. Intentalo más tarde.'
           : msg
       );
     } finally {
@@ -254,11 +254,13 @@ export default function GruposScreen() {
   if (!backendUserId) {
     return (
       <View style={[styles.center, { backgroundColor: theme.background }]}>
-        <Text style={[styles.titulo, { color: theme.text }]}>Sin conexión al servidor</Text>
+        <Text style={[styles.titulo, { color: theme.text }]}>No pudimos conectar</Text>
         <Text style={[styles.subtitulo, { color: theme.textDim }]}>
-          No pudimos sincronizar tu usuario con la base de datos. Cerrá sesión e iniciá de nuevo con
-          el backend corriendo en tu PC.
+          Revisá tu conexión a internet y reintentá.
         </Text>
+        <Btn variant="primary" onPress={() => void reintentarSync()}>
+          Reintentar
+        </Btn>
       </View>
     );
   }

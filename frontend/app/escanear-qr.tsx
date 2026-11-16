@@ -80,7 +80,9 @@ export default function EscanearQrScreen() {
       setProcesando(true)
       try {
         const userId = resolveBackendUserId(backendUserId)
-        await ejecutarUnionPorQr(viajeId, userId)
+        // Si la unión falla (QR vencido, sin red) ya se mostró el aviso: se vuelve a escanear.
+        const unido = await ejecutarUnionPorQr(viajeId, userId)
+        if (!unido) setProcesando(false)
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : 'No se pudo procesar el código.'
         meshAlert('Error', msg)

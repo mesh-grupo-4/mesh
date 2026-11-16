@@ -144,6 +144,16 @@ export default function PrivacidadScreen() {
         <View style={styles.center}>
           <ActivityIndicator color={theme.accent} />
         </View>
+      ) : !privacidad ? (
+        // Sin datos no se muestran los valores por defecto como si fueran los guardados.
+        <View style={[styles.center, { gap: 16, padding: 24 }]}>
+          <Text style={[styles.tituloSeccion, { color: theme.text }]}>
+            No pudimos cargar tu privacidad
+          </Text>
+          <Btn variant="primary" onPress={() => void cargar()}>
+            Reintentar
+          </Btn>
+        </View>
       ) : (
         <ScrollViewAyuda
           contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 24 }]}

@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useFocusEffect, useLocalSearchParams, useRouter, Stack } from 'expo-router'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Linking,
@@ -520,8 +520,11 @@ export default function ViajeDetalleScreen() {
     setModalPermisos(true)
   }
 
+  // Un doble toque en el modal de permisos no tiene que mandar dos veces el inicio.
+  const inicioEnCurso = useRef(false)
   const ejecutarIniciar = async () => {
-    if (!viajeId || !userId) return
+    if (!viajeId || !userId || inicioEnCurso.current) return
+    inicioEnCurso.current = true
     setModalPermisos(false)
     setAccion(true)
     try {
@@ -551,6 +554,7 @@ export default function ViajeDetalleScreen() {
       if (!avisado) meshAlert('Error', e instanceof Error ? e.message : 'No se pudo iniciar')
     } finally {
       setAccion(false)
+      inicioEnCurso.current = false
     }
   }
 
@@ -739,6 +743,12 @@ export default function ViajeDetalleScreen() {
     router.push({ pathname: '/viaje/[viajeId]/live', params: { viajeId } })
   }
 
+  /** Viaje finalizado: el recorrido hecho, a pantalla completa. */
+  const irRecorrido = () => {
+    if (!viajeId) return
+    router.push({ pathname: '/viaje/[viajeId]/recorrido', params: { viajeId } })
+  }
+
   const puntosRuta = (
     <View style={styles.routePoints}>
       <View style={styles.routePointRow}>
@@ -883,21 +893,39 @@ export default function ViajeDetalleScreen() {
             {/* Mapa real de la ruta planificada; en curso, miniatura del estado actual */}
             <PasoAyuda {...AYUDA_VIAJE_DETALLE[0]!}>
             <Pressable
-              onPress={viaje.estado === 'en_curso' ? irLive : irConfigurarRecorrido}
-              disabled={!puedeEditarPlan && viaje.estado !== 'en_curso'}
+              onPress={
+                viaje.estado === 'en_curso'
+                  ? irLive
+                  : viaje.estado === 'finalizado'
+                    ? irRecorrido
+                    : irConfigurarRecorrido
+              }
+              disabled={!puedeEditarPlan && viaje.estado === 'planificado'}
               style={({ pressed }) => [
                 styles.cardRoute,
                 {
                   backgroundColor: theme.surface,
                   borderColor: theme.border,
-                  opacity: pressed && (puedeEditarPlan || viaje.estado === 'en_curso') ? 0.92 : 1,
+                  opacity: pressed && (puedeEditarPlan || viaje.estado !== 'planificado') ? 0.92 : 1,
                 },
               ]}
               accessibilityRole="button"
-              accessibilityLabel={viaje.estado === 'en_curso' ? 'Ver mapa en vivo' : 'Configurar recorrido'}
+              accessibilityLabel={
+                viaje.estado === 'en_curso'
+                  ? 'Ver mapa en vivo'
+                  : viaje.estado === 'finalizado'
+                    ? 'Abrir el mapa del recorrido'
+                    : 'Configurar recorrido'
+              }
             >
               {viaje.estado === 'finalizado' ? (
-                <RecorridoMapView segmentos={recorrido} cargando={cargandoRecorrido} altura={180} />
+                // Sin gestos propios: el toque abre el recorrido a pantalla completa.
+                <RecorridoMapView
+                  segmentos={recorrido}
+                  cargando={cargandoRecorrido}
+                  altura={180}
+                  interactivo={false}
+                />
               ) : viaje.estado === 'en_curso' ? (
                 <>
                   <MiniMapaEnCurso
@@ -957,7 +985,7 @@ export default function ViajeDetalleScreen() {
                 <Feather name="activity" size={16} color={theme.accent} style={{ marginBottom: 3 }} />
                 <Text style={[styles.statNum, { color: theme.text }]} numberOfLines={1}>
                   {viaje.ruta?.distancia_planeada_m
-                    ? `${(viaje.ruta.distancia_planeada_m / 1000).toFixed(1)} km`
+                    ? `${(viaje.ruta.distancia_planeada_m / 1000).toFixed(1).replace('.', ',')} km`
                     : '--'}
                 </Text>
                 <Text style={[styles.statLabel, { color: theme.textDim }]}>Distancia</Text>
@@ -1431,7 +1459,7 @@ export default function ViajeDetalleScreen() {
                 Acepto e inicio el viaje
               </Btn>
               <Btn variant="secondary" block onPress={abrirAjustes}>
-                Abrir ajustes de Android/iOS
+                Abrir ajustes de {Platform.OS === 'ios' ? 'iOS' : 'Android'}
               </Btn>
               <Btn variant="ghost" block onPress={() => setModalPermisos(false)}>
                 Cancelar

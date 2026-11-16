@@ -49,7 +49,7 @@ export function TransferirLiderazgoModal({
         >
           <Text style={[styles.titulo, { color: theme.text }]}>Abandonar grupo</Text>
           <Text style={[styles.descripcion, { color: theme.textDim }]}>
-            Eres el líder del grupo. Para abandonar, debes seleccionar a un nuevo líder o eliminar
+            Sos el líder del grupo. Para abandonar, tenés que elegir a un nuevo líder o eliminar
             el grupo.
           </Text>
 

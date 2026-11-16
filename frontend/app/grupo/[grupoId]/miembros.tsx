@@ -103,7 +103,7 @@ export default function MiembrosGrupoScreen() {
       } catch {
         setMiembros(snapshot);
         if (nuevoRol === 'lider') setMiRol('lider');
-        meshAlert('Error', 'Error al actualizar el rol. Inténtalo de nuevo.');
+        meshAlert('Error', 'Error al actualizar el rol. Intentalo de nuevo.');
       } finally {
         setActualizandoId(null);
       }

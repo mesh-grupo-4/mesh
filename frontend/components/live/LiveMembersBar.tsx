@@ -21,7 +21,7 @@ export type LiveMember = {
 }
 
 export function textoDistancia(m: number): string {
-  return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`
+  return m >= 1000 ? `${(m / 1000).toFixed(1).replace('.', ',')} km` : `${Math.round(m)} m`
 }
 
 function estadoDe(m: LiveMember): { texto: string; tono: 'good' | 'dim' | 'mute' | 'danger' } {

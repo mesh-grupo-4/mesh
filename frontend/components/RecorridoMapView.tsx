@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react'
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
+import { Feather } from '@expo/vector-icons'
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native'
 
 import { useTheme } from '@/components/MeshUI'
 import { BotonEncuadrar } from '@/components/maps/BotonEncuadrar'
@@ -21,17 +22,31 @@ type Props = {
   segmentos: [number, number][][]
   cargando?: boolean
   altura?: number
+  /** Ocupa todo el alto disponible, sin esquinas redondeadas (pantalla de recorrido). */
+  completo?: boolean
+  /** En false el mapa no toma los gestos: la tarjeta que lo contiene recibe el toque. */
+  interactivo?: boolean
+  /** Muestra un botón para abrir el recorrido a pantalla completa. */
+  onExpandir?: () => void
 }
 
 const PADDING_FIT = { top: 40, right: 40, bottom: 40, left: 40 }
 
-export function RecorridoMapView({ segmentos, cargando = false, altura = 220 }: Props) {
+export function RecorridoMapView({
+  segmentos,
+  cargando = false,
+  altura = 220,
+  completo = false,
+  interactivo = true,
+  onExpandir,
+}: Props) {
   const theme = useTheme()
   const mapRef = useRef<MeshMapViewHandle>(null)
   const [capaElegida] = useCapaMapa()
   const capa = getMapStyle(capaElegida)
   const puntos = useMemo(() => segmentos.flat(), [segmentos])
   const hayTraza = puntos.length > 1
+  const tamano = completo ? styles.completo : [styles.caja, { height: altura }]
   const coordsFit = useMemo(
     () => puntos.map(([lat, lng]) => ({ latitude: lat, longitude: lng })),
     [puntos]
@@ -79,7 +94,7 @@ export function RecorridoMapView({ segmentos, cargando = false, altura = 220 }: 
 
   if (cargando) {
     return (
-      <View style={[styles.caja, styles.centro, { height: altura, backgroundColor: theme.surface2 }]}>
+      <View style={[tamano, styles.centro, { backgroundColor: theme.surface2 }]}>
         <ActivityIndicator color={theme.accent} />
       </View>
     )
@@ -87,7 +102,7 @@ export function RecorridoMapView({ segmentos, cargando = false, altura = 220 }: 
 
   if (!hayTraza) {
     return (
-      <View style={[styles.caja, styles.centro, { height: altura, backgroundColor: theme.surface2 }]}>
+      <View style={[tamano, styles.centro, { backgroundColor: theme.surface2 }]}>
         <Text style={[styles.vacio, { color: theme.textMute }]}>
           Este viaje no tiene traza GPS registrada.
         </Text>
@@ -98,7 +113,7 @@ export function RecorridoMapView({ segmentos, cargando = false, altura = 220 }: 
   const inicio = puntos[0]!
 
   return (
-    <View style={[styles.caja, { height: altura }]}>
+    <View style={tamano} pointerEvents={interactivo ? 'auto' : 'none'}>
       <MeshMapView
         ref={mapRef}
         initialCenter={{ latitude: inicio[0], longitude: inicio[1] }}
@@ -106,8 +121,22 @@ export function RecorridoMapView({ segmentos, cargando = false, altura = 220 }: 
         mapStyle={capa}
         markers={markers}
         polylines={polylines}
+        interactive={interactivo}
       />
-      <BotonEncuadrar onPress={() => mapRef.current?.fitBounds(coordsFit, PADDING_FIT, true)} />
+      {onExpandir ? (
+        <Pressable
+          onPress={onExpandir}
+          hitSlop={8}
+          style={({ pressed }) => [styles.expandir, pressed && styles.presionado]}
+          accessibilityRole="button"
+          accessibilityLabel="Abrir el mapa a pantalla completa"
+        >
+          <Feather name="maximize-2" size={18} color="#111827" />
+        </Pressable>
+      ) : null}
+      {interactivo ? (
+        <BotonEncuadrar onPress={() => mapRef.current?.fitBounds(coordsFit, PADDING_FIT, true)} />
+      ) : null}
     </View>
   )
 }
@@ -117,6 +146,24 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     overflow: 'hidden',
   },
+  completo: { flex: 1 },
+  expandir: {
+    position: 'absolute',
+    right: 8,
+    top: 8,
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 3,
+  },
+  presionado: { opacity: 0.7 },
   centro: {
     alignItems: 'center',
     justifyContent: 'center',

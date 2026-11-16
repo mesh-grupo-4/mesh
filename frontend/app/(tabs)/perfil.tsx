@@ -11,6 +11,7 @@ import { meshAlert } from '@/lib/meshAlert';
 import { useAuth } from '@/context/AuthContext';
 import { nombreCompleto } from '@/lib/nombres';
 import { router, useFocusEffect } from 'expo-router';
+import Constants from 'expo-constants';
 import { resolveBackendUserId } from '@/lib/apiClient';
 import { listarSolicitudesAmistadPendientes } from '@/lib/amistadesApi';
 import { listarMisInsignias, type InsigniaObtenidaApi } from '@/lib/insigniasApi';
@@ -198,7 +199,7 @@ export default function PerfilScreen() {
             style={nivel >= 2 ? { borderColor: theme.fire } : undefined}
           />
           <Text style={[styles.nombre, { color: theme.text }]} numberOfLines={1}>
-            {nombreCompleto(profile?.nombre, profile?.apellido) || 'Cargando...'}
+            {nombreCompleto(profile?.nombre, profile?.apellido) || user?.displayName || 'Cargando...'}
           </Text>
           <Text style={[styles.email, { color: theme.textDim }]} numberOfLines={1}>
             {user?.email}
@@ -309,7 +310,7 @@ export default function PerfilScreen() {
           />
 
           <Text style={[styles.footerText, { color: theme.textMute }]}>
-            Mesh · v1.0 — Córdoba, AR
+            Mesh · v{Constants.expoConfig?.version ?? '1.0.1'} — Córdoba, AR
           </Text>
         </View>
       </ScrollViewAyuda>

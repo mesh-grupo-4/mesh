@@ -9,7 +9,8 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "device-hub": "expo-device-hub"
   },
   "dependencies": {
     "@expo/ngrok": "^4.1.3",
@@ -62,6 +63,7 @@
   "devDependencies": {
     "@types/mapbox__polyline": "^1.0.5",
     "@types/react": "~19.2.4",
+    "expo-device-hub": "^0.23.2",
     "react-test-renderer": "19.1.0",
     "typescript": "~6.0.3"
   },

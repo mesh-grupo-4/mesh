@@ -225,12 +225,9 @@ export async function iniciarTrackingViaje(
         : {}),
     })
   } catch (e) {
-    if (Platform.OS === 'ios') {
-      console.warn('Background GPS no disponible en iOS, usando watch en primer plano:', e)
-      await startForegroundWatch(viajeId, userId)
-      return
-    }
-    throw e
+    // En cualquier plataforma: sin tarea en segundo plano se sigue emitiendo con la app abierta.
+    console.warn('Background GPS no disponible, usando watch en primer plano:', e)
+    await startForegroundWatch(viajeId, userId)
   }
 }
 

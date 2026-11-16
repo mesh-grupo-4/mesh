@@ -12,7 +12,6 @@ import { meshAlert } from '@/lib/meshAlert';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { auth } from '@/lib/firebase';
 import { syncUsuario, obtenerMiPerfil, type UsuarioPerfilResponse } from '@/lib/usuariosApi';
-import { API_BASE_URL } from '@/constants/Config';
 import { MeshApiError } from '@/lib/apiClient';
 import { nombreCompleto, nombreDePila } from '@/lib/nombres';
 export type ActividadPreferida = 'moto' | 'auto' | 'bici' | 'running' | 'trekking' | 'otro' | '';
@@ -31,6 +30,7 @@ interface RegisterData {
   telefono: string;
   email: string;
   password: string;
+  actividadPreferida?: ActividadPreferida;
 }
 
 interface AuthContextValue {
@@ -48,6 +48,8 @@ interface AuthContextValue {
   updateUserProfile: (data: Partial<ProfileData>) => Promise<void>;
   /** La foto ya quedó guardada en el backend: solo se refleja en el perfil local. */
   setFotoPerfilLocal: (url: string | null) => Promise<void>;
+  /** Vuelve a pedir el usuario al backend cuando la carga inicial falló por red. */
+  reintentarSync: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -106,13 +108,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.warn('Sync backend usuario falló:', error);
     if (syncAlertShown.current) return;
     syncAlertShown.current = true;
-    const detail = error instanceof Error ? error.message : 'Error de red';
     meshAlert(
-      'No pudimos sincronizar tu perfil',
-      `Tu sesión está activa, pero no pudimos leer tu usuario en el servidor.\n\n` +
-        `Servidor: ${API_BASE_URL}\n\n` +
-        `Revisá tu conexión a internet y volvé a intentar en unos segundos.\n\n` +
-        `Detalle: ${detail}`,
+      'No pudimos conectar',
+      'Tu sesión sigue activa. Revisá tu conexión a internet y reintentá en unos segundos.',
       [{ text: 'Entendido' }]
     );
   }, []);
@@ -123,7 +121,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (
       firebaseUser: User,
       baseProfile: ProfileData | null,
-      obtener: () => Promise<UsuarioPerfilResponse>
+      obtener: () => Promise<UsuarioPerfilResponse>,
+      avisarFallo = true
     ) => {
       setBackendSyncing(true);
       try {
@@ -147,7 +146,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         const cached = await AsyncStorage.getItem(backendUserIdKey);
         if (cached) setBackendUserId(cached);
-        notifySyncFailure(e);
+        if (avisarFallo) notifySyncFailure(e);
+        else console.warn('Sync backend usuario falló:', e);
         return false;
       } finally {
         setBackendSyncing(false);
@@ -166,8 +166,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const enCurso = cargaEnCurso.current;
       if (enCurso && enCurso.uid === firebaseUser.uid) return enCurso.promesa;
 
+      // Un fallo de red se reintenta una vez; un error del backend (401, cuenta suspendida) no.
       const promesa = resolverUsuarioBackend(firebaseUser, storedProfile, () =>
-        obtenerMiPerfil()
+        obtenerMiPerfil().catch((e: unknown) => {
+          if (e instanceof MeshApiError) throw e;
+          return obtenerMiPerfil();
+        })
       ).finally(() => {
         if (cargaEnCurso.current?.promesa === promesa) cargaEnCurso.current = null;
       });
@@ -179,17 +183,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Persiste el perfil en la BD (registro / edición de perfil).
   const guardarUsuarioBackend = useCallback(
-    (firebaseUser: User, perfil: ProfileData) => {
+    (firebaseUser: User, perfil: ProfileData, avisarFallo = true) => {
       const email = firebaseUser.email;
       if (!email) return Promise.resolve(false);
-      return resolverUsuarioBackend(firebaseUser, perfil, () =>
-        syncUsuario({
-          email,
-          nombre: displayNombre(perfil, firebaseUser),
-          apellido: perfil.apellido || null,
-          telefono: perfil.telefono ?? null,
-          actividadPreferida: perfil.actividadPreferida || null,
-        })
+      return resolverUsuarioBackend(
+        firebaseUser,
+        perfil,
+        () =>
+          syncUsuario({
+            email,
+            nombre: displayNombre(perfil, firebaseUser),
+            apellido: perfil.apellido || null,
+            telefono: perfil.telefono ?? null,
+            actividadPreferida: perfil.actividadPreferida || null,
+          }),
+        avisarFallo
       );
     },
     [resolverUsuarioBackend]
@@ -228,14 +236,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await cargarUsuarioBackend(u, stored);
   };
 
-  const register = async ({ nombre, apellido, telefono, email, password }: RegisterData) => {
+  const register = async ({ nombre, apellido, telefono, email, password, actividadPreferida = '' }: RegisterData) => {
     const { user: newUser } = await createUserWithEmailAndPassword(auth, email, password);
     await firebaseUpdateProfile(newUser, { displayName: nombreCompleto(nombre, apellido) });
     const newProfile: ProfileData = {
       nombre,
       apellido,
       telefono,
-      actividadPreferida: '',
+      actividadPreferida,
       photoUri: null,
     };
     await saveProfile(newUser.uid, newProfile);
@@ -270,7 +278,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (displayName) {
       await firebaseUpdateProfile(user, { displayName });
     }
-    await guardarUsuarioBackend(user, updated);
+    // Si el backend no guardó, se deshace el cambio local y se avisa a la pantalla:
+    // antes volvía atrás como si hubiera salido bien.
+    const guardado = await guardarUsuarioBackend(user, updated, false);
+    if (!guardado) {
+      if (profile) {
+        await saveProfile(user.uid, profile);
+        setProfile(profile);
+      }
+      throw new Error('No se pudieron guardar los cambios.');
+    }
   };
 
   const setFotoPerfilLocal = async (url: string | null) => {
@@ -278,6 +295,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const updated: ProfileData = { ...profile, photoUri: url };
     await saveProfile(user.uid, updated);
     setProfile(updated);
+  };
+
+  const reintentarSync = async () => {
+    if (!user) return;
+    await cargarUsuarioBackend(user, profile);
   };
 
   return (
@@ -295,6 +317,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         resetPassword,
         updateUserProfile,
         setFotoPerfilLocal,
+        reintentarSync,
       }}
     >
       {children}

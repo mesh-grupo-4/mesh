@@ -724,7 +724,9 @@ export class MotorEventosService {
 
     // RN-071: con el progreso propio ya cacheado, el leaderboard sale del caché.
     if (viaje.modo === 'competitivo' && !esMotorizado(viaje.tipo_actividad)) {
-      void this.emitirLeaderboard(input.viajeId, viaje.velocidad_esperada, ahora)
+      void this.emitirLeaderboard(input.viajeId, viaje.velocidad_esperada, ahora).catch((e) =>
+        console.warn('[motor] leaderboard:', e)
+      )
     }
 
     if (tieneParadaVoluntaria) return
