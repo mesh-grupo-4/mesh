@@ -186,8 +186,13 @@ export function useLiveLocations({ viajeId, userId, nameByUserId = {}, selfSeed 
   // "Vos" en el mapa no debería depender de que el ping GPS complete el viaje
   // de ida y vuelta por el backend: lo pintamos con la última posición local
   // apenas se conoce y lo actualizamos con cada tick del tracking (cada 5 s).
+  // Depende de las coordenadas, no del objeto: quien llama suele armar `selfSeed`
+  // nuevo en cada render, y como la semilla se reescribe (updatedAt nuevo) eso
+  // entraba en un bucle de renders ("Maximum update depth exceeded").
+  const semillaLat = selfSeed?.lat ?? null
+  const semillaLng = selfSeed?.lng ?? null
   useEffect(() => {
-    if (!selfSeed || !userId.trim()) return
+    if (semillaLat == null || semillaLng == null || !userId.trim()) return
     setMembers((prev) => {
       // Una semilla nueva (la lectura fresca que corrige a la última conocida)
       // reemplaza a la anterior; lo que vino del tracking o del socket, no.
@@ -197,8 +202,8 @@ export function useLiveLocations({ viajeId, userId, nameByUserId = {}, selfSeed 
         ...prev,
         [userId]: {
           usuarioId: userId,
-          lat: selfSeed.lat,
-          lng: selfSeed.lng,
+          lat: semillaLat,
+          lng: semillaLng,
           precision: null,
           rumbo: null,
           updatedAt: new Date().toISOString(),
@@ -208,7 +213,7 @@ export function useLiveLocations({ viajeId, userId, nameByUserId = {}, selfSeed 
         },
       }
     })
-  }, [selfSeed, userId])
+  }, [semillaLat, semillaLng, userId])
 
   useEffect(() => {
     if (!viajeId || !userId.trim()) return
