@@ -59,6 +59,9 @@ public static class MeshVentana {
   [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int cmd);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hWnd);
+  [DllImport("user32.dll")] public static extern int GetWindowLong(IntPtr hWnd, int index);
   [DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();
 }
 '@
@@ -95,8 +98,56 @@ function Listar-Dispositivos {
   }
 }
 
+# --- WiFi ------------------------------------------------------------------
+# Las direcciones de la última vez se guardan para reconectar sin cable mientras
+# los celulares no se reinicien ni cambien de red.
+$archivoWifi = Join-Path $env:TEMP 'mesh-presentacion\wifi.txt'
+
+function Redes-Notebook {
+  @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+    Where-Object { $_.IPAddress -notmatch '^(127\.|169\.254\.)' } |
+    ForEach-Object { [pscustomobject]@{ Ip = $_.IPAddress; Prefijo = [int]$_.PrefixLength } })
+}
+
+function Ip-A-Numero([string]$ip) {
+  $o = ([Net.IPAddress]::Parse($ip)).GetAddressBytes()
+  return [uint64]$o[0] * 16777216 + [uint64]$o[1] * 65536 + [uint64]$o[2] * 256 + [uint64]$o[3]
+}
+
+function Misma-Red([string]$ip, $red) {
+  $mascara = [uint64]([math]::Pow(2, 32) - [math]::Pow(2, 32 - $red.Prefijo))
+  return ((Ip-A-Numero $ip) -band $mascara) -eq ((Ip-A-Numero $red.Ip) -band $mascara)
+}
+
+function Nombre-Wifi-Notebook {
+  $linea = (netsh wlan show interfaces) | Where-Object { $_ -match '^\s+SSID\s+:' } | Select-Object -First 1
+  if ($linea) { return ($linea -split ':', 2)[1].Trim() }
+  return $null
+}
+
+# IP del celular que está en la misma red que la notebook. Sirve para WiFi
+# común y también para hotspot (en el celular que comparte, la interfaz no es wlan0).
+function Ip-Celular-En-Red([string]$serial) {
+  $redes = Redes-Notebook
+  $interfaz = ''
+  foreach ($l in (Adb -s $serial shell ip -f inet addr)) {
+    if ($l -match '^\d+:\s+([^:@\s]+)') { $interfaz = $Matches[1]; continue }
+    if ($l -match 'inet (\d+\.\d+\.\d+\.\d+)/' -and $interfaz -notmatch '^(lo|ccmni|rmnet|dummy|tun|clat|v4-)') {
+      $ip = $Matches[1]
+      foreach ($r in $redes) { if (Misma-Red $ip $r) { return $ip } }
+    }
+  }
+  return $null
+}
+
 Escribir-Paso 'Buscando celulares'
 Adb start-server | Out-Null
+if ($Wifi -and (Test-Path $archivoWifi)) {
+  foreach ($dir in (Get-Content $archivoWifi | Where-Object { $_ -match '\S' })) {
+    $res = (Adb connect $dir) -join ' '
+    if ($res -match 'connected') { Write-Host "  Reconectado por WiFi: $dir" }
+  }
+}
 $todos = @(Listar-Dispositivos)
 $noAutorizados = @($todos | Where-Object { $_.Estado -eq 'unauthorized' })
 if ($noAutorizados.Count -gt 0) {
@@ -116,6 +167,18 @@ if ($noAutorizados.Count -gt 0) {
 }
 $listos = @($todos | Where-Object { $_.Estado -eq 'device' } | ForEach-Object { $_.Serial })
 
+# Un mismo celular puede figurar dos veces (cable y WiFi). Se queda una sola
+# conexión: la de WiFi con -Wifi, la del cable si no.
+$porEquipo = [ordered]@{}
+foreach ($s in $listos) {
+  $hw = ((Adb -s $s shell getprop ro.serialno) | Select-Object -First 1).Trim()
+  if (-not $hw) { $hw = $s }
+  $esRed = $s -match ':\d+$'
+  if (-not $porEquipo.Contains($hw)) { $porEquipo[$hw] = $s; continue }
+  if ($Wifi -eq $esRed) { $porEquipo[$hw] = $s }
+}
+$listos = @($porEquipo.Values)
+
 if ($Serials) {
   $faltan = @($Serials | Where-Object { $listos -notcontains $_ })
   if ($faltan.Count -gt 0) { Fallar "Estos seriales no están conectados: $($faltan -join ', ')" }
@@ -131,21 +194,31 @@ if ($listos.Count -eq 0) {
 
 if ($Wifi) {
   Escribir-Paso 'Pasando los celulares a WiFi'
+  $ssid = Nombre-Wifi-Notebook
   $porWifi = @()
   foreach ($s in $listos) {
     if ($s -match ':\d+$') { $porWifi += $s; continue }
-    $ip = $null
-    $red = Adb -s $s shell ip -f inet addr show wlan0
-    if (($red -join "`n") -match 'inet (\d+\.\d+\.\d+\.\d+)') { $ip = $Matches[1] }
-    if (-not $ip) { Fallar "El celular $s no tiene IP en wlan0: conectalo a la misma red WiFi que la notebook." }
+    $modelo = ((Adb -s $s shell getprop ro.product.model) | Select-Object -First 1).Trim()
+    $ip = Ip-Celular-En-Red $s
+    if (-not $ip) {
+      Fallar ("El $modelo no está en la misma red que la notebook" +
+        $(if ($ssid) { " (WiFi '$ssid')" } else { '' }) + ". Conectalo a esa red o a un hotspot compartido.")
+    }
     Adb -s $s tcpip 5555 | Out-Null
-    Start-Sleep -Seconds 2
-    $res = Adb connect "${ip}:5555"
-    if (($res -join ' ') -notmatch 'connected') { Fallar "No pude conectar a ${ip}:5555 ($res). ¿Están en la misma red y la red no aísla clientes?" }
-    Write-Host "  $s -> ${ip}:5555"
+    $conectado = $false
+    foreach ($intento in 1..5) {
+      Start-Sleep -Seconds 2
+      if (((Adb connect "${ip}:5555") -join ' ') -match 'connected') { $conectado = $true; break }
+    }
+    if (-not $conectado) {
+      Fallar "No pude conectar al $modelo en ${ip}:5555. Puede que la red aísle a los dispositivos entre sí (pasa en redes de facultad): probá con un hotspot."
+    }
+    Write-Host "  $modelo -> ${ip}:5555"
     $porWifi += "${ip}:5555"
   }
   $listos = $porWifi
+  New-Item -ItemType Directory -Force (Split-Path $archivoWifi) | Out-Null
+  Set-Content -Path $archivoWifi -Value $porWifi -Encoding ASCII
   Write-Host '  Listo: ya podés desenchufar los cables.' -ForegroundColor Green
 }
 
@@ -264,7 +337,7 @@ try {
     $argsScrcpy = @(
       "--serial=$($c.Serial)",
       "--window-title=`"Mesh - $nombre`"",
-      '--always-on-top', '--stay-awake', '--show-touches', '--no-audio',
+      '--stay-awake', '--show-touches', '--no-audio',
       '--disable-screensaver', '--screen-off-timeout=1800',
       '--max-size=1920', '--video-bit-rate=8M', '--max-fps=60'
     )
@@ -292,39 +365,76 @@ try {
     }
   }
 
-  # Devuelve una ventana a su lugar si se movió, se minimizó o cambió de tamaño
-  # (un Alt+Tab o un clic de más durante la presentación).
-  function Reacomodar($v) {
-    if ($v.Proceso.HasExited) {
-      if (-not $v.Avisado) {
-        Write-Host "`n  Se cerró el espejo de $($v.Nombre) (¿se desconectó el cable?). Volvé a correr el script." -ForegroundColor Yellow
-        $v.Avisado = $true
-      }
-      return
+  # Los celulares van pegados al escenario:
+  # - Con el escenario (o un celular) en foco quedan "siempre visibles" y en su
+  #   lugar; si un Alt+Tab o un clic de más los movió, vuelven.
+  # - Con otra ventana en foco (diapositivas, backoffice) pasan justo debajo del
+  #   escenario, y esa ventana queda adelante.
+  # Windows no deja subir ventanas ajenas desde un proceso en segundo plano, pero
+  # sí marcarlas como siempre visibles; y con una ventana normal encima de la
+  # pantalla completa vuelve a mostrar la barra de tareas. Por eso se usa
+  # "siempre visible" solo mientras la escena está en foco.
+  $HWND_TOPMOST = [IntPtr](-1)
+  $HWND_BOTTOM = [IntPtr]1
+  $SOLO_ORDEN = 0x0013          # SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE
+  $UBICAR = 0x0050              # SWP_SHOWWINDOW | SWP_NOACTIVATE
+
+  function Sigue-Abierto($v) {
+    if (-not $v.Proceso.HasExited) { return $true }
+    if (-not $v.Avisado) {
+      Write-Host "`n  Se cerró el espejo de $($v.Nombre) (¿se desconectó el cable?). Volvé a correr el script." -ForegroundColor Yellow
+      $v.Avisado = $true
     }
+    return $false
+  }
+
+  function Es-Siempre-Visible($h) { return ([MeshVentana]::GetWindowLong($h, -20) -band 0x8) -ne 0 }   # WS_EX_TOPMOST
+
+  function Traer-Al-Frente($v) {
+    if (-not (Sigue-Abierto $v)) { return }
     $r = New-Object MeshRect
     [MeshVentana]::GetWindowRect($v.Hwnd, [ref]$r) | Out-Null
-    if ($r.Izq -eq $v.X -and $r.Arr -eq $v.Y -and ($r.Der - $r.Izq) -eq $v.Ancho -and ($r.Aba - $r.Arr) -eq $v.Alto) { return }
-    [MeshVentana]::ShowWindow($v.Hwnd, 9) | Out-Null   # SW_RESTORE
-    # HWND_TOPMOST = -1; SWP_SHOWWINDOW | SWP_NOACTIVATE
-    [MeshVentana]::SetWindowPos($v.Hwnd, [IntPtr](-1), $v.X, $v.Y, $v.Ancho, $v.Alto, 0x0050) | Out-Null
+    $enLugar = $r.Izq -eq $v.X -and $r.Arr -eq $v.Y -and ($r.Der - $r.Izq) -eq $v.Ancho -and ($r.Aba - $r.Arr) -eq $v.Alto
+    if (-not $enLugar) {
+      if ([MeshVentana]::IsIconic($v.Hwnd)) { [MeshVentana]::ShowWindow($v.Hwnd, 4) | Out-Null }   # SW_SHOWNOACTIVATE
+      [MeshVentana]::SetWindowPos($v.Hwnd, $HWND_TOPMOST, $v.X, $v.Y, $v.Ancho, $v.Alto, $UBICAR) | Out-Null
+    } elseif (-not (Es-Siempre-Visible $v.Hwnd)) {
+      [MeshVentana]::SetWindowPos($v.Hwnd, $HWND_TOPMOST, 0, 0, 0, 0, $SOLO_ORDEN) | Out-Null
+    }
   }
+
+  function Mandar-Atras($v) {
+    if (-not (Sigue-Abierto $v)) { return }
+    if (-not (Es-Siempre-Visible $v.Hwnd)) { return }
+    # Ubicarla después de una ventana normal le quita el "siempre visible".
+    $despues = $HWND_BOTTOM
+    if ($hwndEscenario -ne [IntPtr]::Zero) { $despues = $hwndEscenario }
+    [MeshVentana]::SetWindowPos($v.Hwnd, $despues, 0, 0, 0, 0, $SOLO_ORDEN) | Out-Null
+  }
+
+  $ventanaEscenario = Procesos-Escenario | ForEach-Object { Get-Process -Id $_.ProcessId -ErrorAction SilentlyContinue } |
+    Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero } | Select-Object -First 1
+  $hwndEscenario = [IntPtr]::Zero
+  if ($ventanaEscenario) { $hwndEscenario = $ventanaEscenario.MainWindowHandle }
+  $hwndsEscena = @($ventanas | ForEach-Object { $_.Hwnd })
+  if ($hwndEscenario -ne [IntPtr]::Zero) { $hwndsEscena += $hwndEscenario }
+
+  function Escena-En-Foco { return ($hwndsEscena -contains [MeshVentana]::GetForegroundWindow()) }
 
   # Se repite porque scrcpy puede ajustar su tamaño al recibir el primer cuadro.
   foreach ($vuelta in 1..3) {
-    foreach ($v in $ventanas) { Reacomodar $v }
+    foreach ($v in $ventanas) { Traer-Al-Frente $v }
     Start-Sleep -Milliseconds 800
   }
 
   Write-Host "`nTodo listo." -ForegroundColor Green
   Write-Host '  - Clic sobre una ventana = toque en ese celular. Para mostrar, usá los teléfonos en la mano.'
-  Write-Host '  - Si una ventana se corre, volvé a correr el script.'
+  Write-Host '  - Para poner otra ventana adelante (diapositivas, backoffice), pasá a ella con Alt+Tab.'
+  Write-Host "    Para volver a los celulares, Alt+Tab a 'Mesh · Presentación'."
   Write-Host "  - Logs de scrcpy en $logs"
 
   # La consola se minimiza para que el escenario quede adelante: con la consola
   # en foco, Windows muestra la barra de tareas encima de la pantalla completa.
-  $ventanaEscenario = Procesos-Escenario | ForEach-Object { Get-Process -Id $_.ProcessId -ErrorAction SilentlyContinue } |
-    Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero } | Select-Object -First 1
   if ($ventanaEscenario) {
     Write-Host '  - Esta consola queda minimizada: para cerrar todo, volvé acá con Alt+Tab.'
     [MeshVentana]::ShowWindow([MeshVentana]::GetConsoleWindow(), 6) | Out-Null   # SW_MINIMIZE
@@ -342,8 +452,12 @@ try {
         if ([Console]::ReadKey($true).Key -eq [ConsoleKey]::Enter) { $salir = $true }
       }
       if (-not $salir) {
-        foreach ($v in $ventanas) { Reacomodar $v }
-        Start-Sleep -Milliseconds 700
+        if (Escena-En-Foco) {
+          foreach ($v in $ventanas) { Traer-Al-Frente $v }
+        } else {
+          foreach ($v in $ventanas) { Mandar-Atras $v }
+        }
+        Start-Sleep -Milliseconds 150
       }
     }
   }
