@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons'
-import { useEffect, useRef, useState, type ComponentType } from 'react'
+import { useEffect, useMemo, useRef, useState, type ComponentType } from 'react'
 import {
   ActivityIndicator,
   Keyboard,
@@ -35,7 +35,14 @@ type Props = {
   InputComponent?: ComponentType<TextInputProps>
   /** Filtra las categorías de parada que no aplican a la actividad. */
   tipoActividad?: string | null
+  /**
+   * Posición GPS del usuario: sesga el autocompletado hacia lo cercano y
+   * habilita la opción "Usar mi ubicación actual". `null` si no hay permiso.
+   */
+  ubicacionActual?: { latitude: number; longitude: number } | null
 }
+
+const NOMBRE_UBICACION_ACTUAL = 'Tu ubicación actual'
 
 export function RouteWaypointRow({
   waypoint,
@@ -48,21 +55,29 @@ export function RouteWaypointRow({
   mapPickMode = false,
   InputComponent = TextInput,
   tipoActividad,
+  ubicacionActual = null,
 }: Props) {
   const theme = useTheme()
   const [query, setQuery] = useState(waypoint.name)
   const [focused, setFocused] = useState(false)
+  const cerca = useMemo(
+    () => (ubicacionActual ? { lat: ubicacionActual.latitude, lng: ubicacionActual.longitude } : null),
+    [ubicacionActual]
+  )
   const {
     sugerencias: hits,
     buscando,
     error: searchError,
     sinResultados,
     resolver,
-  } = useSugerenciasLugares(query, { activo: focused })
+  } = useSugerenciasLugares(query, { activo: focused, cerca })
   const selectingRef = useRef(false)
   const inputRef = useRef<TextInput | null>(null)
 
-  const suggestionsVisibles = focused && query.trim().length >= MIN_LETRAS_SUGERENCIAS
+  const buscaLugares = query.trim().length >= MIN_LETRAS_SUGERENCIAS
+  // Con GPS disponible el desplegable se abre apenas se enfoca el campo, para
+  // ofrecer "Usar mi ubicación actual" aunque todavía no se haya escrito nada.
+  const suggestionsVisibles = focused && (buscaLugares || ubicacionActual !== null)
 
   useEffect(() => {
     onSuggestionsOpenChange?.(suggestionsVisibles)
@@ -92,6 +107,19 @@ export function RouteWaypointRow({
     inputRef.current?.blur()
     Keyboard.dismiss()
     onUpdate(waypoint.id, { lat: item.lat, lon: item.lng, name: item.nombre })
+  }
+
+  const onSelectMiUbicacion = () => {
+    if (!ubicacionActual) return
+    setQuery(NOMBRE_UBICACION_ACTUAL)
+    setFocused(false)
+    inputRef.current?.blur()
+    Keyboard.dismiss()
+    onUpdate(waypoint.id, {
+      lat: ubicacionActual.latitude,
+      lon: ubicacionActual.longitude,
+      name: NOMBRE_UBICACION_ACTUAL,
+    })
   }
 
   // Al perder el foco el hook deja de buscar y vacía sugerencias y error.
@@ -197,7 +225,23 @@ export function RouteWaypointRow({
             { backgroundColor: theme.surface, borderColor: theme.border },
           ]}
         >
-          {searchError ? (
+          {ubicacionActual ? (
+            <Pressable
+              style={[styles.hitRow, styles.miUbicacionRow, { borderColor: theme.border }]}
+              onPressIn={() => {
+                selectingRef.current = true
+              }}
+              onPress={onSelectMiUbicacion}
+              accessibilityRole="button"
+              accessibilityLabel="Usar mi ubicación actual"
+            >
+              <Ionicons name="locate" size={18} color={theme.accent} />
+              <Text style={[styles.hitText, styles.miUbicacionText, { color: theme.accent }]}>
+                Usar mi ubicación actual
+              </Text>
+            </Pressable>
+          ) : null}
+          {!buscaLugares ? null : searchError ? (
             <Text style={[styles.errorHits, { color: theme.danger }]}>{searchError}</Text>
           ) : hits.length === 0 ? (
             sinResultados && !buscando ? (
@@ -298,8 +342,9 @@ const styles = StyleSheet.create({
     marginTop: 4,
     borderWidth: 1,
     borderRadius: 10,
+    // Sin alto máximo: son pocas sugerencias y se scrollean con la hoja entera.
+    // Un tope con `overflow: hidden` cortaba las últimas sin forma de llegar a ellas.
     overflow: 'hidden',
-    maxHeight: 180,
   },
   loader: { padding: 12 },
   noHits: { padding: 12, fontSize: 14 },
@@ -310,4 +355,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   hitText: { fontSize: 14 },
+  miUbicacionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  miUbicacionText: { fontWeight: '600' },
 })

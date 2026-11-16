@@ -41,6 +41,8 @@ type Props = {
   onReordenarParada: (desde: number, hasta: number) => void
   onPickOnMap: (waypointId: string) => void
   onGuardar: () => void
+  /** Posición GPS del usuario (para el autocompletado y "Usar mi ubicación actual"). */
+  ubicacionActual: { latitude: number; longitude: number } | null
 }
 
 export const RouteBottomSheet = forwardRef<RouteBottomSheetHandle, Props>(function RouteBottomSheet(
@@ -66,6 +68,7 @@ export const RouteBottomSheet = forwardRef<RouteBottomSheetHandle, Props>(functi
     onReordenarParada,
     onPickOnMap,
     onGuardar,
+    ubicacionActual,
   },
   ref
 ) {
@@ -77,7 +80,6 @@ export const RouteBottomSheet = forwardRef<RouteBottomSheetHandle, Props>(functi
   const paradasListaYRef = useRef(0)
   const paradasItemYRef = useRef<Map<string, number>>(new Map())
   const sugerenciasAbiertas = useRef(new Set<string>())
-  const [scrollSheetHabilitado, setScrollSheetHabilitado] = useState(true)
   const [arrastrandoParada, setArrastrandoParada] = useState(false)
   const [keyboardHeight, setKeyboardHeight] = useState(0)
 
@@ -90,16 +92,15 @@ export const RouteBottomSheet = forwardRef<RouteBottomSheetHandle, Props>(functi
     },
   }))
 
+  // Al abrirse un desplegable la hoja sube al máximo, solo en la transición:
+  // el usuario puede seguir scrolleando (las sugerencias no tienen scroll propio).
   const onSuggestionsOpenChange = useCallback((waypointId: string, open: boolean) => {
-    if (open) {
-      sugerenciasAbiertas.current.add(waypointId)
-    } else {
-      sugerenciasAbiertas.current.delete(waypointId)
-    }
-    const haySugerencias = sugerenciasAbiertas.current.size > 0
-    setScrollSheetHabilitado(!haySugerencias)
-    if (haySugerencias) {
+    const abiertas = sugerenciasAbiertas.current
+    if (open && !abiertas.has(waypointId)) {
+      abiertas.add(waypointId)
       sheetRef.current?.snapToIndex(2)
+    } else if (!open) {
+      abiertas.delete(waypointId)
     }
   }, [])
 
@@ -145,6 +146,7 @@ export const RouteBottomSheet = forwardRef<RouteBottomSheetHandle, Props>(functi
         mapPickMode={mapPickMode}
         InputComponent={BottomSheetTextInput}
         tipoActividad={tipoActividad}
+        ubicacionActual={ubicacionActual}
       />
     </View>
   )
@@ -171,7 +173,7 @@ export const RouteBottomSheet = forwardRef<RouteBottomSheetHandle, Props>(functi
     >
       <BottomSheetScrollView
         ref={scrollRef}
-        scrollEnabled={scrollSheetHabilitado && !mapPickMode && !arrastrandoParada}
+        scrollEnabled={!mapPickMode && !arrastrandoParada}
         contentContainerStyle={[
           styles.content,
           keyboardHeight > 0 && { paddingBottom: keyboardHeight + (Platform.OS === 'ios' ? 24 : 16) },

@@ -178,6 +178,10 @@ export function LiveTripHeader({
                 {avataresCompactos.map((m) => (
                   <View
                     key={m.id}
+                    // Sin esto Fabric aplana el envoltorio cuando no tiene borde ni opacidad, y al
+                    // cambiar el estado del integrante (aparece en el mapa) Android crashea con
+                    // "The specified child already has a parent".
+                    collapsable={false}
                     style={[
                       styles.compactAvatarWrap,
                       m.id === currentUserId && { borderColor: theme.good, borderWidth: 1.5 },

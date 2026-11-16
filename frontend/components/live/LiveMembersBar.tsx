@@ -123,6 +123,9 @@ export function LiveMembersBar({ members, currentUserId, onListaAbiertaChange }:
           {members.map((m) => (
             <View
               key={m.id}
+              // Mismo caso que los avatares compactos del header: el envoltorio no se aplana,
+              // porque si no Fabric crashea en Android cuando cambian borde u opacidad.
+              collapsable={false}
               style={[
                 styles.avatarWrap,
                 m.id === currentUserId && { borderColor: theme.good, borderWidth: 2 },

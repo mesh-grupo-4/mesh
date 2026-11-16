@@ -248,6 +248,7 @@ export default function ConfigurarRutaScreen() {
             onReordenarParada={reordenarParada}
             onPickOnMap={iniciarSeleccionMapa}
             onGuardar={() => void guardar()}
+            ubicacionActual={ubicacionActual}
           />
         </PasoAyuda>
 
