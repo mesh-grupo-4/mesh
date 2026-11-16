@@ -613,12 +613,10 @@ export default function ViajesScreen() {
         setFinalizados([])
         setInvitaciones([])
         setCargando(false)
-        setRefreshing(false)
         return
       }
 
-      if (esRefresh) setRefreshing(true)
-      else setCargando(true)
+      if (!esRefresh) setCargando(true)
 
       try {
         const [planificados, pasados, pendientes] = await Promise.all([
@@ -640,11 +638,21 @@ export default function ViajesScreen() {
         if (!esRefresh) meshError('Error', msg)
       } finally {
         setCargando(false)
-        setRefreshing(false)
       }
     },
     [backendUserId, backendSyncing, syncKnownTripIds]
   )
+
+  // El spinner lo maneja solo el pull-to-refresh. En Android, si `refreshing` pasa a
+  // true y vuelve a false en el mismo render (respuesta inmediata, o `cargar` que sale
+  // antes por `backendSyncing`), el control nativo nunca se entera y queda trabado
+  // arriba. El false va en otra tarea para que siempre haya un render en true antes.
+  const onRefresh = useCallback(() => {
+    setRefreshing(true)
+    void cargar(true).finally(() => {
+      setTimeout(() => setRefreshing(false), 0)
+    })
+  }, [cargar])
 
   useFocusEffect(
     useCallback(() => {
@@ -662,7 +670,7 @@ export default function ViajesScreen() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={() => void cargar(true)}
+            onRefresh={onRefresh}
             tintColor={theme.accent}
           />
         }

@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { View, Text, TextInput, StyleSheet, ActivityIndicator, Platform } from 'react-native'
+import {
+  View,
+  Text,
+  TextInput,
+  StyleSheet,
+  ActivityIndicator,
+  Platform,
+  KeyboardAvoidingView,
+} from 'react-native'
 import { Pressable } from '@/components/Pressable'
 import { meshAlert } from '@/lib/meshAlert'
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker'
@@ -774,17 +782,25 @@ export default function CrearViajeScreen() {
         </View>
       ) : null}
 
-      <ScrollViewAyuda
-        key={paso}
+      {/* `automaticallyAdjustKeyboardInsets` es solo de iOS: en Android (edge-to-edge)
+          el teclado tapaba los parámetros del grupo del último paso. */}
+      <KeyboardAvoidingView
         style={styles.flex}
-        contentContainerStyle={styles.content}
-        automaticallyAdjustKeyboardInsets
-        keyboardShouldPersistTaps="handled"
+        behavior={Platform.OS === 'android' ? 'padding' : undefined}
+        keyboardVerticalOffset={-insets.bottom}
       >
-        {contenido}
-      </ScrollViewAyuda>
+        <ScrollViewAyuda
+          key={paso}
+          style={styles.flex}
+          contentContainerStyle={styles.content}
+          automaticallyAdjustKeyboardInsets
+          keyboardShouldPersistTaps="handled"
+        >
+          {contenido}
+        </ScrollViewAyuda>
 
-      {pie ? <View style={[styles.pie, { paddingBottom: insets.bottom + 16 }]}>{pie}</View> : null}
+        {pie ? <View style={[styles.pie, { paddingBottom: insets.bottom + 16 }]}>{pie}</View> : null}
+      </KeyboardAvoidingView>
     </View>
   )
 }

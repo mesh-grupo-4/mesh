@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="es" translate="no">
+<head>
+<meta charset="utf-8">
+<meta name="google" content="notranslate">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mesh · Presentación</title>
+<!--
+  Fondo para proyectar dos celulares espejados con scrcpy.
+  Lo abre espejar-celulares.ps1 con los parámetros del layout; también se puede
+  abrir solo. Parámetros (query string):
+    izq, rolIzq, der, rolDer   nombres y roles bajo cada celular
+    celulares=1|2              uno centrado o dos lado a lado (default 2)
+    arriba, alto               fracciones de pantalla que ocupan los celulares
+    enlace=0                   oculta el indicador "en vivo" del medio
+    guia=1                     dibuja dónde quedan los celulares (para ensayar sin ellos)
+  Tecla F: pantalla completa.
+-->
+<style>
+  :root {
+    --bg: #0f0f0f;
+    --text: #f4f2f0;
+    --text-dim: #9a948f;
+    --text-mute: #6a6560;
+    --border: #2e2e2e;
+    --accent: #d76655;
+    --accent-weak: rgba(215, 102, 85, 0.18);
+    --good: #4fb477;
+    --arriba: 0.13;
+    --alto: 0.74;
+    --c1: 0.30;
+    --c2: 0.70;
+    --font: "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); }
+  body {
+    font-family: var(--font);
+    color: var(--text);
+    cursor: none;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Malla de puntos tenue: evoca la red de integrantes. */
+  .malla {
+    position: fixed; inset: 0;
+    background-image: radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1.4px);
+    background-size: 28px 28px;
+    mask-image: radial-gradient(ellipse 75% 70% at 50% 50%, #000 30%, transparent 100%);
+  }
+  .halo {
+    position: fixed;
+    top: calc((var(--arriba) + var(--alto) / 2) * 100vh);
+    width: calc(var(--alto) * 85vh); height: calc(var(--alto) * 110vh);
+    transform: translate(-50%, -50%);
+    background: radial-gradient(closest-side, rgba(215, 102, 85, 0.22), rgba(215, 102, 85, 0.06) 55%, transparent);
+    filter: blur(8px);
+    pointer-events: none;
+  }
+
+  header {
+    position: fixed; left: 0; right: 0; top: 0;
+    height: calc(var(--arriba) * 100vh);
+    display: flex; align-items: center; justify-content: center; gap: 1.2vh;
+  }
+  header img { height: 8.5vh; width: auto; display: block; }
+  .marca { display: flex; flex-direction: column; gap: 0.3vh; }
+  .marca h1 { font-size: 4.6vh; font-weight: 700; letter-spacing: -0.02em; line-height: 1; }
+  .marca p { font-size: 1.9vh; color: var(--text-dim); letter-spacing: 0.01em; }
+
+  .etiqueta {
+    position: fixed;
+    top: calc((var(--arriba) + var(--alto)) * 100vh + 2.2vh);
+    transform: translateX(-50%);
+    display: flex; align-items: center; gap: 1.2vh;
+    white-space: nowrap;
+  }
+  .etiqueta strong { font-size: 3vh; font-weight: 650; letter-spacing: -0.01em; }
+  .rol {
+    font-size: 1.7vh; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 0.5vh 1.3vh; border-radius: 99px;
+    border: 1.5px solid var(--accent); color: var(--accent);
+  }
+  .rol.lider { background: var(--accent); color: #fff; }
+
+  /* Indicador de tiempo real entre los dos celulares. */
+  .enlace {
+    position: fixed;
+    top: calc((var(--arriba) + var(--alto) / 2) * 100vh);
+    height: 0; transform: translateY(-50%);
+  }
+  .enlace .linea {
+    position: absolute; inset: 0;
+    border-top: 2px dashed rgba(215, 102, 85, 0.35);
+  }
+  .enlace .pulso {
+    position: absolute; top: -5px; width: 10px; height: 10px; border-radius: 50%;
+    background: var(--accent); box-shadow: 0 0 14px 2px rgba(215, 102, 85, 0.7);
+    animation: viaja 2.4s cubic-bezier(.45, 0, .55, 1) infinite;
+  }
+  .enlace .pulso.vuelta { animation-name: vuelve; animation-delay: 1.2s; }
+  @keyframes viaja { from { left: 0; opacity: 0; } 12% { opacity: 1; } 88% { opacity: 1; } to { left: calc(100% - 10px); opacity: 0; } }
+  @keyframes vuelve { from { left: calc(100% - 10px); opacity: 0; } 12% { opacity: 1; } 88% { opacity: 1; } to { left: 0; opacity: 0; } }
+  .vivo {
+    position: absolute; left: 50%; top: 0; transform: translate(-50%, -50%);
+    display: flex; align-items: center; gap: 1vh; white-space: nowrap;
+    padding: 0.9vh 1.8vh; border-radius: 99px;
+    background: #151515; border: 1px solid var(--border);
+    font-size: 1.6vh; font-weight: 700; letter-spacing: 0.14em; color: var(--text);
+  }
+  .vivo i {
+    width: 1.1vh; height: 1.1vh; border-radius: 50%; background: var(--good);
+    animation: late 1.6s ease-in-out infinite;
+  }
+  @keyframes late { 0%, 100% { box-shadow: 0 0 0 0 rgba(79, 180, 119, 0.6); } 50% { box-shadow: 0 0 0 0.8vh rgba(79, 180, 119, 0); } }
+
+  .guia {
+    position: fixed; transform: translateX(-50%);
+    top: calc(var(--arriba) * 100vh); height: calc(var(--alto) * 100vh);
+    aspect-ratio: 9 / 20; border-radius: 3vh;
+    background: #1c1c1c; border: 2px dashed #3a3a3a;
+  }
+  footer {
+    position: fixed; left: 0; right: 0; bottom: 2vh;
+    text-align: center; font-size: 1.5vh; color: var(--text-mute); letter-spacing: 0.04em;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .enlace .pulso, .vivo i { animation: none; }
+    .enlace .pulso { display: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="malla"></div>
+  <div class="halo" id="halo1"></div>
+  <div class="halo" id="halo2"></div>
+
+  <header>
+    <img src="../../frontend/assets/images/mesh-logo.png" alt="">
+    <div class="marca">
+      <h1>Mesh</h1>
+      <p>Coordinación grupal en tiempo real</p>
+    </div>
+  </header>
+
+  <div class="enlace" id="enlace">
+    <div class="linea"></div>
+    <div class="pulso"></div>
+    <div class="pulso vuelta"></div>
+    <div class="vivo"><i></i>EN VIVO</div>
+  </div>
+
+  <div class="etiqueta" id="etq1"><strong></strong><span class="rol"></span></div>
+  <div class="etiqueta" id="etq2"><strong></strong><span class="rol"></span></div>
+
+  <footer>UTN FRC · Proyecto Final · Grupo 4 · 5K1 · 2026</footer>
+
+<script>
+  const q = new URLSearchParams(location.search);
+  const num = (k, d) => { const v = parseFloat(q.get(k)); return Number.isFinite(v) ? v : d; };
+  const raiz = document.documentElement.style;
+
+  const arriba = num('arriba', 0.13);
+  const alto = num('alto', 0.74);
+  const dos = q.get('celulares') !== '1';
+  const centros = dos ? [0.30, 0.70] : [0.50];
+  raiz.setProperty('--arriba', arriba);
+  raiz.setProperty('--alto', alto);
+
+  const lados = [
+    { etq: 'etq1', halo: 'halo1', nombre: q.get('izq') ?? 'Lucía', rol: q.get('rolIzq') ?? 'Líder' },
+    { etq: 'etq2', halo: 'halo2', nombre: q.get('der') ?? 'Martín', rol: q.get('rolDer') ?? 'Participante' },
+  ];
+  lados.forEach((l, i) => {
+    const etq = document.getElementById(l.etq);
+    const halo = document.getElementById(l.halo);
+    if (i >= centros.length) { etq.remove(); halo.remove(); return; }
+    etq.style.left = halo.style.left = (centros[i] * 100) + 'vw';
+    etq.querySelector('strong').textContent = l.nombre;
+    const rol = etq.querySelector('.rol');
+    if (l.rol) {
+      rol.textContent = l.rol;
+      rol.classList.toggle('lider', /l[ií]der/i.test(l.rol));
+    } else {
+      rol.remove();
+    }
+  });
+
+  // La línea va del borde de un celular al del otro. El ancho real depende del
+  // modelo; 0.5 del alto cubre teléfonos de hasta 18:9 con margen.
+  const enlace = document.getElementById('enlace');
+  function ubicarEnlace() {
+    if (!dos || q.get('enlace') === '0') { enlace.style.display = 'none'; return; }
+    const medio = innerHeight * alto * 0.5 / 2 + 28;
+    const desde = innerWidth * centros[0] + medio;
+    const hasta = innerWidth * centros[1] - medio;
+    enlace.style.left = desde + 'px';
+    enlace.style.width = Math.max(0, hasta - desde) + 'px';
+  }
+  ubicarEnlace();
+  if (q.get('guia') === '1') {
+    centros.forEach((c) => {
+      const g = document.createElement('div');
+      g.className = 'guia';
+      g.style.left = (c * 100) + 'vw';
+      document.body.appendChild(g);
+    });
+  }
+  addEventListener('resize', ubicarEnlace);
+
+  addEventListener('keydown', (e) => {
+    if (e.key.toLowerCase() !== 'f') return;
+    if (document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen();
+  });
+</script>
+</body>
+</html>

@@ -177,6 +177,16 @@ export function useFantasma({
     return () => clearInterval(id)
   }, [fantasma, pausado])
 
+  /**
+   * Cada fantasma elegido es una carrera nueva: vuelve a esperar en su salida. Si se
+   * reusaba la largada anterior, al quitarlo y volver a elegirlo reaparecía adelantado
+   * (o ya terminado, fuera de la vista) en lugar de en la salida.
+   */
+  const reiniciarLargada = useCallback(() => {
+    setLargada(null)
+    void AsyncStorage.removeItem(claveLargada(viajeId)).catch(() => {})
+  }, [viajeId])
+
   const activar = useCallback(
     async (ref: string) => {
       setCargando(true)
@@ -185,6 +195,7 @@ export function useFantasma({
         pausaAcumRef.current = 0
         pausaDesdeRef.current = null
         setPausado(false)
+        reiniciarLargada()
         setFantasma(f)
         await AsyncStorage.setItem(claveStorage(viajeId), ref)
         return f
@@ -192,14 +203,15 @@ export function useFantasma({
         setCargando(false)
       }
     },
-    [viajeId]
+    [viajeId, reiniciarLargada]
   )
 
   const quitar = useCallback(() => {
     setFantasma(null)
     setPausado(false)
+    reiniciarLargada()
     void AsyncStorage.setItem(claveStorage(viajeId), SIN_FANTASMA)
-  }, [viajeId])
+  }, [viajeId, reiniciarLargada])
 
   const alternarPausa = useCallback(() => {
     setPausado((p) => {

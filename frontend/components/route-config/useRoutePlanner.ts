@@ -24,6 +24,84 @@ import {
 
 const MAX_PARADAS = 10
 
+/** Tope de puntos que acepta `/api/routing/calcular` (ver `routing.schemas.ts`). */
+const MAX_PUNTOS_RUTEO = 30
+/** Puntos de la traza original que se suman como guía al recalcular una ruta cargada. */
+const MAX_PUNTOS_GUIA = 18
+
+/** Índice del punto de la traza más cercano a (lat, lon), buscando desde `desde`. */
+function indiceMasCercano(traza: [number, number][], lat: number, lon: number, desde: number): number {
+  let mejor = desde
+  let menor = Number.POSITIVE_INFINITY
+  for (let i = desde; i < traza.length; i++) {
+    const [tLat, tLng] = traza[i]!
+    const d = haversineDistanceM(lat, lon, tLat, tLng)
+    if (d < menor) {
+      menor = d
+      mejor = i
+    }
+  }
+  return mejor
+}
+
+/**
+ * Puntos [lng, lat] para recalcular una ruta cargada sin perder su forma: entre
+ * cada par de waypoints se intercalan puntos de la traza original como vías de
+ * paso. Sin esto, una ruta importada de un recorrido (origen = primer punto y
+ * destino = último, sin paradas) se recalculaba en línea directa de origen a
+ * destino al tocar cualquier cosa, y en un circuito, donde salida y llegada son
+ * el mismo lugar, quedaba en 0 km.
+ *
+ * El origen se ancla al inicio de la traza y el destino al final; cada parada,
+ * al punto más cercano que venga después de la anterior.
+ */
+function puntosGuiadosPorTraza(
+  waypoints: { lat: number; lon: number }[],
+  traza: [number, number][]
+): [number, number][] {
+  const directos = waypoints.map((w): [number, number] => [w.lon, w.lat])
+  const ultimo = traza.length - 1
+  const presupuesto = Math.min(MAX_PUNTOS_GUIA, MAX_PUNTOS_RUTEO - waypoints.length)
+  if (ultimo < 2 || waypoints.length < 2 || presupuesto <= 0) return directos
+
+  const acumulado = [0]
+  for (let i = 1; i <= ultimo; i++) {
+    const [aLat, aLng] = traza[i - 1]!
+    const [bLat, bLng] = traza[i]!
+    acumulado.push(acumulado[i - 1]! + haversineDistanceM(aLat, aLng, bLat, bLng))
+  }
+  const total = acumulado[ultimo]!
+  if (total <= 0) return directos
+
+  const anclas = [0]
+  for (let i = 1; i < waypoints.length - 1; i++) {
+    const w = waypoints[i]!
+    anclas.push(indiceMasCercano(traza, w.lat, w.lon, anclas[i - 1]!))
+  }
+  anclas.push(ultimo)
+
+  const puntos: [number, number][] = []
+  for (let i = 0; i < waypoints.length; i++) {
+    puntos.push(directos[i]!)
+    if (i === waypoints.length - 1) break
+    const desde = acumulado[anclas[i]!]!
+    const largo = acumulado[anclas[i + 1]!]! - desde
+    const cantidad = Math.floor((presupuesto * largo) / total)
+    let j = anclas[i]!
+    let ultimoUsado = -1
+    for (let k = 1; k <= cantidad; k++) {
+      const objetivo = desde + (largo * k) / (cantidad + 1)
+      while (j < ultimo && acumulado[j]! < objetivo) j++
+      // Traza poco densa: dos objetivos pueden caer en el mismo punto.
+      if (j === ultimoUsado) continue
+      ultimoUsado = j
+      const [lat, lng] = traza[j]!
+      puntos.push([lng, lat])
+    }
+  }
+  return puntos
+}
+
 function crearWaypoint(type: RouteWaypoint['type'], order: number): RouteWaypoint {
   return {
     id: Crypto.randomUUID(),
@@ -134,6 +212,18 @@ export function useRoutePlanner({
   const [nameModalVisible, setNameModalVisible] = useState(false)
   const [nameModalInitial, setNameModalInitial] = useState('Punto en mapa')
   const pendingPickRef = useRef<{ waypointId: string; lat: number; lon: number } | null>(null)
+  /**
+   * Ruta tal como vino del backend. Mientras los puntos no cambien se respeta el
+   * trazado guardado (no se recalcula al abrir la pantalla), y si cambian, su
+   * traza guía el recálculo (ver `puntosGuiadosPorTraza`).
+   */
+  const rutaCargadaRef = useRef<{
+    key: string
+    ruta: OsrmRouteResult | null
+    linea: [number, number][]
+    /** Solo una ruta sin paradas guía el recálculo: su forma no está en los waypoints. */
+    guia: [number, number][] | null
+  } | null>(null)
 
   useEffect(() => {
     let cancel = false
@@ -178,6 +268,30 @@ export function useRoutePlanner({
         if (cancel || !ruta) return
 
         const hydrated = waypointsFromRutaDetalle(ruta)
+        const rutaGuardada: OsrmRouteResult | null =
+          ruta.distancia_planeada_m != null && ruta.tiempo_estimado_seg != null
+            ? {
+                linestring: ruta.linestring,
+                polylineLatLng: hydrated.routeLineLatLng,
+                distanceM: ruta.distancia_planeada_m,
+                durationSec: ruta.tiempo_estimado_seg,
+              }
+            : null
+        // Misma forma que `rutaKey`, para reconocer cuándo los puntos siguen intactos.
+        const key = [hydrated.origen, ...hydrated.paradas, hydrated.destino]
+          .filter(waypointTieneCoords)
+          .map((w) => `${w.lon},${w.lat}`)
+          .join(';')
+        rutaCargadaRef.current = {
+          key,
+          ruta: rutaGuardada,
+          linea: hydrated.routeLineLatLng,
+          guia:
+            hydrated.paradas.length === 0 && hydrated.routeLineLatLng.length > 2
+              ? hydrated.routeLineLatLng
+              : null,
+        }
+
         setOrigen({ ...hydrated.origen, id: Crypto.randomUUID() })
         setDestino({ ...hydrated.destino, id: Crypto.randomUUID() })
         setParadas(hydrated.paradas.map((p) => ({ ...p, id: Crypto.randomUUID() })))
@@ -185,14 +299,7 @@ export function useRoutePlanner({
         setFitRouteCoords(
           hydrated.routeLineLatLng.map(([lat, lng]) => ({ latitude: lat, longitude: lng }))
         )
-        if (ruta.distancia_planeada_m != null && ruta.tiempo_estimado_seg != null) {
-          setRutaOk({
-            linestring: ruta.linestring,
-            polylineLatLng: hydrated.routeLineLatLng,
-            distanceM: ruta.distancia_planeada_m,
-            durationSec: ruta.tiempo_estimado_seg,
-          })
-        }
+        if (rutaGuardada) setRutaOk(rutaGuardada)
       } catch {
         /* sin ruta previa o error de red */
       } finally {
@@ -310,13 +417,29 @@ export function useRoutePlanner({
       return
     }
 
+    const cargada = rutaCargadaRef.current
+    if (cargada?.ruta && cargada.key === rutaKey) {
+      // Puntos intactos: se muestra y se guarda el trazado tal como vino.
+      setRutaOk(cargada.ruta)
+      setRouteLineLatLng(cargada.linea)
+      setErrorRuta(null)
+      setCalculando(false)
+      return
+    }
+
     let cancel = false
     async function run() {
       setCalculando(true)
       setErrorRuta(null)
 
       try {
-        const res = await calcularRutaOsrm(movilidad, puntosRef.current)
+        const puntos = cargada?.guia
+          ? puntosGuiadosPorTraza(
+              puntosRef.current.map(([lon, lat]) => ({ lat, lon })),
+              cargada.guia
+            )
+          : puntosRef.current
+        const res = await calcularRutaOsrm(movilidad, puntos)
         if (cancel) return
         // La duración de Google Routes ya respeta el perfil (auto/bici/a pie) y
         // se usa tal cual. Los respaldos OSM no: el demo público de OSRM sólo

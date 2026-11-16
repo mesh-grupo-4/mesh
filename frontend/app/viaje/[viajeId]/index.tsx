@@ -18,6 +18,7 @@ import { InvitarGruposAmigosModal } from '@/components/viaje-rapido/InvitarGrupo
 import { esMotorizado } from '@/lib/activityDefaults';
 import { ETIQUETA_MODO, TONO_MODO } from '@/lib/modoViaje';
 import { abrirRepetirEntrenamiento } from '@/lib/nuevoViaje';
+import { formatKm } from '@/lib/format';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { Feather } from '@expo/vector-icons'
 import { useCopilot } from 'react-native-copilot'
@@ -46,6 +47,7 @@ import {
   obtenerViaje,
   obtenerRuta,
   obtenerRecorrido,
+  obtenerResumenViaje,
   actualizarFechaViaje,
   actualizarViaje,
   listarParticipantesViaje,
@@ -177,6 +179,8 @@ export default function ViajeDetalleScreen() {
   /** Traza GPS realmente recorrida; solo se carga cuando el viaje está finalizado. */
   const [recorrido, setRecorrido] = useState<[number, number][][]>([])
   const [cargandoRecorrido, setCargandoRecorrido] = useState(false)
+  /** Distancia que hice en un viaje finalizado (métricas del backend). */
+  const [distanciaRecorridaM, setDistanciaRecorridaM] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [accion, setAccion] = useState(false)
   const [modalPermisos, setModalPermisos] = useState(false)
@@ -272,6 +276,9 @@ export default function ViajeDetalleScreen() {
             setRecorrido([])
           })
           .finally(() => setCargandoRecorrido(false))
+        void obtenerResumenViaje(viajeId, userId)
+          .then((r) => setDistanciaRecorridaM(r.mis_metricas.distancia_m ?? r.totales.distancia_real_m))
+          .catch(() => setDistanciaRecorridaM(null))
       }
 
       try {
@@ -892,14 +899,21 @@ export default function ViajeDetalleScreen() {
 
             {/* Mapa real de la ruta planificada; en curso, miniatura del estado actual */}
             <PasoAyuda {...AYUDA_VIAJE_DETALLE[0]!}>
+            {viaje.estado === 'finalizado' ? (
+              // Mapa propio (zoom y arrastre) con botones para agrandarlo y para volver a
+              // encuadrar el recorrido. Dentro de la tarjeta tocable, el mapa nativo se
+              // comía el toque y no se podía abrir.
+              <View style={[styles.cardRoute, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                <RecorridoMapView
+                  segmentos={recorrido}
+                  cargando={cargandoRecorrido}
+                  altura={200}
+                  onExpandir={irRecorrido}
+                />
+              </View>
+            ) : (
             <Pressable
-              onPress={
-                viaje.estado === 'en_curso'
-                  ? irLive
-                  : viaje.estado === 'finalizado'
-                    ? irRecorrido
-                    : irConfigurarRecorrido
-              }
+              onPress={viaje.estado === 'en_curso' ? irLive : irConfigurarRecorrido}
               disabled={!puedeEditarPlan && viaje.estado === 'planificado'}
               style={({ pressed }) => [
                 styles.cardRoute,
@@ -910,23 +924,9 @@ export default function ViajeDetalleScreen() {
                 },
               ]}
               accessibilityRole="button"
-              accessibilityLabel={
-                viaje.estado === 'en_curso'
-                  ? 'Ver mapa en vivo'
-                  : viaje.estado === 'finalizado'
-                    ? 'Abrir el mapa del recorrido'
-                    : 'Configurar recorrido'
-              }
+              accessibilityLabel={viaje.estado === 'en_curso' ? 'Ver mapa en vivo' : 'Configurar recorrido'}
             >
-              {viaje.estado === 'finalizado' ? (
-                // Sin gestos propios: el toque abre el recorrido a pantalla completa.
-                <RecorridoMapView
-                  segmentos={recorrido}
-                  cargando={cargandoRecorrido}
-                  altura={180}
-                  interactivo={false}
-                />
-              ) : viaje.estado === 'en_curso' ? (
+              {viaje.estado === 'en_curso' ? (
                 <>
                   <MiniMapaEnCurso
                     viajeId={viajeId}
@@ -969,6 +969,7 @@ export default function ViajeDetalleScreen() {
                 </View>
               )}
             </Pressable>
+            )}
             </PasoAyuda>
 
             {/* SCRUM-27: pronóstico sobre la ruta antes de salir (y durante). */}
@@ -984,11 +985,15 @@ export default function ViajeDetalleScreen() {
               <View style={[styles.statCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                 <Feather name="activity" size={16} color={theme.accent} style={{ marginBottom: 3 }} />
                 <Text style={[styles.statNum, { color: theme.text }]} numberOfLines={1}>
-                  {viaje.ruta?.distancia_planeada_m
-                    ? `${(viaje.ruta.distancia_planeada_m / 1000).toFixed(1).replace('.', ',')} km`
-                    : '--'}
+                  {viaje.estado === 'finalizado'
+                    ? formatKm(distanciaRecorridaM)
+                    : viaje.ruta?.distancia_planeada_m
+                      ? `${(viaje.ruta.distancia_planeada_m / 1000).toFixed(1).replace('.', ',')} km`
+                      : '--'}
                 </Text>
-                <Text style={[styles.statLabel, { color: theme.textDim }]}>Distancia</Text>
+                <Text style={[styles.statLabel, { color: theme.textDim }]}>
+                  {viaje.estado === 'finalizado' ? 'Recorrida' : 'Distancia'}
+                </Text>
               </View>
 
               <Pressable

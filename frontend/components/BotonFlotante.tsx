@@ -112,6 +112,9 @@ export function BotonFlotante({ icono, label, onPress, extendido, visible = true
   if (!visible) return null
 
   const estiloTexto = [styles.texto, { color: theme.onAccent }]
+  // Espacios no separables: aunque el ancho todavía no esté medido, Android no puede
+  // partir la etiqueta en "Nuevo" / "entrenamiento" y mostrar primero solo "Nuevo".
+  const texto = label.replace(/ /g, ' ')
 
   const boton = (
     <Pressable
@@ -141,7 +144,7 @@ export function BotonFlotante({ icono, label, onPress, extendido, visible = true
             numberOfLines={1}
             ellipsizeMode="clip"
           >
-            {label}
+            {texto}
           </Text>
         </Animated.View>
       </Animated.View>
@@ -170,7 +173,7 @@ export function BotonFlotante({ icono, label, onPress, extendido, visible = true
             }
           }}
         >
-          {label}
+          {texto}
         </Text>
       </View>
     </View>
