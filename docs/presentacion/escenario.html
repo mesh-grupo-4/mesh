@@ -9,11 +9,14 @@
   Fondo para proyectar dos celulares espejados con scrcpy.
   Lo abre espejar-celulares.ps1 con los parámetros del layout; también se puede
   abrir solo. Parámetros (query string):
-    izq, rolIzq, der, rolDer   nombres y roles bajo cada celular
+    izq, rolIzq, der, rolDer   nombres (opcionales) y roles bajo cada celular
     celulares=1|2              uno centrado o dos lado a lado (default 2)
     arriba, alto               fracciones de pantalla que ocupan los celulares
     enlace=0                   oculta el indicador "en vivo" del medio
     guia=1                     dibuja dónde quedan los celulares (para ensayar sin ellos)
+    estado=<file url>          script que escribe espejar-celulares.ps1 con meshEstado('dos'|'solo'):
+                               en 'solo' (Ctrl+Alt+1/2 dejó un celular) queda uno centrado,
+                               sin etiquetas ni "en vivo". Para ensayar sin script: tecla S.
   Tecla F: pantalla completa.
 -->
 <style>
@@ -114,6 +117,11 @@
   }
   @keyframes late { 0%, 100% { box-shadow: 0 0 0 0 rgba(79, 180, 119, 0.6); } 50% { box-shadow: 0 0 0 0.8vh rgba(79, 180, 119, 0); } }
 
+  /* Un solo celular (Ctrl+Alt+1/2): centrado, sin etiquetas ni "en vivo". */
+  .etiqueta, .enlace, .halo { transition: opacity .35s ease, left .35s ease; }
+  body.solo .etiqueta, body.solo .enlace, body.solo #halo2 { opacity: 0; }
+  body.solo #halo1 { left: 50vw !important; }
+
   .guia {
     position: fixed; transform: translateX(-50%);
     top: calc(var(--arriba) * 100vh); height: calc(var(--alto) * 100vh);
@@ -168,15 +176,16 @@
   raiz.setProperty('--alto', alto);
 
   const lados = [
-    { etq: 'etq1', halo: 'halo1', nombre: q.get('izq') ?? 'Lucía', rol: q.get('rolIzq') ?? 'Líder' },
-    { etq: 'etq2', halo: 'halo2', nombre: q.get('der') ?? 'Martín', rol: q.get('rolDer') ?? 'Participante' },
+    { etq: 'etq1', halo: 'halo1', nombre: q.get('izq') ?? '', rol: q.get('rolIzq') ?? 'Líder' },
+    { etq: 'etq2', halo: 'halo2', nombre: q.get('der') ?? '', rol: q.get('rolDer') ?? 'Participante' },
   ];
   lados.forEach((l, i) => {
     const etq = document.getElementById(l.etq);
     const halo = document.getElementById(l.halo);
     if (i >= centros.length) { etq.remove(); halo.remove(); return; }
     etq.style.left = halo.style.left = (centros[i] * 100) + 'vw';
-    etq.querySelector('strong').textContent = l.nombre;
+    if (l.nombre) etq.querySelector('strong').textContent = l.nombre;
+    else etq.querySelector('strong').remove();
     const rol = etq.querySelector('.rol');
     if (l.rol) {
       rol.textContent = l.rol;
@@ -208,8 +217,24 @@
   }
   addEventListener('resize', ubicarEnlace);
 
+  // El script avisa si quedó un solo celular: escribe un .js que se vuelve a
+  // cargar cada 400 ms (un file:// no se puede leer con fetch, un <script> sí).
+  function ponerSolo(solo) { document.body.classList.toggle('solo', dos && solo); }
+  window.meshEstado = (modo) => ponerSolo(modo === 'solo');
+  const estado = q.get('estado');
+  if (estado && dos) {
+    setInterval(() => {
+      const s = document.createElement('script');
+      s.src = estado + '?t=' + Date.now();
+      s.onload = s.onerror = () => s.remove();
+      document.head.appendChild(s);
+    }, 400);
+  }
+
   addEventListener('keydown', (e) => {
-    if (e.key.toLowerCase() !== 'f') return;
+    const k = e.key.toLowerCase();
+    if (k === 's' && !estado) { ponerSolo(!document.body.classList.contains('solo')); return; }
+    if (k !== 'f') return;
     if (document.fullscreenElement) document.exitFullscreen();
     else document.documentElement.requestFullscreen();
   });

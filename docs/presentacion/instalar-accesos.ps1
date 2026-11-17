@@ -93,6 +93,8 @@ $aqui = $PSScriptRoot
 $accesos = @(
   @{ Nombre = 'Presentar Mesh por WiFi'; Cmd = 'Presentar por WiFi.cmd';  Icono = 'mesh-wifi.ico';   Id = 'UTN.Mesh.Presentacion.WiFi'
      Descripcion = 'Espeja los celulares por WiFi sobre el fondo de Mesh' },
+  @{ Nombre = 'Presentar Mesh por hotspot del celular'; Cmd = 'Presentar por hotspot del celular.cmd'; Icono = 'mesh-wifi.ico'; Id = 'UTN.Mesh.Presentacion.Hotspot'
+     Descripcion = 'Espeja los celulares por la red del hotspot de un celular (sin prender la zona de la notebook)' },
   @{ Nombre = 'Presentar Mesh por cable'; Cmd = 'Presentar por cable.cmd'; Icono = 'mesh-cable.ico';  Id = 'UTN.Mesh.Presentacion.Cable'
      Descripcion = 'Espeja los celulares enchufados por cable sobre el fondo de Mesh' },
   @{ Nombre = 'Cerrar presentación Mesh'; Cmd = 'Cerrar presentacion.cmd'; Icono = 'mesh-cerrar.ico'; Id = 'UTN.Mesh.Presentacion.Cerrar'

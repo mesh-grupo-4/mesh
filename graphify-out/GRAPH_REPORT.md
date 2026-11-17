@@ -1,12 +1,12 @@
-# Graph Report - D:\TESIS\mesh  (2026-11-16)
+# Graph Report - D:\TESIS\mesh  (2026-11-17)
 
 ## Corpus Check
-- 545 files · ~880,279 words
+- 544 files · ~879,393 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 2815 nodes · 4087 edges · 442 communities detected
-- Extraction: 72% EXTRACTED · 28% INFERRED · 0% AMBIGUOUS · INFERRED: 1127 edges (avg confidence: 0.8)
+- 2809 nodes · 4081 edges · 442 communities detected
+- Extraction: 72% EXTRACTED · 28% INFERRED · 0% AMBIGUOUS · INFERRED: 1126 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Community Hubs (Navigation)
@@ -480,28 +480,28 @@
 ## Communities
 
 ### Community 0 - "Community 0"
+Cohesion: 0.02
+Nodes (101): etiquetaActividad(), guardar(), cargar(), emitir(), marcarAlertasVistas(), persistir(), confirmarEliminarSeleccionados(), ejecutarEliminarBulk() (+93 more)
+
+### Community 1 - "Community 1"
 Cohesion: 0.03
 Nodes (150): cambiarEstadoAlerta(), crearAlerta(), listarAlertas(), buscarUsuariosAmistad(), cancelarSolicitudAmistad(), eliminarAmigo(), listarAmigos(), listarRelacionesAmistad() (+142 more)
 
-### Community 1 - "Community 1"
-Cohesion: 0.02
-Nodes (87): guardar(), cargar(), emitir(), marcarAlertasVistas(), persistir(), arrancarViaje(), avisarSiOtroViajeEnCurso(), guardar() (+79 more)
-
 ### Community 2 - "Community 2"
 Cohesion: 0.03
-Nodes (38): esMotorizado(), columnasGpsExtra(), FantasmaService, interpolarRitmoConstante(), nombreDe(), assertLineString(), filtrosGpsPorActividad(), velocidadImplicitaKmh() (+30 more)
+Nodes (42): esMotorizado(), toleranciaAtrasoEfectiva(), columnasGpsExtra(), extraerDatosGpsExtra(), finito(), FantasmaService, interpolarRitmoConstante(), nombreDe() (+34 more)
 
 ### Community 3 - "Community 3"
-Cohesion: 0.03
-Nodes (49): etiquetaActividad(), confirmarEliminarSeleccionados(), ejecutarEliminarBulk(), ejecutarSolicitud(), resolveBackendUserId(), bulkDeleteSummary(), formatItemList(), runBulkDelete() (+41 more)
-
-### Community 4 - "Community 4"
 Cohesion: 0.04
 Nodes (43): conMetrica(), enArg(), fechaDe(), lunesDe(), mesesRecientes(), semanasRecientes(), totalesPorActividad(), atrasoMetros() (+35 more)
 
-### Community 5 - "Community 5"
+### Community 4 - "Community 4"
 Cohesion: 0.03
 Nodes (50): ActividadGrid(), useListadoAdmin(), AparienciaScreen(), useTemaAyuda(), CampanitaNotificaciones(), fmtNum(), fmtPct(), Leyenda() (+42 more)
+
+### Community 5 - "Community 5"
+Cohesion: 0.02
+Nodes (89): API de tiempo real — Socket.io, Autenticación del handshake, Conexión, CORS, Escala, Eventos del cliente al servidor, Eventos del servidor al cliente, `join_viaje` (+81 more)
 
 ### Community 6 - "Community 6"
 Cohesion: 0.03
@@ -512,44 +512,44 @@ Cohesion: 0.04
 Nodes (54): confirmar(), elegirResultado(), formatDistanceKm(), haversineDistanceM(), toRad(), distanciaHastaLugar(), handleCenterOnMe(), irALugar() (+46 more)
 
 ### Community 8 - "Community 8"
-Cohesion: 0.05
-Nodes (56): actividadInicialDesdePerfil(), actividadValida(), parametrosPorActividad(), textoParametrosActividad(), textoSeparacion(), toleranciaAtrasoEfectiva(), enParalelo(), filasRuta() (+48 more)
+Cohesion: 0.06
+Nodes (55): actividadInicialDesdePerfil(), actividadValida(), parametrosPorActividad(), textoParametrosActividad(), textoSeparacion(), enParalelo(), filasRuta(), momento() (+47 more)
 
 ### Community 9 - "Community 9"
 Cohesion: 0.03
 Nodes (65): 1. Spec-first modular, no generación desde el código, 2. Un test de contrato como garantía, no la disciplina del equipo, 3. El spec bundleado viaja como JSON dentro de `src/`, 4. Los WebSockets se documentan en Markdown, 5. Contrato de errores uniforme, ADR — Documentación de la API: spec-first con test de contrato, Alternativas descartadas, Consecuencias (+57 more)
 
 ### Community 10 - "Community 10"
-Cohesion: 0.03
-Nodes (69): API de tiempo real — Socket.io, Autenticación del handshake, Conexión, CORS, Escala, Eventos del cliente al servidor, Eventos del servidor al cliente, `join_viaje` (+61 more)
-
-### Community 11 - "Community 11"
 Cohesion: 0.05
 Nodes (17): carpetaDe(), FotosGrupoService, carpetaFotoRecorrido(), FotosRecorridoService, aResumen(), esUniqueViolation(), RecorridosPublicadosService, resumenValoracion() (+9 more)
 
+### Community 11 - "Community 11"
+Cohesion: 0.05
+Nodes (11): AdminService, codigoDuplicado(), desconectarSockets(), esViolacionUnique(), filtroTexto(), insigniaOtorgada(), paginar(), viajeAnonimo() (+3 more)
+
 ### Community 12 - "Community 12"
-Cohesion: 0.07
-Nodes (16): AlertasService, nombreDe(), mensajeAlertaVisible(), metaTipoAlerta(), usuarioAfectadoDesdeMensaje(), useAlertasVistas(), AlertMarker(), alertMarkerKey() (+8 more)
+Cohesion: 0.05
+Nodes (35): dequeueGpsSample(), enqueueCheckIn(), enqueueGpsSample(), flushCheckIns(), flushGpsQueue(), migrarColumnasExtra(), openDb(), sumarseAlViaje() (+27 more)
 
 ### Community 13 - "Community 13"
 Cohesion: 0.03
 Nodes (58): 10. Glosario, 11. Metodología de Desarrollo, 12. Competencia y Diferenciación, 1.1 Público objetivo, 1.2 Actores del sistema, 1. ¿Qué es Mesh?, 2.10 Reglas de Asistencia IA, 2.11 Reglas de Información de Ruta Externa (+50 more)
 
 ### Community 14 - "Community 14"
+Cohesion: 0.09
+Nodes (11): AlertasService, nombreDe(), usuarioAfectadoDesdeMensaje(), useAlertasVistas(), sendExpoPush(), afectadoPorIncidente(), duracionSeg(), nombreDe() (+3 more)
+
+### Community 15 - "Community 15"
 Cohesion: 0.07
 Nodes (43): actualizarInsigniaAdmin(), cambiarRolSistemaAdmin(), crearInsigniaAdmin(), definirChecklistActividadAdmin(), eliminarGrupoAdmin(), eliminarInsigniaAdmin(), eliminarUsuarioAdmin(), eliminarViajeAdmin() (+35 more)
 
-### Community 15 - "Community 15"
+### Community 16 - "Community 16"
 Cohesion: 0.06
 Nodes (20): obtenerRelacion(), extractBearerToken(), socketRequireUser(), InsigniasService, assertPuedeVerLogros(), puedeVerLogros(), sonAmigos(), calcularRachaVigente() (+12 more)
 
-### Community 16 - "Community 16"
+### Community 17 - "Community 17"
 Cohesion: 0.05
 Nodes (15): avColor(), byId(), fechaCorta(), fechaLarga(), fullName(), hora(), initials(), LiveScreen() (+7 more)
-
-### Community 17 - "Community 17"
-Cohesion: 0.04
-Nodes (45): 1. Seguridad vial — RN-070 (IRREVOCABLE), 2. Offline-first — RN-038, 3. Autorización en backend — RN-030, 4. Dos roles, sin excepciones — RN-011, 5. Secretos y `.env`, 6. Mocks y datos ficticios, 7. Documentación Swagger/OpenAPI obligatoria (backend), Actores del sistema (+37 more)
 
 ### Community 18 - "Community 18"
 Cohesion: 0.09
@@ -560,36 +560,36 @@ Cohesion: 0.14
 Nodes (26): armarMatrizCohortes(), clavesSerie(), completarSerie(), diaArg(), granularidadPorDefecto(), inicioBalde(), inicioDiaArg(), kpi() (+18 more)
 
 ### Community 20 - "Community 20"
-Cohesion: 0.08
-Nodes (14): displayNombre(), loadProfile(), mergeBackendProfile(), profileKey(), saveProfile(), calcularLiquidacion(), GastosService, nombreDe() (+6 more)
+Cohesion: 0.07
+Nodes (22): authHeaders(), bearerAuthHeaders(), getFirebaseIdToken(), MeshApiError, displayNombre(), loadProfile(), mergeBackendProfile(), profileKey() (+14 more)
 
 ### Community 21 - "Community 21"
-Cohesion: 0.07
-Nodes (8): AdminService, codigoDuplicado(), desconectarSockets(), esViolacionUnique(), filtroTexto(), insigniaOtorgada(), paginar(), viajeAnonimo()
-
-### Community 22 - "Community 22"
 Cohesion: 0.08
 Nodes (22): conComaDecimal(), conPuntoDeMiles(), enmascararMonto(), formatDeltaKm(), formatDurationHm(), formatHoraCorta(), formatHorasTotal(), formatKm() (+14 more)
 
-### Community 23 - "Community 23"
-Cohesion: 0.09
-Nodes (15): authHeaders(), bearerAuthHeaders(), getFirebaseIdToken(), MeshApiError, useAuth(), aplicarToken(), connectMeshSocket(), esperarOSeguirIntentando() (+7 more)
-
-### Community 24 - "Community 24"
+### Community 22 - "Community 22"
 Cohesion: 0.11
 Nodes (1): GruposService
 
-### Community 25 - "Community 25"
+### Community 23 - "Community 23"
 Cohesion: 0.07
 Nodes (26): Advertencias críticas, Agregar imports necesarios, Ampliar `cargar()` para cargar stats en paralelo, Archivos a modificar (en orden de dependencia), Cambio conceptual, Componente `ViajeCard` (inline en el archivo), Estado local necesario, Estructura del componente (+18 more)
 
-### Community 26 - "Community 26"
+### Community 24 - "Community 24"
+Cohesion: 0.08
+Nodes (25): Autenticación, Comandos, Comandos, Comandos correctos, Contrato de errores, Convenciones, Cómo se mantiene sincronizada, Documentación de la API (+17 more)
+
+### Community 25 - "Community 25"
 Cohesion: 0.12
 Nodes (10): EntrenamientosService, paceMinKm(), assertOk(), calcularConGoogle(), calcularConOsrm(), calcularConValhalla(), distanciaHaversineKm(), fetchConTimeout() (+2 more)
 
+### Community 26 - "Community 26"
+Cohesion: 0.23
+Nodes (4): calcularLiquidacion(), GastosService, nombreDe(), round2()
+
 ### Community 27 - "Community 27"
-Cohesion: 0.22
-Nodes (2): ChecklistService, itemsSugeridos()
+Cohesion: 0.18
+Nodes (12): emitir(), refrescarPendientes(), setInvitacionesPendientesCount(), setSolicitudesPendientesCount(), subscribe(), getSupabase(), isSupabaseConfigured(), channelName() (+4 more)
 
 ### Community 28 - "Community 28"
 Cohesion: 0.11
@@ -616,92 +616,92 @@ Cohesion: 0.14
 Nodes (6): buildRoutePointsPayload(), linestringToLatLng(), toPutRutaBody(), waypointsFromRutaDetalle(), waypointTieneCoords(), snapshotToMap()
 
 ### Community 34 - "Community 34"
-Cohesion: 0.22
-Nodes (13): extraerDatosGpsExtra(), finito(), dequeueGpsSample(), enqueueCheckIn(), enqueueGpsSample(), flushCheckIns(), flushGpsQueue(), migrarColumnasExtra() (+5 more)
-
-### Community 35 - "Community 35"
 Cohesion: 0.26
 Nodes (1): GeocodingService
 
-### Community 36 - "Community 36"
+### Community 35 - "Community 35"
 Cohesion: 0.14
 Nodes (4): uiConfigPorActividad(), CercaMioButton(), feedbackEvento(), vibracionAvisosActiva()
 
-### Community 37 - "Community 37"
+### Community 36 - "Community 36"
 Cohesion: 0.21
 Nodes (8): aCsv(), compartirCsv(), pct(), tablasAdopcion(), tablasCrecimiento(), tablasResumen(), tablasSeguridad(), tablasViajes()
 
-### Community 38 - "Community 38"
-Cohesion: 0.17
-Nodes (5): navigateCrear(), NuevoViajeScreen(), abrirNuevoEntrenamiento(), abrirNuevoViaje(), paramTexto()
-
-### Community 39 - "Community 39"
+### Community 37 - "Community 37"
 Cohesion: 0.29
 Nodes (7): avance(), bordeDerechoM(), cabeza(), centroM(), escalaM(), salida(), suave()
 
-### Community 40 - "Community 40"
+### Community 38 - "Community 38"
 Cohesion: 0.24
 Nodes (7): armar(), armarFirebase(), armarPrisma(), correr(), fila(), horasAtras(), requireSuperadmin()
 
-### Community 41 - "Community 41"
+### Community 39 - "Community 39"
 Cohesion: 0.18
 Nodes (0): 
 
-### Community 42 - "Community 42"
+### Community 40 - "Community 40"
 Cohesion: 0.28
 Nodes (5): SelectorTema(), aplicar(), cargarPreferenciaTema(), elegirPreferenciaTema(), usePreferenciaTema()
 
-### Community 43 - "Community 43"
+### Community 41 - "Community 41"
 Cohesion: 0.22
 Nodes (8): Archivos clave, Autorización, Cierre del viaje (E04/E06), División de canales, Evento TRIP_STARTED, Fuera de alcance (este ticket), Monitoreo en vivo (E04), Tiempo real — Inicio de viaje y monitoreo GPS
 
-### Community 44 - "Community 44"
+### Community 42 - "Community 42"
 Cohesion: 0.43
 Nodes (2): LugaresService, simplificarTrazado()
 
-### Community 45 - "Community 45"
+### Community 43 - "Community 43"
 Cohesion: 0.46
 Nodes (6): hostFromApiUrl(), hostFromMetroBundle(), hostFromUri(), isValidLanHost(), resolveApiBaseUrl(), resolveExpoDevHost()
 
-### Community 46 - "Community 46"
+### Community 44 - "Community 44"
 Cohesion: 0.29
 Nodes (0): 
 
-### Community 47 - "Community 47"
+### Community 45 - "Community 45"
 Cohesion: 0.33
 Nodes (2): armarGrupal(), armarPrisma()
 
-### Community 48 - "Community 48"
+### Community 46 - "Community 46"
 Cohesion: 0.29
 Nodes (2): colorFromName(), rumboColor()
 
-### Community 49 - "Community 49"
+### Community 47 - "Community 47"
+Cohesion: 0.33
+Nodes (4): NuevoViajeScreen(), abrirNuevoEntrenamiento(), abrirNuevoViaje(), paramTexto()
+
+### Community 48 - "Community 48"
 Cohesion: 0.29
 Nodes (0): 
 
-### Community 50 - "Community 50"
+### Community 49 - "Community 49"
 Cohesion: 0.4
 Nodes (2): aPlantillaOpenApi(), rutasReales()
 
-### Community 51 - "Community 51"
+### Community 50 - "Community 50"
 Cohesion: 0.33
 Nodes (2): armar(), crearPrismaFake()
 
-### Community 52 - "Community 52"
+### Community 51 - "Community 51"
 Cohesion: 0.33
 Nodes (1): AbortErrorFalso
 
-### Community 53 - "Community 53"
+### Community 52 - "Community 52"
 Cohesion: 0.33
 Nodes (1): MainActivity
 
-### Community 54 - "Community 54"
+### Community 53 - "Community 53"
 Cohesion: 0.33
 Nodes (0): 
 
-### Community 55 - "Community 55"
+### Community 54 - "Community 54"
 Cohesion: 0.33
 Nodes (2): PasoAyuda(), useRegistroScrollAyuda()
+
+### Community 55 - "Community 55"
+Cohesion: 0.47
+Nodes (5): mensajeAlertaVisible(), metaTipoAlerta(), AlertMarker(), alertMarkerKey(), alertMarkerPopup()
 
 ### Community 56 - "Community 56"
 Cohesion: 0.33
@@ -2870,12 +2870,12 @@ Nodes (1): ref_http
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `get()` connect `Community 4` to `Community 0`, `Community 1`, `Community 2`, `Community 34`, `Community 5`, `Community 7`, `Community 8`, `Community 11`, `Community 15`, `Community 19`, `Community 20`, `Community 24`, `Community 29`?**
-  _High betweenness centrality (0.150) - this node is a cross-community bridge._
-- **Why does `generarRelleno()` connect `Community 8` to `Community 2`, `Community 4`, `Community 6`, `Community 19`, `Community 20`, `Community 27`?**
-  _High betweenness centrality (0.057) - this node is a cross-community bridge._
-- **Why does `meshAlert()` connect `Community 1` to `Community 3`, `Community 14`, `Community 6`?**
-  _High betweenness centrality (0.048) - this node is a cross-community bridge._
+- **Why does `get()` connect `Community 3` to `Community 0`, `Community 1`, `Community 2`, `Community 4`, `Community 7`, `Community 8`, `Community 10`, `Community 12`, `Community 16`, `Community 19`, `Community 22`, `Community 26`, `Community 29`?**
+  _High betweenness centrality (0.128) - this node is a cross-community bridge._
+- **Why does `meshAlert()` connect `Community 0` to `Community 12`, `Community 6`, `Community 15`?**
+  _High betweenness centrality (0.054) - this node is a cross-community bridge._
+- **Why does `generarRelleno()` connect `Community 8` to `Community 2`, `Community 3`, `Community 6`, `Community 11`, `Community 19`?**
+  _High betweenness centrality (0.047) - this node is a cross-community bridge._
 - **Are the 134 inferred relationships involving `meshFetchAuthed()` (e.g. with `get()` and `enviar()`) actually correct?**
   _`meshFetchAuthed()` has 134 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 134 inferred relationships involving `apiUrl()` (e.g. with `get()` and `enviar()`) actually correct?**

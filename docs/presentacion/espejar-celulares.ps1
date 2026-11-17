@@ -20,23 +20,26 @@
     Ctrl+Alt+I  invertir lados              Ctrl+Alt+C  mostrar/ocultar consola
     Ctrl+Alt+1  quitar / volver a conectar el celular de la izquierda
     Ctrl+Alt+2  quitar / volver a conectar el celular de la derecha
+                (el que queda se centra, sin etiquetas ni indicador "en vivo")
     Ctrl+Alt+Q  finalizar: se van los celulares y se forma el logo de Mesh
                 (cierre.html). Queda ahí hasta otro Ctrl+Alt+Q: Mesh se va
                 andando y se cierra todo.
 
 .EXAMPLE
-  .\espejar-celulares.ps1
+  .\espejar-celulares.ps1                 # etiquetas: Líder | Participante, sin nombres
 .EXAMPLE
-  .\espejar-celulares.ps1 -Izquierda "Sofía" -RolIzquierda "Líder" -Derecha "Martín" -RolDerecha "Participante"
+  .\espejar-celulares.ps1 -Izquierda "Sofía" -Derecha "Martín"   # agrega nombres a las etiquetas
 .EXAMPLE
   .\espejar-celulares.ps1 -Wifi           # después se pueden desenchufar los cables
+.EXAMPLE
+  .\espejar-celulares.ps1 -Wifi -Liviano  # por el hotspot de un celular (video a 1024 px y 4 Mbps)
 .EXAMPLE
   .\espejar-celulares.ps1 -Cerrar         # cierra una presentación abierta (lo usa "Cerrar presentacion.cmd")
 #>
 param(
-  [string]$Izquierda = 'Lucía',
+  [string]$Izquierda = '',            # nombres opcionales: sin ellos solo se ve el rol
   [string]$RolIzquierda = 'Líder',
-  [string]$Derecha = 'Martín',
+  [string]$Derecha = '',
   [string]$RolDerecha = 'Participante',
   [string[]]$Serials,
   [switch]$Invertir,
@@ -46,6 +49,7 @@ param(
   [switch]$ConBordes,
   [switch]$SinPreparar,
   [switch]$Cerrar,
+  [switch]$Liviano,     # video más liviano: para redes cargadas, como el hotspot de un celular
   [string]$Paquete = 'com.frangiorda1.frontend',
   [int]$Pantalla = -1
 )
@@ -138,6 +142,7 @@ $archivoWifi = Join-Path $logs 'wifi.txt'          # direcciones WiFi de la últ
 $archivoDnd = Join-Path $logs 'no-molestar.txt'    # modo No molestar previo de cada celular
 $archivoCerrar = Join-Path $logs 'cerrar.pedido'   # lo crea -Cerrar para pedir el cierre
 $archivoZona = Join-Path $logs 'zona-iniciada'     # existe si la zona la prendió este script
+$archivoEstado = Join-Path $logs 'escenario-estado.js'   # lo lee escenario.html: dos celulares o uno solo
 
 # --- scrcpy y adb ------------------------------------------------------------
 function Buscar-Ejecutable([string]$nombre) {
@@ -649,15 +654,18 @@ for ($i = 0; $i -lt $celulares.Count; $i++) {
   $c = $celulares[$i]
   $espejos += [pscustomobject]@{
     Indice = $i; Serial = $c.Serial; Modelo = $c.Modelo; Ancho = $c.Ancho; Alto = $c.Alto
-    Nombre = $etiquetas[$i].Nombre; Centro = $centros[$i]
+    Nombre = $etiquetas[$i].Nombre; Centro = $centros[$i]; CentroBase = $centros[$i]
     X = 0; Y = 0; AnchoVentana = 0; AltoVentana = 0
     Proceso = $null; Hwnd = [IntPtr]::Zero; Log = $null
     ProximoIntento = [datetime]::MinValue; Caido = $false
     Pausado = $false   # quitado con Ctrl+Alt+1/2: no se reconecta solo
+    Volviendo = $false # reconectado con Ctrl+Alt+1/2: vuelve al layout de dos cuando aparece
   }
+  if (-not $espejos[$i].Nombre) { $espejos[$i].Nombre = $etiquetas[$i].Rol }
+  if (-not $espejos[$i].Nombre) { $espejos[$i].Nombre = "celular $($i + 1)" }
   $lado = 'centro'
   if ($celulares.Count -eq 2) { if ($i -eq 0) { $lado = 'izquierda' } else { $lado = 'derecha' } }
-  Write-Host ("  {0,-10} {1} ({2}) -> {3}" -f $lado, $c.Modelo, $c.Serial, $etiquetas[$i].Nombre)
+  Write-Host ("  {0,-10} {1} ({2}) -> {3}" -f $lado, $c.Modelo, $c.Serial, $espejos[$i].Nombre)
 }
 
 function Calcular-Lugar($v) {
@@ -677,8 +685,13 @@ function Lanzar-Espejo($v) {
     "--window-title=`"Mesh - $($v.Nombre)`"",
     '--stay-awake', '--show-touches', '--no-audio',
     '--disable-screensaver', '--screen-off-timeout=1800',
-    '--max-size=1920', '--video-bit-rate=8M', '--max-fps=60'
+    '--max-fps=60'
   )
+  # En pantalla cada celular ocupa ~0,74 del alto (unos 890 px en 1200): con 1024
+  # no se pierde nada visible y se manda la mitad. Por el hotspot de un celular el
+  # video del otro cruza el aire dos veces, así que conviene.
+  if ($Liviano) { $argsScrcpy += '--max-size=1024', '--video-bit-rate=4M' }
+  else { $argsScrcpy += '--max-size=1920', '--video-bit-rate=8M' }
   if (-not $ConBordes) { $argsScrcpy += '--window-borderless' }
   # Un log por lanzamiento: el de un espejo recién cerrado puede seguir tomado.
   $v.Log = Join-Path $logs ("scrcpy-{0}-{1:HHmmss}.log" -f $v.Indice, (Get-Date))
@@ -695,6 +708,7 @@ function Buscar-Ventana($v) {
     Write-Host "  Reconectado: $($v.Nombre) ($($v.Modelo))." -ForegroundColor Green
     $v.Caido = $false
   }
+  $v.Volviendo = $false
 }
 
 function Espejo-Vivo($v) {
@@ -815,13 +829,38 @@ function Reconectar-Todo {
 
 function Invertir-Lados {
   if ($espejos.Count -ne 2) { return }
-  $centro = $espejos[0].Centro; $espejos[0].Centro = $espejos[1].Centro; $espejos[1].Centro = $centro
+  $centro = $espejos[0].CentroBase; $espejos[0].CentroBase = $espejos[1].CentroBase; $espejos[1].CentroBase = $centro
   $nombre = $espejos[0].Nombre; $espejos[0].Nombre = $espejos[1].Nombre; $espejos[1].Nombre = $nombre
   foreach ($v in $espejos) {
-    Calcular-Lugar $v
     if (Espejo-Vivo $v) { [MeshVentana]::SetWindowText($v.Hwnd, "Mesh - $($v.Nombre)") | Out-Null }
   }
+  Actualizar-Disposicion -Forzar
   Mostrar-Celulares
+}
+
+# Con dos celulares en la presentación van en sus lados; si con Ctrl+Alt+1/2 queda
+# uno solo, va al centro y el escenario saca las etiquetas y el "en vivo". El que
+# se está reconectando cuenta recién cuando aparece su ventana, para que el otro
+# no se corra antes de tiempo. Un corte de conexión (Caido) no cambia el layout.
+$disposicionSolo = $false
+function Actualizar-Disposicion([switch]$Forzar) {
+  if ($espejos.Count -ne 2) { return }
+  $enEscena = @($espejos | Where-Object { -not $_.Pausado -and -not $_.Volviendo })
+  $solo = $enEscena.Count -lt 2
+  if ($solo -eq $script:disposicionSolo -and -not $Forzar) { return }
+  $script:disposicionSolo = $solo
+  foreach ($v in $espejos) {
+    $v.Centro = $v.CentroBase
+    if ($solo -and $enEscena.Count -eq 1 -and $enEscena[0].Indice -eq $v.Indice) { $v.Centro = 0.5 }
+    Calcular-Lugar $v
+  }
+  Escribir-Estado-Escenario
+}
+
+function Escribir-Estado-Escenario {
+  $modo = 'dos'
+  if ($script:disposicionSolo) { $modo = 'solo' }
+  try { Set-Content -Path $archivoEstado -Value "meshEstado('$modo');" -Encoding ASCII } catch { }
 }
 
 function Alternar-Consola {
@@ -838,11 +877,12 @@ function Alternar-Consola {
 # afuera, lo vuelve a conectar. $lado: 0 izquierda, 1 derecha, según dónde está
 # ahora (Invertir lados los cambia). Con un solo celular, el 0 es el del centro.
 function Alternar-Celular([int]$lado) {
-  $ordenados = @($espejos | Sort-Object Centro)
+  $ordenados = @($espejos | Sort-Object CentroBase)
   if ($lado -ge $ordenados.Count) { return }
   $v = $ordenados[$lado]
   if ($v.Pausado) {
     $v.Pausado = $false
+    $v.Volviendo = $true                      # el otro sigue al centro hasta que aparezca
     $v.Caido = $true                          # así avisa "Reconectado" cuando vuelve
     $v.ProximoIntento = [datetime]::MinValue  # el vigilante lo reintenta ya
     Write-Host "  Volviendo a conectar a $($v.Nombre) ($($v.Modelo))..." -ForegroundColor Cyan
@@ -850,6 +890,7 @@ function Alternar-Celular([int]$lado) {
     $v.Pausado = $true
     if ($v.Proceso -and -not $v.Proceso.HasExited) { Stop-Process -Id $v.Proceso.Id -Force -ErrorAction SilentlyContinue }
     $v.Hwnd = [IntPtr]::Zero
+    $v.Volviendo = $false
     $atajo = $lado + 1
     Write-Host "  Quité a $($v.Nombre) ($($v.Modelo)). Ctrl+Alt+$atajo para volver a conectarlo." -ForegroundColor Cyan
   }
@@ -920,6 +961,7 @@ function Vigilar {
     if (-not $v.Proceso -or $v.Proceso.HasExited) { $v.Hwnd = [IntPtr]::Zero; Reintentar $v; continue }
     if ($v.Hwnd -eq [IntPtr]::Zero) { Buscar-Ventana $v }
   }
+  Actualizar-Disposicion
 
   if (-not $SinEscenario -and $hwndEscenario -eq [IntPtr]::Zero -and (Get-Date) -ge $script:proximoEscenario) {
     Buscar-Escenario
@@ -960,7 +1002,9 @@ try {
         izq = $etiquetas[0].Nombre; rolIzq = $etiquetas[0].Rol
         der = $etiquetas[1].Nombre; rolDer = $etiquetas[1].Rol
         arriba = $FRACCION_ARRIBA; alto = $FRACCION_ALTO; celulares = $celulares.Count
+        estado = ([uri]$archivoEstado).AbsoluteUri
       }
+      Escribir-Estado-Escenario
       $query = ($q.GetEnumerator() | ForEach-Object {
         '{0}={1}' -f $_.Key, [uri]::EscapeDataString(([string]$_.Value).Replace(',', '.'))
       }) -join '&'
