@@ -15,7 +15,9 @@ import Constants from 'expo-constants';
 import { resolveBackendUserId } from '@/lib/apiClient';
 import { listarSolicitudesAmistadPendientes } from '@/lib/amistadesApi';
 import { listarMisInsignias, type InsigniaObtenidaApi } from '@/lib/insigniasApi';
-import { intensidadRacha, nivelRacha, obtenerMiRacha, type RachaApi } from '@/lib/rachasApi';
+import { obtenerMiRacha, type RachaApi } from '@/lib/rachasApi';
+import { listarViajesFinalizados, obtenerEstadisticasUsuario, type EstadisticasUsuarioApi, type ViajeFinalizadoApi } from '@/lib/viajesApi';
+import { semanasRecientes } from '@/lib/actividadPersonal';
 import { usePreferenciaTema } from '@/lib/temaApp';
 import { elegirVibracionAvisos, useVibracionAvisos } from '@/lib/vibracionPrefs';
 import { Avatar, TopBar, useTheme } from '@/components/MeshUI';
@@ -26,15 +28,14 @@ import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda'
 import { AYUDA_PERFIL } from '@/components/ayuda/contenidoAyuda';
 import { FilaOpcion } from '@/components/perfil/FilaOpcion';
 import { FondoMesh, FundidoMesh } from '@/components/perfil/FondoMesh';
-import { FueguitosRacha } from '@/components/perfil/FueguitosRacha';
 import { DetalleInsigniaModal } from '@/components/perfil/DetalleInsigniaModal';
 import { InsigniaChip, ordenarPorRareza } from '@/components/perfil/InsigniaChip';
+import { ResumenActividad } from '@/components/perfil/ResumenActividad';
 import { TarjetaRacha } from '@/components/perfil/TarjetaRacha';
 import { etiquetaTema } from '@/components/SelectorTema';
 import { Feather } from '@expo/vector-icons';
 
 const ALTO_FONDO = 460;
-const ALTO_FUEGUITOS = 340;
 
 export default function PerfilScreen() {
   const espacioTabBar = useEspacioTabBar()
@@ -49,8 +50,9 @@ export default function PerfilScreen() {
   const [cargandoInsignias, setCargandoInsignias] = useState(true);
   const [racha, setRacha] = useState<RachaApi | null>(null);
   const [cargandoRacha, setCargandoRacha] = useState(true);
-  // Cambia cada vez que llega la racha al entrar: remonta los fueguitos y repite la ráfaga.
-  const [rafagaFueguitos, setRafagaFueguitos] = useState(0);
+  // `null` = cargando o sin conexión: el resumen muestra "–" en vez de un cero falso.
+  const [estadisticas, setEstadisticas] = useState<EstadisticasUsuarioApi | null>(null);
+  const [finalizados, setFinalizados] = useState<ViajeFinalizadoApi[] | null>(null);
   const [insigniaAbierta, setInsigniaAbierta] = useState<InsigniaObtenidaApi | null>(null);
 
   const cargarInsignias = useCallback(async () => {
@@ -82,12 +84,27 @@ export default function PerfilScreen() {
     setCargandoRacha(true);
     try {
       setRacha(await obtenerMiRacha());
-      setRafagaFueguitos((n) => n + 1);
     } catch {
       setRacha(null);
     } finally {
       setCargandoRacha(false);
     }
+  }, [backendUserId]);
+
+  const cargarActividad = useCallback(async () => {
+    let userId: string;
+    try {
+      userId = resolveBackendUserId(backendUserId);
+    } catch {
+      return;
+    }
+    const [stats, viajes] = await Promise.all([
+      obtenerEstadisticasUsuario(userId).catch(() => null),
+      listarViajesFinalizados(userId).catch(() => null),
+    ]);
+    // Si falla la red se conserva lo último que se cargó.
+    if (stats) setEstadisticas(stats);
+    if (viajes) setFinalizados(viajes);
   }, [backendUserId]);
 
   const cargarSolicitudes = useCallback(async () => {
@@ -107,7 +124,8 @@ export default function PerfilScreen() {
       void cargarSolicitudes();
       void cargarInsignias();
       void cargarRacha();
-    }, [cargarSolicitudes, cargarInsignias, cargarRacha])
+      void cargarActividad();
+    }, [cargarSolicitudes, cargarInsignias, cargarRacha, cargarActividad])
   );
 
   const cerrarSesion = () => {
@@ -136,9 +154,7 @@ export default function PerfilScreen() {
     foto: profile?.photoUri,
   };
 
-  const semanasRacha = racha?.semanas_consecutivas ?? 0;
   const [scrolleado, setScrolleado] = useState(false);
-  const nivel = nivelRacha(semanasRacha);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -155,7 +171,7 @@ export default function PerfilScreen() {
           color={theme.text}
           alto={ALTO_FONDO}
           colorRacha={theme.fire}
-          intensidadRacha={intensidadRacha(semanasRacha)}
+          intensidadRacha={0}
           animado
         />
 
@@ -192,12 +208,7 @@ export default function PerfilScreen() {
           <View style={styles.fundido}>
             <FundidoMesh color={theme.background} />
           </View>
-          <Avatar
-            person={persona}
-            size="xl"
-            ring={nivel >= 2}
-            style={nivel >= 2 ? { borderColor: theme.fire } : undefined}
-          />
+          <Avatar person={persona} size="xl" />
           <Text style={[styles.nombre, { color: theme.text }]} numberOfLines={1}>
             {nombreCompleto(profile?.nombre, profile?.apellido) || user?.displayName || 'Cargando...'}
           </Text>
@@ -208,13 +219,26 @@ export default function PerfilScreen() {
 
         <View style={[styles.cuerpo, { backgroundColor: theme.background, paddingBottom: espacioTabBar }]}>
           <View style={styles.resumen}>
+            <PasoAyuda {...AYUDA_PERFIL[1]!}>
+              <ResumenActividad
+                viajes={estadisticas?.viajes_finalizados ?? null}
+                metros={estadisticas?.distancia_total_m ?? null}
+                segundos={estadisticas?.tiempo_total_seg ?? null}
+                onPress={() => router.push('/estadisticas')}
+              />
+            </PasoAyuda>
+
             {/* Racha (RN-075, E09) */}
             <View style={styles.section}>
               <Text style={[styles.eyebrow, { color: theme.textDim }]}>RACHA</Text>
               {cargandoRacha ? (
                 <Text style={[styles.insigniasVacio, { color: theme.textMute }]}>Cargando...</Text>
               ) : (
-                <TarjetaRacha racha={racha} propia />
+                <TarjetaRacha
+                  racha={racha}
+                  propia
+                  semanas={finalizados ? semanasRecientes(finalizados, new Date()) : undefined}
+                />
               )}
             </View>
 
@@ -241,14 +265,6 @@ export default function PerfilScreen() {
             </View>
           </View>
 
-          <PasoAyuda {...AYUDA_PERFIL[1]!}>
-            <FilaOpcion
-              icono="bar-chart"
-              titulo="Estadísticas"
-              subtitulo="Viajes, grupos, amigos y kilómetros"
-              onPress={() => router.push('/estadisticas')}
-            />
-          </PasoAyuda>
           <FilaOpcion
             icono="users"
             titulo="Mis amigos"
@@ -316,10 +332,6 @@ export default function PerfilScreen() {
       </ScrollViewAyuda>
 
       <FranjaEstado visible={scrolleado} />
-
-      {rafagaFueguitos > 0 ? (
-        <FueguitosRacha key={rafagaFueguitos} semanas={semanasRacha} alto={ALTO_FUEGUITOS} />
-      ) : null}
 
       <DetalleInsigniaModal insignia={insigniaAbierta} onClose={() => setInsigniaAbierta(null)} />
     </View>

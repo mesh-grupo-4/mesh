@@ -337,6 +337,9 @@ export class ParadasService {
     }
 
     this.emitirIncidenteCerrado(viajeId, parada, fin)
+    // El grupo recibió el push del posible incidente: se entera de que está bien.
+    const nombre = nombreDe(parada.usuario)
+    void this.notificarGrupo(viajeId, usuarioId, 'Está bien', `${nombre} confirmó que está bien.`)
     return this.mapParada(parada)
   }
 

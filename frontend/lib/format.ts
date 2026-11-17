@@ -133,3 +133,21 @@ export function parseMonto(texto: string): number | null {
 export function montoParaEditar(monto: number): string {
   return formatMonto(monto).replace('$', '')
 }
+
+/**
+ * Distancia acumulada con unidad, para totales: "0 km", "8,4 km", "120 km", "1.240 km".
+ * A diferencia de `formatKmCompact`, nunca abrevia con "k" (se confundía con la unidad).
+ */
+export function formatKmTotal(metros: number): string {
+  const km = metros / 1000
+  if (km === 0) return '0 km'
+  if (km < 10) return `${conComaDecimal(km)} km`
+  return `${conPuntoDeMiles(String(Math.round(km)))} km`
+}
+
+/** Tiempo acumulado legible: "35m", "4h 20m"; desde 10 h solo horas ("48 h"). */
+export function formatHorasTotal(segundos: number): string {
+  if (segundos <= 0) return '0 h'
+  if (segundos < 10 * 3600) return formatDurationHm(segundos)
+  return `${conPuntoDeMiles(String(Math.round(segundos / 3600)))} h`
+}

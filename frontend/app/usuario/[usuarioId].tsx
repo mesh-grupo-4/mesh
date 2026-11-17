@@ -6,8 +6,8 @@ import { Feather } from '@expo/vector-icons';
 import { ActivityTile, Avatar, TopBar, useTheme } from '@/components/MeshUI';
 import { DetalleInsigniaModal } from '@/components/perfil/DetalleInsigniaModal';
 import { FondoMesh, FundidoMesh } from '@/components/perfil/FondoMesh';
-import { FueguitosRacha } from '@/components/perfil/FueguitosRacha';
 import { InsigniaChip, ordenarPorRareza } from '@/components/perfil/InsigniaChip';
+import { ResumenActividad } from '@/components/perfil/ResumenActividad';
 import { TarjetaRacha } from '@/components/perfil/TarjetaRacha';
 import { useAuth } from '@/context/AuthContext';
 import { resolveBackendUserId } from '@/lib/apiClient';
@@ -18,9 +18,7 @@ import {
   type RelacionAmistad,
 } from '@/lib/amistadesApi';
 import type { InsigniaObtenidaApi } from '@/lib/insigniasApi';
-import { intensidadRacha, nivelRacha } from '@/lib/rachasApi';
 import { obtenerPerfilPublico, type PerfilPublicoApi } from '@/lib/usuariosApi';
-import { formatDurationHm, formatKmCompact } from '@/lib/format';
 import { meshAlert, meshConfirmDestructive } from '@/lib/meshAlert';
 import { nombreCompleto } from '@/lib/nombres';
 
@@ -34,7 +32,6 @@ const ETIQUETA_ACTIVIDAD: Record<string, string> = {
 };
 
 const ALTO_FONDO = 420;
-const ALTO_FUEGUITOS = 320;
 
 /**
  * Perfil de otra persona de la comunidad: datos básicos y botón de amistad siempre;
@@ -54,8 +51,6 @@ export default function PerfilUsuarioScreen() {
   // Relación tras una acción local; `undefined` = usar la que vino con el perfil.
   const [relacionLocal, setRelacionLocal] = useState<RelacionAmistad | undefined>(undefined);
   const [insigniaAbierta, setInsigniaAbierta] = useState<InsigniaObtenidaApi | null>(null);
-  // Cambia cada vez que llega el perfil: remonta los fueguitos y repite la ráfaga.
-  const [rafagaFueguitos, setRafagaFueguitos] = useState(0);
 
   const cargar = useCallback(async () => {
     if (!usuarioId) return;
@@ -64,7 +59,6 @@ export default function PerfilUsuarioScreen() {
     try {
       setPerfil(await obtenerPerfilPublico(usuarioId));
       setRelacionLocal(undefined);
-      setRafagaFueguitos((n) => n + 1);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'No se pudo cargar el perfil.');
     } finally {
@@ -212,8 +206,6 @@ export default function PerfilUsuarioScreen() {
     );
   })();
 
-  const semanas = perfil?.logros_visibles ? (perfil.racha?.semanas_consecutivas ?? 0) : 0;
-  const nivel = nivelRacha(semanas);
   const insignias = perfil?.insignias ? ordenarPorRareza(perfil.insignias) : [];
 
   const barra = (
@@ -254,7 +246,7 @@ export default function PerfilUsuarioScreen() {
             color={theme.text}
             alto={ALTO_FONDO}
             colorRacha={theme.fire}
-            intensidadRacha={intensidadRacha(semanas)}
+            intensidadRacha={0}
             animado
           />
           {barra}
@@ -270,8 +262,6 @@ export default function PerfilUsuarioScreen() {
                 foto: perfil.foto_perfil,
               }}
               size="xl"
-              ring={nivel >= 2}
-              style={nivel >= 2 ? { borderColor: theme.fire } : undefined}
             />
             <Text style={[styles.nombre, { color: theme.text }]} numberOfLines={2}>
               {nombreCompleto(perfil.nombre, perfil.apellido)}
@@ -291,28 +281,11 @@ export default function PerfilUsuarioScreen() {
           <View style={[styles.cuerpo, { backgroundColor: theme.background }]}>
             {perfil.logros_visibles && perfil.estadisticas ? (
               <>
-                <View
-                  style={[styles.statsCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
-                >
-                  <View style={styles.statBox}>
-                    <Text style={[styles.statValue, { color: theme.text }]}>
-                      {perfil.estadisticas.viajes_finalizados}
-                    </Text>
-                    <Text style={[styles.statLabel, { color: theme.textMute }]}>Viajes</Text>
-                  </View>
-                  <View style={[styles.statBox, styles.borderLeft, { borderLeftColor: theme.border }]}>
-                    <Text style={[styles.statValue, { color: theme.text }]}>
-                      {formatKmCompact(perfil.estadisticas.distancia_total_m)}
-                    </Text>
-                    <Text style={[styles.statLabel, { color: theme.textMute }]}>Km</Text>
-                  </View>
-                  <View style={[styles.statBox, styles.borderLeft, { borderLeftColor: theme.border }]}>
-                    <Text style={[styles.statValue, { color: theme.text }]} numberOfLines={1}>
-                      {formatDurationHm(perfil.estadisticas.tiempo_total_seg)}
-                    </Text>
-                    <Text style={[styles.statLabel, { color: theme.textMute }]}>En marcha</Text>
-                  </View>
-                </View>
+                <ResumenActividad
+                  viajes={perfil.estadisticas.viajes_finalizados}
+                  metros={perfil.estadisticas.distancia_total_m}
+                  segundos={perfil.estadisticas.tiempo_total_seg}
+                />
 
                 <View style={styles.section}>
                   <Text style={[styles.eyebrow, { color: theme.textDim }]}>RACHA</Text>
@@ -357,10 +330,6 @@ export default function PerfilUsuarioScreen() {
         </ScrollView>
       )}
 
-      {rafagaFueguitos > 0 && semanas > 0 ? (
-        <FueguitosRacha key={rafagaFueguitos} semanas={semanas} alto={ALTO_FUEGUITOS} />
-      ) : null}
-
       <DetalleInsigniaModal insignia={insigniaAbierta} onClose={() => setInsigniaAbierta(null)} />
     </View>
   );
@@ -390,11 +359,6 @@ const styles = StyleSheet.create({
   },
   amistadTxt: { fontSize: 14, fontWeight: '700', flexShrink: 1 },
   cuerpo: { flexGrow: 1, paddingHorizontal: 20, paddingBottom: 40, gap: 20 },
-  statsCard: { flexDirection: 'row', borderRadius: 16, borderWidth: 1, paddingVertical: 16 },
-  statBox: { flex: 1, alignItems: 'center', gap: 2 },
-  borderLeft: { borderLeftWidth: 1 },
-  statValue: { fontSize: 18, fontWeight: '800' },
-  statLabel: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.4 },
   section: { gap: 10 },
   eyebrow: { fontSize: 11, fontFamily: 'SpaceMono', fontWeight: '700', letterSpacing: 1.2 },
   vacio: { fontSize: 13.5, lineHeight: 19 },

@@ -69,7 +69,7 @@ type FilaResumen = {
   publicado_at: Date
   comentario: string | null
   checklist: string[]
-  foto: string | null
+  fotos: string[]
   usuario: { id: string; nombre: string; apellido: string | null }
 }
 
@@ -87,7 +87,9 @@ function aResumen(r: FilaResumen) {
     tiempo_seg: r.tiempo_seg,
     publicado_at: r.publicado_at.toISOString(),
     comentario: r.comentario,
-    foto: r.foto,
+    // `foto` es la portada (la primera): la usan las tarjetas del listado.
+    foto: r.fotos[0] ?? null,
+    fotos: r.fotos,
     tiene_checklist: r.checklist.length > 0,
     autor: { id: r.usuario.id, nombre: r.usuario.nombre, apellido: r.usuario.apellido },
   }
@@ -103,7 +105,7 @@ const SELECT_RESUMEN = {
   publicado_at: true,
   comentario: true,
   checklist: true,
-  foto: true,
+  fotos: true,
   usuario: { select: { id: true, nombre: true, apellido: true } },
 } as const
 
@@ -153,8 +155,8 @@ export class RecorridosPublicadosService {
   }
 
   /**
-   * RN-081: paso 1 de la foto opcional del recorrido. Mismas condiciones que publicar: solo
-   * quien participó de un viaje finalizado puede subirla (RN-030).
+   * RN-081: paso 1 de cada foto opcional del recorrido. Mismas condiciones que publicar:
+   * solo quien participó de un viaje finalizado puede subirla (RN-030).
    */
   async crearSubidaFoto(usuarioId: string, viajeId: string) {
     await this.viajePublicable(usuarioId, viajeId)
@@ -165,13 +167,14 @@ export class RecorridosPublicadosService {
    * RN-081: publica un viaje del historial propio (finalizado y en el que el usuario
    * participó, incluido quien salió a mitad). Congela un snapshot de SU traza y SUS
    * métricas. Idempotente: republicar refresca el snapshot y reactiva el recorrido.
-   * El comentario, el checklist y la foto también son parte del snapshot: se reemplazan
-   * al republicar. La foto se sube antes (`crearSubidaFoto`) y llega como `fotoPath`.
+   * El comentario, el checklist y las fotos también son parte del snapshot: se reemplazan
+   * al republicar. Las fotos se suben antes (`crearSubidaFoto`) y llegan como `fotoPaths`,
+   * en el orden en que se muestran.
    */
   async publicar(
     usuarioId: string,
     viajeId: string,
-    opciones: { comentario?: string | null; compartirChecklist?: boolean; fotoPath?: string } = {}
+    opciones: { comentario?: string | null; compartirChecklist?: boolean; fotoPaths?: string[] } = {}
   ) {
     const viaje = await this.viajePublicable(usuarioId, viajeId)
 
@@ -191,9 +194,12 @@ export class RecorridosPublicadosService {
       )
     }
 
-    const foto = opciones.fotoPath
-      ? await this.fotos.verificar(usuarioId, viajeId, opciones.fotoPath)
-      : null
+    // De a una y en orden: la primera que no pasa corta la publicación con su error.
+    const fotoPaths = opciones.fotoPaths ?? []
+    const fotos: string[] = []
+    for (const path of fotoPaths) {
+      fotos.push(await this.fotos.verificar(usuarioId, viajeId, path))
+    }
 
     const inicio = segmentos.flat()[0]!
     const datos = {
@@ -206,7 +212,7 @@ export class RecorridosPublicadosService {
       inicio_lng: inicio[1],
       comentario: opciones.comentario ?? null,
       checklist,
-      foto,
+      fotos,
     }
     const publicado = await this.prisma.recorridoPublicado.upsert({
       where: { viaje_id_usuario_id: { viaje_id: viajeId, usuario_id: usuarioId } },
@@ -214,8 +220,8 @@ export class RecorridosPublicadosService {
       update: { ...datos, activo: true, publicado_at: new Date() },
       select: SELECT_RESUMEN,
     })
-    // Recién con el snapshot guardado se borra la foto anterior (y subidas sin publicar).
-    await this.fotos.borrarSobrantes(usuarioId, viajeId, foto ? opciones.fotoPath! : null)
+    // Recién con el snapshot guardado se borran las fotos anteriores (y subidas sin publicar).
+    await this.fotos.borrarSobrantes(usuarioId, viajeId, fotoPaths)
     return aResumen(publicado)
   }
 
@@ -258,10 +264,11 @@ export class RecorridosPublicadosService {
   async listar(usuarioId: string, filtros: FiltrosListado) {
     const resumenes = await this.listarResumenes(filtros)
     const ids = resumenes.map((r) => r.id)
-    const [valoraciones, reputaciones, guardadas] = await Promise.all([
+    const [valoraciones, reputaciones, guardadas, vecesGuardado] = await Promise.all([
       this.valoraciones(usuarioId, ids),
       this.reputaciones(resumenes.map((r) => r.autor.id)),
       this.plantillasGuardadas(usuarioId, ids),
+      this.vecesGuardado(ids),
     ])
     // Sin reputación = la cuenta se borró entre las dos consultas (y con ella, su recorrido).
     return resumenes.flatMap((r) => {
@@ -273,10 +280,27 @@ export class RecorridosPublicadosService {
               valoracion: valoraciones.get(r.id)!,
               reputacion_autor,
               mi_plantilla_id: guardadas.get(r.id) ?? null,
+              guardados: vecesGuardado.get(r.id) ?? 0,
             },
           ]
         : []
     })
+  }
+
+  /**
+   * Cuántas personas guardaron cada recorrido en sus rutas (RN-084): un solo `groupBy` para
+   * toda la página. Es un número agregado: no dice quiénes (los ids no salen de acá).
+   */
+  private async vecesGuardado(recorridoIds: string[]): Promise<Map<string, number>> {
+    if (recorridoIds.length === 0) return new Map()
+    const filas = await this.prisma.rutaPlantilla.groupBy({
+      by: ['recorrido_publicado_id'],
+      where: { recorrido_publicado_id: { in: recorridoIds } },
+      _count: { _all: true },
+    })
+    return new Map(
+      filas.flatMap((f) => (f.recorrido_publicado_id ? [[f.recorrido_publicado_id, f._count._all]] : []))
+    )
   }
 
   /**
@@ -403,14 +427,16 @@ export class RecorridosPublicadosService {
       select: { ...SELECT_RESUMEN, segmentos: true },
     })
     if (!r) throw new HttpError(404, 'Recorrido no encontrado', 'RECORRIDO_NOT_FOUND')
-    const [valoraciones, guardadas] = await Promise.all([
+    const [valoraciones, guardadas, vecesGuardado] = await Promise.all([
       this.valoraciones(usuarioId, [r.id]),
       this.plantillasGuardadas(usuarioId, [r.id]),
+      this.vecesGuardado([r.id]),
     ])
     return {
       ...aResumen(r),
       valoracion: valoraciones.get(r.id)!,
       mi_plantilla_id: guardadas.get(r.id) ?? null,
+      guardados: vecesGuardado.get(r.id) ?? 0,
       segmentos: r.segmentos as Segmentos,
       checklist: r.checklist,
     }

@@ -1,11 +1,12 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useEffect, useState } from 'react'
-import { ActivityIndicator, Image, StyleSheet, Switch, Text, View } from 'react-native'
+import { ActivityIndicator, StyleSheet, Switch, Text, View } from 'react-native'
 import { useCopilot } from 'react-native-copilot'
 import { Feather } from '@expo/vector-icons'
 
+import { CarruselFotos } from '@/components/CarruselFotos'
 import { CorazonGuardar } from '@/components/CorazonGuardar'
-import { coloresValoracion, nivelValoracion } from '@/components/tabs/coloresValoracion'
+import { MedidorValoracion } from '@/components/tabs/MedidorValoracion'
 import { RecorridoMapView } from '@/components/RecorridoMapView'
 import { StatCard, StatCardRow } from '@/components/StatCard'
 import { ActivityTile, Btn, TopBar, useTheme } from '@/components/MeshUI'
@@ -16,7 +17,9 @@ import { useAuth } from '@/context/AuthContext'
 import { formatDurationHm, formatKm } from '@/lib/format'
 import { meshAlert, meshConfirmDestructive, meshError } from '@/lib/meshAlert'
 import {
+  ajustarGuardados,
   despublicarRecorrido,
+  fotosDe,
   importarRecorridoPublicado,
   obtenerRecorridoPublicado,
   valorarRecorrido,
@@ -73,9 +76,7 @@ export default function RecorridoPublicadoScreen() {
   }, [recorridoId])
 
   const esMio = recorrido != null && recorrido.autor.id === backendUserId
-  const colorValoracion = recorrido
-    ? coloresValoracion(nivelValoracion(recorrido.valoracion), theme).color
-    : theme.textMute
+  const nombreRecorrido = recorrido?.nombre?.trim() || 'Recorrido sin nombre'
 
   // RN-081: el autor despublica en cualquier momento; el recorrido deja de verse para todos.
   const confirmarDespublicar = () => {
@@ -136,7 +137,16 @@ export default function RecorridoPublicadoScreen() {
       const { plantilla } = await importarRecorridoPublicado(recorrido.id, {
         guardarChecklist: recorrido.checklist.length > 0 && guardarChecklist,
       })
-      setRecorrido((prev) => (prev ? { ...prev, mi_plantilla_id: plantilla.id } : prev))
+      // Si ya estaba guardada (otra vez "Usar"), el total no cambia.
+      setRecorrido((prev) =>
+        prev
+          ? {
+              ...prev,
+              mi_plantilla_id: plantilla.id,
+              guardados: prev.mi_plantilla_id ? prev.guardados : ajustarGuardados(prev.guardados, 1),
+            }
+          : prev
+      )
       if (accion === 'usar') {
         abrirNuevoViaje({ plantillaId: plantilla.id, tipoActividad: plantilla.tipo_actividad })
       }
@@ -163,7 +173,11 @@ export default function RecorridoPublicadoScreen() {
       onInicio: () => setImportando('guardar'),
       onFin: () => setImportando(null),
       onQuitada: () =>
-        setRecorrido((prev) => (prev ? { ...prev, mi_plantilla_id: null } : prev)),
+        setRecorrido((prev) =>
+          prev
+            ? { ...prev, mi_plantilla_id: null, guardados: ajustarGuardados(prev.guardados, -1) }
+            : prev
+        ),
     })
   }
 
@@ -189,11 +203,14 @@ export default function RecorridoPublicadoScreen() {
         </View>
       ) : (
         <ScrollViewAyuda contentContainerStyle={styles.inner}>
+          {/* Las fotos abren la pantalla, como portada; sin fotos arranca por el título. */}
+          <CarruselFotos fotos={fotosDe(recorrido)} descripcion={nombreRecorrido} />
+
           <View style={styles.hero}>
             <ActivityTile activity={recorrido.tipo_actividad} size={46} />
             <View style={styles.heroText}>
               <Text style={[styles.titulo, { color: theme.text }]} numberOfLines={2}>
-                {recorrido.nombre?.trim() || 'Recorrido sin nombre'}
+                {nombreRecorrido}
               </Text>
               <Text style={[styles.sub, { color: theme.textDim }]}>
                 {recorrido.autor.nombre} ·{' '}
@@ -249,18 +266,7 @@ export default function RecorridoPublicadoScreen() {
               <Text style={[styles.valoracionTitulo, { color: theme.text }]}>
                 Valoración de la comunidad
               </Text>
-              <View style={styles.valoracionResumen}>
-                <Text style={[styles.porcentaje, { color: colorValoracion }]}>
-                  {recorrido.valoracion.porcentaje_recomienda !== null
-                    ? `${recorrido.valoracion.porcentaje_recomienda} %`
-                    : '—'}
-                </Text>
-                <Text style={[styles.sub, styles.valoracionDetalle, { color: theme.textDim }]}>
-                  {recorrido.valoracion.total === 0
-                    ? 'Todavía nadie lo valoró.'
-                    : `lo recomienda (${recorrido.valoracion.recomiendan} de ${recorrido.valoracion.total})`}
-                </Text>
-              </View>
+              <MedidorValoracion valoracion={recorrido.valoracion} guardados={recorrido.guardados} />
 
               {esMio ? (
                 <Text style={[styles.sub, { color: theme.textMute }]}>
@@ -348,15 +354,6 @@ export default function RecorridoPublicadoScreen() {
             </View>
           </PasoAyuda>
 
-          {recorrido.foto ? (
-            <Image
-              source={{ uri: recorrido.foto }}
-              style={[styles.foto, { backgroundColor: theme.surface2 }]}
-              resizeMode="cover"
-              accessibilityLabel="Foto del recorrido"
-            />
-          ) : null}
-
           {esMio ? (
             <PasoAyuda {...AYUDA_RECORRIDO_PUBLICADO[4]!}>
               <Btn
@@ -388,9 +385,6 @@ const styles = StyleSheet.create({
   sub: { fontSize: 13 },
   valoracionCard: { borderWidth: 1.2, borderRadius: 12, padding: 14, gap: 10 },
   valoracionTitulo: { fontSize: 15, fontWeight: '700' },
-  valoracionResumen: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
-  porcentaje: { fontSize: 28, fontWeight: '800' },
-  valoracionDetalle: { flex: 1 },
   miValoracion: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   botonesValorar: { flexDirection: 'row', gap: 10 },
   botonValorar: { flex: 1 },
@@ -402,7 +396,6 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   comentario: { flex: 1, fontSize: 15, lineHeight: 21 },
-  foto: { width: '100%', aspectRatio: 4 / 3, borderRadius: 12 },
   acciones: { gap: 10 },
   flex1: { flex: 1 },
   checklistFila: { flexDirection: 'row', alignItems: 'center', gap: 8 },

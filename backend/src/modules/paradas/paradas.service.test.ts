@@ -451,6 +451,48 @@ describe('RN-036 — confirmar estoy bien', () => {
     vi.useRealTimers()
   })
 
+  it('avisa por push al grupo (líder incluido) que está bien, sin notificar al afectado', async () => {
+    const inicio = new Date('2026-08-21T14:00:00.000Z')
+    const m = armarPrisma()
+    m.viajeFindUnique.mockResolvedValue({
+      creador_id: liderId,
+      estado: 'en_curso',
+      creador: { push_token: 'ExponentPushToken[lider]' },
+    })
+    m.integranteFindMany.mockResolvedValue([
+      { usuario: { id: integranteId, push_token: 'ExponentPushToken[ana]' } },
+      { usuario: { id: 'otro-integrante', push_token: 'ExponentPushToken[otro]' } },
+    ])
+    const incidente = {
+      id: paradaId,
+      viaje_id: viajeId,
+      usuario_id: integranteId,
+      lat: -31.42,
+      lng: -64.18,
+      categoria: null,
+      tipo: 'incidente_detectado',
+      inicio,
+      fin: null,
+      usuario,
+    }
+    m.paradaFindFirst.mockResolvedValue(incidente)
+    m.paradaUpdate.mockResolvedValue({ ...incidente, fin: new Date() })
+    m.prisma.alerta = {
+      findMany: vi.fn().mockResolvedValue([]),
+      updateMany: vi.fn(),
+    } as never
+
+    await new ParadasService(m.prisma).confirmarEstoyBien(integranteId, viajeId)
+
+    await vi.waitFor(() => expect(sendExpoPush).toHaveBeenCalled())
+    const mensajes = sendExpoPush.mock.calls.at(-1)![0] as { to: string; title: string; body: string }[]
+    expect(mensajes.map((p) => p.to).sort()).toEqual([
+      'ExponentPushToken[lider]',
+      'ExponentPushToken[otro]',
+    ])
+    expect(mensajes[0]).toMatchObject({ title: 'Está bien', body: 'Ana Pérez confirmó que está bien.' })
+  })
+
   it('falla si no hay incidente abierto', async () => {
     const m = armarPrisma()
     const service = new ParadasService(m.prisma)

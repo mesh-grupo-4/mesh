@@ -5,21 +5,29 @@
 .DESCRIPTION
   1. Busca scrcpy y adb (instalados con: winget install Genymobile.scrcpy).
   2. Detecta los celulares conectados por USB (o los pasa a WiFi con -Wifi).
-  3. Abre escenario.html en pantalla completa (Edge en modo kiosco).
-  4. Abre una ventana de scrcpy por celular y la acomoda sobre el escenario,
-     alineada con los nombres que muestra el fondo.
-  Con Enter (o Ctrl+C) en esta consola se cierra todo lo que abrió el script.
+  3. Prepara los teléfonos: No molestar, Mesh abierta, pantalla despierta.
+  4. Abre escenario.html en pantalla completa (Edge en modo kiosco).
+  5. Abre una ventana de scrcpy por celular, alineada con los nombres del fondo.
+  6. Queda un ícono de Mesh en la bandeja de Windows (al lado del reloj) con
+     el menú y los atajos. Si un espejo se corta, se reconecta solo.
+
+  Con -Zona (lo usa "Presentar por WiFi.cmd") la notebook prende su zona con
+  cobertura inalámbrica móvil y conecta los celulares a esa red: no depende del
+  WiFi del lugar. Al finalizar la apaga.
+
+  Atajos (funcionan desde cualquier ventana):
+    Ctrl+Alt+M  mostrar los celulares       Ctrl+Alt+R  reconectar
+    Ctrl+Alt+I  invertir lados              Ctrl+Alt+C  mostrar/ocultar consola
+    Ctrl+Alt+Q  finalizar
 
 .EXAMPLE
   .\espejar-celulares.ps1
 .EXAMPLE
   .\espejar-celulares.ps1 -Izquierda "Sofía" -RolIzquierda "Líder" -Derecha "Martín" -RolDerecha "Participante"
 .EXAMPLE
-  .\espejar-celulares.ps1 -Invertir       # intercambia qué celular va a cada lado
-.EXAMPLE
   .\espejar-celulares.ps1 -Wifi           # después se pueden desenchufar los cables
 .EXAMPLE
-  .\espejar-celulares.ps1 -Pantalla 1     # usa el segundo monitor (proyector en modo Extender)
+  .\espejar-celulares.ps1 -Cerrar         # cierra una presentación abierta (lo usa "Cerrar presentacion.cmd")
 #>
 param(
   [string]$Izquierda = 'Lucía',
@@ -29,14 +37,21 @@ param(
   [string[]]$Serials,
   [switch]$Invertir,
   [switch]$Wifi,
+  [switch]$Zona,
   [switch]$SinEscenario,
   [switch]$ConBordes,
+  [switch]$SinPreparar,
+  [switch]$Cerrar,
+  [string]$Paquete = 'com.frangiorda1.frontend',
   [int]$Pantalla = -1
 )
 
 $ErrorActionPreference = 'Stop'
+if ($Zona) { $Wifi = $true }
 
 # --- Layout compartido con escenario.html (fracciones de la pantalla) --------
+# Ojo: PowerShell no distingue mayúsculas en variables. Ningún otro nombre de
+# variable puede coincidir con estas constantes.
 $FRACCION_ARRIBA = 0.13          # borde superior de los celulares
 $FRACCION_ALTO = 0.74            # alto de los celulares
 $CENTROS_DOS = @(0.30, 0.70)
@@ -48,25 +63,71 @@ function Fallar([string]$texto) {
   exit 1
 }
 
-# --- Ventanas: coordenadas físicas, sin importar la escala de Windows --------
-Add-Type @'
+# --- Win32: ventanas, foco y atajos globales ---------------------------------
+Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+Add-Type -ReferencedAssemblies System.Windows.Forms -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
+using System.Windows.Forms;
+
 public struct MeshRect { public int Izq, Arr, Der, Aba; }
+
 public static class MeshVentana {
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out MeshRect r);
   [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
   [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hWnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int cmd);
+  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
   [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
   [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hWnd);
   [DllImport("user32.dll")] public static extern int GetWindowLong(IntPtr hWnd, int index);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern bool SetWindowText(IntPtr hWnd, string texto);
   [DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();
+  [DllImport("user32.dll")] static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
+
+  // Windows solo deja tomar el foco a quien recibió la última entrada del
+  // teclado: una pulsación de Alt simulada habilita SetForegroundWindow.
+  public static bool Enfocar(IntPtr hWnd) {
+    keybd_event(0x12, 0, 0, UIntPtr.Zero);
+    keybd_event(0x12, 0, 2, UIntPtr.Zero);
+    return SetForegroundWindow(hWnd);
+  }
+}
+
+// Atajos globales Ctrl+Alt+<tecla>: funcionan aunque el foco esté en otra app.
+public class MeshAtajos : NativeWindow, IDisposable {
+  [DllImport("user32.dll")] static extern bool RegisterHotKey(IntPtr hWnd, int id, uint mod, uint vk);
+  [DllImport("user32.dll")] static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+  public event EventHandler Pulsado;
+  public int Ultimo;
+  public MeshAtajos() { CreateHandle(new CreateParams()); }
+  public bool Registrar(int id, Keys tecla) {
+    return RegisterHotKey(Handle, id, 0x0001 | 0x0002 | 0x4000, (uint)tecla);   // ALT | CONTROL | NOREPEAT
+  }
+  protected override void WndProc(ref Message m) {
+    if (m.Msg == 0x0312) {   // WM_HOTKEY
+      Ultimo = m.WParam.ToInt32();
+      if (Pulsado != null) Pulsado(this, EventArgs.Empty);
+    }
+    base.WndProc(ref m);
+  }
+  public void Dispose() {
+    for (int i = 1; i <= 9; i++) UnregisterHotKey(Handle, i);
+    DestroyHandle();
+  }
 }
 '@
 [MeshVentana]::SetProcessDPIAware() | Out-Null
-Add-Type -AssemblyName System.Windows.Forms
+
+# --- Archivos de trabajo -----------------------------------------------------
+$logs = Join-Path $env:TEMP 'mesh-presentacion'
+New-Item -ItemType Directory -Force $logs | Out-Null
+$perfil = Join-Path $logs 'perfil-navegador'
+$archivoWifi = Join-Path $logs 'wifi.txt'          # direcciones WiFi de la última vez
+$archivoDnd = Join-Path $logs 'no-molestar.txt'    # modo No molestar previo de cada celular
+$archivoCerrar = Join-Path $logs 'cerrar.pedido'   # lo crea -Cerrar para pedir el cierre
+$archivoZona = Join-Path $logs 'zona-iniciada'     # existe si la zona la prendió este script
 
 # --- scrcpy y adb ------------------------------------------------------------
 function Buscar-Ejecutable([string]$nombre) {
@@ -88,9 +149,26 @@ if (-not $scrcpy -or -not $adb) {
   Fallar "No encontré scrcpy o adb. Instalalo con:`n  winget install Genymobile.scrcpy"
 }
 
-function Adb { & $adb @args 2>&1 | ForEach-Object { "$_" } }
+# Varios comandos de adb escriben en la salida de error aunque funcionen (por
+# ejemplo, abrir una app). Con ErrorActionPreference = Stop, PowerShell 5.1 lo
+# toma como error y corta el script: acá se relaja solo para adb.
+function Adb {
+  $ErrorActionPreference = 'Continue'
+  & $adb @args 2>&1 | ForEach-Object { "$_" }
+}
 
-# --- Celulares ---------------------------------------------------------------
+# taskkill avisa por la salida de error si el proceso ya terminó: no tiene que
+# cortar la limpieza (que después restaura No molestar).
+function Matar-Proceso([int]$id, [switch]$Arbol) {
+  $ErrorActionPreference = 'Continue'
+  if ($Arbol) { & taskkill /PID $id /T /F 2>&1 | Out-Null } else { & taskkill /PID $id /F 2>&1 | Out-Null }
+}
+
+# adb sin esperar la respuesta: para lo que corre mientras se presenta.
+function Adb-En-Segundo-Plano([string[]]$argumentos) {
+  Start-Process -FilePath $adb -ArgumentList $argumentos -WindowStyle Hidden | Out-Null
+}
+
 function Listar-Dispositivos {
   Adb devices | Select-Object -Skip 1 | Where-Object { $_ -match '\S' -and $_ -notmatch '^\*' } | ForEach-Object {
     $partes = $_ -split '\s+'
@@ -98,11 +176,134 @@ function Listar-Dispositivos {
   }
 }
 
-# --- WiFi ------------------------------------------------------------------
-# Las direcciones de la última vez se guardan para reconectar sin cable mientras
-# los celulares no se reinicien ni cambien de red.
-$archivoWifi = Join-Path $env:TEMP 'mesh-presentacion\wifi.txt'
+# Edge y Chrome se relanzan a sí mismos: el proceso que devuelve Start-Process
+# termina enseguida. El escenario se reconoce por su perfil propio.
+function Procesos-Escenario {
+  @(Get-CimInstance Win32_Process -Filter "Name='msedge.exe' OR Name='chrome.exe'" |
+    Where-Object { $_.CommandLine -and $_.CommandLine.Contains($perfil) -and $_.CommandLine -notmatch '--type=' })
+}
 
+# --- No molestar -------------------------------------------------------------
+# zen_mode: 0 apagado, 1 prioridad, 2 silencio total, 3 solo alarmas.
+$MODOS_DND = @{ '0' = 'off'; '1' = 'priority'; '2' = 'on'; '3' = 'alarms' }
+
+function Restaurar-No-Molestar {
+  if (-not (Test-Path $archivoDnd)) { return }
+  foreach ($linea in (Get-Content $archivoDnd | Where-Object { $_ -match '=' })) {
+    $partes = $linea -split '=', 2
+    $modo = $MODOS_DND[$partes[1]]
+    if (-not $modo) { $modo = 'off' }
+    Adb -s $partes[0] shell cmd notification set_dnd $modo | Out-Null
+  }
+  Remove-Item $archivoDnd -Force -ErrorAction SilentlyContinue
+}
+
+# --- Zona con cobertura inalámbrica móvil ------------------------------------
+# Es la red propia de la notebook. Se maneja con la API de Windows (WinRT).
+function Cargar-WinRT {
+  if ($script:asTask) { return }
+  Add-Type -AssemblyName System.Runtime.WindowsRuntime
+  $null = [Windows.Networking.Connectivity.NetworkInformation, Windows.Networking.Connectivity, ContentType = WindowsRuntime]
+  $null = [Windows.Networking.NetworkOperators.NetworkOperatorTetheringManager, Windows.Networking.NetworkOperators, ContentType = WindowsRuntime]
+  $script:asTask = [System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object {
+    $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1'
+  } | Select-Object -First 1
+}
+
+function Esperar-WinRT($operacion) {
+  $tipo = [Windows.Networking.NetworkOperators.NetworkOperatorTetheringOperationResult]
+  $tarea = $script:asTask.MakeGenericMethod($tipo).Invoke($null, @($operacion))
+  if (-not $tarea.Wait(30000)) { throw 'Windows no respondió al prender o apagar la zona.' }
+  return $tarea.Result
+}
+
+# La zona comparte una conexión de la notebook: la que tiene internet o, si no
+# hay, cualquier otra conectada (el WiFi de la facultad aunque pida login).
+function Administrador-Zona {
+  Cargar-WinRT
+  $info = [Windows.Networking.Connectivity.NetworkInformation]
+  $tm = [Windows.Networking.NetworkOperators.NetworkOperatorTetheringManager]
+  $candidatos = @($info::GetInternetConnectionProfile()) + @($info::GetConnectionProfiles() |
+    Where-Object { $_.GetNetworkConnectivityLevel() -ne 'None' })
+  foreach ($p in $candidatos) {
+    if (-not $p) { continue }
+    try {
+      if ($tm::GetTetheringCapabilityFromConnectionProfile($p) -ne 'Enabled') { continue }
+      return $tm::CreateFromConnectionProfile($p)
+    } catch { }
+  }
+  return $null
+}
+
+function Iniciar-Zona {
+  try {
+    $tm = Administrador-Zona
+    if (-not $tm) {
+      Write-Host '  No pude prender la zona: la notebook tiene que estar conectada a alguna red (WiFi del lugar, cable, o un celular compartiendo datos por USB).' -ForegroundColor Yellow
+      return $null
+    }
+    if ($tm.TetheringOperationalState -ne 'On') {
+      $res = Esperar-WinRT ($tm.StartTetheringAsync())
+      if ($res.Status -ne 'Success') {
+        Write-Host "  No pude prender la zona ($($res.Status) $($res.AdditionalErrorMessage))." -ForegroundColor Yellow
+        return $null
+      }
+      Set-Content -Path $archivoZona -Value 'iniciada'
+      Write-Host '  Zona prendida.'
+    } else {
+      Write-Host '  La zona ya estaba prendida.'
+    }
+    $cfg = $tm.GetCurrentAccessPointConfiguration()
+    return [pscustomobject]@{ Administrador = $tm; Ssid = $cfg.Ssid; Clave = $cfg.Passphrase }
+  } catch {
+    Write-Host "  No pude prender la zona: $_" -ForegroundColor Yellow
+    return $null
+  }
+}
+
+# Solo la apaga si la prendió este script.
+function Detener-Zona {
+  if (-not (Test-Path $archivoZona)) { return }
+  try {
+    $tm = Administrador-Zona
+    if ($tm -and $tm.TetheringOperationalState -eq 'On') { Esperar-WinRT ($tm.StopTetheringAsync()) | Out-Null }
+  } catch { }
+  Remove-Item $archivoZona -Force -ErrorAction SilentlyContinue
+}
+
+# --- Modo -Cerrar ------------------------------------------------------------
+if ($Cerrar) {
+  Escribir-Paso 'Cerrando la presentación'
+  $otros = @(Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" |
+    Where-Object { $_.ProcessId -ne $PID -and $_.CommandLine -match 'espejar-celulares\.ps1' -and $_.CommandLine -notmatch '-Cerrar' })
+  if ($otros.Count -gt 0) {
+    # Primero se le pide que cierre sola: así restaura todo y saca el ícono.
+    Set-Content -Path $archivoCerrar -Value 'cerrar'
+    $espera = [Diagnostics.Stopwatch]::StartNew()
+    while ($espera.Elapsed.TotalSeconds -lt 10 -and
+      @($otros | Where-Object { Get-Process -Id $_.ProcessId -ErrorAction SilentlyContinue }).Count -gt 0) {
+      Start-Sleep -Milliseconds 300
+    }
+  }
+  foreach ($p in $otros) {
+    if (Get-Process -Id $p.ProcessId -ErrorAction SilentlyContinue) {
+      Matar-Proceso $p.ProcessId -Arbol
+      # Si colgaba, su consola quedó oculta: se cierra también el .cmd que la abrió.
+      $padre = Get-CimInstance Win32_Process -Filter "ProcessId=$($p.ParentProcessId)" -ErrorAction SilentlyContinue
+      if ($padre -and $padre.Name -eq 'cmd.exe') { Matar-Proceso $padre.ProcessId }
+    }
+  }
+  Get-Process scrcpy -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+  foreach ($p in Procesos-Escenario) { Matar-Proceso $p.ProcessId -Arbol }
+  Restaurar-No-Molestar
+  Detener-Zona
+  Remove-Item $archivoCerrar -Force -ErrorAction SilentlyContinue
+  Write-Host '  Listo: espejos, escenario, No molestar y zona restaurados.' -ForegroundColor Green
+  exit 0
+}
+Remove-Item $archivoCerrar -Force -ErrorAction SilentlyContinue
+
+# --- WiFi --------------------------------------------------------------------
 function Redes-Notebook {
   @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
     Where-Object { $_.IPAddress -notmatch '^(127\.|169\.254\.)' } |
@@ -127,8 +328,8 @@ function Nombre-Wifi-Notebook {
 
 # IP del celular que está en la misma red que la notebook. Sirve para WiFi
 # común y también para hotspot (en el celular que comparte, la interfaz no es wlan0).
-function Ip-Celular-En-Red([string]$serial) {
-  $redes = Redes-Notebook
+function Ip-Celular-En-Red([string]$serial, $redes) {
+  if (-not $redes) { $redes = Redes-Notebook }
   $interfaz = ''
   foreach ($l in (Adb -s $serial shell ip -f inet addr)) {
     if ($l -match '^\d+:\s+([^:@\s]+)') { $interfaz = $Matches[1]; continue }
@@ -140,12 +341,127 @@ function Ip-Celular-En-Red([string]$serial) {
   return $null
 }
 
-Escribir-Paso 'Buscando celulares'
+# adb conserva las conexiones por red que se cayeron ("offline") y no las suelta:
+# reconectar a esa misma dirección responde "already connected" y sigue caída.
+# Reiniciar el servidor de adb las limpia. Solo se hace antes de abrir los
+# espejos (después cortaría la presentación).
+function Limpiar-Conexiones-Caidas {
+  if (-not @(Listar-Dispositivos | Where-Object { $_.Estado -eq 'offline' -and $_.Serial -match ':\d+$' }).Count) { return }
+  Adb kill-server | Out-Null
+  Adb start-server | Out-Null
+  Start-Sleep -Seconds 2
+}
+
+# Red de la zona en la notebook (Windows usa 192.168.137.1/24 por defecto).
+function Red-Zona {
+  $ip = Get-NetAdapter -ErrorAction SilentlyContinue |
+    Where-Object { $_.InterfaceDescription -match 'Wi-Fi Direct Virtual' -and $_.Status -eq 'Up' } |
+    Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Select-Object -First 1
+  if ($ip) { return [pscustomobject]@{ Ip = $ip.IPAddress; Prefijo = [int]$ip.PrefixLength } }
+  return [pscustomobject]@{ Ip = '192.168.137.1'; Prefijo = 24 }
+}
+
+function Serial-Equipo([string]$serial) {
+  $hw = ((Adb -s $serial shell getprop ro.serialno) | Select-Object -First 1)
+  if ($hw) { $hw = $hw.Trim() }
+  if (-not $hw -or $hw -match 'error') { return $serial }
+  return $hw
+}
+
+# Conecta a la zona los celulares que ve adb (por cable o por el WiFi anterior)
+# y después los busca entre los clientes de la zona. Si un celular ya estaba en
+# modo WiFi (no se reinició), no hace falta el cable.
+function Llevar-Celulares-A-La-Zona($zonaInfo) {
+  Escribir-Paso "Conectando los celulares a la zona '$($zonaInfo.Ssid)'"
+  $redZona = Red-Zona
+  $equipos = @{}
+  foreach ($d in @(Listar-Dispositivos | Where-Object { $_.Estado -eq 'device' })) {
+    $hw = Serial-Equipo $d.Serial
+    if ($equipos.Contains($hw)) { continue }
+    $equipos[$hw] = $false
+    if (Ip-Celular-En-Red $d.Serial @($redZona)) { $equipos[$hw] = $true; continue }
+    $modelo = ((Adb -s $d.Serial shell getprop ro.product.model) | Select-Object -First 1).Trim()
+    Write-Host "  $modelo -> zona"
+    # En segundo plano: si el celular está por WiFi, al cambiar de red se corta
+    # esta misma conexión.
+    $remoto = "cmd wifi connect-network '$($zonaInfo.Ssid)' wpa2 '$($zonaInfo.Clave)'"
+    Start-Process -FilePath $adb -ArgumentList "-s $($d.Serial) shell `"$remoto`"" -WindowStyle Hidden | Out-Null
+  }
+
+  # Esperar a que aparezcan: por cable con IP de la zona, o como clientes de la
+  # zona en modo WiFi. Si no había ninguno a la vista, se espera igual un rato
+  # por si se conectan solos (red recordada).
+  $limite = 40; if ($equipos.Count -eq 0) { $limite = 20 }
+  $faltan = 0
+  $limpiado = $false
+  $espera = [Diagnostics.Stopwatch]::StartNew()
+  do {
+    Start-Sleep -Seconds 2
+    if (-not $limpiado -and $espera.Elapsed.TotalSeconds -gt 10) {
+      Limpiar-Conexiones-Caidas
+      $limpiado = $true
+    }
+    foreach ($c in $zonaInfo.Administrador.GetTetheringClients()) {
+      foreach ($h in $c.HostNames) {
+        if ([string]$h.Type -ne 'Ipv4') { continue }
+        $dir = "$($h.CanonicalName):5555"
+        $ya = Listar-Dispositivos | Where-Object { $_.Serial -eq $dir -and $_.Estado -eq 'device' }
+        if (-not $ya) { Adb connect $dir | Out-Null }
+      }
+    }
+    foreach ($d in @(Listar-Dispositivos | Where-Object { $_.Estado -eq 'device' })) {
+      $enZona = $false
+      if ($d.Serial -match '^([\d\.]+):\d+$') { $enZona = Misma-Red $Matches[1] $redZona }
+      elseif (Ip-Celular-En-Red $d.Serial @($redZona)) { $enZona = $true }
+      if ($enZona) { $equipos[(Serial-Equipo $d.Serial)] = $true }
+    }
+    $faltan = @($equipos.Keys | Where-Object { -not $equipos[$_] }).Count
+  } while (($faltan -gt 0 -or $equipos.Count -eq 0) -and $espera.Elapsed.TotalSeconds -lt $limite)
+
+  $enLaZona = @($equipos.Keys | Where-Object { $equipos[$_] }).Count
+  if ($enLaZona -gt 0) { Write-Host "  $enLaZona celular(es) en la zona." -ForegroundColor Green }
+  if ($faltan -gt 0) {
+    Write-Host "  $faltan celular(es) no llegaron a la zona: si están por cable, siguen por cable." -ForegroundColor Yellow
+  }
+}
+
+# --- Celulares ---------------------------------------------------------------
 Adb start-server | Out-Null
+Limpiar-Conexiones-Caidas
+$zonaInfo = $null
+$redesWifi = $null
+if ($Zona) {
+  Escribir-Paso 'Prendiendo la zona con cobertura de la notebook'
+  $zonaInfo = Iniciar-Zona
+  if ($zonaInfo) {
+    $redesWifi = @(Red-Zona)
+    Llevar-Celulares-A-La-Zona $zonaInfo
+    # Las conexiones por la red anterior quedan colgadas: se cortan para que no
+    # cuenten como celulares de más.
+    foreach ($d in @(Listar-Dispositivos)) {
+      if ($d.Serial -match '^([\d\.]+):\d+$' -and -not (Misma-Red $Matches[1] $redesWifi[0])) { Adb disconnect $d.Serial | Out-Null }
+    }
+  } else {
+    Write-Host '  Sigo con la red actual de la notebook.' -ForegroundColor Yellow
+  }
+}
+
+# Las direcciones guardadas solo sirven en la misma red: en otra, esa IP puede
+# ser de otro dispositivo (en una red pública, el teléfono de un desconocido).
+$nombreRed = Nombre-Wifi-Notebook
+if ($zonaInfo) { $nombreRed = "zona:$($zonaInfo.Ssid)" }
+
+Escribir-Paso 'Buscando celulares'
 if ($Wifi -and (Test-Path $archivoWifi)) {
-  foreach ($dir in (Get-Content $archivoWifi | Where-Object { $_ -match '\S' })) {
-    $res = (Adb connect $dir) -join ' '
-    if ($res -match 'connected') { Write-Host "  Reconectado por WiFi: $dir" }
+  $guardado = @(Get-Content $archivoWifi | Where-Object { $_ -match '\S' })
+  $redGuardada = ($guardado | Where-Object { $_ -match '^red=' } | Select-Object -First 1) -replace '^red=', ''
+  if ($redGuardada -and $redGuardada -eq $nombreRed) {
+    foreach ($dir in ($guardado | Where-Object { $_ -notmatch '^red=' })) {
+      $res = (Adb connect $dir) -join ' '
+      if ($res -match 'connected') { Write-Host "  Reconectado por WiFi: $dir" }
+    }
+  } elseif (-not $zonaInfo) {
+    Write-Host '  Las direcciones WiFi guardadas son de otra red: esta vez hace falta el cable.' -ForegroundColor Yellow
   }
 }
 $todos = @(Listar-Dispositivos)
@@ -167,15 +483,25 @@ if ($noAutorizados.Count -gt 0) {
 }
 $listos = @($todos | Where-Object { $_.Estado -eq 'device' } | ForEach-Object { $_.Serial })
 
-# Un mismo celular puede figurar dos veces (cable y WiFi). Se queda una sola
-# conexión: la de WiFi con -Wifi, la del cable si no.
+# Un mismo celular puede figurar varias veces (cable, WiFi anterior, zona). Se
+# queda una sola conexión: con -Wifi, la de la zona y después cualquier WiFi;
+# sin -Wifi, el cable.
+function Puntaje-Conexion([string]$serial) {
+  $esRed = $serial -match '^([\d\.]+):\d+$'
+  if (-not $Wifi) { if ($esRed) { return 1 } else { return 2 } }
+  if (-not $esRed) { return 1 }
+  if ($redesWifi -and (Misma-Red $Matches[1] $redesWifi[0])) { return 3 }
+  return 2
+}
 $porEquipo = [ordered]@{}
 foreach ($s in $listos) {
-  $hw = ((Adb -s $s shell getprop ro.serialno) | Select-Object -First 1).Trim()
-  if (-not $hw) { $hw = $s }
-  $esRed = $s -match ':\d+$'
-  if (-not $porEquipo.Contains($hw)) { $porEquipo[$hw] = $s; continue }
-  if ($Wifi -eq $esRed) { $porEquipo[$hw] = $s }
+  $hw = Serial-Equipo $s
+  if ($hw -eq $s -and $s -match ':\d+$') {
+    # Por red y sin responder: es una conexión vieja que todavía no se cayó.
+    Adb disconnect $s | Out-Null
+    continue
+  }
+  if (-not $porEquipo.Contains($hw) -or (Puntaje-Conexion $s) -gt (Puntaje-Conexion $porEquipo[$hw])) { $porEquipo[$hw] = $s }
 }
 $listos = @($porEquipo.Values)
 
@@ -192,17 +518,19 @@ if ($listos.Count -eq 0) {
     "  - Aceptar el aviso 'Permitir depuración USB' en el teléfono.")
 }
 
+# Si un celular no puede pasar a WiFi, sigue por cable: la presentación no se
+# corta por eso.
 if ($Wifi) {
   Escribir-Paso 'Pasando los celulares a WiFi'
-  $ssid = Nombre-Wifi-Notebook
-  $porWifi = @()
+  $finales = @()
+  $porCable = 0
   foreach ($s in $listos) {
-    if ($s -match ':\d+$') { $porWifi += $s; continue }
+    if ($s -match ':\d+$') { $finales += $s; continue }
     $modelo = ((Adb -s $s shell getprop ro.product.model) | Select-Object -First 1).Trim()
-    $ip = Ip-Celular-En-Red $s
+    $ip = Ip-Celular-En-Red $s $redesWifi
     if (-not $ip) {
-      Fallar ("El $modelo no está en la misma red que la notebook" +
-        $(if ($ssid) { " (WiFi '$ssid')" } else { '' }) + ". Conectalo a esa red o a un hotspot compartido.")
+      Write-Host "  El $modelo no está en la red de la notebook: sigue por cable." -ForegroundColor Yellow
+      $finales += $s; $porCable++; continue
     }
     Adb -s $s tcpip 5555 | Out-Null
     $conectado = $false
@@ -211,15 +539,22 @@ if ($Wifi) {
       if (((Adb connect "${ip}:5555") -join ' ') -match 'connected') { $conectado = $true; break }
     }
     if (-not $conectado) {
-      Fallar "No pude conectar al $modelo en ${ip}:5555. Puede que la red aísle a los dispositivos entre sí (pasa en redes de facultad): probá con un hotspot."
+      Write-Host "  No pude conectar al $modelo en ${ip}:5555 (la red puede aislar dispositivos): sigue por cable." -ForegroundColor Yellow
+      $finales += $s; $porCable++; continue
     }
     Write-Host "  $modelo -> ${ip}:5555"
-    $porWifi += "${ip}:5555"
+    $finales += "${ip}:5555"
   }
-  $listos = $porWifi
-  New-Item -ItemType Directory -Force (Split-Path $archivoWifi) | Out-Null
-  Set-Content -Path $archivoWifi -Value $porWifi -Encoding ASCII
-  Write-Host '  Listo: ya podés desenchufar los cables.' -ForegroundColor Green
+  $listos = $finales
+  $porWifi = @($finales | Where-Object { $_ -match ':\d+$' })
+  if ($porWifi.Count -gt 0) {
+    Set-Content -Path $archivoWifi -Value (@("red=$nombreRed") + $porWifi) -Encoding UTF8
+  }
+  if ($porCable -eq 0) {
+    Write-Host '  Listo: ya podés desenchufar los cables.' -ForegroundColor Green
+  } else {
+    Write-Host '  Ojo: los que siguen por cable no se pueden desenchufar.' -ForegroundColor Yellow
+  }
 }
 
 if ($listos.Count -gt 2) {
@@ -245,12 +580,7 @@ $etiquetas = @(
   [pscustomobject]@{ Nombre = $Izquierda; Rol = $RolIzquierda },
   [pscustomobject]@{ Nombre = $Derecha; Rol = $RolDerecha }
 )
-for ($i = 0; $i -lt $celulares.Count; $i++) {
-  $lado = 'derecha'
-  if ($i -eq 0 -and $celulares.Count -eq 2) { $lado = 'izquierda' }
-  if ($celulares.Count -eq 1) { $lado = 'centro' }
-  Write-Host ("  {0,-10} {1} ({2}) -> {3}" -f $lado, $celulares[$i].Modelo, $celulares[$i].Serial, $etiquetas[$i].Nombre)
-}
+if ($celulares.Count -eq 2) { $centros = $CENTROS_DOS } else { $centros = $CENTROS_UNO }
 
 # --- Pantalla ----------------------------------------------------------------
 $pantallas = [System.Windows.Forms.Screen]::AllScreens
@@ -263,31 +593,253 @@ if ($Pantalla -ge 0) {
 $b = $destino.Bounds
 Escribir-Paso ("Pantalla {0}x{1} en ({2},{3})" -f $b.Width, $b.Height, $b.X, $b.Y)
 
-if ($celulares.Count -eq 2) { $centros = $CENTROS_DOS } else { $centros = $CENTROS_UNO }
-
-$abiertos = New-Object System.Collections.ArrayList
-$logs = Join-Path $env:TEMP 'mesh-presentacion'
-New-Item -ItemType Directory -Force $logs | Out-Null
-
-$perfil = Join-Path $logs 'perfil-navegador'
-
-# Edge y Chrome se relanzan a sí mismos: el proceso que devuelve Start-Process
-# termina enseguida. El escenario se reconoce por su perfil propio.
-function Procesos-Escenario {
-  @(Get-CimInstance Win32_Process -Filter "Name='msedge.exe' OR Name='chrome.exe'" |
-    Where-Object { $_.CommandLine -and $_.CommandLine.Contains($perfil) -and $_.CommandLine -notmatch '--type=' })
-}
-
-function Cerrar-Todo {
-  foreach ($p in $abiertos) {
-    try { if (-not $p.HasExited) { & taskkill /PID $p.Id /T /F 2>&1 | Out-Null } } catch {}
+# --- Espejos -----------------------------------------------------------------
+$espejos = @()
+for ($i = 0; $i -lt $celulares.Count; $i++) {
+  $c = $celulares[$i]
+  $espejos += [pscustomobject]@{
+    Indice = $i; Serial = $c.Serial; Modelo = $c.Modelo; Ancho = $c.Ancho; Alto = $c.Alto
+    Nombre = $etiquetas[$i].Nombre; Centro = $centros[$i]
+    X = 0; Y = 0; AnchoVentana = 0; AltoVentana = 0
+    Proceso = $null; Hwnd = [IntPtr]::Zero; Log = $null
+    ProximoIntento = [datetime]::MinValue; Caido = $false
   }
-  $abiertos.Clear()
-  foreach ($p in Procesos-Escenario) { & taskkill /PID $p.ProcessId /T /F 2>&1 | Out-Null }
+  $lado = 'centro'
+  if ($celulares.Count -eq 2) { if ($i -eq 0) { $lado = 'izquierda' } else { $lado = 'derecha' } }
+  Write-Host ("  {0,-10} {1} ({2}) -> {3}" -f $lado, $c.Modelo, $c.Serial, $etiquetas[$i].Nombre)
 }
+
+function Calcular-Lugar($v) {
+  $v.AltoVentana = [int]($b.Height * $FRACCION_ALTO)
+  $v.AnchoVentana = [int][math]::Round($v.AltoVentana * $v.Ancho / $v.Alto)
+  $v.X = $b.X + [int]($b.Width * $v.Centro - $v.AnchoVentana / 2)
+  $v.Y = $b.Y + [int]($b.Height * $FRACCION_ARRIBA)
+}
+foreach ($v in $espejos) { Calcular-Lugar $v }
+
+function Lanzar-Espejo($v) {
+  $argsScrcpy = @(
+    "--serial=$($v.Serial)",
+    # Un rango de puertos por espejo: si comparten el rango y arrancan juntos
+    # (por ejemplo, al reconectar), uno falla con "Server connection failed".
+    "--port=$(27183 + 8 * $v.Indice):$(27190 + 8 * $v.Indice)",
+    "--window-title=`"Mesh - $($v.Nombre)`"",
+    '--stay-awake', '--show-touches', '--no-audio',
+    '--disable-screensaver', '--screen-off-timeout=1800',
+    '--max-size=1920', '--video-bit-rate=8M', '--max-fps=60'
+  )
+  if (-not $ConBordes) { $argsScrcpy += '--window-borderless' }
+  # Un log por lanzamiento: el de un espejo recién cerrado puede seguir tomado.
+  $v.Log = Join-Path $logs ("scrcpy-{0}-{1:HHmmss}.log" -f $v.Indice, (Get-Date))
+  $v.Proceso = Start-Process -FilePath $scrcpy -ArgumentList $argsScrcpy -PassThru -NoNewWindow `
+    -RedirectStandardOutput $v.Log -RedirectStandardError "$($v.Log).err"
+  $v.Hwnd = [IntPtr]::Zero
+}
+
+function Buscar-Ventana($v) {
+  $v.Proceso.Refresh()
+  if ($v.Proceso.MainWindowHandle -eq [IntPtr]::Zero) { return }
+  $v.Hwnd = $v.Proceso.MainWindowHandle
+  if ($v.Caido) {
+    Write-Host "  Reconectado: $($v.Nombre) ($($v.Modelo))." -ForegroundColor Green
+    $v.Caido = $false
+  }
+}
+
+function Espejo-Vivo($v) {
+  return $v.Proceso -and -not $v.Proceso.HasExited -and $v.Hwnd -ne [IntPtr]::Zero
+}
+
+# Si un espejo se cierra (cable flojo, corte de WiFi, Alt+F4 de más) se vuelve
+# a abrir apenas el celular aparece de nuevo.
+function Reintentar($v) {
+  if ((Get-Date) -lt $v.ProximoIntento) { return }
+  $v.ProximoIntento = (Get-Date).AddSeconds(4)
+  if (-not $v.Caido) {
+    Write-Host "  Se cortó el espejo de $($v.Nombre) ($($v.Modelo)). Reintentando..." -ForegroundColor Yellow
+    $v.Caido = $true
+  }
+  $estado = (Listar-Dispositivos | Where-Object { $_.Serial -eq $v.Serial } | Select-Object -First 1).Estado
+  if ($estado -ne 'device') {
+    if ($v.Serial -match ':\d+$') { Adb-En-Segundo-Plano @('connect', $v.Serial) }
+    return
+  }
+  Lanzar-Espejo $v
+}
+
+# --- Preparar los teléfonos --------------------------------------------------
+function Preparar-Celulares {
+  Escribir-Paso 'Preparando los teléfonos'
+  # El modo original se guarda ANTES de tocarlo, para poder restaurarlo aunque
+  # el script se corte. Si un celular ya figura (corrida que no cerró bien),
+  # ese valor es el original: no se pisa con el No molestar que quedó encendido.
+  $yaGuardados = @()
+  if (Test-Path $archivoDnd) { $yaGuardados = @(Get-Content $archivoDnd | ForEach-Object { ($_ -split '=', 2)[0] }) }
+  foreach ($v in $espejos) {
+    if ($yaGuardados -notcontains $v.Serial) {
+      $zen = ((Adb -s $v.Serial shell settings get global zen_mode) | Select-Object -First 1).Trim()
+      if ($zen -notmatch '^\d$') { $zen = '0' }
+      Add-Content -Path $archivoDnd -Value "$($v.Serial)=$zen" -Encoding ASCII
+    }
+    Adb -s $v.Serial shell cmd notification set_dnd on | Out-Null
+    Adb -s $v.Serial shell cmd statusbar collapse | Out-Null
+    Adb -s $v.Serial shell input keyevent KEYCODE_WAKEUP | Out-Null
+    $instalada = (Adb -s $v.Serial shell pm list packages $Paquete) -join ' '
+    if ($instalada -match [regex]::Escape("package:$Paquete")) {
+      Adb -s $v.Serial shell monkey -p $Paquete -c android.intent.category.LAUNCHER 1 | Out-Null
+      Write-Host "  $($v.Modelo): No molestar activado, Mesh abierta."
+    } else {
+      Write-Host "  $($v.Modelo): No molestar activado. Mesh no está instalada." -ForegroundColor Yellow
+    }
+  }
+}
+
+# --- Orden de ventanas -------------------------------------------------------
+# Los celulares van pegados al escenario:
+# - Con el escenario (o un celular) en foco quedan "siempre visibles" y en su
+#   lugar; si un Alt+Tab o un clic de más los movió, vuelven.
+# - Con otra ventana en foco (diapositivas, backoffice) pasan justo debajo del
+#   escenario, y esa ventana queda adelante.
+# Windows no deja subir ventanas ajenas desde un proceso en segundo plano, pero
+# sí marcarlas como siempre visibles; y con una ventana normal encima de la
+# pantalla completa vuelve a mostrar la barra de tareas. Por eso se usa
+# "siempre visible" solo mientras la escena está en foco.
+$HWND_TOPMOST = [IntPtr](-1)
+$HWND_BOTTOM = [IntPtr]1
+$SOLO_ORDEN = 0x0013          # SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE
+$UBICAR = 0x0050              # SWP_SHOWWINDOW | SWP_NOACTIVATE
+$hwndEscenario = [IntPtr]::Zero
+
+function Es-Siempre-Visible($h) { return ([MeshVentana]::GetWindowLong($h, -20) -band 0x8) -ne 0 }   # WS_EX_TOPMOST
+
+function Traer-Al-Frente($v) {
+  $r = New-Object MeshRect
+  [MeshVentana]::GetWindowRect($v.Hwnd, [ref]$r) | Out-Null
+  $enLugar = $r.Izq -eq $v.X -and $r.Arr -eq $v.Y -and ($r.Der - $r.Izq) -eq $v.AnchoVentana -and ($r.Aba - $r.Arr) -eq $v.AltoVentana
+  if (-not $enLugar) {
+    if ([MeshVentana]::IsIconic($v.Hwnd)) { [MeshVentana]::ShowWindow($v.Hwnd, 4) | Out-Null }   # SW_SHOWNOACTIVATE
+    [MeshVentana]::SetWindowPos($v.Hwnd, $HWND_TOPMOST, $v.X, $v.Y, $v.AnchoVentana, $v.AltoVentana, $UBICAR) | Out-Null
+  } elseif (-not (Es-Siempre-Visible $v.Hwnd)) {
+    [MeshVentana]::SetWindowPos($v.Hwnd, $HWND_TOPMOST, 0, 0, 0, 0, $SOLO_ORDEN) | Out-Null
+  }
+}
+
+function Mandar-Atras($v) {
+  if (-not (Es-Siempre-Visible $v.Hwnd)) { return }
+  # Ubicarla después de una ventana normal le quita el "siempre visible".
+  $despues = $HWND_BOTTOM
+  if ($hwndEscenario -ne [IntPtr]::Zero) { $despues = $hwndEscenario }
+  [MeshVentana]::SetWindowPos($v.Hwnd, $despues, 0, 0, 0, 0, $SOLO_ORDEN) | Out-Null
+}
+
+function Buscar-Escenario {
+  $p = Procesos-Escenario | ForEach-Object { Get-Process -Id $_.ProcessId -ErrorAction SilentlyContinue } |
+    Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero } | Select-Object -First 1
+  if ($p) { $script:hwndEscenario = $p.MainWindowHandle }
+}
+
+function Escena-En-Foco {
+  $foco = [MeshVentana]::GetForegroundWindow()
+  if ($foco -eq [IntPtr]::Zero) { return $false }
+  if ($foco -eq $hwndEscenario) { return $true }
+  foreach ($v in $espejos) { if ($v.Hwnd -eq $foco) { return $true } }
+  return $false
+}
+
+# --- Acciones del menú y los atajos ------------------------------------------
+$consola = [MeshVentana]::GetConsoleWindow()
+
+function Mostrar-Celulares {
+  $destino = $hwndEscenario
+  if ($destino -eq [IntPtr]::Zero) {
+    $vivo = $espejos | Where-Object { Espejo-Vivo $_ } | Select-Object -First 1
+    if ($vivo) { $destino = $vivo.Hwnd }
+  }
+  if ($destino -ne [IntPtr]::Zero) { [MeshVentana]::Enfocar($destino) | Out-Null }
+}
+
+function Reconectar-Todo {
+  Write-Host '  Reconectando los espejos...' -ForegroundColor Cyan
+  foreach ($v in $espejos) {
+    if ($v.Proceso -and -not $v.Proceso.HasExited) { Stop-Process -Id $v.Proceso.Id -Force -ErrorAction SilentlyContinue }
+    $v.ProximoIntento = [datetime]::MinValue
+  }
+}
+
+function Invertir-Lados {
+  if ($espejos.Count -ne 2) { return }
+  $centro = $espejos[0].Centro; $espejos[0].Centro = $espejos[1].Centro; $espejos[1].Centro = $centro
+  $nombre = $espejos[0].Nombre; $espejos[0].Nombre = $espejos[1].Nombre; $espejos[1].Nombre = $nombre
+  foreach ($v in $espejos) {
+    Calcular-Lugar $v
+    if (Espejo-Vivo $v) { [MeshVentana]::SetWindowText($v.Hwnd, "Mesh - $($v.Nombre)") | Out-Null }
+  }
+  Mostrar-Celulares
+}
+
+function Alternar-Consola {
+  if ($consola -eq [IntPtr]::Zero) { return }
+  if ([MeshVentana]::IsWindowVisible($consola)) {
+    [MeshVentana]::ShowWindow($consola, 0) | Out-Null          # SW_HIDE
+  } else {
+    [MeshVentana]::ShowWindow($consola, 5) | Out-Null          # SW_SHOW
+    [MeshVentana]::Enfocar($consola) | Out-Null
+  }
+}
+
+function Finalizar { $script:contexto.ExitThread() }
+
+function Cargar-Icono {
+  $png = Join-Path $PSScriptRoot '..\..\frontend\assets\images\favicon.png'
+  try {
+    $original = New-Object System.Drawing.Bitmap $png
+    $chico = New-Object System.Drawing.Bitmap $original, 32, 32
+    return [System.Drawing.Icon]::FromHandle($chico.GetHicon())
+  } catch {
+    return [System.Drawing.SystemIcons]::Application
+  }
+}
+
+# --- Vigilante: corre cada 150 ms mientras se presenta ------------------------
+$proximoDespertar = (Get-Date).AddSeconds(20)
+$proximoEscenario = Get-Date
+
+function Vigilar {
+  if (Test-Path $archivoCerrar) { Finalizar; return }
+
+  foreach ($v in $espejos) {
+    if (-not $v.Proceso -or $v.Proceso.HasExited) { $v.Hwnd = [IntPtr]::Zero; Reintentar $v; continue }
+    if ($v.Hwnd -eq [IntPtr]::Zero) { Buscar-Ventana $v }
+  }
+
+  if (-not $SinEscenario -and $hwndEscenario -eq [IntPtr]::Zero -and (Get-Date) -ge $script:proximoEscenario) {
+    Buscar-Escenario
+    $script:proximoEscenario = (Get-Date).AddSeconds(2)
+  }
+
+  $vivos = @($espejos | Where-Object { Espejo-Vivo $_ })
+  if (Escena-En-Foco) {
+    foreach ($v in $vivos) { Traer-Al-Frente $v }
+  } else {
+    foreach ($v in $vivos) { Mandar-Atras $v }
+  }
+
+  # Por WiFi Android no respeta "mantener despierto": se lo despierta seguido.
+  if ((Get-Date) -ge $script:proximoDespertar) {
+    foreach ($v in $vivos) { Adb-En-Segundo-Plano @('-s', $v.Serial, 'shell', 'input', 'keyevent', 'KEYCODE_WAKEUP') }
+    $script:proximoDespertar = (Get-Date).AddSeconds(20)
+  }
+}
+
+# --- Presentación ------------------------------------------------------------
+$fallo = $false
+$icono = $null
+$atajos = $null
+$reloj = $null
 
 try {
-  # --- Escenario -------------------------------------------------------------
+  if (-not $SinPreparar) { Preparar-Celulares }
+
   if (-not $SinEscenario) {
     Escribir-Paso 'Abriendo el escenario'
     $navegador = @(
@@ -298,6 +850,7 @@ try {
     ) | Where-Object { Test-Path $_ } | Select-Object -First 1
     if (-not $navegador) {
       Write-Host '  No encontré Edge ni Chrome: sigo sin escenario.' -ForegroundColor Yellow
+      $SinEscenario = $true
     } else {
       $q = @{
         izq = $etiquetas[0].Nombre; rolIzq = $etiquetas[0].Rol
@@ -307,8 +860,7 @@ try {
       $query = ($q.GetEnumerator() | ForEach-Object {
         '{0}={1}' -f $_.Key, [uri]::EscapeDataString(([string]$_.Value).Replace(',', '.'))
       }) -join '&'
-      $html = Join-Path $PSScriptRoot 'escenario.html'
-      $url = ([uri]$html).AbsoluteUri + '?' + $query
+      $url = ([uri](Join-Path $PSScriptRoot 'escenario.html')).AbsoluteUri + '?' + $query
       $argsNav = @(
         "--kiosk", "`"$url`"", "--edge-kiosk-type=fullscreen",
         "--user-data-dir=`"$perfil`"", "--no-first-run", "--no-default-browser-check",
@@ -316,152 +868,118 @@ try {
         "--window-position=$($b.X + 40),$($b.Y + 40)"
       )
       Start-Process -FilePath $navegador -ArgumentList $argsNav | Out-Null
-      Start-Sleep -Seconds 3
+      $espera = [Diagnostics.Stopwatch]::StartNew()
+      while ($hwndEscenario -eq [IntPtr]::Zero -and $espera.Elapsed.TotalSeconds -lt 10) {
+        Start-Sleep -Milliseconds 300
+        Buscar-Escenario
+      }
     }
   }
 
-  # --- Espejos ---------------------------------------------------------------
-  $ventanas = @()
-  for ($i = 0; $i -lt $celulares.Count; $i++) {
-    $c = $celulares[$i]
-    $nombre = $etiquetas[$i].Nombre
-    Escribir-Paso "Espejando $($c.Modelo) ($nombre)"
-
-    # Ojo: PowerShell no distingue mayúsculas en variables; estos nombres no
-    # pueden coincidir con las constantes del layout.
-    $altoVentana = [int]($b.Height * $FRACCION_ALTO)
-    $anchoVentana = [int][math]::Round($altoVentana * $c.Ancho / $c.Alto)
-    $xVentana = $b.X + [int]($b.Width * $centros[$i] - $anchoVentana / 2)
-    $yVentana = $b.Y + [int]($b.Height * $FRACCION_ARRIBA)
-
-    $argsScrcpy = @(
-      "--serial=$($c.Serial)",
-      "--window-title=`"Mesh - $nombre`"",
-      '--stay-awake', '--show-touches', '--no-audio',
-      '--disable-screensaver', '--screen-off-timeout=1800',
-      '--max-size=1920', '--video-bit-rate=8M', '--max-fps=60'
-    )
-    if (-not $ConBordes) { $argsScrcpy += '--window-borderless' }
-
-    $log = Join-Path $logs "scrcpy-$i.log"
-    $p = Start-Process -FilePath $scrcpy -ArgumentList $argsScrcpy -PassThru -NoNewWindow `
-      -RedirectStandardOutput $log -RedirectStandardError "$log.err"
-    [void]$abiertos.Add($p)
-
-    $reloj = [Diagnostics.Stopwatch]::StartNew()
-    while ($reloj.Elapsed.TotalSeconds -lt 30) {
-      $p.Refresh()
-      if ($p.HasExited -or $p.MainWindowHandle -ne [IntPtr]::Zero) { break }
-      Start-Sleep -Milliseconds 300
+  # De a uno y con reintentos: la conexión inicial con el celular a veces falla
+  # la primera vez (sobre todo por WiFi).
+  foreach ($v in $espejos) {
+    Escribir-Paso "Espejando $($v.Modelo) ($($v.Nombre))"
+    foreach ($intento in 1..3) {
+      Lanzar-Espejo $v
+      $espera = [Diagnostics.Stopwatch]::StartNew()
+      while ($v.Hwnd -eq [IntPtr]::Zero -and -not $v.Proceso.HasExited -and $espera.Elapsed.TotalSeconds -lt 30) {
+        Start-Sleep -Milliseconds 300
+        Buscar-Ventana $v
+      }
+      if ($v.Hwnd -ne [IntPtr]::Zero) { break }
+      if (-not $v.Proceso.HasExited) { Stop-Process -Id $v.Proceso.Id -Force -ErrorAction SilentlyContinue }
+      if ($intento -lt 3) {
+        Write-Host "  No abrió; reintento ($($intento + 1) de 3)..." -ForegroundColor Yellow
+        Start-Sleep -Seconds 2
+      }
     }
-    if ($p.HasExited -or $p.MainWindowHandle -eq [IntPtr]::Zero) {
+    if ($v.Hwnd -eq [IntPtr]::Zero) {
       $detalle = ''
-      if (Test-Path "$log.err") { $detalle = (Get-Content "$log.err" -Tail 8) -join "`n" }
-      throw "scrcpy no abrió la ventana de $($c.Modelo).`n$detalle"
-    }
-    $ventanas += [pscustomobject]@{
-      Proceso = $p; Nombre = $nombre; Hwnd = $p.MainWindowHandle
-      X = $xVentana; Y = $yVentana; Ancho = $anchoVentana; Alto = $altoVentana; Avisado = $false
+      if (Test-Path "$($v.Log).err") { $detalle = (Get-Content "$($v.Log).err" -Tail 8) -join "`n" }
+      throw "scrcpy no abrió la ventana de $($v.Modelo).`n$detalle"
     }
   }
-
-  # Los celulares van pegados al escenario:
-  # - Con el escenario (o un celular) en foco quedan "siempre visibles" y en su
-  #   lugar; si un Alt+Tab o un clic de más los movió, vuelven.
-  # - Con otra ventana en foco (diapositivas, backoffice) pasan justo debajo del
-  #   escenario, y esa ventana queda adelante.
-  # Windows no deja subir ventanas ajenas desde un proceso en segundo plano, pero
-  # sí marcarlas como siempre visibles; y con una ventana normal encima de la
-  # pantalla completa vuelve a mostrar la barra de tareas. Por eso se usa
-  # "siempre visible" solo mientras la escena está en foco.
-  $HWND_TOPMOST = [IntPtr](-1)
-  $HWND_BOTTOM = [IntPtr]1
-  $SOLO_ORDEN = 0x0013          # SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE
-  $UBICAR = 0x0050              # SWP_SHOWWINDOW | SWP_NOACTIVATE
-
-  function Sigue-Abierto($v) {
-    if (-not $v.Proceso.HasExited) { return $true }
-    if (-not $v.Avisado) {
-      Write-Host "`n  Se cerró el espejo de $($v.Nombre) (¿se desconectó el cable?). Volvé a correr el script." -ForegroundColor Yellow
-      $v.Avisado = $true
-    }
-    return $false
-  }
-
-  function Es-Siempre-Visible($h) { return ([MeshVentana]::GetWindowLong($h, -20) -band 0x8) -ne 0 }   # WS_EX_TOPMOST
-
-  function Traer-Al-Frente($v) {
-    if (-not (Sigue-Abierto $v)) { return }
-    $r = New-Object MeshRect
-    [MeshVentana]::GetWindowRect($v.Hwnd, [ref]$r) | Out-Null
-    $enLugar = $r.Izq -eq $v.X -and $r.Arr -eq $v.Y -and ($r.Der - $r.Izq) -eq $v.Ancho -and ($r.Aba - $r.Arr) -eq $v.Alto
-    if (-not $enLugar) {
-      if ([MeshVentana]::IsIconic($v.Hwnd)) { [MeshVentana]::ShowWindow($v.Hwnd, 4) | Out-Null }   # SW_SHOWNOACTIVATE
-      [MeshVentana]::SetWindowPos($v.Hwnd, $HWND_TOPMOST, $v.X, $v.Y, $v.Ancho, $v.Alto, $UBICAR) | Out-Null
-    } elseif (-not (Es-Siempre-Visible $v.Hwnd)) {
-      [MeshVentana]::SetWindowPos($v.Hwnd, $HWND_TOPMOST, 0, 0, 0, 0, $SOLO_ORDEN) | Out-Null
-    }
-  }
-
-  function Mandar-Atras($v) {
-    if (-not (Sigue-Abierto $v)) { return }
-    if (-not (Es-Siempre-Visible $v.Hwnd)) { return }
-    # Ubicarla después de una ventana normal le quita el "siempre visible".
-    $despues = $HWND_BOTTOM
-    if ($hwndEscenario -ne [IntPtr]::Zero) { $despues = $hwndEscenario }
-    [MeshVentana]::SetWindowPos($v.Hwnd, $despues, 0, 0, 0, 0, $SOLO_ORDEN) | Out-Null
-  }
-
-  $ventanaEscenario = Procesos-Escenario | ForEach-Object { Get-Process -Id $_.ProcessId -ErrorAction SilentlyContinue } |
-    Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero } | Select-Object -First 1
-  $hwndEscenario = [IntPtr]::Zero
-  if ($ventanaEscenario) { $hwndEscenario = $ventanaEscenario.MainWindowHandle }
-  $hwndsEscena = @($ventanas | ForEach-Object { $_.Hwnd })
-  if ($hwndEscenario -ne [IntPtr]::Zero) { $hwndsEscena += $hwndEscenario }
-
-  function Escena-En-Foco { return ($hwndsEscena -contains [MeshVentana]::GetForegroundWindow()) }
 
   # Se repite porque scrcpy puede ajustar su tamaño al recibir el primer cuadro.
   foreach ($vuelta in 1..3) {
-    foreach ($v in $ventanas) { Traer-Al-Frente $v }
+    foreach ($v in $espejos) { Traer-Al-Frente $v }
     Start-Sleep -Milliseconds 800
   }
 
-  Write-Host "`nTodo listo." -ForegroundColor Green
-  Write-Host '  - Clic sobre una ventana = toque en ese celular. Para mostrar, usá los teléfonos en la mano.'
-  Write-Host '  - Para poner otra ventana adelante (diapositivas, backoffice), pasá a ella con Alt+Tab.'
-  Write-Host "    Para volver a los celulares, Alt+Tab a 'Mesh · Presentación'."
-  Write-Host "  - Logs de scrcpy en $logs"
+  # Bandeja de Windows: ícono, menú y atajos.
+  $contexto = New-Object System.Windows.Forms.ApplicationContext
+  $menu = New-Object System.Windows.Forms.ContextMenuStrip
+  $titulo = $menu.Items.Add('Mesh · Presentación')
+  $titulo.Enabled = $false
+  [void]$menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator))
+  $opciones = @(
+    @{ Texto = 'Mostrar celulares';             Atajo = 'Ctrl+Alt+M'; Id = 2; Tecla = 'M'; Accion = { Mostrar-Celulares } },
+    @{ Texto = 'Reconectar celulares';          Atajo = 'Ctrl+Alt+R'; Id = 3; Tecla = 'R'; Accion = { Reconectar-Todo } },
+    @{ Texto = 'Invertir lados';                Atajo = 'Ctrl+Alt+I'; Id = 4; Tecla = 'I'; Accion = { Invertir-Lados } },
+    @{ Texto = 'Mostrar u ocultar la consola';  Atajo = 'Ctrl+Alt+C'; Id = 5; Tecla = 'C'; Accion = { Alternar-Consola } },
+    $null,
+    @{ Texto = 'Finalizar presentación';        Atajo = 'Ctrl+Alt+Q'; Id = 1; Tecla = 'Q'; Accion = { Finalizar } }
+  )
+  $accionesPorId = @{}
+  $atajos = New-Object MeshAtajos
+  $sinAtajo = @()
+  foreach ($o in $opciones) {
+    if (-not $o) { [void]$menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator)); continue }
+    $item = New-Object System.Windows.Forms.ToolStripMenuItem $o.Texto
+    $item.ShortcutKeyDisplayString = $o.Atajo
+    $item.add_Click($o.Accion)
+    [void]$menu.Items.Add($item)
+    $accionesPorId[$o.Id] = $o.Accion
+    if (-not $atajos.Registrar($o.Id, [System.Windows.Forms.Keys]$o.Tecla)) { $sinAtajo += $o.Atajo }
+  }
+  $atajos.add_Pulsado({
+    $accion = $accionesPorId[$atajos.Ultimo]
+    if ($accion) { try { & $accion } catch { Write-Host "  Error: $_" -ForegroundColor Red } }
+  })
 
-  # La consola se minimiza para que el escenario quede adelante: con la consola
-  # en foco, Windows muestra la barra de tareas encima de la pantalla completa.
-  if ($ventanaEscenario) {
-    Write-Host '  - Esta consola queda minimizada: para cerrar todo, volvé acá con Alt+Tab.'
-    [MeshVentana]::ShowWindow([MeshVentana]::GetConsoleWindow(), 6) | Out-Null   # SW_MINIMIZE
-    [MeshVentana]::SetForegroundWindow($ventanaEscenario.MainWindowHandle) | Out-Null
+  $icono = New-Object System.Windows.Forms.NotifyIcon
+  $icono.Icon = Cargar-Icono
+  $icono.Text = 'Mesh · Ctrl+Alt+M mostrar · Ctrl+Alt+Q finalizar'
+  $icono.ContextMenuStrip = $menu
+  $icono.add_DoubleClick({ Mostrar-Celulares })
+  $icono.Visible = $true
+
+  $reloj = New-Object System.Windows.Forms.Timer
+  $reloj.Interval = 150
+  $reloj.add_Tick({ try { Vigilar } catch { Write-Host "  Error del vigilante: $_" -ForegroundColor Red } })
+
+  Write-Host "`nTodo listo." -ForegroundColor Green
+  Write-Host '  El control queda en el ícono de Mesh de la bandeja (al lado del reloj).'
+  Write-Host '  Ctrl+Alt+M mostrar celulares   Ctrl+Alt+R reconectar   Ctrl+Alt+I invertir'
+  Write-Host '  Ctrl+Alt+C consola             Ctrl+Alt+Q finalizar'
+  if ($sinAtajo.Count -gt 0) {
+    Write-Host "  Otro programa ya usa: $($sinAtajo -join ', '). Usá el menú del ícono." -ForegroundColor Yellow
   }
-  Write-Host "`nPresioná Enter acá para cerrar los espejos y el escenario."
-  $conTeclado = $true
-  try { [void][Console]::KeyAvailable } catch { $conTeclado = $false }
-  if (-not $conTeclado) {
-    Read-Host | Out-Null
-  } else {
-    $salir = $false
-    while (-not $salir) {
-      while ([Console]::KeyAvailable) {
-        if ([Console]::ReadKey($true).Key -eq [ConsoleKey]::Enter) { $salir = $true }
-      }
-      if (-not $salir) {
-        if (Escena-En-Foco) {
-          foreach ($v in $ventanas) { Traer-Al-Frente $v }
-        } else {
-          foreach ($v in $ventanas) { Mandar-Atras $v }
-        }
-        Start-Sleep -Milliseconds 150
-      }
-    }
-  }
+  Write-Host "  Logs de scrcpy en $logs"
+
+  # La consola se oculta: con ella en foco, Windows muestra la barra de tareas
+  # encima de la pantalla completa. Vuelve con Ctrl+Alt+C.
+  if ($consola -ne [IntPtr]::Zero) { [MeshVentana]::ShowWindow($consola, 0) | Out-Null }
+  Mostrar-Celulares
+  $reloj.Start()
+  [System.Windows.Forms.Application]::Run($contexto)
+}
+catch {
+  $fallo = $true
+  if ($consola -ne [IntPtr]::Zero) { [MeshVentana]::ShowWindow($consola, 5) | Out-Null }
+  Write-Host "`n$_" -ForegroundColor Red
 }
 finally {
-  Cerrar-Todo
+  if ($reloj) { $reloj.Stop(); $reloj.Dispose() }
+  if ($icono) { $icono.Visible = $false; $icono.Dispose() }
+  if ($atajos) { $atajos.Dispose() }
+  foreach ($v in $espejos) {
+    if ($v.Proceso -and -not $v.Proceso.HasExited) { Matar-Proceso $v.Proceso.Id -Arbol }
+  }
+  foreach ($p in Procesos-Escenario) { Matar-Proceso $p.ProcessId -Arbol }
+  Restaurar-No-Molestar
+  Detener-Zona
+  Remove-Item $archivoCerrar -Force -ErrorAction SilentlyContinue
 }
+if ($fallo) { exit 1 }

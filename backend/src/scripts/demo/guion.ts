@@ -33,6 +33,14 @@ function haceDiasDesde(fecha: string): number {
   return Math.round((inicioDiaArg(diaArg(new Date())).getTime() - inicioDiaArg(fecha).getTime()) / 86_400_000)
 }
 
+/** Días desde que se corre el seed hasta una fecha fija futura (`YYYY-MM-DD`, hora argentina). */
+function enDiasHasta(fecha: string): number {
+  return -haceDiasDesde(fecha)
+}
+
+/** El festejo de la recibida del equipo, con el que se cierra la presentación. */
+const RECIBIDA = '2026-12-03'
+
 /** Belgrano le ganó 3-2 a River la final del Apertura 2026 el 24/05 y la caravana fue al día siguiente. */
 const CARAVANA_CAMPEON = '2026-05-25'
 
@@ -49,8 +57,17 @@ export type UsuarioDemo = {
   login?: boolean
   superadmin?: boolean
   visibilidad?: VisibilidadLogros
-  /** Semanas seguidas con actividad que el relleno le garantiza (RN-075). */
+  /**
+   * Semanas seguidas con actividad que el relleno le arma (RN-075): exactas, porque la
+   * semana anterior a la racha queda sin viajes. Variadas a propósito, para que en la app
+   * se vean todos los escalones de la escala de hitos (3, 5 y 10).
+   */
   rachaSemanas?: number
+  /**
+   * La racha viene de la semana pasada hacia atrás y esta semana todavía no salió: la app
+   * la muestra "en riesgo". Sin esto, la racha incluye la semana actual.
+   */
+  rachaEnRiesgo?: boolean
   /** Cuenta suspendida por el superadmin (RN-123), con este motivo. */
   suspendido?: string
   /** Recién registrado: todavía no aceptó el aviso de ubicación ni hizo viajes. */
@@ -70,16 +87,16 @@ export const ELENCO: UsuarioDemo[] = [
   { clave: 'sofia', nombre: 'Sofía', apellido: 'Pereyra', actividad: 'trekking', altaHaceDias: 210, login: true, foto: 'sofia.jpg' },
 
   { clave: 'diego', nombre: 'Diego', apellido: 'Maldonado', actividad: 'trekking', altaHaceDias: 420, rachaSemanas: 14, foto: 'diego.jpg' },
-  { clave: 'valentina', nombre: 'Valentina', apellido: 'Ríos', actividad: 'bici', altaHaceDias: 380, rachaSemanas: 9, foto: 'valentina.jpg' },
+  { clave: 'valentina', nombre: 'Valentina', apellido: 'Ríos', actividad: 'bici', altaHaceDias: 380, rachaSemanas: 6, foto: 'valentina.jpg' },
   { clave: 'joaquin', nombre: 'Joaquín', apellido: 'Sosa', actividad: 'moto', altaHaceDias: 350, foto: 'joaquin.jpg' },
-  { clave: 'camila', nombre: 'Camila', apellido: 'Ortiz', actividad: 'running', altaHaceDias: 330, rachaSemanas: 6, foto: 'camila.jpg' },
+  { clave: 'camila', nombre: 'Camila', apellido: 'Ortiz', actividad: 'running', altaHaceDias: 330, rachaSemanas: 4, rachaEnRiesgo: true, foto: 'camila.jpg' },
   { clave: 'nicolas', nombre: 'Nicolás', apellido: 'Bustos', actividad: 'moto', altaHaceDias: 310, foto: 'nicolas.jpg' },
-  { clave: 'florencia', nombre: 'Florencia', apellido: 'Luna', actividad: 'bici', altaHaceDias: 280, rachaSemanas: 4 },
+  { clave: 'florencia', nombre: 'Florencia', apellido: 'Luna', actividad: 'bici', altaHaceDias: 280, rachaSemanas: 3 },
   { clave: 'tomas', nombre: 'Tomás', apellido: 'Ferreyra', actividad: 'auto', altaHaceDias: 260, foto: 'tomas.jpg' },
   { clave: 'agustina', nombre: 'Agustina', apellido: 'Molina', actividad: 'running', altaHaceDias: 240, rachaSemanas: 11, foto: 'agustina.jpg' },
   { clave: 'facundo', nombre: 'Facundo', apellido: 'Giménez', actividad: 'moto', altaHaceDias: 220 },
   { clave: 'julieta', nombre: 'Julieta', apellido: 'Paz', actividad: 'trekking', altaHaceDias: 200, visibilidad: 'amigos', foto: 'julieta.jpg' },
-  { clave: 'matias', nombre: 'Matías', apellido: 'Córdoba', actividad: 'bici', altaHaceDias: 180, rachaSemanas: 3 },
+  { clave: 'matias', nombre: 'Matías', apellido: 'Córdoba', actividad: 'bici', altaHaceDias: 180, rachaSemanas: 2 },
   { clave: 'ramiro', nombre: 'Ramiro', apellido: 'Funes', actividad: 'moto', altaHaceDias: 170, suspendido: 'Reportes reiterados por conducta en viajes grupales' },
   { clave: 'carolina', nombre: 'Carolina', apellido: 'Vega', actividad: 'running', altaHaceDias: 160, visibilidad: 'solo_yo', foto: 'carolina.jpg' },
   { clave: 'ezequiel', nombre: 'Ezequiel', apellido: 'Ledesma', actividad: 'auto', altaHaceDias: 150 },
@@ -88,10 +105,34 @@ export const ELENCO: UsuarioDemo[] = [
   { clave: 'rocio', nombre: 'Rocío', apellido: 'Aguirre', actividad: 'running', altaHaceDias: 95 },
   { clave: 'bruno', nombre: 'Bruno', apellido: 'Castillo', actividad: 'moto', altaHaceDias: 80 },
   { clave: 'antonella', nombre: 'Antonella', apellido: 'Herrera', actividad: 'trekking', altaHaceDias: 75 },
-  { clave: 'ignacio', nombre: 'Ignacio', apellido: 'Peralta', actividad: 'bici', altaHaceDias: 45 },
+  { clave: 'ignacio', nombre: 'Ignacio', apellido: 'Peralta', actividad: 'bici', altaHaceDias: 45, rachaSemanas: 2 },
   { clave: 'paula', nombre: 'Paula', apellido: 'Navarro', actividad: 'running', altaHaceDias: 30 },
   { clave: 'santiago', nombre: 'Santiago', apellido: 'Quiroga', actividad: 'auto', altaHaceDias: 18 },
   { clave: 'milagros', nombre: 'Milagros', apellido: 'Domínguez', actividad: 'otro', altaHaceDias: 3, nuevo: true },
+
+  // El equipo de la tesis (UTN FRC, Grupo 4, 5K1), con sus fotos. Tienen login para sumarse
+  // en vivo al viaje "Recibida" desde sus celulares. Solo aparecen en ese viaje.
+  ...(
+    [
+      ['gabrielli', 'Pedro', 'Gabrielli'],
+      ['ferraro', 'Gonzalo', 'Ferraro'],
+      ['casoria', 'Bautista', 'Casoria'],
+      ['penafort', 'Joaquín', 'Peñafort'],
+      ['viale', 'Manuel', 'Viale'],
+      ['giorda', 'Franco', 'Giorda'],
+    ] as const
+  ).map(
+    ([clave, nombre, apellido]): UsuarioDemo => ({
+      clave,
+      nombre,
+      apellido,
+      actividad: 'auto',
+      altaHaceDias: 240,
+      login: true,
+      foto: `${clave}.jpg`,
+      soloVitrina: true,
+    })
+  ),
 
   // El once que le ganó la final del Apertura 2026 a River en el Kempes y su técnico. Solo
   // aparecen en "La Vuelta Del Campeón". Fotos: sitio oficial de Belgrano y FotMob.
@@ -121,6 +162,68 @@ export const ELENCO: UsuarioDemo[] = [
       soloVitrina: true,
     })
   ),
+]
+
+// ── Insignias especiales ─────────────────────────────────────────────────────
+
+export type InsigniaEspecialDemo = {
+  /** Siempre con prefijo `demo_`: así el seed las encuentra para recrearlas o borrarlas. */
+  codigo: string
+  nombre: string
+  descripcion: string
+  /** Nombre de ícono de Feather. */
+  icono: string
+  rareza: 'comun' | 'rara' | 'epica' | 'legendaria'
+  /** A quiénes se las otorga el seed, ligadas a su viaje de vitrina más reciente. */
+  para: string[]
+}
+
+/**
+ * Insignias que no salen de ningún criterio: el seed las crea inactivas (fuera del
+ * catálogo y del otorgamiento automático, RN-074) y se las da a mano a quien corresponda.
+ * Se ven en el perfil y en las tarjetas de Explorar como cualquier otra.
+ */
+export const INSIGNIAS_ESPECIALES: InsigniaEspecialDemo[] = [
+  {
+    codigo: 'demo_caravana_campeones',
+    nombre: 'Caravana de campeones',
+    descripcion: 'Dio la vuelta del campeón con todo el plantel en un mismo viaje grupal, de punta a punta de la Circunvalación.',
+    icono: 'flag',
+    rareza: 'legendaria',
+    para: ['zelarayan'],
+  },
+  {
+    codigo: 'demo_ruta_leyenda',
+    nombre: 'Ruta de leyenda',
+    descripcion: 'Publicó el recorrido más recomendado de la comunidad.',
+    icono: 'star',
+    rareza: 'legendaria',
+    para: ['zelarayan'],
+  },
+  {
+    codigo: 'demo_convocatoria_record',
+    nombre: 'Convocatoria récord',
+    descripcion: 'Fue parte del viaje grupal con más integrantes de Mesh.',
+    icono: 'user-plus',
+    rareza: 'epica',
+    para: ['zelarayan'],
+  },
+  {
+    codigo: 'demo_grupo_compacto',
+    nombre: 'Grupo compacto',
+    descripcion: 'Hizo todo el recorrido sin separarse del grupo, aun entre miles de hinchas.',
+    icono: 'users',
+    rareza: 'epica',
+    para: ['zelarayan'],
+  },
+  {
+    codigo: 'demo_crack_comunidad',
+    nombre: 'Crack de la comunidad',
+    descripcion: 'Lo que publica, la comunidad lo recomienda sin dudar.',
+    icono: 'award',
+    rareza: 'rara',
+    para: ['zelarayan'],
+  },
 ]
 
 // ── Grupos, invitaciones y amistades ─────────────────────────────────────────
@@ -176,6 +279,13 @@ export const INVITACIONES_GRUPO: InvitacionGrupoDemo[] = [
 export type AmistadDemo = { de: string; a: string; estado: 'pendiente' | 'aceptada' | 'rechazada'; haceDias: number }
 
 export const AMISTADES: AmistadDemo[] = [
+  // El equipo de la tesis.
+  { de: 'gabrielli', a: 'lucia', estado: 'aceptada', haceDias: 230 },
+  { de: 'ferraro', a: 'lucia', estado: 'aceptada', haceDias: 227 },
+  { de: 'casoria', a: 'lucia', estado: 'aceptada', haceDias: 224 },
+  { de: 'penafort', a: 'lucia', estado: 'aceptada', haceDias: 221 },
+  { de: 'viale', a: 'lucia', estado: 'aceptada', haceDias: 218 },
+  { de: 'giorda', a: 'lucia', estado: 'aceptada', haceDias: 215 },
   // Amigos de la protagonista.
   { de: 'lucia', a: 'martin', estado: 'aceptada', haceDias: 290 },
   { de: 'sofia', a: 'lucia', estado: 'aceptada', haceDias: 200 },
@@ -266,8 +376,16 @@ export type PublicacionGuion = {
   votos: [number, number]
   /** Valoración de la protagonista; sin definir = no votó (para votar en vivo). */
   votoProtagonista?: boolean
-  /** Foto del recorrido: archivo JPEG de `scripts/demo/fotos/`. */
-  foto?: string
+  /**
+   * Cuántas personas de la comunidad lo guardaron en sus rutas (RN-084), sin contar a la
+   * protagonista (sus rutas guardadas van en `RUTAS_GUARDADAS`).
+   */
+  guardados?: number
+  /**
+   * Fotos del recorrido (JPEG de `scripts/demo/fotos/`), en el orden del carrusel: la
+   * primera es la portada de la tarjeta de Explorar. Hasta 5 (RN-081).
+   */
+  fotos?: string[]
   /**
    * Se publicó hace estas horas, aunque el viaje sea viejo. Por defecto, al día siguiente
    * del viaje. Entre los muy recomendados manda la fecha de publicación (RN-082).
@@ -359,11 +477,17 @@ export const VIAJES_VITRINA: ViajeVitrina[] = [
     noComparte: ['nicolas'],
     sinSenal: { quien: 'joaquin', de: 0.6, a: 0.68 },
     publicar: {
-      foto: 'recorrido-altas-cumbres.jpg',
+      fotos: [
+        'recorrido-altas-cumbres.jpg',
+        'recorrido-altas-cumbres-2.jpg',
+        'recorrido-altas-cumbres-3.jpg',
+        'recorrido-altas-cumbres-4.jpg',
+      ],
       por: 'lucia',
       comentario: 'Asfalto impecable y curvas todo el camino. Cargar nafta en Carlos Paz: después no hay hasta Mina Clavero. Arriba hace frío aunque sea verano.',
       checklist: true,
       votos: [7, 1],
+      guardados: 9,
     },
   },
   { clave: 'run-10k', nombre: '10K por la costanera', ruta: 'run-costanera', modo: 'entrenamiento', haceDias: 8, hora: 7.5, creador: 'lucia', integrantes: [], vuelta: true, ritmos: { lucia: 1.05 } },
@@ -391,10 +515,11 @@ export const VIAJES_VITRINA: ViajeVitrina[] = [
     gastos: [{ por: 'sofia', monto: 18500, descripcion: 'Facturas y café en Río Ceballos' }],
     checklistLider: ['Luz trasera cargada'],
     publicar: {
-      foto: 'recorrido-quebrada.jpg',
+      fotos: ['recorrido-quebrada.jpg', 'recorrido-quebrada-2.jpg'],
       por: 'sofia',
       comentario: 'Subida tendida y con poco tránsito temprano. Ideal para arrancar con salidas largas.',
-      votos: [5, 0],
+      votos: [3, 1],
+      guardados: 3,
     },
   },
   { clave: 'run-s1', nombre: 'Rodaje suave', ruta: 'run-sarmiento', modo: 'entrenamiento', haceDias: 15, hora: 7.5, creador: 'lucia', integrantes: [], ritmos: { lucia: 1.03 } },
@@ -426,11 +551,17 @@ export const VIAJES_VITRINA: ViajeVitrina[] = [
     checklistLider: ['Bastones de trekking', 'Efectivo para la entrada'],
     sinSenal: { quien: 'lucia', de: 0.4, a: 0.52 },
     publicar: {
-      foto: 'recorrido-uritorco.jpg',
+      fotos: [
+        'recorrido-uritorco.jpg',
+        'recorrido-uritorco-2.jpg',
+        'recorrido-uritorco-3.jpg',
+        'recorrido-uritorco-4.jpg',
+      ],
       por: 'lucia',
       comentario: 'Salir temprano: la subida pega fuerte desde el primer tramo y arriba no hay sombra. Llevar 2 litros de agua por persona.',
       checklist: true,
       votos: [9, 0],
+      guardados: 11,
     },
   },
   { clave: 'run-10k-2', nombre: 'Fondo por la costanera', ruta: 'run-costanera', modo: 'entrenamiento', haceDias: 22, hora: 7.5, creador: 'lucia', integrantes: [], vuelta: true, ritmos: { lucia: 1.01 } },
@@ -473,10 +604,11 @@ export const VIAJES_VITRINA: ViajeVitrina[] = [
     libre: true,
     ritmos: { lucia: 1.0, valentina: 1.07, florencia: 0.95, lautaro: 0.9 },
     publicar: {
-      foto: 'recorrido-san-roque.jpg',
+      fotos: ['recorrido-san-roque.jpg', 'recorrido-san-roque-2.jpg', 'recorrido-san-roque-3.jpg'],
       por: 'valentina',
       comentario: 'Exigente pero muy linda. El tramo de La Calera al dique tiene banquina angosta: ir en fila.',
-      votos: [6, 2],
+      votos: [7, 3],
+      guardados: 6,
     },
   },
   { clave: 'run-10k-3', nombre: 'Tirada larga', ruta: 'run-costanera', modo: 'entrenamiento', haceDias: 36, hora: 7.5, creador: 'lucia', integrantes: [], vuelta: true, ritmos: { lucia: 0.97 } },
@@ -516,11 +648,12 @@ export const VIAJES_VITRINA: ViajeVitrina[] = [
     ritmos: { martin: 1.08, lucia: 0.99, camila: 1.03, agustina: 1.12, rocio: 0.9 },
     checklistLider: ['Dorsal', 'Remera del grupo'],
     publicar: {
-      foto: 'recorrido-media-suquia.jpg',
+      fotos: ['recorrido-media-suquia.jpg', 'recorrido-media-suquia-2.jpg'],
       por: 'martin',
       comentario: 'Circuito plano y rápido por la costanera. Hay bebederos en la Isla de los Patos.',
       checklist: true,
-      votos: [8, 1],
+      votos: [11, 4],
+      guardados: 5,
     },
   },
   {
@@ -576,11 +709,17 @@ export const VIAJES_VITRINA: ViajeVitrina[] = [
     gastos: [{ por: 'diego', monto: 30000, descripcion: 'Nafta del viaje hasta La Pampilla' }],
     checklistLider: ['Binoculares'],
     publicar: {
-      foto: 'recorrido-condorito.jpg',
+      fotos: [
+        'recorrido-condorito.jpg',
+        'recorrido-condorito-2.jpg',
+        'recorrido-condorito-3.jpg',
+        'recorrido-condorito-4.jpg',
+      ],
       por: 'diego',
       comentario: 'Sendero muy bien marcado. En el Balcón Norte se ven cóndores casi siempre antes del mediodía.',
       checklist: true,
       votos: [11, 1],
+      guardados: 14,
       votoProtagonista: true,
     },
   },
@@ -667,10 +806,11 @@ export const VIAJES_VITRINA: ViajeVitrina[] = [
     integrantes: [],
     vuelta: true,
     publicar: {
-      foto: 'recorrido-ciclovia-suquia.jpg',
+      fotos: ['recorrido-ciclovia-suquia.jpg'],
       por: 'florencia',
       comentario: 'Ida y vuelta por la ciclovía sin cruzar avenidas. Los domingos temprano está casi vacía: ideal para entrenar.',
-      votos: [6, 0],
+      votos: [3, 3],
+      guardados: 2,
       votoProtagonista: true,
     },
   },
@@ -686,11 +826,12 @@ export const VIAJES_VITRINA: ViajeVitrina[] = [
     vuelta: true,
     ritmos: { agustina: 1.1 },
     publicar: {
-      foto: 'recorrido-costanera.jpg',
+      fotos: ['recorrido-costanera.jpg', 'recorrido-costanera-2.jpg', 'recorrido-costanera-3.jpg'],
       por: 'agustina',
       comentario: 'Ida y vuelta de 12K sin cruzar avenidas. Bien iluminado hasta la Isla de los Patos.',
       checklist: true,
-      votos: [10, 0],
+      votos: [9, 2],
+      guardados: 8,
     },
   },
   {
@@ -702,7 +843,7 @@ export const VIAJES_VITRINA: ViajeVitrina[] = [
     hora: 18,
     creador: 'ignacio',
     integrantes: [],
-    publicar: { foto: 'recorrido-parque-naciones.jpg', por: 'ignacio', votos: [0, 0] },
+    publicar: { fotos: ['recorrido-parque-naciones.jpg'], por: 'ignacio', votos: [0, 0] },
   },
   {
     clave: 'pub-wank',
@@ -715,10 +856,11 @@ export const VIAJES_VITRINA: ViajeVitrina[] = [
     integrantes: [],
     vuelta: true,
     publicar: {
-      foto: 'recorrido-wank.jpg',
+      fotos: ['recorrido-wank.jpg'],
       por: 'micaela',
       comentario: 'Corto y con vista a todo el valle. Se puede hacer con chicos.',
       votos: [2, 0],
+      guardados: 2,
     },
   },
   {
@@ -732,10 +874,11 @@ export const VIAJES_VITRINA: ViajeVitrina[] = [
     creador: 'joaquin',
     integrantes: [],
     publicar: {
-      foto: 'recorrido-punilla.jpg',
+      fotos: ['recorrido-punilla.jpg'],
       por: 'joaquin',
       comentario: 'La ruta 38 se carga mucho los domingos a la tarde: conviene volver antes de las 17.',
-      votos: [4, 3],
+      votos: [5, 5],
+      guardados: 1,
     },
   },
   {
@@ -748,7 +891,7 @@ export const VIAJES_VITRINA: ViajeVitrina[] = [
     creador: 'tomas',
     integrantes: [],
     publicar: {
-      foto: 'recorrido-sierras-chicas.jpg',
+      fotos: ['recorrido-sierras-chicas.jpg'],
       por: 'tomas',
       comentario: 'Mucho lomo de burro entre Villa Allende y Río Ceballos. Lindo paseo, pero lento.',
       votos: [1, 2],
@@ -765,10 +908,11 @@ export const VIAJES_VITRINA: ViajeVitrina[] = [
     creador: 'nicolas',
     integrantes: [],
     publicar: {
-      foto: 'recorrido-cumbrecita.jpg',
+      fotos: ['recorrido-cumbrecita.jpg', 'recorrido-cumbrecita-2.jpg', 'recorrido-cumbrecita-3.jpg'],
       por: 'nicolas',
       comentario: 'Camino de montaña con curvas cerradas y mirador a mitad de recorrido. El pueblo es peatonal: se deja la moto en la entrada.',
-      votos: [3, 0],
+      votos: [2, 4],
+      guardados: 1,
       votoProtagonista: true,
     },
   },
@@ -792,8 +936,9 @@ export const VIAJES_VITRINA: ViajeVitrina[] = [
       por: 'zelarayan',
       comentario:
         'No es para cualquiera. La Circunvalación la da cualquiera; esta vuelta no: antes hay que ganarle a River una final en el Kempes. Horas a paso de hombre, con Córdoba entera de celeste alrededor del micro. Gracias, Pirata. 💙',
-      foto: 'vuelta-del-campeon.jpg',
+      fotos: ['vuelta-del-campeon.jpg', 'vuelta-del-campeon-2.jpg'],
       votos: [30, 0],
+      guardados: 24,
       publicadoHaceHoras: 1,
     },
   },
@@ -890,6 +1035,20 @@ export type ViajePlanificado = {
 }
 
 export const VIAJES_PLANIFICADOS: ViajePlanificado[] = [
+  // Cierre de la presentación: el festejo de la recibida del equipo. Queda planificado para
+  // el 3/12 y se larga en vivo desde la cuenta de la protagonista (el backend deja iniciar
+  // antes de la fecha). El equipo ya confirmó: con login, cada uno aparece en el mapa.
+  {
+    clave: 'recibida',
+    nombre: 'Recibida',
+    ruta: 'recibida-utn',
+    modo: 'recreativo',
+    enDias: enDiasHasta(RECIBIDA),
+    hora: 19,
+    creador: 'lucia',
+    confirmados: ['gabrielli', 'ferraro', 'casoria', 'penafort', 'viale', 'giorda'],
+    checklistLider: ['Bandera de la UTN', 'Espuma y papel picado', 'Cartel "¡Ingenieros!"'],
+  },
   { clave: 'plan-run', nombre: 'Entrenamiento en la costanera', ruta: 'run-costanera', modo: 'entrenamiento', enDias: 1, hora: 7, creador: 'lucia' },
   {
     clave: 'plan-trote',

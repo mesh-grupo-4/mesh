@@ -1,4 +1,4 @@
 @echo off
-rem Doble clic para espejar los celulares. Acepta los mismos parametros que el .ps1.
+rem Presentar con los celulares enchufados por cable.
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0espejar-celulares.ps1" %*
 if errorlevel 1 pause

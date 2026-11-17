@@ -16,8 +16,13 @@ export type RecorridoPublicadoApi = {
   publicado_at: string
   /** Nota del autor al publicar. La comunidad no comenta (RN-083). */
   comentario: string | null
-  /** Foto que el autor adjuntó al publicar (URL pública); null si publicó sin foto. */
+  /** Portada: la primera de `fotos`; null si publicó sin fotos. */
   foto: string | null
+  /**
+   * Todas las fotos del autor (URLs públicas), en el orden del carrusel. Leerlas con
+   * `fotosDe`: un backend anterior al carrusel no manda este campo.
+   */
+  fotos?: string[]
   tiene_checklist: boolean
   autor: { id: string; nombre: string; apellido: string | null }
 }
@@ -34,14 +39,6 @@ export type ValoracionRecorridoApi = {
   /** 80 % o más con al menos 3 valoraciones: lo decide el backend, que además los lista primero. */
   muy_recomendado: boolean
   mi_valoracion: boolean | null
-}
-
-/** Texto corto de la valoración para listas y detalle (ej. "75 % lo recomienda · 12 valoraciones"). */
-export function textoValoracion(v: ValoracionRecorridoApi): string {
-  if (v.total === 0 || v.porcentaje_recomienda === null) return 'Sin valoraciones todavía'
-  return `${v.porcentaje_recomienda} % lo recomienda · ${v.total} ${
-    v.total === 1 ? 'valoración' : 'valoraciones'
-  }`
 }
 
 /**
@@ -74,18 +71,44 @@ export type RecorridoComunidadApi = RecorridoPublicadoApi & {
   reputacion_autor: ReputacionAutorApi
   /** Plantilla con la que lo guardé en mis rutas; null si no lo guardé. */
   mi_plantilla_id: string | null
+  /**
+   * Cuántas personas lo guardaron en sus rutas (RN-084). Un backend anterior no lo manda:
+   * sin dato, la app no muestra la línea.
+   */
+  guardados?: number
 }
 
 export type RecorridoPublicadoDetalleApi = RecorridoPublicadoApi & {
   valoracion: ValoracionRecorridoApi
   /** Plantilla con la que lo guardé en mis rutas; null si no lo guardé. */
   mi_plantilla_id: string | null
+  /**
+   * Cuántas personas lo guardaron en sus rutas (RN-084). Un backend anterior no lo manda:
+   * sin dato, la app no muestra la línea.
+   */
+  guardados?: number
   segmentos: [number, number][][]
   /** Ítems que compartió el autor; vacío si no compartió ninguno. */
   checklist: string[]
 }
 
-/** Paso 1 de la foto del recorrido: URL firmada para subir el JPEG antes de publicar. */
+/** RN-081: cuántas fotos admite un recorrido publicado (mismo tope que el backend). */
+export const FOTOS_RECORRIDO_MAX = 5
+
+/** Fotos del recorrido en orden; si el backend todavía no manda la lista, la portada sola. */
+export function fotosDe(r: Pick<RecorridoPublicadoApi, 'foto' | 'fotos'>): string[] {
+  return r.fotos ?? (r.foto ? [r.foto] : [])
+}
+
+/**
+ * Al guardar o quitar el recorrido propio de mis rutas, el total cambia en uno: se ajusta en
+ * pantalla sin volver a pedir el listado. Sin dato del backend, queda sin dato.
+ */
+export function ajustarGuardados(guardados: number | undefined, delta: 1 | -1): number | undefined {
+  return guardados === undefined ? undefined : Math.max(guardados + delta, 0)
+}
+
+/** Paso 1 de cada foto del recorrido: URL firmada para subir el JPEG antes de publicar. */
 export async function crearSubidaFotoRecorrido(
   viajeId: string
 ): Promise<{ path: string; upload_url: string }> {
@@ -96,17 +119,24 @@ export async function crearSubidaFotoRecorrido(
 }
 
 /**
- * Publica (o republica) un viaje finalizado propio. `fotoPath` es el `path` de una foto ya
- * subida con `crearSubidaFotoRecorrido`; sin él se publica sin foto.
+ * Publica (o republica) un viaje finalizado propio. `fotoPaths` son los `path` de las fotos
+ * ya subidas con `crearSubidaFotoRecorrido`, en el orden del carrusel (la primera es la
+ * portada); sin ellos se publica sin fotos.
  */
 export async function publicarRecorrido(
   viajeId: string,
-  opciones: { comentario?: string; compartirChecklist?: boolean; fotoPath?: string } = {}
+  opciones: { comentario?: string; compartirChecklist?: boolean; fotoPaths?: string[] } = {}
 ): Promise<RecorridoPublicadoApi> {
+  const { fotoPaths = [], ...resto } = opciones
+  // Un backend anterior al carrusel rechaza `fotoPaths` (campo desconocido) y solo conoce
+  // `fotoPath`. Sin fotos o con una sola se manda lo que entienden los dos; recién con
+  // varias hace falta el backend nuevo.
+  const fotos =
+    fotoPaths.length === 0 ? {} : fotoPaths.length === 1 ? { fotoPath: fotoPaths[0] } : { fotoPaths }
   const res = await meshFetchAuthed(apiUrl(`/api/viajes/${viajeId}/recorrido/publicar`), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(opciones),
+    body: JSON.stringify({ ...resto, ...fotos }),
   })
   return parseJson<RecorridoPublicadoApi>(res)
 }

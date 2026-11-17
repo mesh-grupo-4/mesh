@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
   Image,
+  ScrollView,
   StyleSheet,
   Switch,
   Text,
@@ -48,6 +49,7 @@ import { listarChecklist } from '@/lib/checklistApi'
 import {
   despublicarRecorrido,
   listarMisViajesPublicados,
+  FOTOS_RECORRIDO_MAX,
   publicarRecorrido,
 } from '@/lib/recorridosPublicadosApi'
 import { clearTripMetrics, loadTripMetrics } from '@/lib/tripMetricsStore'
@@ -99,8 +101,9 @@ export default function ViajeResumenScreen() {
   const [comentario, setComentario] = useState('')
   const [compartirChecklist, setCompartirChecklist] = useState(false)
   const [itemsChecklist, setItemsChecklist] = useState(0)
-  // Foto opcional del recorrido (RN-081): queda local hasta que se toca "Publicar".
-  const [fotoUri, setFotoUri] = useState<string | null>(null)
+  // Fotos opcionales del recorrido (RN-081), en el orden del carrusel: la primera es la
+  // portada. Quedan locales hasta que se toca "Publicar".
+  const [fotosUri, setFotosUri] = useState<string[]>([])
   const [hojaFoto, setHojaFoto] = useState(false)
   const [pestania, setPestania] = useState<'resumen' | 'gastos'>('resumen')
   /** Gastos cargados según el panel: decide si el botón de la barra edita o agrega. */
@@ -196,7 +199,7 @@ export default function ViajeResumenScreen() {
     setTimeout(async () => {
       try {
         const uri = await elegirFoto(origen, 'recorrido')
-        if (uri) setFotoUri(uri)
+        if (uri) setFotosUri((prev) => [...prev, uri].slice(0, FOTOS_RECORRIDO_MAX))
       } catch (e) {
         if (e instanceof PermisoFotoDenegado) {
           meshAlert(
@@ -220,12 +223,15 @@ export default function ViajeResumenScreen() {
         await despublicarRecorrido(viajeId)
         setPublicado(false)
       } else {
-        // La foto se sube primero; el backend la verifica al publicar.
-        const fotoPath = fotoUri ? await subirFotoRecorrido(viajeId, fotoUri) : undefined
+        // Las fotos se suben primero, de a una y en orden; el backend las verifica al publicar.
+        const fotoPaths: string[] = []
+        for (const uri of fotosUri) {
+          fotoPaths.push(await subirFotoRecorrido(viajeId, uri))
+        }
         await publicarRecorrido(viajeId, {
           comentario: comentario.trim() || undefined,
           compartirChecklist: itemsChecklist > 0 && compartirChecklist,
-          fotoPath,
+          fotoPaths,
         })
         setPublicado(true)
       }
@@ -607,33 +613,60 @@ export default function ViajeResumenScreen() {
                         />
                       </View>
                     ) : null}
-                    {fotoUri ? (
-                      <View style={styles.fotoPrevia}>
-                        <Image
-                          source={{ uri: fotoUri }}
-                          style={[styles.fotoImagen, { backgroundColor: theme.surface2 }]}
-                          accessibilityLabel="Foto del recorrido"
-                        />
-                        <View style={styles.fotoAcciones}>
-                          <Btn
-                            variant="outline"
-                            size="sm"
-                            icon="refresh-cw"
-                            onPress={() => setHojaFoto(true)}
-                            disabled={publicando}
-                          >
-                            Cambiar
-                          </Btn>
-                          <Btn
-                            variant="outline"
-                            size="sm"
-                            icon="trash-2"
-                            onPress={() => setFotoUri(null)}
-                            disabled={publicando}
-                          >
-                            Quitar
-                          </Btn>
-                        </View>
+                    {fotosUri.length > 0 ? (
+                      <View style={styles.fotos}>
+                        <Text style={[styles.fotosTitulo, { color: theme.textDim }]}>
+                          Fotos · {fotosUri.length} de {FOTOS_RECORRIDO_MAX}
+                        </Text>
+                        <ScrollView
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          contentContainerStyle={styles.fotosFila}
+                        >
+                          {fotosUri.map((uri, i) => (
+                            <View key={uri} style={styles.fotoMini}>
+                              <Image
+                                source={{ uri }}
+                                style={[styles.fotoMiniImagen, { backgroundColor: theme.surface2 }]}
+                                accessibilityLabel={`Foto ${i + 1} del recorrido`}
+                              />
+                              {i === 0 ? (
+                                <View style={[styles.fotoPortada, { backgroundColor: theme.surface }]}>
+                                  <Text style={[styles.fotoPortadaTexto, { color: theme.text }]}>
+                                    Portada
+                                  </Text>
+                                </View>
+                              ) : null}
+                              <Pressable
+                                onPress={() => setFotosUri((prev) => prev.filter((f) => f !== uri))}
+                                disabled={publicando}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Quitar la foto ${i + 1}`}
+                                hitSlop={8}
+                                style={[
+                                  styles.fotoQuitar,
+                                  { backgroundColor: theme.surface, borderColor: theme.border },
+                                ]}
+                              >
+                                <Feather name="x" size={15} color={theme.text} />
+                              </Pressable>
+                            </View>
+                          ))}
+                          {fotosUri.length < FOTOS_RECORRIDO_MAX ? (
+                            <Pressable
+                              onPress={() => setHojaFoto(true)}
+                              disabled={publicando}
+                              accessibilityRole="button"
+                              accessibilityLabel="Agregar otra foto"
+                              style={[styles.fotoAgregar, { borderColor: theme.borderStrong }]}
+                            >
+                              <Feather name="plus" size={22} color={theme.textDim} />
+                              <Text style={[styles.fotoAgregarTexto, { color: theme.textDim }]}>
+                                Agregar
+                              </Text>
+                            </Pressable>
+                          ) : null}
+                        </ScrollView>
                       </View>
                     ) : (
                       <Btn
@@ -643,7 +676,7 @@ export default function ViajeResumenScreen() {
                         onPress={() => setHojaFoto(true)}
                         disabled={publicando}
                       >
-                        Agregar una foto (opcional)
+                        Agregar fotos (opcional, hasta {FOTOS_RECORRIDO_MAX})
                       </Btn>
                     )}
                   </>
@@ -669,7 +702,7 @@ export default function ViajeResumenScreen() {
         </View>
       )}
 
-      <HojaInferior visible={hojaFoto} titulo="Foto del recorrido" onCerrar={() => setHojaFoto(false)}>
+      <HojaInferior visible={hojaFoto} titulo="Agregar una foto" onCerrar={() => setHojaFoto(false)}>
         <FilaOpcion icono="image" titulo="Elegir de la galería" onPress={() => elegirFotoRecorrido('galeria')} />
         <FilaOpcion icono="camera" titulo="Sacar una foto" onPress={() => elegirFotoRecorrido('camara')} />
       </HojaInferior>
@@ -825,17 +858,62 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  fotoPrevia: {
+  fotos: {
     gap: 8,
   },
-  fotoImagen: {
+  fotosTitulo: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  fotosFila: {
+    gap: 10,
+    paddingRight: 4,
+  },
+  fotoMini: {
+    width: 132,
+    height: 99,
+  },
+  fotoMiniImagen: {
     width: '100%',
-    aspectRatio: 4 / 3,
+    height: '100%',
     borderRadius: 10,
   },
-  fotoAcciones: {
-    flexDirection: 'row',
-    gap: 8,
+  fotoPortada: {
+    position: 'absolute',
+    left: 6,
+    bottom: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+  },
+  fotoPortadaTexto: {
+    fontSize: 11.5,
+    fontWeight: '700',
+  },
+  fotoQuitar: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fotoAgregar: {
+    width: 132,
+    height: 99,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  fotoAgregarTexto: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   grupoCard: {
     borderWidth: 1.2,

@@ -143,6 +143,22 @@ export const RUTAS: RutaCatalogo[] = [
     paradas: [],
     altura: { forma: 'llano', base: 420, pico: 470 },
   },
+  {
+    // Festejo de la recibida: sale de la facultad, pasa por el Parque Sarmiento y Plaza
+    // España, recorre Nueva Córdoba y termina en el Paseo del Buen Pastor.
+    clave: 'recibida-utn',
+    actividad: 'auto',
+    perfil: 'auto',
+    origen: { nombre: 'UTN Facultad Regional Córdoba', lat: -31.44234, lng: -64.19395 },
+    destino: { nombre: 'Paseo del Buen Pastor, Córdoba', lat: -31.42408, lng: -64.18642 },
+    via: [
+      { lat: -31.4335, lng: -64.18 }, // Av. Poeta Lugones, frente al Parque Sarmiento
+      { lat: PLAZA_ESPANA.lat, lng: PLAZA_ESPANA.lng },
+      { lat: -31.4268, lng: -64.1895 }, // Obispo Trejo y Rondeau, Nueva Córdoba
+    ],
+    paradas: [{ nombre: 'Foto del equipo en Plaza España', categoria: 'otro', fraccion: 0.55 }],
+    altura: { forma: 'llano', base: 430, pico: 445 },
+  },
 
   // ── Bici ───────────────────────────────────────────────────────────────────
   {

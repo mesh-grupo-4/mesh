@@ -8,16 +8,16 @@ export type RachaApi = {
 }
 
 /** RN-075: mismos hitos que notifica el backend. */
-const HITOS_RACHA = [3, 5, 10] as const
+export const HITOS_RACHA = [3, 5, 10] as const
 
 /** Cuántos hitos de racha alcanzó: gradúa los efectos visuales (0 = ninguno). */
 export function nivelRacha(semanas: number): number {
   return HITOS_RACHA.filter((hito) => semanas >= hito).length
 }
 
-/** De 0 a 1: qué tan cerca está de la racha máxima. */
-export function intensidadRacha(semanas: number): number {
-  return Math.min(semanas / HITOS_RACHA[HITOS_RACHA.length - 1]!, 1)
+/** El hito que sigue, o `null` si ya pasó el más alto. */
+export function proximoHito(semanas: number): number | null {
+  return HITOS_RACHA.find((hito) => semanas < hito) ?? null
 }
 
 /** Racha vigente del usuario autenticado. */

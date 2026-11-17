@@ -71,6 +71,7 @@ import {
   DOMINIO_DEMO,
   ELENCO,
   GRUPOS,
+  INSIGNIAS_ESPECIALES,
   INVITACIONES_GRUPO,
   PASSWORD_POR_DEFECTO,
   PROTAGONISTA,
@@ -170,6 +171,8 @@ async function limpiar(): Promise<number> {
   await prisma.viaje.deleteMany({ where: { creador_id: { in: ids } } })
   await prisma.grupo.deleteMany({ where: { lider_id: { in: ids } } })
   await prisma.usuario.deleteMany({ where: { id: { in: ids } } })
+  // Insignias especiales de la demo: solo las tenían cuentas demo.
+  await prisma.insignia.deleteMany({ where: { codigo: { startsWith: 'demo_' } } })
   // Si una cuenta real guardó una de esas rutas, el link se conserva (FK RESTRICT).
   await prisma.rutaCompartida.deleteMany({
     where: { id: { in: links.map((l) => l.id) }, plantillas: { none: {} } },
@@ -955,6 +958,45 @@ async function main() {
     WHERE v.id = r.viaje_id AND u.id = v.creador_id AND u.email LIKE ${`%@${DOMINIO_DEMO}`}`
   log(`${vitrina.length + relleno.viajes.length} viajes cerrados: métricas, insignias y rachas calculadas`)
 
+  // Insignias especiales: no salen de ningún criterio. Se crean inactivas (no figuran en el
+  // catálogo ni se otorgan solas, RN-074) y se dan a mano, ligadas al viaje de vitrina más
+  // reciente de cada persona. El criterio imposible es una segunda llave: si alguien las
+  // activa desde el backoffice, igual nadie las gana con un viaje.
+  const especiales = await Promise.all(
+    INSIGNIAS_ESPECIALES.map(({ codigo, nombre, descripcion, icono, rareza }) =>
+      prisma.insignia.upsert({
+        where: { codigo },
+        create: { codigo, nombre, descripcion, icono, rareza, activa: false, criterio_distancia_m: 1e12 },
+        update: { nombre, descripcion, icono, rareza, activa: false, criterio_distancia_m: 1e12 },
+        select: { id: true, codigo: true },
+      })
+    )
+  )
+  const ultimoViaje = (clave: string) =>
+    vitrina
+      .filter((s) => {
+        const def = VIAJES_VITRINA.find((v) => v.clave === s.clave)
+        return def != null && (def.creador === clave || def.integrantes.includes(clave))
+      })
+      .sort((a, b) => b.fin.getTime() - a.fin.getTime())[0]
+  await prisma.usuarioInsignia.createMany({
+    data: INSIGNIAS_ESPECIALES.flatMap((i) =>
+      i.para.map((clave) => {
+        const viaje = ultimoViaje(clave)
+        return {
+          usuario_id: ctx.usuario(clave),
+          insignia_id: especiales.find((e) => e.codigo === i.codigo)!.id,
+          viaje_id: viaje?.viajeId ?? null,
+          // Un minuto después de las automáticas de ese viaje: en Explorar se muestran las
+          // más recientes, y así aparecen estas primero.
+          obtenida_at: new Date((viaje?.fin ?? ahora).getTime() + MS_MIN),
+        }
+      })
+    ),
+    skipDuplicates: true,
+  })
+  log(`${especiales.length} insignias especiales otorgadas`)
+
   // Recorridos publicados y valoraciones (RN-081 a RN-083), con el servicio real.
   const recorridos = new RecorridosPublicadosService(prisma)
   const publicados = new Map<string, string>()
@@ -963,16 +1005,18 @@ async function main() {
     const sembrado = vitrina.find((x) => x.clave === v.clave)
     if (!v.publicar || !sembrado) return
     const autorId = ctx.usuario(v.publicar.por)
-    // La foto se sube antes y el servicio real la verifica al publicar, como desde la app.
-    let fotoPath: string | undefined
-    if (v.publicar.foto) {
-      const destino = `${carpetaFotoRecorrido(autorId, sembrado.viajeId)}/${Date.now()}.jpg`
-      if (await subirFoto(v.publicar.foto, destino)) fotoPath = destino
+    // Las fotos se suben antes, en orden, y el servicio real las verifica al publicar, como
+    // desde la app. El índice en el nombre mantiene el orden y evita choques de nombre.
+    const fotoPaths: string[] = []
+    const marca = Date.now()
+    for (const [i, archivo] of (v.publicar.fotos ?? []).entries()) {
+      const destino = `${carpetaFotoRecorrido(autorId, sembrado.viajeId)}/${marca + i}.jpg`
+      if (await subirFoto(archivo, destino)) fotoPaths.push(destino)
     }
     const pub = await recorridos.publicar(autorId, sembrado.viajeId, {
       comentario: v.publicar.comentario ?? null,
       compartirChecklist: v.publicar.checklist,
-      fotoPath,
+      fotoPaths,
     })
     publicados.set(v.clave, pub.id)
     const publicadoAt =
@@ -1000,8 +1044,20 @@ async function main() {
       })
     }
     if (votos.length > 0) await prisma.valoracionRecorrido.createMany({ data: votos })
+
+    // Guardados de la comunidad (RN-084), con el servicio real: cada uno queda en las rutas
+    // de esa persona. Se toman desde el final de la lista, así no son siempre los mismos
+    // que votaron.
+    const guardan = votantes.filter((c) => c !== v.publicar!.por).reverse().slice(0, v.publicar.guardados ?? 0)
+    for (const clave of guardan) {
+      const { plantilla } = await recorridos.importar(ctx.usuario(clave), pub.id)
+      await prisma.rutaPlantilla.update({
+        where: { id: plantilla.id },
+        data: { created_at: new Date(publicadoAt.getTime() + azar() * hastaAhora) },
+      })
+    }
   })
-  log(`${publicados.size} recorridos publicados con sus valoraciones`)
+  log(`${publicados.size} recorridos publicados con sus valoraciones y guardados`)
 
   // Planificados, links de ruta y rutas guardadas (RN-084 a RN-086).
   const compartidas = new RutasCompartidasService(prisma)
@@ -1070,8 +1126,35 @@ async function resumenFinal(ctx: Contexto, password: string) {
     new RachasService(prisma).obtenerRachaVigente(id),
     new InsigniasService(prisma).listarDeUsuario(id),
     prisma.insignia.count({ where: { activa: true } }),
-    new RecorridosPublicadosService(prisma).listar(id, { limit: 3, offset: 0 }),
+    new RecorridosPublicadosService(prisma).listar(id, { limit: 50, offset: 0 }),
   ])
+
+  // Rachas que fija el guion, leídas como las lee la app: si alguna no coincide, avisa.
+  const rachasService = new RachasService(prisma)
+  const rachasElenco = await Promise.all(
+    ELENCO.filter((u) => u.rachaSemanas).map(async (u) => {
+      const vigente = await rachasService.obtenerRachaVigente(ctx.usuario(u.clave))
+      const ok =
+        vigente.semanas_consecutivas === u.rachaSemanas && vigente.en_riesgo === Boolean(u.rachaEnRiesgo)
+      return (
+        `  ${u.nombre.padEnd(10)} ${String(vigente.semanas_consecutivas).padStart(2)} semanas` +
+        `${vigente.en_riesgo ? ' (en riesgo)' : ''}` +
+        (ok ? '' : `  ← el guion pedía ${u.rachaSemanas}${u.rachaEnRiesgo ? ' en riesgo' : ''}`)
+      )
+    })
+  )
+
+  // Mismos escalones que muestra la app (frontend/components/tabs/coloresValoracion.ts).
+  const escalon = (v: (typeof explorar)[number]['valoracion']) =>
+    v.muy_recomendado
+      ? 'Muy recomendado'
+      : v.porcentaje_recomienda === null
+        ? 'Sin valoraciones'
+        : v.porcentaje_recomienda >= 70
+          ? 'Recomendado'
+          : v.porcentaje_recomienda >= 40
+            ? 'Opiniones divididas'
+            : 'Poco recomendado'
   const tabla = new TablaPosicionesService(prisma)
   const posiciones = await Promise.all(
     (['bici', 'running', 'trekking'] as const).map(async (actividad) => {
@@ -1113,13 +1196,19 @@ ${ficha.nombre} hoy:
   ${insignias.length} de ${catalogo} insignias: ${insignias.map((i) => i.nombre).join(', ')}
   ranking mensual: ${posiciones.join(' · ')}
 
-Explorar (los 3 primeros):
+Explorar, en el orden de la app:
 ${explorar
   .map(
     (r, i) =>
-      `  ${i + 1}. ${r.nombre} — ${r.autor.nombre} ${r.autor.apellido ?? ''} · ${r.valoracion.recomiendan} recomiendan${r.foto ? ' · con foto' : ''}`
+      `  ${String(i + 1).padStart(2)}. ${r.nombre} — ${r.autor.nombre} ${r.autor.apellido ?? ''} · ` +
+      `${escalon(r.valoracion)} (${r.valoracion.porcentaje_recomienda ?? '–'} %, ${r.valoracion.total} votos) · ` +
+      `${r.guardados} guardados · ` +
+      `${r.fotos.length} foto${r.fotos.length === 1 ? '' : 's'}`
   )
   .join('\n')}
+
+Rachas armadas por el guion:
+${rachasElenco.join('\n')}
 
 Tab Entrenar:
 ${entrenar.join('\n')}

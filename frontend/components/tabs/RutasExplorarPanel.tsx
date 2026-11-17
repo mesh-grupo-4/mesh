@@ -29,6 +29,7 @@ import { meshError } from '@/lib/meshAlert';
 import { useSugerenciasLugares } from '@/hooks/useSugerenciasLugares';
 import type { LugarSugerencia } from '@/lib/nominatim';
 import {
+  ajustarGuardados,
   importarRecorridoPublicado,
   listarRecorridosPublicados,
   type RecorridoComunidadApi,
@@ -133,7 +134,15 @@ export function RutasExplorarPanel({ encabezado }: { encabezado: ReactNode }) {
 
   const marcarGuardado = (recorridoId: string, plantillaId: string | null) =>
     setRecorridos((prev) =>
-      prev.map((r) => (r.id === recorridoId ? { ...r, mi_plantilla_id: plantillaId } : r))
+      prev.map((r) =>
+        r.id === recorridoId
+          ? {
+              ...r,
+              mi_plantilla_id: plantillaId,
+              guardados: ajustarGuardados(r.guardados, plantillaId ? 1 : -1),
+            }
+          : r
+      )
     );
 
   // Corazón de la tarjeta: guarda la ruta (con su checklist, si tiene) o, si ya estaba

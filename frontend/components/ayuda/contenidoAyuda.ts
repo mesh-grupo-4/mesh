@@ -142,7 +142,7 @@ export const AYUDA_PERFIL: PasoDefinicion[] = [
   {
     nombre: 'perfil.stats',
     orden: ORDEN_PANTALLA.perfil + 1,
-    texto: 'Mirá tus números: viajes, grupos, amigos y kilómetros.',
+    texto: 'Tus números: kilómetros recorridos, viajes terminados y tiempo en movimiento. Tocá la tarjeta para verlos por actividad y por mes.',
   },
   {
     nombre: 'perfil.privacidad',

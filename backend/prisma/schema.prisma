@@ -861,8 +861,9 @@ model RecorridoPublicado {
   comentario     String?       @db.VarChar(280)
   /// Textos del checklist propio, solo si el autor eligió compartirlo. Vacío si no.
   checklist      String[]      @default([])
-  /// Foto opcional del autor (URL pública de Supabase Storage). Se reemplaza al republicar.
-  foto           String?
+  /// Fotos opcionales del autor (URLs públicas de Supabase Storage), en el orden en que
+  /// las eligió: la primera es la portada. Hasta 5. Se reemplazan al republicar.
+  fotos          String[]      @default([])
   activo         Boolean       @default(true)
   publicado_at   DateTime      @default(now()) @map("publicado_at")
 

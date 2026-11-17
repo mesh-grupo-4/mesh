@@ -2,14 +2,19 @@ import { Image, StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 
 import { CorazonGuardar } from '@/components/CorazonGuardar';
-import { coloresValoracion, nivelValoracion } from '@/components/tabs/coloresValoracion';
+import {
+  coloresValoracion,
+  etiquetaValoracion,
+  nivelValoracion,
+} from '@/components/tabs/coloresValoracion';
+import { MedidorValoracion } from '@/components/tabs/MedidorValoracion';
 import { ActivityTile, Avatar, useTheme } from '@/components/MeshUI';
 import { Pressable } from '@/components/Pressable';
 import { formatDurationHm, formatKm } from '@/lib/format';
 import { nombreCompleto } from '@/lib/nombres';
 import {
+  fotosDe,
   textoAntiguedad,
-  textoValoracion,
   type RecorridoComunidadApi,
 } from '@/lib/recorridosPublicadosApi';
 import { nivelRacha } from '@/lib/rachasApi';
@@ -24,9 +29,10 @@ type Props = {
 };
 
 /**
- * Tarjeta de un recorrido de la comunidad, a modo de publicación. Cuanto mejor valorado y
- * más constante quien lo publicó, más resalta. El orden lo decide el backend (RN-082);
- * nada de esto usa velocidad (RN-070).
+ * Tarjeta de un recorrido de la comunidad, a modo de publicación. El marco y el medidor
+ * del pie hablan solo de la valoración de la ruta, en escalones (RN-082); la reputación de
+ * quien publicó se ve en su avatar y su sello. El orden lo decide el backend; nada de esto
+ * usa velocidad (RN-070).
  */
 export function RecorridoComunidadCard({
   recorrido: r,
@@ -43,40 +49,45 @@ export function RecorridoComunidadCard({
   const insigniasOcultas = reputacion.insignias_total - reputacion.insignias_destacadas.length;
   const nombreAutor = nombreCompleto(autor.nombre, autor.apellido);
   const nombreRecorrido = r.nombre?.trim() || 'Recorrido sin nombre';
-  const colores = coloresValoracion(nivelValoracion(valoracion), theme);
+  const cantidadFotos = fotosDe(r).length;
+  const nivel = nivelValoracion(valoracion);
+  const colores = coloresValoracion(nivel, theme);
 
-  const borde =
-    esLeyenda || muyRecomendado
-      ? { borderColor: theme.goldLine, borderWidth: 2 }
-      : colores.borde
-        ? { borderColor: colores.borde, borderWidth: 1.5 }
-        : esDestacado
-          ? { borderColor: theme.accentLine, borderWidth: 1.5 }
-          : { borderColor: theme.border, borderWidth: 1 };
+  // El marco crece con la valoración de la ruta y con nada más: sin votos o poco
+  // recomendado, neutro; después naranja, verde y dorado, cada vez más grueso.
+  const borde = !colores.borde
+    ? { borderColor: theme.border, borderWidth: 1 }
+    : { borderColor: colores.borde, borderWidth: muyRecomendado ? 2 : nivel === 'buena' ? 1.5 : 1 };
 
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${nombreRecorrido}, publicado por ${nombreAutor}`}
+      accessibilityLabel={`${nombreRecorrido}, publicado por ${nombreAutor}. ${etiquetaValoracion(nivel)}`}
       style={[styles.card, borde, { backgroundColor: theme.surface }]}
     >
       {muyRecomendado ? (
         <View style={[styles.cinta, { backgroundColor: theme.gold }]}>
           <Feather name="star" size={15} color={theme.onGold} />
-          <Text style={[styles.cintaTexto, { color: theme.onGold }]}>
-            Muy recomendado · {valoracion.porcentaje_recomienda} %
-          </Text>
+          <Text style={[styles.cintaTexto, { color: theme.onGold }]}>Muy recomendado</Text>
         </View>
       ) : null}
 
       {r.foto ? (
-        <Image
-          source={{ uri: r.foto }}
-          style={[styles.foto, { backgroundColor: theme.surface2 }]}
-          resizeMode="cover"
-          accessibilityLabel={`Foto de ${nombreRecorrido}`}
-        />
+        <View>
+          <Image
+            source={{ uri: r.foto }}
+            style={[styles.foto, { backgroundColor: theme.surface2 }]}
+            resizeMode="cover"
+            accessibilityLabel={`Foto de ${nombreRecorrido}`}
+          />
+          {cantidadFotos > 1 ? (
+            <View style={styles.masFotos} accessibilityLabel={`${cantidadFotos} fotos`}>
+              <Feather name="image" size={13} color="#ffffff" />
+              <Text style={styles.masFotosTexto}>{cantidadFotos}</Text>
+            </View>
+          ) : null}
+        </View>
       ) : null}
 
       <View style={styles.cuerpo}>
@@ -115,11 +126,13 @@ export function RecorridoComunidadCard({
               style={[
                 styles.textoChico,
                 rachaEncendida
-                  ? [styles.rachaEncendida, { color: theme.fire }]
+                  ? [styles.rachaEncendida, { color: theme.text }]
                   : { color: theme.textDim },
               ]}
             >
-              🔥 {reputacion.racha_semanas} {reputacion.racha_semanas === 1 ? 'semana' : 'semanas'}
+              {reputacion.racha_semanas === 1
+                ? 'Racha de 1 semana'
+                : `Racha de ${reputacion.racha_semanas} semanas`}
             </Text>
           ) : null}
           <Text style={[styles.textoChico, { color: theme.textDim }]}>
@@ -199,17 +212,11 @@ export function RecorridoComunidadCard({
         </View>
 
         <View style={styles.pie}>
-          <Feather name={colores.icono} size={muyRecomendado ? 16 : 14} color={colores.color} />
-          <Text
-            style={[
-              styles.valoracion,
-              muyRecomendado && styles.valoracionFuerte,
-              { color: colores.color },
-            ]}
-            numberOfLines={1}
-          >
-            {textoValoracion(valoracion)}
-          </Text>
+          <MedidorValoracion
+            valoracion={valoracion}
+            guardados={r.guardados}
+            style={styles.medidor}
+          />
           {r.tiene_checklist ? (
             <Feather
               name="check-square"
@@ -235,6 +242,21 @@ const styles = StyleSheet.create({
   },
   cintaTexto: { fontSize: 14, fontWeight: '800' },
   foto: { width: '100%', aspectRatio: 4 / 3 },
+  // Sobre la foto el fondo no depende del tema: oscuro translúcido y texto blanco.
+  masFotos: {
+    position: 'absolute',
+    right: 10,
+    bottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+  },
+  masFotosTexto: { color: '#ffffff', fontSize: 12.5, fontWeight: '700' },
+  medidor: { flex: 1 },
   cuerpo: { padding: 14, gap: 10 },
   autorFila: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   autorTexto: { flex: 1, gap: 1 },
@@ -274,7 +296,5 @@ const styles = StyleSheet.create({
   },
   rutaTexto: { flex: 1, gap: 2 },
   rutaNombre: { fontSize: 15, fontWeight: '700' },
-  pie: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  valoracion: { flex: 1, fontSize: 13, fontWeight: '600' },
-  valoracionFuerte: { fontSize: 14, fontWeight: '800' },
+  pie: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
 });

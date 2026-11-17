@@ -123,8 +123,7 @@ No existe un endpoint para otorgar insignias a mano: solo las otorga
   bloque de estadísticas, fila horizontal de chips, con estado vacío
   ("Todavía no conseguiste ninguna...").
 - **Perfil ajeno** (`app/usuario/[usuarioId].tsx`): todas las insignias en
-  grilla, más estadísticas agregadas, la racha (con fondo y fueguitos según
-  nivel, ver [[us-rachas]]) y la relación de amistad (badge "Son amigos" /
+  grilla, más estadísticas agregadas, la racha (ver [[us-rachas]]) y la relación de amistad (badge "Son amigos" /
   "Solicitud enviada" / botón "Enviar solicitud de amistad" si no hay
   relación). Si la persona no comparte sus logros, en lugar de todo eso se ve
   una tarjeta "Logros privados" con candado; el botón de amistad sigue

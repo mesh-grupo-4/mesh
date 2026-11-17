@@ -55,7 +55,7 @@ describe('valorarRecorridoBody (SCRUM-63)', () => {
 
 describe('publicarRecorridoBody', () => {
   it('sin cuerpo publica sin comentario ni checklist', () => {
-    expect(publicarRecorridoBody.parse({})).toEqual({ comentario: null, compartirChecklist: false })
+    expect(publicarRecorridoBody.parse({})).toEqual({ comentario: null, compartirChecklist: false, fotoPaths: [] })
   })
 
   it('recorta el comentario y lo vacío cuenta como ausente', () => {
@@ -70,11 +70,28 @@ describe('publicarRecorridoBody', () => {
     expect(publicarRecorridoBody.safeParse({ otro: true }).success).toBe(false)
   })
 
-  it('acepta el path de una foto ya subida y rechaza uno vacío o demasiado largo', () => {
-    const fotoPath = 'recorridos/u/v/1792000000000.jpg'
-    expect(publicarRecorridoBody.parse({ fotoPath }).fotoPath).toBe(fotoPath)
+  it('acepta los paths de fotos ya subidas, en orden y sin repetidos', () => {
+    const a = 'recorridos/u/v/1792000000000-a1b2c3.jpg'
+    const b = 'recorridos/u/v/1792000000001-d4e5f6.jpg'
+    expect(publicarRecorridoBody.parse({ fotoPaths: [a, b, a] }).fotoPaths).toEqual([a, b])
+    expect(publicarRecorridoBody.parse({}).fotoPaths).toEqual([])
+  })
+
+  it('rechaza más de 5 fotos y los paths vacíos o demasiado largos', () => {
+    const seis = Array.from({ length: 6 }, (_, i) => `recorridos/u/v/179200000000${i}.jpg`)
+    expect(publicarRecorridoBody.safeParse({ fotoPaths: seis }).success).toBe(false)
+    expect(publicarRecorridoBody.safeParse({ fotoPaths: ['  '] }).success).toBe(false)
+    expect(publicarRecorridoBody.safeParse({ fotoPaths: ['x'.repeat(201)] }).success).toBe(false)
     expect(publicarRecorridoBody.safeParse({ fotoPath: '  ' }).success).toBe(false)
-    expect(publicarRecorridoBody.safeParse({ fotoPath: 'x'.repeat(201) }).success).toBe(false)
+  })
+
+  it('fotoPath (una sola foto) sigue valiendo como alias y cede ante fotoPaths', () => {
+    const vieja = 'recorridos/u/v/1792000000000.jpg'
+    const nueva = 'recorridos/u/v/1792000000001-d4e5f6.jpg'
+    expect(publicarRecorridoBody.parse({ fotoPath: vieja }).fotoPaths).toEqual([vieja])
+    expect(publicarRecorridoBody.parse({ fotoPath: vieja, fotoPaths: [nueva] }).fotoPaths).toEqual([
+      nueva,
+    ])
   })
 })
 

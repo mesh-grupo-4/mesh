@@ -48,7 +48,7 @@ describe('FotosRecorridoService', () => {
 
     const r = await service.crearSubida(usuarioId, viajeId)
 
-    expect(r.path).toMatch(new RegExp(`^${carpeta}/\\d{13}\\.jpg$`))
+    expect(r.path).toMatch(new RegExp(`^${carpeta}/\\d{13}-[0-9a-f]{6}\\.jpg$`))
     expect(r.upload_url).toBe('https://firmada')
   })
 
@@ -86,21 +86,32 @@ describe('FotosRecorridoService', () => {
     expect(bucket.remove).toHaveBeenCalledWith([path])
   })
 
-  it('después de publicar borra todo menos la foto vigente', async () => {
+  it('acepta la ruta con sufijo que genera la subida', async () => {
     const { bucket, service } = crearMocks()
+    const conSufijo = '1792000000000-a1b2c3.jpg'
+    bucket.list.mockResolvedValue({ data: [jpeg(conSufijo)], error: null })
+
+    const url = await service.verificar(usuarioId, viajeId, `${carpeta}/${conSufijo}`)
+
+    expect(url).toBe(`${BASE}/storage/v1/object/public/avatares/${carpeta}/${conSufijo}`)
+  })
+
+  it('después de publicar borra todo menos las fotos vigentes', async () => {
+    const { bucket, service } = crearMocks()
+    const otra = '1792000000001-a1b2c3.jpg'
     bucket.list.mockResolvedValue({
-      data: [jpeg('1700000000000.jpg'), jpeg(archivo)],
+      data: [jpeg('1700000000000.jpg'), jpeg(archivo), jpeg(otra)],
       error: null,
     })
 
-    await service.borrarSobrantes(usuarioId, viajeId, path)
+    await service.borrarSobrantes(usuarioId, viajeId, [path, `${carpeta}/${otra}`])
 
     expect(bucket.remove).toHaveBeenCalledWith([`${carpeta}/1700000000000.jpg`])
   })
 
   it('sin Storage configurado, borrar sobrantes no falla y la subida responde 503', async () => {
     const service = new FotosRecorridoService(() => null)
-    await expect(service.borrarSobrantes(usuarioId, viajeId, null)).resolves.toBeUndefined()
+    await expect(service.borrarSobrantes(usuarioId, viajeId, [])).resolves.toBeUndefined()
     expect(await codigoDeError(service.crearSubida(usuarioId, viajeId))).toBe('FOTOS_NO_DISPONIBLES')
   })
 })

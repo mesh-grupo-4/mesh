@@ -11,7 +11,7 @@ import { esMotorizado } from '../../lib/actividad'
 import { nombreVisible } from '../../lib/nombres'
 import { itemsSugeridos } from '../../modules/checklist/checklistDefaults'
 import { prefijoAlertaAfectado } from '../../modules/motor-eventos/motorEventos.config'
-import { inicioBalde, inicioDiaArg } from '../../modules/reportes/reportes.periodo'
+import { diaArg, inicioBalde, inicioDiaArg } from '../../modules/reportes/reportes.periodo'
 import { parametrosPorActividad } from '../../modules/viajes/activityDefaults'
 import { filasRuta, momento, MS_DIA, MS_HORA, MS_MIN, rutaDemo, type Contexto } from './comun'
 import {
@@ -94,6 +94,26 @@ export function generarRelleno(ctx: Contexto): Relleno {
     return true
   }
 
+  // Rachas (RN-075): cada persona con `rachaSemanas` tiene que terminar con esa racha
+  // exacta. Las semanas se cuentan hacia atrás desde la actual (0), en hora argentina.
+  const lunesActual = inicioDiaArg(inicioBalde(ctx.hoy, 'semana')).getTime()
+  const semanasAtras = (cuando: Date) =>
+    Math.round((lunesActual - inicioDiaArg(inicioBalde(diaArg(cuando), 'semana')).getTime()) / (7 * MS_DIA))
+  /** Semana en la que arranca su racha (0 = esta semana; 1 si está en riesgo). */
+  const primeraSemanaRacha = (u: UsuarioDemo) => (u.rachaEnRiesgo ? 1 : 0)
+
+  /**
+   * ¿Puede tener un viaje ese día sin cambiar la racha que le fija el guion? La semana
+   * anterior a la racha queda vacía (si no, la racha sería más larga) y, si está en riesgo,
+   * también la actual. Vale para quien arma el viaje y para quien se suma.
+   */
+  const respetaRacha = (u: UsuarioDemo, cuando: Date) => {
+    if (!u.rachaSemanas) return true
+    const semana = semanasAtras(cuando)
+    if (u.rachaEnRiesgo && semana === 0) return false
+    return semana !== primeraSemanaRacha(u) + u.rachaSemanas
+  }
+
   const horaTipica = (actividad: TipoActividad): number => {
     if (actividad === 'running') return azar() < 0.6 ? entre(6.5, 8.5) : entre(18, 20)
     if (actividad === 'bici') return azar() < 0.7 ? entre(7, 9) : entre(16.5, 18)
@@ -105,17 +125,27 @@ export function generarRelleno(ctx: Contexto): Relleno {
   // ── A quién le toca viajar y cuándo ────────────────────────────────────────
   const planes: Plan[] = []
 
-  // Rachas (RN-075): una salida por semana calendario, de la actual hacia atrás.
-  const lunesActual = inicioDiaArg(inicioBalde(ctx.hoy, 'semana')).getTime()
+  // Rachas (RN-075): una salida por semana calendario, desde la primera semana de su racha
+  // hacia atrás.
   for (const u of candidatos) {
-    for (let semana = 0; semana < (u.rachaSemanas ?? 0); semana++) {
+    const desde = primeraSemanaRacha(u)
+    for (let semana = desde; semana < desde + (u.rachaSemanas ?? 0); semana++) {
       const lunes = lunesActual - semana * 7 * MS_DIA
-      // Solo días ya terminados: si hoy es lunes, esta semana todavía no tiene ninguno.
-      const dias = [0, 1, 2, 3, 4, 5, 6].filter((d) => lunes + d * MS_DIA < hoyInicio)
-      if (dias.length === 0) continue
-      const finde = dias.filter((d) => d >= 5)
-      const dia = finde.length > 0 && azar() < 0.6 ? elegir(finde) : elegir(dias)
-      const inicio = new Date(lunes + dia * MS_DIA + horaTipica(u.actividad) * MS_HORA)
+      // Días ya terminados y también hoy, adelantando la salida si hace falta para que el
+      // viaje termine antes de ahora: así un seed corrido un lunes a la tarde no deja las
+      // rachas "en riesgo" sin querer. Hoy no sirve si habría que salir antes de las 5.
+      const salidas = [0, 1, 2, 3, 4, 5, 6]
+        .filter((d) => lunes + d * MS_DIA <= hoyInicio)
+        .map((d) => {
+          const inicio = lunes + d * MS_DIA + horaTipica(u.actividad) * MS_HORA
+          if (lunes + d * MS_DIA < hoyInicio) return { d, inicio: new Date(inicio) }
+          return { d, inicio: new Date(Math.min(inicio, ctx.ahora.getTime() - 7 * MS_HORA)) }
+        })
+        .filter(({ inicio }) => inicio.getTime() >= lunes + 5 * MS_HORA && inicio.getTime() < hoyInicio + MS_DIA)
+        .filter(({ d, inicio }) => lunes + d * MS_DIA < hoyInicio || inicio.getTime() >= hoyInicio + 5 * MS_HORA)
+      if (salidas.length === 0) continue
+      const finde = salidas.filter(({ d }) => d >= 5)
+      const { inicio } = finde.length > 0 && azar() < 0.6 ? elegir(finde) : elegir(salidas)
       if (disponible(u, inicio)) planes.push({ creador: u, inicio, solo: azar() < 0.55, actividad: u.actividad })
     }
   }
@@ -132,7 +162,7 @@ export function generarRelleno(ctx: Contexto): Relleno {
     const creador = elegir(candidatos)
     const actividad = azar() < 0.78 ? creador.actividad : azar() < 0.04 ? 'otro' : elegir(ACTIVIDADES)
     const inicio = new Date(dia.getTime() + horaTipica(actividad) * MS_HORA)
-    if (!disponible(creador, inicio)) continue
+    if (!disponible(creador, inicio) || !respetaRacha(creador, inicio)) continue
     planes.push({ creador, inicio, solo: azar() < 0.38, actividad })
   }
 
@@ -164,7 +194,7 @@ export function generarRelleno(ctx: Contexto): Relleno {
           claves
             .filter((c) => c !== creador.clave)
             .map((c) => ELENCO.find((u) => u.clave === c)!)
-            .filter((u) => !u.login && !u.nuevo && disponible(u, inicio))
+            .filter((u) => !u.login && !u.nuevo && disponible(u, inicio) && respetaRacha(u, inicio))
         )
       if (grupos.length > 0 && azar() < 0.7) {
         const g = elegir(grupos)

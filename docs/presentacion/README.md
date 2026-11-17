@@ -5,8 +5,12 @@ y el nombre de cada integrante. Lo que se proyecta es la pantalla de la notebook
 
 | Archivo | Qué hace |
 |---|---|
-| `espejar-celulares.cmd` | Doble clic: arranca todo |
-| `espejar-celulares.ps1` | Detecta los celulares, abre el fondo y acomoda las ventanas |
+| `Presentar por cable.cmd` | Doble clic: arranca todo con los celulares enchufados |
+| `Presentar por WiFi.cmd` | Doble clic: arranca todo por WiFi (ver sección 3) |
+| `Cerrar presentacion.cmd` | Doble clic: cierra todo, aunque se haya perdido el control |
+| `Instalar accesos directos.cmd` | Crea los accesos del menú Inicio para anclar a la barra de tareas |
+| `espejar-celulares.ps1` | El script que usan los tres lanzadores |
+| `iconos/` | Íconos de los accesos directos (Mesh con insignia de WiFi, cable o cerrar) |
 | `escenario.html` | Fondo de presentación (logo, nombres, indicador "en vivo") |
 
 Usa [scrcpy](https://github.com/Genymobile/scrcpy): espeja por USB o WiFi, con muy poca
@@ -22,6 +26,16 @@ latencia y sin instalar nada en el teléfono. **Solo Android**: con iPhone no fu
 winget install Genymobile.scrcpy
 ```
 
+**Anclar a la barra de tareas** (opcional, recomendado):
+
+1. Doble clic en `Instalar accesos directos.cmd`. Crea en el menú Inicio la carpeta *Mesh* con
+   *Presentar Mesh por WiFi*, *Presentar Mesh por cable* y *Cerrar presentación Mesh*, cada uno con su ícono.
+2. Inicio › escribir **Presentar Mesh** › clic derecho › **Anclar a la barra de tareas**. Repetir con los que se quieran.
+
+Windows 11 no deja anclar un `.cmd` directamente ni anclar nada por script: ese clic lo tiene que
+hacer la persona. Si se mueve la carpeta del repo, volver a correr el instalador (y re-anclar).
+Para quitarlos: `.\instalar-accesos.ps1 -Quitar`.
+
 **En cada celular:**
 
 1. Ajustes › Acerca del teléfono › tocar 7 veces *Número de compilación* (habilita Opciones de desarrollador).
@@ -31,51 +45,76 @@ winget install Genymobile.scrcpy
 
 ## 2. Usarlo
 
-Conectar los dos celulares por cable y hacer doble clic en `espejar-celulares.cmd`.
-Para cerrar todo: volver a la consola (Alt+Tab) y apretar Enter.
+Doble clic en **`Presentar por cable.cmd`** (o `Presentar por WiFi.cmd`). En unos 30 segundos:
 
-**Alternar con otras ventanas** (diapositivas, backoffice, el navegador): pasar a esa ventana
-con Alt+Tab y queda adelante de todo. Para volver a los celulares, Alt+Tab a *Mesh · Presentación*:
-reaparecen arriba del fondo y en su lugar, aunque se hayan movido.
+1. Prepara los teléfonos: activa **No molestar**, cierra la barra de notificaciones y **abre Mesh**.
+2. Abre el fondo en pantalla completa y un espejo por celular, cada uno sobre su nombre.
+3. La consola se oculta y queda el **ícono de Mesh en la bandeja** de Windows, al lado del reloj.
 
-Desde PowerShell se pueden pasar opciones:
+Windows 11 manda los íconos nuevos a la flechita **^** de la bandeja. Conviene arrastrarlo
+de ahí a la barra de tareas una vez, para tenerlo a mano.
+
+**Control durante la presentación** (menú del ícono o atajos, que andan desde cualquier ventana):
+
+| Atajo | Qué hace |
+|---|---|
+| `Ctrl+Alt+M` | Mostrar los celulares (también: doble clic en el ícono) |
+| `Ctrl+Alt+R` | Reconectar los dos espejos |
+| `Ctrl+Alt+I` | Invertir lados (si quedaron al revés de los nombres) |
+| `Ctrl+Alt+C` | Mostrar u ocultar la consola, con los mensajes del script |
+| `Ctrl+Alt+Q` | Finalizar: cierra espejos y fondo, y deja No molestar como estaba en cada teléfono |
+
+Si `Ctrl+Alt+Q` no responde, doble clic en **`Cerrar presentacion.cmd`**: hace lo mismo desde afuera.
+
+**Lo que hace solo**
+
+- **Reconexión:** si un espejo se cierra (cable flojo, corte de WiFi, un Alt+F4 de más), se vuelve a abrir apenas el celular aparece.
+- **Orden de ventanas:** con Alt+Tab a otra ventana (diapositivas, backoffice) esa queda adelante. Al volver con `Ctrl+Alt+M`, los celulares reaparecen arriba del fondo y en su lugar, aunque se hayan movido.
+- **Pantallas despiertas:** cada 20 segundos despierta los celulares, porque por WiFi Android no respeta "mantener despierto".
+
+**Opciones** (desde una terminal en esta carpeta; los `.cmd` también las aceptan):
 
 ```powershell
-cd docs\presentacion
 .\espejar-celulares.ps1                                   # Lucía (líder) | Martín (participante)
-.\espejar-celulares.ps1 -Invertir                         # intercambia los celulares de lado
+.\espejar-celulares.ps1 -Invertir                         # arranca con los celulares intercambiados
 .\espejar-celulares.ps1 -Izquierda "Sofía" -RolIzquierda "Participante"
-.\espejar-celulares.ps1 -Wifi                             # después se desenchufan los cables
+.\espejar-celulares.ps1 -Wifi                             # lo mismo que Presentar por WiFi.cmd
 .\espejar-celulares.ps1 -Pantalla 1                       # proyector en modo Extender
+.\espejar-celulares.ps1 -SinPreparar                      # no toca No molestar ni abre Mesh
 .\espejar-celulares.ps1 -SinEscenario -ConBordes          # solo las ventanas, movibles
+.\espejar-celulares.ps1 -Cerrar                           # lo mismo que Cerrar presentacion.cmd
 ```
-
-El script imprime qué modelo quedó de cada lado. Si quedaron al revés, `-Invertir`.
 
 ## 3. Sin cables (WiFi)
 
 Probado con un Xiaomi 14T Pro y un Samsung S24 en una red de 5 GHz: funciona igual que por cable.
 **Bluetooth no sirve**: scrcpy no lo soporta y no tiene ancho de banda para video.
 
-**Cómo se usa**
+**Cómo funciona `Presentar por WiFi.cmd`**
 
-1. La notebook y los dos celulares en la **misma red**.
-2. Enchufar los celulares por cable **una vez** y correr con `-Wifi` (desde el `.cmd` también: `espejar-celulares.cmd -Wifi`).
+No usa el WiFi del lugar: la notebook prende su **zona con cobertura inalámbrica móvil** (su propia
+red) y el script conecta los celulares a esa red solo, sin tocar nada en los teléfonos. Al finalizar
+la apaga y los celulares vuelven solos a su WiFi de siempre. Probado: tarda unos 40 segundos.
+
+Así no importa que la red de la facultad sea pública o aísle a los dispositivos, y nadie más está
+en la misma red que los celulares.
+
+1. La notebook conectada a internet por cualquier lado (WiFi de la facultad, cable, o un celular
+   compartiendo datos por USB). La zona comparte esa conexión: así Mesh tiene internet.
+2. La primera vez en el lugar: los celulares **enchufados** y doble clic en `Presentar por WiFi.cmd`.
 3. Cuando dice *ya podés desenchufar los cables*, se desenchufan. El espejo sigue.
-4. Para volver a abrirlo sin cable, correr de nuevo con `-Wifi`: reconecta solo a las direcciones de la última vez.
+4. Si se cierra y se vuelve a abrir, ya no hace falta el cable: los encuentra en la zona.
 
-Hace falta volver a enchufar si un celular **se reinicia**, si **cambia de red** o si el router le da otra IP.
+Hace falta el cable de nuevo si un celular **se reinicia**. Si un celular no logra pasar a la zona,
+sigue por cable y el script lo avisa: la presentación no se corta.
 
-**Qué red usar en la facultad**
+**Si la zona no prende** (sin conexión en la notebook, o la placa WiFi no puede compartir), el script
+avisa y sigue con la red actual de la notebook. Si esa red aísla dispositivos, ir con
+`Presentar por cable.cmd`: es lo más estable y además carga los teléfonos.
 
-Las redes de facultad suelen aislar a los dispositivos entre sí, y ahí el WiFi no conecta.
-Lo más seguro es llevar la red propia: **Zona con cobertura inalámbrica móvil de Windows**
-(Configuración › Red e Internet). La notebook arma la red y los dos celulares se conectan a ella.
-No depende del WiFi del aula y el script detecta esa red solo.
-Ensayarlo antes: Mesh necesita internet, así que la notebook tiene que tener conexión para compartir,
-o los celulares tienen que seguir usando datos móviles.
-
-Si no hay forma de armar una red propia, ir con cable: es lo más estable y además carga los teléfonos.
+**Seguridad:** el modo WiFi deja abierto un puerto de depuración en cada celular hasta que se reinicia.
+Si aparece un aviso de *Permitir depuración* que no esperabas, rechazarlo. Después de presentar,
+reiniciar los celulares (o apagar la depuración USB).
 
 **Alternativa sin cable nunca: depuración inalámbrica (Android 11 o superior)**
 
@@ -88,7 +127,7 @@ $adb = (Get-ChildItem "$env:LOCALAPPDATA\Microsoft\WinGet\Packages\Genymobile.sc
 & $adb connect 192.168.x.x:PUERTO_DE_CONEXION     # el que figura arriba en esa misma pantalla
 ```
 
-Después correr el script **sin** `-Wifi`: toma las conexiones que ya existen. El celular apaga la
+Después usar `Presentar por cable.cmd` (sin `-Wifi`): toma las conexiones que ya existen. El celular apaga la
 depuración inalámbrica al cambiar de red, así que hay que reactivarla en el aula.
 
 ## 4. Ensayar el fondo
@@ -98,13 +137,19 @@ Para ensayar el fondo sin celulares, abrir `escenario.html?guia=1` en el navegad
 
 ## 5. Checklist del día
 
+**Para presentar en la facultad (WiFi)**
+- [ ] Llevar los **cables** igual: hacen falta la primera vez en el lugar y son el plan B.
+- [ ] Notebook conectada a internet (WiFi de la facultad, aunque pida login, o datos compartidos desde un celular).
+- [ ] Doble clic en *Presentar Mesh por WiFi* con los celulares enchufados; desenchufar cuando lo indique.
+- [ ] Si algo falla: `Ctrl+Alt+Q`, enchufar y *Presentar Mesh por cable*.
+
 **El día anterior**
 - [ ] Volver a correr el seed de demo (`npm run demo:seed` en `backend/`): las fechas, rachas y el ranking mensual son relativos al día. Escribe en producción.
 - [ ] Ensayo completo en el aula con el proyector real y los cables que se van a usar.
 
 **Antes de empezar**
 - [ ] Celulares con más de 80 % de batería. Por USB cargan mientras se espejan.
-- [ ] **No molestar** activado en los dos: cualquier notificación se proyecta.
+- [ ] **No molestar:** el script lo activa solo, pero en Samsung, por defecto, igual muestra las notificaciones en pantalla (se vio con WhatsApp). En los dos: Ajustes › No molestar › *Ocultar notificaciones* (o *Sin elementos visuales*), una sola vez.
 - [ ] Rotación automática apagada, brillo al máximo, tamaño de fuente del sistema por defecto.
 - [ ] Cerrar el resto de las apps y borrar notificaciones viejas de la barra.
 - [ ] Mesh con el **mismo tema** (claro u oscuro) en los dos celulares, para que se vean parejos.
@@ -116,7 +161,7 @@ Para ensayar el fondo sin celulares, abrir `escenario.html?guia=1` en el navegad
 **Durante**
 - Manejar los celulares en la mano: el script activa *mostrar toques*, así el público ve dónde se toca.
 - Un clic sobre una ventana es un toque en ese celular: no mover el mouse por encima.
-- Si la pantalla de un celular se apaga, su ventana se ve negra: tocar el botón de encendido. Por cable se mantienen despiertos solos; por WiFi esa opción no aplica, así que conviene apagar el bloqueo automático o subir el tiempo de pantalla.
+- Si la pantalla de un celular se apaga, su ventana se ve negra. El script la despierta cada 20 segundos, pero si queda en la pantalla de bloqueo hay que desbloquearla: conviene sacar el bloqueo con PIN o subir el tiempo de pantalla.
 
 ## 6. Si algo falla
 
@@ -126,9 +171,13 @@ Para ensayar el fondo sin celulares, abrir `escenario.html?guia=1` en el navegad
 | Aparece como *sin autorizar* | El script reinicia adb para que vuelva el aviso y espera un minuto. Si igual no aparece: desenchufar, volver a enchufar y correrlo de nuevo; último recurso, Opciones de desarrollador › *Revocar autorizaciones* |
 | Ventana negra | Desbloquear el celular; algunas apps bancarias bloquean la captura, Mesh no |
 | Se ve entrecortado por WiFi | Usar la red propia de la notebook (zona con cobertura móvil) o volver al cable |
-| "No pude conectar" con `-Wifi` | La red aísla dispositivos: cambiar a la red propia de la notebook o a un hotspot |
-| "No está en la misma red que la notebook" | El celular está con datos móviles u otra red: conectarlo a la red de la notebook |
-| Las ventanas no coinciden con los nombres | Cerrar con Enter y volver a correr; si persiste, usar `-ConBordes` y acomodarlas a mano |
-| El script no corre por permisos | Usar el `.cmd`, que lo lanza con `-ExecutionPolicy Bypass` |
+| "No pude prender la zona" | La notebook no tiene conexión: conectarla a una red. Si sigue, usar *Presentar por cable* |
+| Un celular "sigue por cable" | No llegó a la zona: dejarlo enchufado, o conectarlo a mano a la zona (la red que figura en el mensaje) y volver a abrir |
+| "Las direcciones WiFi guardadas son de otra red" | Normal al cambiar de lugar: enchufar los celulares esta vez |
+| Un espejo quedó del lado equivocado | `Ctrl+Alt+I` |
+| Un espejo se congeló o no aparece | `Ctrl+Alt+R`; si no vuelve, `Ctrl+Alt+C` para ver el mensaje |
+| Las ventanas no coinciden con los nombres | `Ctrl+Alt+Q` y volver a abrir; si persiste, `-ConBordes` y acomodarlas a mano |
+| Se perdió el control (no responde nada) | Doble clic en `Cerrar presentacion.cmd` |
+| El script no corre por permisos | Usar los `.cmd`, que lo lanzan con `-ExecutionPolicy Bypass` |
 
 Los logs de scrcpy quedan en `%TEMP%\mesh-presentacion`.

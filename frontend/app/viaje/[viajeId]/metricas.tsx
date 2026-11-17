@@ -372,8 +372,10 @@ function SplitsList({
   const maxPace = Math.max(...paces, 0.01)
   return (
     <View style={{ gap: 8 }}>
-      {splits.map((sp) => {
-        const parcial = sp.metros < 990
+      {splits.map((sp, i) => {
+        // Solo el último km puede ser parcial: los del medio no miden 1000 m
+        // exactos porque el tramo GPS que cruza la marca va entero al km siguiente.
+        const parcial = i === splits.length - 1 && sp.metros < 990
         const ancho = sp.pace_min_km != null ? Math.max(0.08, sp.pace_min_km / maxPace) : 0
         const valor = esPace
           ? formatPaceMinKm(sp.pace_min_km)

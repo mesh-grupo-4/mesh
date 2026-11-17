@@ -91,7 +91,7 @@ export async function quitarFotoGrupo(grupoId: string): Promise<void> {
 
 /**
  * Pasos 1 y 2 de la foto de un recorrido: URL firmada y PUT a Storage. Devuelve el `path`
- * que se manda al publicar (`fotoPath`); el backend la verifica en ese momento.
+ * que se manda al publicar (dentro de `fotoPaths`); el backend la verifica en ese momento.
  */
 export async function subirFotoRecorrido(viajeId: string, uriLocal: string): Promise<string> {
   const { path, upload_url } = await crearSubidaFotoRecorrido(viajeId)

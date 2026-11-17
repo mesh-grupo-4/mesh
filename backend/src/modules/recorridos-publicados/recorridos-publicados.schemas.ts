@@ -62,9 +62,17 @@ export const valorarRecorridoBody = z
 
 /**
  * RN-081: al publicar, el autor puede sumar una nota, elegir si comparte su checklist y
- * adjuntar una foto ya subida (`fotoPath`, el `path` de `POST .../recorrido/foto/subida`).
- * Todo es opcional: publicar sin cuerpo sigue siendo válido.
+ * adjuntar hasta `FOTOS_MAX` fotos ya subidas (`fotoPaths`, cada una el `path` de un
+ * `POST .../recorrido/foto/subida`), en el orden en que se muestran: la primera es la
+ * portada. Todo es opcional: publicar sin cuerpo sigue siendo válido.
+ *
+ * `fotoPath` (una sola foto) queda como alias de versiones anteriores de la app: equivale
+ * a `fotoPaths` con ese único elemento y se ignora si también viene `fotoPaths`.
  */
+export const FOTOS_MAX = 5
+
+const fotoPathSchema = z.string().trim().min(1).max(200)
+
 export const publicarRecorridoBody = z
   .object({
     comentario: z
@@ -74,9 +82,18 @@ export const publicarRecorridoBody = z
       .optional()
       .transform((v) => v || null),
     compartirChecklist: z.boolean().default(false),
-    fotoPath: z.string().trim().min(1).max(200).optional(),
+    fotoPath: fotoPathSchema.optional(),
+    fotoPaths: z
+      .array(fotoPathSchema)
+      .max(FOTOS_MAX, `Un recorrido admite hasta ${FOTOS_MAX} fotos`)
+      .optional(),
   })
   .strict()
+  .transform(({ fotoPath, fotoPaths, ...resto }) => ({
+    ...resto,
+    // Sin repetidos: la misma foto dos veces no suma nada al carrusel.
+    fotoPaths: [...new Set(fotoPaths ?? (fotoPath ? [fotoPath] : []))],
+  }))
 
 /** RN-084: quien guarda el recorrido elige si se lleva también el checklist compartido. */
 export const importarRecorridoBody = z

@@ -6560,6 +6560,7 @@ RecorridoPublicadoResumen:
     - publicado_at
     - comentario
     - foto
+    - fotos
     - tiene_checklist
     - autor
   properties:
@@ -6592,9 +6593,22 @@ RecorridoPublicadoResumen:
       format: uri
       nullable: true
       description: |
-        Foto que el autor adjuntó al publicar (URL pública de Supabase Storage), o `null`
-        si publicó sin foto. Se reemplaza al republicar.
-      example: https://ddmnzklvxbijpcpckwez.supabase.co/storage/v1/object/public/avatares/recorridos/9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d/3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d/1792000000000.jpg
+        Portada del recorrido: la primera de `fotos` (URL pública de Supabase Storage), o
+        `null` si publicó sin fotos. Es la que muestran las tarjetas del listado.
+      example: https://ddmnzklvxbijpcpckwez.supabase.co/storage/v1/object/public/avatares/recorridos/9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d/3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d/1792000000000-a1b2c3.jpg
+    fotos:
+      type: array
+      maxItems: 5
+      items:
+        type: string
+        format: uri
+      description: |
+        Todas las fotos que el autor adjuntó al publicar, en el orden en que las eligió
+        (la app las muestra como carrusel). Vacío si publicó sin fotos. Se reemplazan al
+        republicar.
+      example:
+        - https://ddmnzklvxbijpcpckwez.supabase.co/storage/v1/object/public/avatares/recorridos/9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d/3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d/1792000000000-a1b2c3.jpg
+        - https://ddmnzklvxbijpcpckwez.supabase.co/storage/v1/object/public/avatares/recorridos/9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d/3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d/1792000000001-d4e5f6.jpg
     tiene_checklist:
       type: boolean
       description: Si el autor compartió su checklist. Los ítems vienen en el detalle.
@@ -6623,30 +6637,46 @@ PublicarRecorridoRequest:
       type: boolean
       default: false
       description: Copia al recorrido los textos del checklist propio de ese viaje.
+    fotoPaths:
+      type: array
+      maxItems: 5
+      items:
+        type: string
+        minLength: 1
+        maxLength: 200
+      description: |
+        Hasta 5 fotos, cada una con el `path` que devolvió
+        `POST /api/viajes/{viajeId}/recorrido/foto/subida` y el JPEG ya subido. El orden
+        es el del carrusel: la primera queda como portada. Los repetidos se descartan.
+        Ausente o vacío, se publica sin fotos (y se borran las anteriores si había).
+      example:
+        - recorridos/9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d/3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d/1792000000000-a1b2c3.jpg
+        - recorridos/9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d/3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d/1792000000001-d4e5f6.jpg
     fotoPath:
       type: string
       minLength: 1
       maxLength: 200
+      deprecated: true
       description: |
-        El `path` que devolvió `POST /api/viajes/{viajeId}/recorrido/foto/subida`, con el
-        JPEG ya subido. Ausente, se publica sin foto (y se borra la anterior si había).
+        Alias de versiones anteriores de la app: una sola foto. Equivale a `fotoPaths`
+        con ese único elemento y se ignora si también viene `fotoPaths`.
       example: recorridos/9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d/3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d/1792000000000.jpg
 
 SubidaFotoRecorrido:
   type: object
   description: |
-    Paso 1 de la foto opcional de un recorrido publicado. `upload_url` es una URL firmada
+    Paso 1 de cada foto opcional de un recorrido publicado. `upload_url` es una URL firmada
     de Supabase Storage que solo permite escribir en `path` (la carpeta de quien publica
     para ese viaje). La app sube ahí el JPEG con un `PUT` y después publica con
-    `POST /api/viajes/{viajeId}/recorrido/publicar` enviando `fotoPath`.
+    `POST /api/viajes/{viajeId}/recorrido/publicar` enviando los `path` en `fotoPaths`.
   required:
     - path
     - upload_url
   properties:
     path:
       type: string
-      description: Ruta dentro del bucket `avatares`, siempre `recorridos/{usuarioId}/{viajeId}/{timestamp}.jpg`.
-      example: recorridos/9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d/3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d/1792000000000.jpg
+      description: Ruta dentro del bucket `avatares`, siempre `recorridos/{usuarioId}/{viajeId}/{timestamp}-{sufijo}.jpg`.
+      example: recorridos/9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d/3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d/1792000000000-a1b2c3.jpg
     upload_url:
       type: string
       format: uri
@@ -6751,7 +6781,7 @@ RecorridoPublicadoListado:
   allOf:
     - $ref: '#/RecorridoPublicadoResumen'
     - type: object
-      required: [valoracion, reputacion_autor, mi_plantilla_id]
+      required: [valoracion, reputacion_autor, mi_plantilla_id, guardados]
       properties:
         valoracion:
           $ref: '#/ValoracionRecorrido'
@@ -6759,6 +6789,16 @@ RecorridoPublicadoListado:
           $ref: '#/ReputacionAutor'
         mi_plantilla_id:
           $ref: '#/MiPlantillaId'
+        guardados:
+          $ref: '#/VecesGuardado'
+
+VecesGuardado:
+  type: integer
+  minimum: 0
+  description: |
+    Cuántas personas guardaron este recorrido en sus rutas (RN-084), incluida quien
+    consulta si lo guardó. Es un total agregado: no dice quiénes.
+  example: 14
 
 MiPlantillaId:
   type: string
@@ -6773,12 +6813,14 @@ RecorridoPublicadoDetalle:
   allOf:
     - $ref: '#/RecorridoPublicadoResumen'
     - type: object
-      required: [valoracion, mi_plantilla_id, segmentos, checklist]
+      required: [valoracion, mi_plantilla_id, guardados, segmentos, checklist]
       properties:
         valoracion:
           $ref: '#/ValoracionRecorrido'
         mi_plantilla_id:
           $ref: '#/MiPlantillaId'
+        guardados:
+          $ref: '#/VecesGuardado'
         checklist:
           type: array
           description: Ítems que compartió el autor. Vacío si no compartió ninguno.

@@ -45,3 +45,19 @@ export function coloresValoracion(nivel: NivelValoracion, theme: Theme): Colores
       return { color: theme.textMute, borde: null, icono: 'thumbs-up' };
   }
 }
+
+/** Nombre del escalón, para que no se distinga solo por el color. */
+export function etiquetaValoracion(nivel: NivelValoracion): string {
+  switch (nivel) {
+    case 'muy_buena':
+      return 'Muy recomendado';
+    case 'buena':
+      return 'Recomendado';
+    case 'media':
+      return 'Opiniones divididas';
+    case 'baja':
+      return 'Poco recomendado';
+    default:
+      return 'Sin valoraciones todavía';
+  }
+}

@@ -19,12 +19,14 @@ PublicarRecorrido:
       snapshot y lo deja activo.
 
       El cuerpo es opcional. `comentario` es una nota del autor y `compartirChecklist`
-      copia al snapshot los textos de **su** checklist de ese viaje. `fotoPath` adjunta
-      una foto ya subida con `POST /api/viajes/{viajeId}/recorrido/foto/subida`: el
-      backend comprueba que el archivo esté en la carpeta de quien publica y que sea un
-      JPEG de hasta 2 MB. Los tres se reemplazan al republicar (sin `fotoPath`, la foto
-      anterior se borra). La nota es única y solo la escribe el autor: la comunidad
-      sigue sin poder comentar (RN-083).
+      copia al snapshot los textos de **su** checklist de ese viaje. `fotoPaths` adjunta
+      hasta 5 fotos ya subidas con `POST /api/viajes/{viajeId}/recorrido/foto/subida`
+      (una llamada por foto): el backend comprueba que cada archivo esté en la carpeta de
+      quien publica y que sea un JPEG de hasta 2 MB. El orden de `fotoPaths` es el del
+      carrusel y la primera queda como portada (`foto`). Los tres se reemplazan al
+      republicar (sin `fotoPaths`, las fotos anteriores se borran). `fotoPath` (una sola
+      foto) sigue aceptándose como alias obsoleto. La nota es única y solo la escribe el
+      autor: la comunidad sigue sin poder comentar (RN-083).
     tags:
       - RecorridosPublicados
     parameters:
@@ -38,7 +40,9 @@ PublicarRecorrido:
           example:
             comentario: Conviene salir temprano, a la tarde se llena de gente.
             compartirChecklist: true
-            fotoPath: recorridos/9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d/3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d/1792000000000.jpg
+            fotoPaths:
+              - recorridos/9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d/3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d/1792000000000-a1b2c3.jpg
+              - recorridos/9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d/3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d/1792000000001-d4e5f6.jpg
     responses:
       '201':
         description: Recorrido publicado.
@@ -55,7 +59,10 @@ PublicarRecorrido:
               tiempo_seg: 6300
               publicado_at: '2026-10-23T15:00:00.000Z'
               comentario: Conviene salir temprano, a la tarde se llena de gente.
-              foto: https://ddmnzklvxbijpcpckwez.supabase.co/storage/v1/object/public/avatares/recorridos/9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d/3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d/1792000000000.jpg
+              foto: https://ddmnzklvxbijpcpckwez.supabase.co/storage/v1/object/public/avatares/recorridos/9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d/3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d/1792000000000-a1b2c3.jpg
+              fotos:
+                - https://ddmnzklvxbijpcpckwez.supabase.co/storage/v1/object/public/avatares/recorridos/9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d/3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d/1792000000000-a1b2c3.jpg
+                - https://ddmnzklvxbijpcpckwez.supabase.co/storage/v1/object/public/avatares/recorridos/9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d/3f2c9a10-8b5e-4a71-9c3d-1e2f4a5b6c7d/1792000000001-d4e5f6.jpg
               tiene_checklist: true
               autor:
                 id: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d
@@ -64,7 +71,7 @@ PublicarRecorrido:
       '400':
         description: |
           `viajeId` no es un UUID, el comentario supera los 280 caracteres o se envió
-          un campo desconocido (`VALIDATION_ERROR`). Con `fotoPath`: la ruta no es de la
+          un campo desconocido o más de 5 fotos (`VALIDATION_ERROR`). Con `fotoPaths`: una ruta no es de la
           carpeta de quien publica para ese viaje (`FOTO_PATH_INVALIDO`), el archivo no
           se subió (`FOTO_NO_SUBIDA`) o no es un JPEG de hasta 2 MB (`FOTO_INVALIDA`, el
           archivo se borra).
@@ -129,7 +136,7 @@ PublicarRecorrido:
               error: El viaje no tiene un recorrido GPS para publicar
               code: RECORRIDO_SIN_TRAZA
       '502':
-        description: Con `fotoPath`, Supabase Storage no respondió al verificar la foto (`FOTO_SUBIDA_FALLIDA`).
+        description: Con `fotoPaths`, Supabase Storage no respondió al verificar una foto (`FOTO_SUBIDA_FALLIDA`).
         content:
           application/json:
             schema:
@@ -138,7 +145,7 @@ PublicarRecorrido:
               error: No se pudo verificar la foto
               code: FOTO_SUBIDA_FALLIDA
       '503':
-        description: Se envió `fotoPath` pero Storage no está configurado en este entorno (`FOTOS_NO_DISPONIBLES`).
+        description: Se enviaron `fotoPaths` pero Storage no está configurado en este entorno (`FOTOS_NO_DISPONIBLES`).
         content:
           application/json:
             schema:
@@ -292,6 +299,7 @@ RecorridosPublicadosColeccion:
                 publicado_at: '2026-10-23T15:00:00.000Z'
                 comentario: Conviene salir temprano, a la tarde se llena de gente.
                 foto: null
+                fotos: []
                 tiene_checklist: true
                 autor:
                   id: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d
@@ -319,6 +327,7 @@ RecorridosPublicadosColeccion:
                       rara: false
                   nivel: leyenda
                 mi_plantilla_id: null
+                guardados: 14
       '400':
         description: |
           Parámetros de consulta inválidos (`VALIDATION_ERROR`): fuera de rango, `lat`
@@ -399,6 +408,7 @@ RecorridoPublicadoPorId:
               publicado_at: '2026-10-23T15:00:00.000Z'
               comentario: Conviene salir temprano, a la tarde se llena de gente.
               foto: null
+              fotos: []
               tiene_checklist: true
               autor:
                 id: 9d8c7b6a-5e4f-4a3b-9c2d-1e0f9a8b7c6d
@@ -412,6 +422,7 @@ RecorridoPublicadoPorId:
                 muy_recomendado: false
                 mi_valoracion: true
               mi_plantilla_id: 7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d
+              guardados: 6
               segmentos:
                 - - [-31.4201, -64.1888]
                   - [-31.4215, -64.1902]
@@ -663,16 +674,17 @@ ValorarRecorridoPublicado:
 SubidaFotoRecorrido:
   post:
     operationId: crearSubidaFotoRecorrido
-    summary: Preparar la subida de la foto de un recorrido a publicar
+    summary: Preparar la subida de una foto de un recorrido a publicar
     description: |
-      Paso 1 de 3 de la foto opcional de un recorrido publicado (RN-081). Mismas
+      Paso 1 de 3 de cada foto opcional de un recorrido publicado (RN-081, hasta 5 por
+      recorrido: se llama una vez por foto). Mismas
       condiciones que publicar: el viaje está finalizado y quien pide es el creador o
       un integrante `confirmado`/`salido` (RN-030). Devuelve una URL firmada de Supabase
       Storage para subir un JPEG en la carpeta de quien pide para ese viaje. Los bytes
       van directo del dispositivo a Storage.
 
       Paso 2: `PUT {upload_url}` con el JPEG (`Content-Type: image/jpeg`, hasta 2 MB).
-      Paso 3: `POST /api/viajes/{viajeId}/recorrido/publicar` con `fotoPath` = `path`.
+      Paso 3: `POST /api/viajes/{viajeId}/recorrido/publicar` con los `path` en `fotoPaths`.
     tags:
       - RecorridosPublicados
     parameters:

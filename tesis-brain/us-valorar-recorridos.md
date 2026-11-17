@@ -60,10 +60,21 @@ El listado y el detalle traen ese mismo resumen en `valoracion`.
 
 ## Interfaz
 
-- **Lista de la comunidad:** cada tarjeta muestra "75 % lo recomienda · 12 valoraciones"
-  o "Sin valoraciones todavía". Las "Muy recomendado" llevan cinta y borde dorados y
-  aparecen primero.
-- **Detalle:** tarjeta "Valoración de la comunidad" con el porcentaje y, según el caso,
+- **Lista de la comunidad:** cada tarjeta cierra con un medidor
+  (`components/tabs/MedidorValoracion.tsx`) que muestra la valoración en escalones, cada
+  uno con nombre, porcentaje, cantidad de votos y una barra que se llena según el
+  porcentaje: "Sin valoraciones todavía" (sin barra) → "Poco recomendado" (menos de 40 %,
+  rojo) → "Opiniones divididas" (40 a 69 %, naranja) → "Recomendado" (70 % o más, verde) →
+  "Muy recomendado" (80 % o más con al menos 3 votos, dorado). El marco de la tarjeta
+  acompaña la misma escala: neutro, naranja fino, verde, dorado grueso; las "Muy
+  recomendado" suman la cinta dorada y aparecen primero. El marco depende solo de la
+  valoración de la ruta, no de la reputación del autor (cambio del 16/11/2026: antes un
+  autor "Leyenda" teñía de dorado el marco aunque la ruta no tuviera votos).
+- **Guardados:** debajo del medidor, "N personas lo guardaron en sus rutas" (campo `guardados`
+  del listado y del detalle, un `groupBy` sobre `ruta_plantilla` por recorrido). Es un total
+  agregado, sin decir quiénes; con 0 no se muestra. Al tocar el corazón la app lo ajusta en
+  uno sin volver a pedir el listado.
+- **Detalle:** tarjeta "Valoración de la comunidad" con el mismo medidor y, según el caso,
   los botones **Recomiendo** / **No recomiendo** (con confirmación), "Ya lo valoraste: …"
   o "No podés valorar tu propio recorrido".
 

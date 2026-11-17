@@ -18,6 +18,7 @@ import {
   CIRCUITOS,
   ELENCO,
   GRUPOS,
+  INSIGNIAS_ESPECIALES,
   INVITACIONES_GRUPO,
   PROTAGONISTA,
   RUTAS_GUARDADAS,
@@ -118,11 +119,55 @@ export function verificarGuion(hoy: string, ahora: Date): { errores: string[]; a
   // Las fotos se suben desde `fotos/`: si falta un archivo, mejor saberlo antes de borrar nada.
   const fotos = [
     ...ELENCO.flatMap((u) => (u.foto ? [{ archivo: u.foto, de: `Usuario "${u.clave}"` }] : [])),
-    ...VIAJES_VITRINA.flatMap((v) => (v.publicar?.foto ? [{ archivo: v.publicar.foto, de: `Viaje "${v.clave}"` }] : [])),
+    ...VIAJES_VITRINA.flatMap((v) => (v.publicar?.fotos ?? []).map((archivo) => ({ archivo, de: `Viaje "${v.clave}"` }))),
     ...GRUPOS.flatMap((g) => (g.foto ? [{ archivo: g.foto, de: `Grupo "${g.clave}"` }] : [])),
   ]
   for (const f of fotos) {
     if (!existsSync(path.join(__dirname, 'fotos', f.archivo))) errores.push(`${f.de}: no existe la foto fotos/${f.archivo}`)
+  }
+  for (const v of VIAJES_VITRINA) {
+    const suyas = v.publicar?.fotos ?? []
+    // Mismo tope que el backend (RN-081): con más, el publicar real responde 400.
+    if (suyas.length > 5) errores.push(`Viaje "${v.clave}": publica ${suyas.length} fotos y el máximo es 5`)
+    for (const archivo of repetidos(suyas)) errores.push(`Viaje "${v.clave}": la foto ${archivo} está repetida`)
+  }
+  // Votos y guardados salen de la misma lista de cuentas de la comunidad (sin la autora).
+  const comunidad = ELENCO.filter((u) => !u.login && !u.nuevo && !u.suspendido).length - 1
+  for (const v of VIAJES_VITRINA) {
+    if (!v.publicar) continue
+    const [si, no] = v.publicar.votos
+    if (si + no > comunidad) errores.push(`Viaje "${v.clave}": pide ${si + no} votos y hay ${comunidad} cuentas que pueden votar`)
+    if ((v.publicar.guardados ?? 0) > comunidad) {
+      errores.push(`Viaje "${v.clave}": pide ${v.publicar.guardados} guardados y hay ${comunidad} cuentas que pueden guardar`)
+    }
+  }
+
+  // Insignias especiales: el prefijo es lo que usa el seed para recrearlas y borrarlas.
+  for (const codigo of repetidos(INSIGNIAS_ESPECIALES.map((i) => i.codigo))) {
+    errores.push(`Insignias especiales: el código "${codigo}" está repetido`)
+  }
+  for (const i of INSIGNIAS_ESPECIALES) {
+    if (!i.codigo.startsWith('demo_')) errores.push(`Insignia especial "${i.codigo}": el código tiene que empezar con demo_`)
+    for (const clave of i.para) existeUsuario(clave, `Insignia especial "${i.codigo}"`)
+  }
+
+  // Rachas exactas (RN-075): la semana anterior a la racha (y la actual, si está en riesgo)
+  // tiene que quedar sin viajes. Los de vitrina tienen fecha fija: se revisa que no caigan
+  // ahí corra el seed el día de la semana que sea (`desdeLunes` = días desde el lunes).
+  for (const u of ELENCO.filter((x) => x.rachaSemanas)) {
+    const prohibidas = [(u.rachaEnRiesgo ? 1 : 0) + u.rachaSemanas!, ...(u.rachaEnRiesgo ? [0] : [])]
+    for (const v of VIAJES_VITRINA.filter((x) => [x.creador, ...x.integrantes].includes(u.clave))) {
+      for (let desdeLunes = 0; desdeLunes < 7; desdeLunes++) {
+        const semana = Math.floor((desdeLunes + v.haceDias) / 7)
+        if (prohibidas.includes(semana)) {
+          errores.push(
+            `Usuario "${u.clave}": el viaje "${v.clave}" puede caer en la semana ${semana}, que tiene que ` +
+              `quedar vacía para que la racha sea de ${u.rachaSemanas}${u.rachaEnRiesgo ? ' en riesgo' : ''}`
+          )
+          break
+        }
+      }
+    }
   }
 
   for (const g of GRUPOS) {

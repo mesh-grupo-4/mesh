@@ -29,7 +29,7 @@ const FILA = {
   publicado_at: new Date('2026-10-23T15:00:00.000Z'),
   comentario: null,
   checklist: [] as string[],
-  foto: null as string | null,
+  fotos: [] as string[],
   usuario: { id: usuarioId, nombre: 'Ana', apellido: 'Pérez' },
 }
 
@@ -73,6 +73,7 @@ function armar(
   const queryRaw = vi.fn().mockResolvedValue([{ id: 'r1' }])
   const plantillaFindUnique = vi.fn().mockResolvedValue(null)
   const plantillaFindMany = vi.fn().mockResolvedValue([])
+  const plantillaGroupBy = vi.fn().mockResolvedValue([])
   const plantillaCreate = vi.fn().mockImplementation(({ data }) =>
     Promise.resolve({ id: 'p1', created_at: new Date(), paradas: [], ...data })
   )
@@ -94,6 +95,7 @@ function armar(
     rutaPlantilla: {
       findUnique: plantillaFindUnique,
       findMany: plantillaFindMany,
+      groupBy: plantillaGroupBy,
       create: plantillaCreate,
       update: plantillaUpdate,
     },
@@ -115,6 +117,7 @@ function armar(
     usuarioFindMany,
     plantillaFindUnique,
     plantillaFindMany,
+    plantillaGroupBy,
     plantillaCreate,
     plantillaUpdate,
     checklistFindMany,
@@ -255,42 +258,57 @@ describe('RecorridosPublicadosService.publicar', () => {
   })
 })
 
-describe('RecorridosPublicadosService foto del recorrido (RN-081)', () => {
+describe('RecorridosPublicadosService fotos del recorrido (RN-081)', () => {
   const fotoPath = `recorridos/${usuarioId}/${viajeId}/1792000000000.jpg`
-  const fotoUrl = `https://proyecto.supabase.co/storage/v1/object/public/avatares/${fotoPath}`
+  const otraFotoPath = `recorridos/${usuarioId}/${viajeId}/1792000000001-a1b2c3.jpg`
+  const urlDe = (path: string) =>
+    `https://proyecto.supabase.co/storage/v1/object/public/avatares/${path}`
+  const fotoUrl = urlDe(fotoPath)
 
   function fotosFalsas() {
     return {
       crearSubida: vi.fn().mockResolvedValue({ path: fotoPath, upload_url: 'https://firmada' }),
-      verificar: vi.fn().mockResolvedValue(fotoUrl),
+      verificar: vi.fn(async (_u: string, _v: string, path: string) => urlDe(path)),
       borrarSobrantes: vi.fn().mockResolvedValue(undefined),
     }
   }
 
-  it('con fotoPath verifica el archivo, guarda la URL y recién después limpia lo anterior', async () => {
+  it('con fotoPaths verifica cada archivo, guarda las URLs en orden y recién después limpia lo anterior', async () => {
     const fotos = fotosFalsas()
     const { service, upsert } = armar({ fotos: fotos as unknown as FotosRecorridoService })
-    await service.publicar(usuarioId, viajeId, { fotoPath })
+    await service.publicar(usuarioId, viajeId, { fotoPaths: [fotoPath, otraFotoPath] })
 
-    expect(fotos.verificar).toHaveBeenCalledWith(usuarioId, viajeId, fotoPath)
+    expect(fotos.verificar).toHaveBeenNthCalledWith(1, usuarioId, viajeId, fotoPath)
+    expect(fotos.verificar).toHaveBeenNthCalledWith(2, usuarioId, viajeId, otraFotoPath)
     const args = upsert.mock.calls[0]![0]
-    expect(args.create).toMatchObject({ foto: fotoUrl })
-    expect(args.update).toMatchObject({ foto: fotoUrl })
-    expect(fotos.borrarSobrantes).toHaveBeenCalledWith(usuarioId, viajeId, fotoPath)
+    expect(args.create).toMatchObject({ fotos: [fotoUrl, urlDe(otraFotoPath)] })
+    expect(args.update).toMatchObject({ fotos: [fotoUrl, urlDe(otraFotoPath)] })
+    expect(fotos.borrarSobrantes).toHaveBeenCalledWith(usuarioId, viajeId, [fotoPath, otraFotoPath])
     expect(upsert.mock.invocationCallOrder[0]!).toBeLessThan(
       fotos.borrarSobrantes.mock.invocationCallOrder[0]!
     )
   })
 
-  it('sin fotoPath publica sin foto y borra la que hubiera de antes', async () => {
+  it('la respuesta trae todas las fotos y la primera como portada', async () => {
+    const fotos = fotosFalsas()
+    const { service, upsert } = armar({ fotos: fotos as unknown as FotosRecorridoService })
+    upsert.mockResolvedValue({ ...FILA, fotos: [fotoUrl, urlDe(otraFotoPath)] })
+    const r = await service.publicar(usuarioId, viajeId, { fotoPaths: [fotoPath, otraFotoPath] })
+
+    expect(r.foto).toBe(fotoUrl)
+    expect(r.fotos).toEqual([fotoUrl, urlDe(otraFotoPath)])
+  })
+
+  it('sin fotoPaths publica sin fotos y borra las que hubiera de antes', async () => {
     const fotos = fotosFalsas()
     const { service, upsert } = armar({ fotos: fotos as unknown as FotosRecorridoService })
     const r = await service.publicar(usuarioId, viajeId)
 
     expect(fotos.verificar).not.toHaveBeenCalled()
-    expect(upsert.mock.calls[0]![0].update).toMatchObject({ foto: null })
-    expect(fotos.borrarSobrantes).toHaveBeenCalledWith(usuarioId, viajeId, null)
+    expect(upsert.mock.calls[0]![0].update).toMatchObject({ fotos: [] })
+    expect(fotos.borrarSobrantes).toHaveBeenCalledWith(usuarioId, viajeId, [])
     expect(r).toHaveProperty('foto', null)
+    expect(r).toHaveProperty('fotos', [])
   })
 
   it('si la foto no es válida no publica nada', async () => {
@@ -298,7 +316,9 @@ describe('RecorridosPublicadosService foto del recorrido (RN-081)', () => {
     fotos.verificar.mockRejectedValue(Object.assign(new Error('x'), { status: 400, code: 'FOTO_INVALIDA' }))
     const { service, upsert } = armar({ fotos: fotos as unknown as FotosRecorridoService })
 
-    await expect(service.publicar(usuarioId, viajeId, { fotoPath })).rejects.toMatchObject({
+    await expect(
+      service.publicar(usuarioId, viajeId, { fotoPaths: [fotoPath] })
+    ).rejects.toMatchObject({
       code: 'FOTO_INVALIDA',
     })
     expect(upsert).not.toHaveBeenCalled()
@@ -415,6 +435,23 @@ describe('RecorridosPublicadosService lecturas', () => {
 
     plantillaFindMany.mockResolvedValue([{ id: 'p1', recorrido_publicado_id: 'r1' }])
     expect((await service.obtener(usuarioId, 'r1')).mi_plantilla_id).toBe('p1')
+  })
+
+  it('listar y obtener cuentan cuántas personas guardaron cada recorrido', async () => {
+    const { service, queryRaw, findMany, plantillaGroupBy } = armar()
+    queryRaw.mockResolvedValue([{ id: 'r1' }, { id: 'r2' }])
+    findMany.mockResolvedValue([FILA, { ...FILA, id: 'r2' }])
+    plantillaGroupBy.mockResolvedValue([{ recorrido_publicado_id: 'r2', _count: { _all: 7 } }])
+
+    const lista = await service.listar(usuarioId, { limit: 20, offset: 0 })
+
+    expect(plantillaGroupBy).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { recorrido_publicado_id: { in: ['r1', 'r2'] } } })
+    )
+    expect(lista.map((x) => x.guardados)).toEqual([0, 7])
+
+    plantillaGroupBy.mockResolvedValue([{ recorrido_publicado_id: 'r1', _count: { _all: 3 } }])
+    expect((await service.obtener(usuarioId, 'r1')).guardados).toBe(3)
   })
 
   it('obtener incluye los ítems del checklist compartido', async () => {

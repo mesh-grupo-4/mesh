@@ -1,3 +1,4 @@
+import { randomBytes } from 'crypto'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { BUCKET_AVATARES, supabaseStorage, urlPublicaAvatar } from '../../config/supabase'
 import { HttpError } from '../../lib/httpError'
@@ -9,13 +10,13 @@ export function carpetaFotoRecorrido(usuarioId: string, viajeId: string) {
 }
 
 /**
- * RN-081: foto opcional de un recorrido publicado (Supabase Storage, mismo bucket que
+ * RN-081: fotos opcionales de un recorrido publicado (Supabase Storage, mismo bucket que
  * las fotos de perfil). Mismo flujo de tres pasos que la foto de perfil, pero el paso 3
- * es el propio publicar:
+ * es el propio publicar. Los pasos 1 y 2 se repiten por cada foto:
  *
  * 1. `crearSubida`: el backend elige la ruta y devuelve una URL firmada solo para ella.
  * 2. La app sube el JPEG directo a Storage.
- * 3. `POST /viajes/:id/recorrido/publicar` con `fotoPath`: `verificar` comprueba que el
+ * 3. `POST /viajes/:id/recorrido/publicar` con `fotoPaths`: `verificar` comprueba que cada
  *    archivo exista en la carpeta de quien publica, con tipo y tamaño válidos.
  *
  * Quién puede subir (participó del viaje, finalizado) lo decide el servicio de
@@ -33,7 +34,9 @@ export class FotosRecorridoService {
   }
 
   async crearSubida(usuarioId: string, viajeId: string) {
-    const path = `${carpetaFotoRecorrido(usuarioId, viajeId)}/${Date.now()}.jpg`
+    // El sufijo evita que dos fotos pedidas en el mismo milisegundo compartan ruta.
+    const sufijo = randomBytes(3).toString('hex')
+    const path = `${carpetaFotoRecorrido(usuarioId, viajeId)}/${Date.now()}-${sufijo}.jpg`
     const { data, error } = await this.bucket().createSignedUploadUrl(path)
     if (error || !data) {
       throw new HttpError(502, 'No se pudo preparar la subida de la foto', 'FOTO_SUBIDA_FALLIDA')
@@ -45,7 +48,7 @@ export class FotosRecorridoService {
   async verificar(usuarioId: string, viajeId: string, path: string): Promise<string> {
     const carpeta = carpetaFotoRecorrido(usuarioId, viajeId)
     const archivo = path.startsWith(`${carpeta}/`) ? path.slice(carpeta.length + 1) : ''
-    if (!/^\d{13}\.jpg$/.test(archivo)) {
+    if (!/^\d{13}(-[0-9a-f]{6})?\.jpg$/.test(archivo)) {
       throw new HttpError(400, 'La ruta de la foto no es válida', 'FOTO_PATH_INVALIDO')
     }
 
@@ -69,11 +72,12 @@ export class FotosRecorridoService {
   }
 
   /**
-   * Después de publicar: borra todo lo de la carpeta menos la foto vigente (la anterior al
-   * republicar y cualquier subida que nunca se publicó). `conservar` null = publicó sin
-   * foto, se borra todo. Nunca falla: un archivo huérfano no justifica cortar la publicación.
+   * Después de publicar: borra todo lo de la carpeta menos las fotos vigentes (las
+   * anteriores al republicar y cualquier subida que nunca se publicó). `conservar` vacío =
+   * publicó sin fotos, se borra todo. Nunca falla: un archivo huérfano no justifica cortar
+   * la publicación.
    */
-  async borrarSobrantes(usuarioId: string, viajeId: string, conservar: string | null): Promise<void> {
+  async borrarSobrantes(usuarioId: string, viajeId: string, conservar: string[]): Promise<void> {
     const cliente = this.storage()
     if (!cliente) return
     const carpeta = carpetaFotoRecorrido(usuarioId, viajeId)
@@ -82,7 +86,7 @@ export class FotosRecorridoService {
       const { data } = await bucket.list(carpeta, { limit: 100 })
       const sobrantes = (data ?? [])
         .map((a) => `${carpeta}/${a.name}`)
-        .filter((path) => path !== conservar)
+        .filter((path) => !conservar.includes(path))
       if (sobrantes.length > 0) await bucket.remove(sobrantes)
     } catch {
       // Queda un archivo huérfano en Storage: no afecta a nadie.
