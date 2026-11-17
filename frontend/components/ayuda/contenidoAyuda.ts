@@ -639,7 +639,7 @@ export const AYUDA_RECORRIDO_PUBLICADO: PasoDefinicion[] = [
     nombre: 'recorridoPublicado.usar',
     orden: ORDEN_PANTALLA.recorridoPublicado + 3,
     texto:
-      'Usalo como base de un viaje nuevo, o guardalo en tus rutas con el corazón de arriba. Si quien lo publicó compartió su checklist, elegís si te lo llevás también.',
+      'Usalo como base de un viaje nuevo, o guardalo en tus rutas con el corazón de arriba. Si quien lo publicó compartió su checklist, arriba elegís si te lo llevás también.',
   },
   {
     nombre: 'recorridoPublicado.despublicar',

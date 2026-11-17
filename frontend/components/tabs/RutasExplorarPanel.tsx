@@ -1,10 +1,11 @@
-import { useEspacioTabBar } from '@/hooks/useEspacioTabBar'
+import { TAB_BAR_ALTO, useEspacioTabBar, useTabBarBottom } from '@/hooks/useEspacioTabBar'
 import * as Location from 'expo-location';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -53,6 +54,9 @@ const RADIOS_KM = [10, 25, 50, 100] as const;
 /** Pausa de tipeo antes de consultar, para no pegarle al backend por cada letra. */
 const ESPERA_BUSQUEDA_MS = 350;
 
+/** Cuánto hay que bajar para que aparezca el botón de volver arriba. */
+const SCROLL_MOSTRAR_ARRIBA = 600;
+
 type ModoZona = 'todas' | 'cerca' | 'lugar';
 type Zona = { lat: number; lng: number; etiqueta: string };
 
@@ -60,7 +64,10 @@ const ETIQUETA_CERCA = 'tu ubicación';
 
 export function RutasExplorarPanel({ encabezado }: { encabezado: ReactNode }) {
   const espacioTabBar = useEspacioTabBar();
+  const tabBarBottom = useTabBarBottom();
   const theme = useTheme();
+  const scrollRef = useRef<ScrollView>(null);
+  const [mostrarArriba, setMostrarArriba] = useState(false);
   const router = useRouter();
   const [textoBusqueda, setTextoBusqueda] = useState('');
   const [q, setQ] = useState('');
@@ -252,6 +259,8 @@ export function RutasExplorarPanel({ encabezado }: { encabezado: ReactNode }) {
   return (
     <View style={styles.root}>
     <ScrollViewAyuda
+      ref={scrollRef}
+      onScroll={(e) => setMostrarArriba(e.nativeEvent.contentOffset.y > SCROLL_MOSTRAR_ARRIBA)}
       contentContainerStyle={{ paddingBottom: espacioTabBar }}
       keyboardShouldPersistTaps="handled"
       automaticallyAdjustKeyboardInsets
@@ -308,6 +317,20 @@ export function RutasExplorarPanel({ encabezado }: { encabezado: ReactNode }) {
       </PasoAyuda>
       </View>
     </ScrollViewAyuda>
+
+    {mostrarArriba ? (
+      <Pressable
+        onPress={() => scrollRef.current?.scrollTo({ y: 0, animated: true })}
+        accessibilityRole="button"
+        accessibilityLabel="Volver arriba"
+        style={[
+          styles.btnArriba,
+          { bottom: tabBarBottom + TAB_BAR_ALTO + 12, backgroundColor: theme.accent },
+        ]}
+      >
+        <Feather name="arrow-up" size={22} color={theme.onAccent} />
+      </Pressable>
+    ) : null}
 
     <PantallaFiltros
       visible={pantallaFiltros}
@@ -474,4 +497,18 @@ const styles = StyleSheet.create({
   lista: { gap: 12 },
   spinner: { marginVertical: 48 },
   mensaje: { fontSize: 14, lineHeight: 20, textAlign: 'center', marginVertical: 32 },
+  btnArriba: {
+    position: 'absolute',
+    right: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
+  },
 });

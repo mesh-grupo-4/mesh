@@ -6,16 +6,18 @@ import { Feather } from '@expo/vector-icons'
 
 import { CarruselFotos } from '@/components/CarruselFotos'
 import { CorazonGuardar } from '@/components/CorazonGuardar'
+import { Pressable } from '@/components/Pressable'
 import { MedidorValoracion } from '@/components/tabs/MedidorValoracion'
 import { RecorridoMapView } from '@/components/RecorridoMapView'
 import { StatCard, StatCardRow } from '@/components/StatCard'
-import { ActivityTile, Btn, TopBar, useTheme } from '@/components/MeshUI'
+import { ActivityTile, Avatar, Btn, TopBar, useTheme } from '@/components/MeshUI'
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
 import { ScrollViewAyuda } from '@/components/ayuda/ScrollViewAyuda'
 import { AYUDA_RECORRIDO_PUBLICADO } from '@/components/ayuda/contenidoAyuda'
 import { useAuth } from '@/context/AuthContext'
 import { formatDurationHm, formatKm } from '@/lib/format'
 import { meshAlert, meshConfirmDestructive, meshError } from '@/lib/meshAlert'
+import { nombreCompleto } from '@/lib/nombres'
 import {
   ajustarGuardados,
   despublicarRecorrido,
@@ -77,6 +79,7 @@ export default function RecorridoPublicadoScreen() {
 
   const esMio = recorrido != null && recorrido.autor.id === backendUserId
   const nombreRecorrido = recorrido?.nombre?.trim() || 'Recorrido sin nombre'
+  const nombreAutor = recorrido ? nombreCompleto(recorrido.autor.nombre, recorrido.autor.apellido) : ''
 
   // RN-081: el autor despublica en cualquier momento; el recorrido deja de verse para todos.
   const confirmarDespublicar = () => {
@@ -203,22 +206,11 @@ export default function RecorridoPublicadoScreen() {
         </View>
       ) : (
         <ScrollViewAyuda contentContainerStyle={styles.inner}>
-          {/* Las fotos abren la pantalla, como portada; sin fotos arranca por el título. */}
-          <CarruselFotos fotos={fotosDe(recorrido)} descripcion={nombreRecorrido} />
-
           <View style={styles.hero}>
             <ActivityTile activity={recorrido.tipo_actividad} size={46} />
             <View style={styles.heroText}>
               <Text style={[styles.titulo, { color: theme.text }]} numberOfLines={2}>
                 {nombreRecorrido}
-              </Text>
-              <Text style={[styles.sub, { color: theme.textDim }]}>
-                {recorrido.autor.nombre} ·{' '}
-                {formatearEnArg(recorrido.publicado_at, {
-                  day: '2-digit',
-                  month: '2-digit',
-                  year: 'numeric',
-                })}
               </Text>
             </View>
             <CorazonGuardar
@@ -227,6 +219,39 @@ export default function RecorridoPublicadoScreen() {
               onPress={alternarGuardado}
             />
           </View>
+
+          {/* Quien lo publicó, justo arriba de su comentario: tocando se abre su perfil. */}
+          <Pressable
+            onPress={() =>
+              router.push({
+                pathname: '/usuario/[usuarioId]',
+                params: { usuarioId: recorrido.autor.id },
+              })
+            }
+            accessibilityRole="button"
+            accessibilityLabel={`Ver perfil de ${nombreAutor}`}
+            style={styles.autorFila}
+          >
+            <Avatar
+              person={{ nombre: recorrido.autor.nombre, apellido: recorrido.autor.apellido ?? undefined }}
+              usuarioId={recorrido.autor.id}
+              size="sm"
+            />
+            <View style={styles.heroText}>
+              <Text style={[styles.autorNombre, { color: theme.text }]} numberOfLines={1}>
+                {nombreAutor}
+              </Text>
+              <Text style={[styles.sub, { color: theme.textDim }]}>
+                Publicado el{' '}
+                {formatearEnArg(recorrido.publicado_at, {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric',
+                })}
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={18} color={theme.textMute} />
+          </Pressable>
 
           {recorrido.comentario ? (
             <View
@@ -310,48 +335,49 @@ export default function RecorridoPublicadoScreen() {
             </View>
           </PasoAyuda>
 
-          <PasoAyuda {...AYUDA_RECORRIDO_PUBLICADO[3]!}>
-            <View style={styles.acciones}>
-              {recorrido.checklist.length > 0 ? (
-                <View
-                  style={[
-                    styles.valoracionCard,
-                    { backgroundColor: theme.surface, borderColor: theme.border },
-                  ]}
-                >
-                  <Text style={[styles.valoracionTitulo, { color: theme.text }]}>
-                    Checklist del recorrido
-                  </Text>
-                  {recorrido.checklist.map((item) => (
-                    <View key={item} style={styles.checklistFila}>
-                      <Feather name="check" size={14} color={theme.textDim} />
-                      <Text style={[styles.sub, styles.flex1, { color: theme.textDim }]}>{item}</Text>
-                    </View>
-                  ))}
-                  <View style={styles.checklistSwitch}>
-                    <Text style={[styles.guardarChecklist, { color: theme.text }]}>
-                      Guardar también el checklist
-                    </Text>
-                    <Switch
-                      value={guardarChecklist}
-                      onValueChange={setGuardarChecklist}
-                      trackColor={{ true: theme.accent, false: theme.border }}
-                      accessibilityLabel="Guardar también el checklist"
-                    />
-                  </View>
+          {recorrido.checklist.length > 0 ? (
+            <View
+              style={[
+                styles.valoracionCard,
+                { backgroundColor: theme.surface, borderColor: theme.border },
+              ]}
+            >
+              <Text style={[styles.valoracionTitulo, { color: theme.text }]}>
+                Checklist del recorrido
+              </Text>
+              {recorrido.checklist.map((item) => (
+                <View key={item} style={styles.checklistFila}>
+                  <Feather name="check" size={14} color={theme.textDim} />
+                  <Text style={[styles.sub, styles.flex1, { color: theme.textDim }]}>{item}</Text>
                 </View>
-              ) : null}
-              <Btn
-                variant="primary"
-                block
-                icon="plus"
-                loading={importando === 'usar'}
-                disabled={importando !== null}
-                onPress={() => void importar('usar')}
-              >
-                Usar como base de un viaje
-              </Btn>
+              ))}
+              <View style={styles.checklistSwitch}>
+                <Text style={[styles.guardarChecklist, { color: theme.text }]}>
+                  Guardar también el checklist
+                </Text>
+                <Switch
+                  value={guardarChecklist}
+                  onValueChange={setGuardarChecklist}
+                  trackColor={{ true: theme.accent, false: theme.border }}
+                  accessibilityLabel="Guardar también el checklist"
+                />
+              </View>
             </View>
+          ) : null}
+
+          <CarruselFotos fotos={fotosDe(recorrido)} descripcion={nombreRecorrido} />
+
+          <PasoAyuda {...AYUDA_RECORRIDO_PUBLICADO[3]!}>
+            <Btn
+              variant="primary"
+              block
+              icon="plus"
+              loading={importando === 'usar'}
+              disabled={importando !== null}
+              onPress={() => void importar('usar')}
+            >
+              Usar como base de un viaje
+            </Btn>
           </PasoAyuda>
 
           {esMio ? (
@@ -396,7 +422,8 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   comentario: { flex: 1, fontSize: 15, lineHeight: 21 },
-  acciones: { gap: 10 },
+  autorFila: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  autorNombre: { fontSize: 15, fontWeight: '700' },
   flex1: { flex: 1 },
   checklistFila: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   checklistSwitch: {

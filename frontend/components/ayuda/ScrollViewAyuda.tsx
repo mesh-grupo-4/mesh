@@ -1,4 +1,13 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  type Ref,
+} from 'react'
 import { ScrollView, type ScrollViewProps } from 'react-native'
 import { useCopilot } from 'react-native-copilot'
 
@@ -38,8 +47,14 @@ function medirLista(lista: ScrollView | null): Promise<Rect | null> {
  * guarda la `ScrollView` una sola vez para toda la app, así que después de
  * usarlo en una pantalla las demás quedaban apuntando a una lista ajena.
  */
-export function ScrollViewAyuda({ onScroll, scrollEventThrottle, ...props }: ScrollViewProps) {
+export function ScrollViewAyuda({
+  onScroll,
+  scrollEventThrottle,
+  ref,
+  ...props
+}: ScrollViewProps & { ref?: Ref<ScrollView> }) {
   const scrollRef = useRef<ScrollView>(null)
+  useImperativeHandle(ref, () => scrollRef.current as ScrollView, [])
   const offsetY = useRef(0)
   const pasos = useRef(new Set<string>())
   const ultimoScrolleado = useRef<string | null>(null)
