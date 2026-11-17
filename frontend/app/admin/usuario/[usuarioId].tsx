@@ -145,7 +145,7 @@ export default function AdminUsuarioScreen() {
 
       <Seccion
         titulo="Actividad en Mesh"
-        descripcion="Solo totales: el backoffice no muestra los viajes de una persona (RN-126)."
+        descripcion="Solo totales: el backoffice no muestra los viajes de una persona."
       >
         <Fila titulo="Viajes creados" etiqueta={String(usuario.totales.viajes_creados)} />
         <Fila titulo="Participaciones en viajes" etiqueta={String(usuario.totales.participaciones_viaje)} />

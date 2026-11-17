@@ -677,8 +677,13 @@ async function sembrarPlanificado(p: ViajePlanificado, ctx: Contexto): Promise<s
   const esGrupal = confirmados.length + pendientes.length + rechazados.length > 0
   const params = parametrosPorActividad(actividad)
   const creado = new Date(ctx.ahora.getTime() - (1 + Math.floor(azar() * 4)) * MS_DIA)
-  const origen = p.grupo ? ('grupo' as const) : ('amigo' as const)
   const grupo_origen_id = p.grupo ? ctx.grupo(p.grupo) : null
+  // Sin grupo, quien no es amigo del creador solo pudo sumarse con el link del viaje.
+  const esAmigo = (clave: string) =>
+    AMISTADES.some(
+      (a) => a.estado === 'aceptada' && [a.de, a.a].includes(clave) && [a.de, a.a].includes(p.creador)
+    )
+  const origen = (clave: string) => (p.grupo ? ('grupo' as const) : esAmigo(clave) ? ('amigo' as const) : ('link' as const))
 
   await prisma.viaje.create({
     data: {
@@ -700,7 +705,7 @@ async function sembrarPlanificado(p: ViajePlanificado, ctx: Contexto): Promise<s
     viaje_id: viajeId,
     usuario_id: id(clave),
     estado,
-    origen,
+    origen: origen(clave),
     grupo_origen_id,
     created_at: new Date(creado.getTime() + (i + 1) * 9 * MS_MIN),
   })
@@ -1200,7 +1205,7 @@ Explorar, en el orden de la app:
 ${explorar
   .map(
     (r, i) =>
-      `  ${String(i + 1).padStart(2)}. ${r.nombre} — ${r.autor.nombre} ${r.autor.apellido ?? ''} · ` +
+      `  ${String(i + 1).padStart(2)}. ${r.nombre} — ${nombreVisible(r.autor.nombre, r.autor.apellido)} ·` +
       `${escalon(r.valoracion)} (${r.valoracion.porcentaje_recomienda ?? '–'} %, ${r.valoracion.total} votos) · ` +
       `${r.guardados} guardados · ` +
       `${r.fotos.length} foto${r.fotos.length === 1 ? '' : 's'}`

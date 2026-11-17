@@ -74,10 +74,10 @@ export class FantasmaService {
       viaje.creador_id === usuarioId || viaje.integrantes.some((i) => i.estado !== 'rechazado')
     if (!participa) throw new HttpError(403, 'Sin acceso a este viaje', 'FORBIDDEN')
     if (esMotorizado(viaje.tipo_actividad)) {
-      throw new HttpError(409, 'Las modalidades motorizadas (moto, auto) no admiten fantasma (RN-070)', 'FANTASMA_NO_DISPONIBLE')
+      throw new HttpError(409, 'Las modalidades motorizadas (moto, auto) no admiten fantasma', 'FANTASMA_NO_DISPONIBLE')
     }
     if (viaje.modo !== 'entrenamiento') {
-      throw new HttpError(409, 'El fantasma es solo para entrenamientos (RN-073)', 'FANTASMA_NO_DISPONIBLE')
+      throw new HttpError(409, 'El fantasma es solo para entrenamientos', 'FANTASMA_NO_DISPONIBLE')
     }
     return viaje
   }
@@ -205,7 +205,7 @@ export class FantasmaService {
       throw new HttpError(409, 'El viaje de referencia todavía no finalizó', 'TRIP_NOT_FINISHED')
     }
     if (esMotorizado(viaje.tipo_actividad)) {
-      throw new HttpError(409, 'Las modalidades motorizadas (moto, auto) no admiten fantasma (RN-070)', 'FANTASMA_NO_DISPONIBLE')
+      throw new HttpError(409, 'Las modalidades motorizadas (moto, auto) no admiten fantasma', 'FANTASMA_NO_DISPONIBLE')
     }
 
     const [puntos, autor] = await Promise.all([
@@ -248,7 +248,7 @@ export class FantasmaService {
       throw new HttpError(404, 'Plantilla no encontrada', 'PLANTILLA_NOT_FOUND')
     }
     if (esMotorizado(plantilla.tipo_actividad)) {
-      throw new HttpError(409, 'Las modalidades motorizadas (moto, auto) no admiten fantasma (RN-070)', 'FANTASMA_NO_DISPONIBLE')
+      throw new HttpError(409, 'Las modalidades motorizadas (moto, auto) no admiten fantasma', 'FANTASMA_NO_DISPONIBLE')
     }
     const coords = ((plantilla.linestring_geojson as unknown as GeoJsonLineString)?.coordinates ??
       []) as [number, number][]

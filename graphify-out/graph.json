@@ -396,7 +396,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\lib\\expoPush.ts",
       "source_location": "L1",
       "id": "d_tesis_mesh_backend_src_lib_expopush_ts",
-      "community": 22,
+      "community": 21,
       "norm_label": "expopush.ts"
     },
     {
@@ -405,7 +405,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\lib\\expoPush.ts",
       "source_location": "L17",
       "id": "expopush_amensajeexpo",
-      "community": 22,
+      "community": 21,
       "norm_label": "amensajeexpo()"
     },
     {
@@ -414,7 +414,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\lib\\expoPush.ts",
       "source_location": "L28",
       "id": "expopush_sendexpopush",
-      "community": 22,
+      "community": 21,
       "norm_label": "sendexpopush()"
     },
     {
@@ -450,7 +450,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\lib\\geo2d.ts",
       "source_location": "L1",
       "id": "d_tesis_mesh_backend_src_lib_geo2d_ts",
-      "community": 28,
+      "community": 29,
       "norm_label": "geo2d.ts"
     },
     {
@@ -459,7 +459,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\lib\\geo2d.ts",
       "source_location": "L3",
       "id": "geo2d_torad",
-      "community": 28,
+      "community": 29,
       "norm_label": "torad()"
     },
     {
@@ -468,7 +468,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\lib\\geo2d.ts",
       "source_location": "L8",
       "id": "geo2d_distanciametros",
-      "community": 28,
+      "community": 29,
       "norm_label": "distanciametros()"
     },
     {
@@ -576,7 +576,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\nombres.ts",
       "source_location": "L30",
       "id": "nombres_nombredepila",
-      "community": 20,
+      "community": 2,
       "norm_label": "nombredepila()"
     },
     {
@@ -963,7 +963,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L1",
       "id": "d_tesis_mesh_backend_src_modules_admin_admin_service_ts",
-      "community": 19,
+      "community": 18,
       "norm_label": "admin.service.ts"
     },
     {
@@ -972,7 +972,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L50",
       "id": "admin_service_esusuariofirebaseinexistente",
-      "community": 19,
+      "community": 18,
       "norm_label": "esusuariofirebaseinexistente()"
     },
     {
@@ -981,7 +981,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L78",
       "id": "admin_service_desconectarsockets",
-      "community": 19,
+      "community": 18,
       "norm_label": "desconectarsockets()"
     },
     {
@@ -990,7 +990,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L114",
       "id": "admin_service_viajeanonimo",
-      "community": 19,
+      "community": 18,
       "norm_label": "viajeanonimo()"
     },
     {
@@ -999,7 +999,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L126",
       "id": "admin_service_detalleauditoriavisible",
-      "community": 19,
+      "community": 18,
       "norm_label": "detalleauditoriavisible()"
     },
     {
@@ -1008,7 +1008,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L148",
       "id": "admin_service_insigniaadmin",
-      "community": 19,
+      "community": 18,
       "norm_label": "insigniaadmin()"
     },
     {
@@ -1017,7 +1017,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L153",
       "id": "admin_service_esviolacionunique",
-      "community": 19,
+      "community": 18,
       "norm_label": "esviolacionunique()"
     },
     {
@@ -1026,7 +1026,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L157",
       "id": "admin_service_codigoduplicado",
-      "community": 19,
+      "community": 18,
       "norm_label": "codigoduplicado()"
     },
     {
@@ -1035,7 +1035,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L161",
       "id": "admin_service_insigniaotorgada",
-      "community": 19,
+      "community": 18,
       "norm_label": "insigniaotorgada()"
     },
     {
@@ -1044,7 +1044,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L170",
       "id": "admin_service_paginar",
-      "community": 19,
+      "community": 18,
       "norm_label": "paginar()"
     },
     {
@@ -1053,7 +1053,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L174",
       "id": "admin_service_filtrotexto",
-      "community": 19,
+      "community": 18,
       "norm_label": "filtrotexto()"
     },
     {
@@ -1062,7 +1062,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L189",
       "id": "admin_service_adminservice",
-      "community": 19,
+      "community": 18,
       "norm_label": "adminservice"
     },
     {
@@ -1071,7 +1071,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L192",
       "id": "admin_service_adminservice_constructor",
-      "community": 19,
+      "community": 18,
       "norm_label": ".constructor()"
     },
     {
@@ -1080,7 +1080,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L200",
       "id": "admin_service_adminservice_auditar",
-      "community": 19,
+      "community": 18,
       "norm_label": ".auditar()"
     },
     {
@@ -1089,7 +1089,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L215",
       "id": "admin_service_adminservice_estadisticas",
-      "community": 19,
+      "community": 18,
       "norm_label": ".estadisticas()"
     },
     {
@@ -1098,7 +1098,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L232",
       "id": "admin_service_adminservice_listarusuarios",
-      "community": 19,
+      "community": 18,
       "norm_label": ".listarusuarios()"
     },
     {
@@ -1107,7 +1107,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L251",
       "id": "admin_service_adminservice_detalleusuario",
-      "community": 19,
+      "community": 18,
       "norm_label": ".detalleusuario()"
     },
     {
@@ -1116,7 +1116,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L287",
       "id": "admin_service_adminservice_obtenerusuarioofallar",
-      "community": 19,
+      "community": 18,
       "norm_label": ".obtenerusuarioofallar()"
     },
     {
@@ -1125,7 +1125,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L303",
       "id": "admin_service_adminservice_actualizarusuario",
-      "community": 19,
+      "community": 18,
       "norm_label": ".actualizarusuario()"
     },
     {
@@ -1134,7 +1134,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L321",
       "id": "admin_service_adminservice_cambiarrolsistema",
-      "community": 19,
+      "community": 18,
       "norm_label": ".cambiarrolsistema()"
     },
     {
@@ -1143,7 +1143,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L346",
       "id": "admin_service_adminservice_suspenderusuario",
-      "community": 19,
+      "community": 18,
       "norm_label": ".suspenderusuario()"
     },
     {
@@ -1152,7 +1152,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L377",
       "id": "admin_service_adminservice_reactivarusuario",
-      "community": 19,
+      "community": 18,
       "norm_label": ".reactivarusuario()"
     },
     {
@@ -1161,7 +1161,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L412",
       "id": "admin_service_adminservice_eliminarusuario",
-      "community": 19,
+      "community": 18,
       "norm_label": ".eliminarusuario()"
     },
     {
@@ -1170,7 +1170,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L511",
       "id": "admin_service_adminservice_listargrupos",
-      "community": 19,
+      "community": 18,
       "norm_label": ".listargrupos()"
     },
     {
@@ -1179,7 +1179,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L532",
       "id": "admin_service_adminservice_detallegrupo",
-      "community": 19,
+      "community": 18,
       "norm_label": ".detallegrupo()"
     },
     {
@@ -1188,7 +1188,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L557",
       "id": "admin_service_adminservice_reasignarlider",
-      "community": 19,
+      "community": 18,
       "norm_label": ".reasignarlider()"
     },
     {
@@ -1197,7 +1197,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L589",
       "id": "admin_service_adminservice_quitarmiembro",
-      "community": 19,
+      "community": 18,
       "norm_label": ".quitarmiembro()"
     },
     {
@@ -1206,7 +1206,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L636",
       "id": "admin_service_adminservice_eliminargrupo",
-      "community": 19,
+      "community": 18,
       "norm_label": ".eliminargrupo()"
     },
     {
@@ -1215,7 +1215,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L655",
       "id": "admin_service_adminservice_listarviajes",
-      "community": 19,
+      "community": 18,
       "norm_label": ".listarviajes()"
     },
     {
@@ -1224,7 +1224,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L670",
       "id": "admin_service_adminservice_detalleviaje",
-      "community": 19,
+      "community": 18,
       "norm_label": ".detalleviaje()"
     },
     {
@@ -1233,7 +1233,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L679",
       "id": "admin_service_adminservice_finalizarviaje",
-      "community": 19,
+      "community": 18,
       "norm_label": ".finalizarviaje()"
     },
     {
@@ -1242,7 +1242,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L690",
       "id": "admin_service_adminservice_eliminarviaje",
-      "community": 19,
+      "community": 18,
       "norm_label": ".eliminarviaje()"
     },
     {
@@ -1251,7 +1251,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L716",
       "id": "admin_service_adminservice_listarchecklistactividades",
-      "community": 19,
+      "community": 18,
       "norm_label": ".listarchecklistactividades()"
     },
     {
@@ -1260,7 +1260,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L736",
       "id": "admin_service_adminservice_definirchecklistactividad",
-      "community": 19,
+      "community": 18,
       "norm_label": ".definirchecklistactividad()"
     },
     {
@@ -1278,7 +1278,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L779",
       "id": "admin_service_adminservice_listarinsignias",
-      "community": 19,
+      "community": 18,
       "norm_label": ".listarinsignias()"
     },
     {
@@ -1287,7 +1287,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L791",
       "id": "admin_service_adminservice_crearinsignia",
-      "community": 19,
+      "community": 18,
       "norm_label": ".crearinsignia()"
     },
     {
@@ -1296,7 +1296,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L819",
       "id": "admin_service_adminservice_actualizarinsignia",
-      "community": 19,
+      "community": 18,
       "norm_label": ".actualizarinsignia()"
     },
     {
@@ -1305,7 +1305,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L839",
       "id": "admin_service_adminservice_eliminarinsignia",
-      "community": 19,
+      "community": 18,
       "norm_label": ".eliminarinsignia()"
     },
     {
@@ -1314,7 +1314,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L857",
       "id": "admin_service_adminservice_obtenerinsigniaofallar",
-      "community": 19,
+      "community": 18,
       "norm_label": ".obtenerinsigniaofallar()"
     },
     {
@@ -1323,7 +1323,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\admin\\admin.service.ts",
       "source_location": "L868",
       "id": "admin_service_adminservice_listarauditoria",
-      "community": 19,
+      "community": 18,
       "norm_label": ".listarauditoria()"
     },
     {
@@ -2070,7 +2070,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\clima\\clima.service.ts",
       "source_location": "L1",
       "id": "d_tesis_mesh_backend_src_modules_clima_clima_service_ts",
-      "community": 28,
+      "community": 29,
       "norm_label": "clima.service.ts"
     },
     {
@@ -2079,7 +2079,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\clima\\clima.service.ts",
       "source_location": "L83",
       "id": "clima_service_descripcioncodigotiempo",
-      "community": 28,
+      "community": 29,
       "norm_label": "descripcioncodigotiempo()"
     },
     {
@@ -2088,7 +2088,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\clima\\clima.service.ts",
       "source_location": "L98",
       "id": "clima_service_codigoimplicalluvia",
-      "community": 28,
+      "community": 29,
       "norm_label": "codigoimplicalluvia()"
     },
     {
@@ -2097,7 +2097,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\clima\\clima.service.ts",
       "source_location": "L103",
       "id": "clima_service_fechaiso",
-      "community": 28,
+      "community": 29,
       "norm_label": "fechaiso()"
     },
     {
@@ -2106,7 +2106,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\clima\\clima.service.ts",
       "source_location": "L108",
       "id": "clima_service_fraccionentrazado",
-      "community": 28,
+      "community": 29,
       "norm_label": "fraccionentrazado()"
     },
     {
@@ -2115,7 +2115,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\clima\\clima.service.ts",
       "source_location": "L123",
       "id": "clima_service_largotrazadometros",
-      "community": 28,
+      "community": 29,
       "norm_label": "largotrazadometros()"
     },
     {
@@ -2124,7 +2124,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\clima\\clima.service.ts",
       "source_location": "L133",
       "id": "clima_service_climaservice",
-      "community": 28,
+      "community": 29,
       "norm_label": "climaservice"
     },
     {
@@ -2133,7 +2133,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\clima\\clima.service.ts",
       "source_location": "L136",
       "id": "clima_service_climaservice_constructor",
-      "community": 28,
+      "community": 29,
       "norm_label": ".constructor()"
     },
     {
@@ -2142,7 +2142,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\clima\\clima.service.ts",
       "source_location": "L141",
       "id": "clima_service_climaservice_obtenerparaviaje",
-      "community": 28,
+      "community": 29,
       "norm_label": ".obtenerparaviaje()"
     },
     {
@@ -2151,7 +2151,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\clima\\clima.service.ts",
       "source_location": "L258",
       "id": "clima_service_climaservice_elegirmuestras",
-      "community": 28,
+      "community": 29,
       "norm_label": ".elegirmuestras()"
     },
     {
@@ -2160,7 +2160,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\clima\\clima.service.ts",
       "source_location": "L295",
       "id": "clima_service_climaservice_consultaropenmeteo",
-      "community": 28,
+      "community": 29,
       "norm_label": ".consultaropenmeteo()"
     },
     {
@@ -2169,7 +2169,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\clima\\clima.service.ts",
       "source_location": "L340",
       "id": "clima_service_climaservice_leerhora",
-      "community": 28,
+      "community": 29,
       "norm_label": ".leerhora()"
     },
     {
@@ -2178,7 +2178,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\clima\\clima.service.ts",
       "source_location": "L389",
       "id": "clima_service_climaservice_armaralertas",
-      "community": 28,
+      "community": 29,
       "norm_label": ".armaralertas()"
     },
     {
@@ -2187,7 +2187,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\clima\\clima.service.ts",
       "source_location": "L411",
       "id": "clima_service_climaservice_armarresumen",
-      "community": 28,
+      "community": 29,
       "norm_label": ".armarresumen()"
     },
     {
@@ -4590,7 +4590,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\paradas\\paradas.service.ts",
       "source_location": "L1",
       "id": "d_tesis_mesh_backend_src_modules_paradas_paradas_service_ts",
-      "community": 22,
+      "community": 21,
       "norm_label": "paradas.service.ts"
     },
     {
@@ -4608,7 +4608,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\paradas\\paradas.service.ts",
       "source_location": "L49",
       "id": "paradas_service_nombrede",
-      "community": 22,
+      "community": 21,
       "norm_label": "nombrede()"
     },
     {
@@ -4617,7 +4617,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\paradas\\paradas.service.ts",
       "source_location": "L53",
       "id": "paradas_service_duracionseg",
-      "community": 22,
+      "community": 21,
       "norm_label": "duracionseg()"
     },
     {
@@ -4626,7 +4626,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\paradas\\paradas.service.ts",
       "source_location": "L57",
       "id": "paradas_service_paradasservice",
-      "community": 22,
+      "community": 21,
       "norm_label": "paradasservice"
     },
     {
@@ -4635,7 +4635,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\paradas\\paradas.service.ts",
       "source_location": "L58",
       "id": "paradas_service_paradasservice_constructor",
-      "community": 22,
+      "community": 21,
       "norm_label": ".constructor()"
     },
     {
@@ -4644,7 +4644,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\paradas\\paradas.service.ts",
       "source_location": "L64",
       "id": "paradas_service_paradasservice_assertparticipaenviajeencurso",
-      "community": 22,
+      "community": 21,
       "norm_label": ".assertparticipaenviajeencurso()"
     },
     {
@@ -4653,7 +4653,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\paradas\\paradas.service.ts",
       "source_location": "L99",
       "id": "paradas_service_paradasservice_iniciarparada",
-      "community": 22,
+      "community": 21,
       "norm_label": ".iniciarparada()"
     },
     {
@@ -4662,7 +4662,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\paradas\\paradas.service.ts",
       "source_location": "L161",
       "id": "paradas_service_paradasservice_iniciarparadagrupal",
-      "community": 22,
+      "community": 21,
       "norm_label": ".iniciarparadagrupal()"
     },
     {
@@ -4671,7 +4671,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\paradas\\paradas.service.ts",
       "source_location": "L222",
       "id": "paradas_service_paradasservice_finalizarparadagrupal",
-      "community": 22,
+      "community": 21,
       "norm_label": ".finalizarparadagrupal()"
     },
     {
@@ -4680,7 +4680,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\paradas\\paradas.service.ts",
       "source_location": "L249",
       "id": "paradas_service_paradasservice_finalizarparada",
-      "community": 22,
+      "community": 21,
       "norm_label": ".finalizarparada()"
     },
     {
@@ -4689,7 +4689,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\paradas\\paradas.service.ts",
       "source_location": "L292",
       "id": "paradas_service_paradasservice_confirmarestoybien",
-      "community": 22,
+      "community": 21,
       "norm_label": ".confirmarestoybien()"
     },
     {
@@ -4698,7 +4698,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\paradas\\paradas.service.ts",
       "source_location": "L352",
       "id": "paradas_service_paradasservice_cerrarincidenteporalerta",
-      "community": 22,
+      "community": 21,
       "norm_label": ".cerrarincidenteporalerta()"
     },
     {
@@ -4707,7 +4707,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\paradas\\paradas.service.ts",
       "source_location": "L397",
       "id": "paradas_service_paradasservice_cerraralertas",
-      "community": 22,
+      "community": 21,
       "norm_label": ".cerraralertas()"
     },
     {
@@ -4716,7 +4716,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\paradas\\paradas.service.ts",
       "source_location": "L422",
       "id": "paradas_service_paradasservice_emitirincidentecerrado",
-      "community": 22,
+      "community": 21,
       "norm_label": ".emitirincidentecerrado()"
     },
     {
@@ -4725,7 +4725,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\paradas\\paradas.service.ts",
       "source_location": "L457",
       "id": "paradas_service_paradasservice_confirmarestoymal",
-      "community": 22,
+      "community": 21,
       "norm_label": ".confirmarestoymal()"
     },
     {
@@ -4734,7 +4734,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\paradas\\paradas.service.ts",
       "source_location": "L491",
       "id": "paradas_service_paradasservice_deshacerestoymal",
-      "community": 22,
+      "community": 21,
       "norm_label": ".deshacerestoymal()"
     },
     {
@@ -4743,7 +4743,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\paradas\\paradas.service.ts",
       "source_location": "L512",
       "id": "paradas_service_paradasservice_incidenteabierto",
-      "community": 22,
+      "community": 21,
       "norm_label": ".incidenteabierto()"
     },
     {
@@ -4752,7 +4752,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\paradas\\paradas.service.ts",
       "source_location": "L529",
       "id": "paradas_service_paradasservice_cerraralertaayuda",
-      "community": 22,
+      "community": 21,
       "norm_label": ".cerraralertaayuda()"
     },
     {
@@ -4761,7 +4761,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\paradas\\paradas.service.ts",
       "source_location": "L559",
       "id": "paradas_service_paradasservice_miparadaactiva",
-      "community": 22,
+      "community": 21,
       "norm_label": ".miparadaactiva()"
     },
     {
@@ -4770,7 +4770,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\paradas\\paradas.service.ts",
       "source_location": "L571",
       "id": "paradas_service_paradasservice_solicitarparada",
-      "community": 22,
+      "community": 21,
       "norm_label": ".solicitarparada()"
     },
     {
@@ -4779,7 +4779,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\paradas\\paradas.service.ts",
       "source_location": "L617",
       "id": "paradas_service_paradasservice_respondersolicitud",
-      "community": 22,
+      "community": 21,
       "norm_label": ".respondersolicitud()"
     },
     {
@@ -4788,7 +4788,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\paradas\\paradas.service.ts",
       "source_location": "L669",
       "id": "paradas_service_paradasservice_cancelarsolicitud",
-      "community": 22,
+      "community": 21,
       "norm_label": ".cancelarsolicitud()"
     },
     {
@@ -4797,7 +4797,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\paradas\\paradas.service.ts",
       "source_location": "L707",
       "id": "paradas_service_paradasservice_listarsolicitudes",
-      "community": 22,
+      "community": 21,
       "norm_label": ".listarsolicitudes()"
     },
     {
@@ -4806,7 +4806,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\paradas\\paradas.service.ts",
       "source_location": "L724",
       "id": "paradas_service_paradasservice_mapparada",
-      "community": 22,
+      "community": 21,
       "norm_label": ".mapparada()"
     },
     {
@@ -4815,7 +4815,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\paradas\\paradas.service.ts",
       "source_location": "L753",
       "id": "paradas_service_paradasservice_mapsolicitud",
-      "community": 22,
+      "community": 21,
       "norm_label": ".mapsolicitud()"
     },
     {
@@ -4824,7 +4824,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\paradas\\paradas.service.ts",
       "source_location": "L780",
       "id": "paradas_service_paradasservice_mapalerta",
-      "community": 22,
+      "community": 21,
       "norm_label": ".mapalerta()"
     },
     {
@@ -4833,7 +4833,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\paradas\\paradas.service.ts",
       "source_location": "L812",
       "id": "paradas_service_paradasservice_emitir",
-      "community": 22,
+      "community": 21,
       "norm_label": ".emitir()"
     },
     {
@@ -4842,7 +4842,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\paradas\\paradas.service.ts",
       "source_location": "L824",
       "id": "paradas_service_paradasservice_alertaraccidente",
-      "community": 22,
+      "community": 21,
       "norm_label": ".alertaraccidente()"
     },
     {
@@ -4851,7 +4851,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\paradas\\paradas.service.ts",
       "source_location": "L883",
       "id": "paradas_service_paradasservice_notificargrupo",
-      "community": 22,
+      "community": 21,
       "norm_label": ".notificargrupo()"
     },
     {
@@ -4860,7 +4860,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\paradas\\paradas.service.ts",
       "source_location": "L927",
       "id": "paradas_service_paradasservice_notificarparadainiciada",
-      "community": 22,
+      "community": 21,
       "norm_label": ".notificarparadainiciada()"
     },
     {
@@ -4869,7 +4869,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\paradas\\paradas.service.ts",
       "source_location": "L971",
       "id": "paradas_service_paradasservice_notificarsolicitudallider",
-      "community": 22,
+      "community": 21,
       "norm_label": ".notificarsolicitudallider()"
     },
     {
@@ -4878,7 +4878,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\paradas\\paradas.service.ts",
       "source_location": "L1000",
       "id": "paradas_service_paradasservice_notificarresolucionalsolicitante",
-      "community": 22,
+      "community": 21,
       "norm_label": ".notificarresolucionalsolicitante()"
     },
     {
@@ -5868,7 +5868,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\reportes\\reportes.periodo.ts",
       "source_location": "L1",
       "id": "d_tesis_mesh_backend_src_modules_reportes_reportes_periodo_ts",
-      "community": 18,
+      "community": 19,
       "norm_label": "reportes.periodo.ts"
     },
     {
@@ -5877,7 +5877,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\reportes\\reportes.periodo.ts",
       "source_location": "L28",
       "id": "reportes_periodo_diaarg",
-      "community": 18,
+      "community": 19,
       "norm_label": "diaarg()"
     },
     {
@@ -5886,7 +5886,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\reportes\\reportes.periodo.ts",
       "source_location": "L33",
       "id": "reportes_periodo_iniciodiaarg",
-      "community": 18,
+      "community": 19,
       "norm_label": "iniciodiaarg()"
     },
     {
@@ -5895,7 +5895,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\reportes\\reportes.periodo.ts",
       "source_location": "L37",
       "id": "reportes_periodo_sumardias",
-      "community": 18,
+      "community": 19,
       "norm_label": "sumardias()"
     },
     {
@@ -5904,7 +5904,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\reportes\\reportes.periodo.ts",
       "source_location": "L41",
       "id": "reportes_periodo_granularidadpordefecto",
-      "community": 18,
+      "community": 19,
       "norm_label": "granularidadpordefecto()"
     },
     {
@@ -5913,7 +5913,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\reportes\\reportes.periodo.ts",
       "source_location": "L52",
       "id": "reportes_periodo_resolverperiodo",
-      "community": 18,
+      "community": 19,
       "norm_label": "resolverperiodo()"
     },
     {
@@ -5922,7 +5922,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\reportes\\reportes.periodo.ts",
       "source_location": "L69",
       "id": "reportes_periodo_periodoanterior",
-      "community": 18,
+      "community": 19,
       "norm_label": "periodoanterior()"
     },
     {
@@ -5931,7 +5931,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\reportes\\reportes.periodo.ts",
       "source_location": "L82",
       "id": "reportes_periodo_iniciobalde",
-      "community": 18,
+      "community": 19,
       "norm_label": "iniciobalde()"
     },
     {
@@ -5940,7 +5940,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\reportes\\reportes.periodo.ts",
       "source_location": "L91",
       "id": "reportes_periodo_clavesserie",
-      "community": 18,
+      "community": 19,
       "norm_label": "clavesserie()"
     },
     {
@@ -5949,7 +5949,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\reportes\\reportes.periodo.ts",
       "source_location": "L111",
       "id": "reportes_periodo_completarserie",
-      "community": 18,
+      "community": 19,
       "norm_label": "completarserie()"
     },
     {
@@ -5958,7 +5958,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\reportes\\reportes.periodo.ts",
       "source_location": "L131",
       "id": "reportes_periodo_tasa",
-      "community": 18,
+      "community": 19,
       "norm_label": "tasa()"
     },
     {
@@ -5967,7 +5967,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\reportes\\reportes.periodo.ts",
       "source_location": "L137",
       "id": "reportes_periodo_variacion",
-      "community": 18,
+      "community": 19,
       "norm_label": "variacion()"
     },
     {
@@ -5976,7 +5976,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\reportes\\reportes.periodo.ts",
       "source_location": "L142",
       "id": "reportes_periodo_kpi",
-      "community": 18,
+      "community": 19,
       "norm_label": "kpi()"
     },
     {
@@ -5985,7 +5985,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\reportes\\reportes.periodo.ts",
       "source_location": "L146",
       "id": "reportes_periodo_redondear",
-      "community": 18,
+      "community": 19,
       "norm_label": "redondear()"
     },
     {
@@ -5994,7 +5994,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\reportes\\reportes.periodo.ts",
       "source_location": "L157",
       "id": "reportes_periodo_armarmatrizcohortes",
-      "community": 18,
+      "community": 19,
       "norm_label": "armarmatrizcohortes()"
     },
     {
@@ -6048,7 +6048,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\reportes\\reportes.service.ts",
       "source_location": "L1",
       "id": "d_tesis_mesh_backend_src_modules_reportes_reportes_service_ts",
-      "community": 18,
+      "community": 19,
       "norm_label": "reportes.service.ts"
     },
     {
@@ -6057,7 +6057,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\reportes\\reportes.service.ts",
       "source_location": "L41",
       "id": "reportes_service_ts",
-      "community": 18,
+      "community": 19,
       "norm_label": "ts()"
     },
     {
@@ -6066,7 +6066,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\reportes\\reportes.service.ts",
       "source_location": "L46",
       "id": "reportes_service_enperiodo",
-      "community": 18,
+      "community": 19,
       "norm_label": "enperiodo()"
     },
     {
@@ -6075,7 +6075,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\reportes\\reportes.service.ts",
       "source_location": "L51",
       "id": "reportes_service_balde",
-      "community": 18,
+      "community": 19,
       "norm_label": "balde()"
     },
     {
@@ -6084,7 +6084,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\reportes\\reportes.service.ts",
       "source_location": "L55",
       "id": "reportes_service_filtroactividad",
-      "community": 18,
+      "community": 19,
       "norm_label": "filtroactividad()"
     },
     {
@@ -6093,7 +6093,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\reportes\\reportes.service.ts",
       "source_location": "L78",
       "id": "reportes_service_viajesiniciados",
-      "community": 18,
+      "community": 19,
       "norm_label": "viajesiniciados()"
     },
     {
@@ -6102,7 +6102,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\reportes\\reportes.service.ts",
       "source_location": "L94",
       "id": "reportes_service_periodorespuesta",
-      "community": 18,
+      "community": 19,
       "norm_label": "periodorespuesta()"
     },
     {
@@ -6111,7 +6111,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\reportes\\reportes.service.ts",
       "source_location": "L99",
       "id": "reportes_service_distribucion",
-      "community": 18,
+      "community": 19,
       "norm_label": "distribucion()"
     },
     {
@@ -6120,7 +6120,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\reportes\\reportes.service.ts",
       "source_location": "L105",
       "id": "reportes_service_case_personas",
-      "community": 18,
+      "community": 19,
       "norm_label": "case_personas()"
     },
     {
@@ -6129,7 +6129,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\reportes\\reportes.service.ts",
       "source_location": "L115",
       "id": "reportes_service_reportesservice",
-      "community": 18,
+      "community": 19,
       "norm_label": "reportesservice"
     },
     {
@@ -6138,7 +6138,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\reportes\\reportes.service.ts",
       "source_location": "L116",
       "id": "reportes_service_reportesservice_constructor",
-      "community": 18,
+      "community": 19,
       "norm_label": ".constructor()"
     },
     {
@@ -6147,7 +6147,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\reportes\\reportes.service.ts",
       "source_location": "L118",
       "id": "reportes_service_reportesservice_q",
-      "community": 18,
+      "community": 19,
       "norm_label": ".q()"
     },
     {
@@ -6156,7 +6156,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\reportes\\reportes.service.ts",
       "source_location": "L124",
       "id": "reportes_service_reportesservice_kpiscrudos",
-      "community": 18,
+      "community": 19,
       "norm_label": ".kpiscrudos()"
     },
     {
@@ -6165,7 +6165,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\reportes\\reportes.service.ts",
       "source_location": "L163",
       "id": "reportes_service_reportesservice_resumen",
-      "community": 18,
+      "community": 19,
       "norm_label": ".resumen()"
     },
     {
@@ -6174,7 +6174,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\reportes\\reportes.service.ts",
       "source_location": "L194",
       "id": "reportes_service_reportesservice_crecimiento",
-      "community": 18,
+      "community": 19,
       "norm_label": ".crecimiento()"
     },
     {
@@ -6183,7 +6183,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\reportes\\reportes.service.ts",
       "source_location": "L242",
       "id": "reportes_service_reportesservice_retencion",
-      "community": 18,
+      "community": 19,
       "norm_label": ".retencion()"
     },
     {
@@ -6192,7 +6192,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\reportes\\reportes.service.ts",
       "source_location": "L285",
       "id": "reportes_service_reportesservice_viajes",
-      "community": 18,
+      "community": 19,
       "norm_label": ".viajes()"
     },
     {
@@ -6201,7 +6201,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\reportes\\reportes.service.ts",
       "source_location": "L371",
       "id": "reportes_service_reportesservice_comunidad",
-      "community": 18,
+      "community": 19,
       "norm_label": ".comunidad()"
     },
     {
@@ -6210,7 +6210,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\reportes\\reportes.service.ts",
       "source_location": "L472",
       "id": "reportes_service_reportesservice_seguridad",
-      "community": 18,
+      "community": 19,
       "norm_label": ".seguridad()"
     },
     {
@@ -6219,7 +6219,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\reportes\\reportes.service.ts",
       "source_location": "L572",
       "id": "reportes_service_reportesservice_destinos",
-      "community": 18,
+      "community": 19,
       "norm_label": ".destinos()"
     },
     {
@@ -6228,7 +6228,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\reportes\\reportes.service.ts",
       "source_location": "L620",
       "id": "reportes_service_reportesservice_adopcion",
-      "community": 18,
+      "community": 19,
       "norm_label": ".adopcion()"
     },
     {
@@ -6237,7 +6237,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\reportes\\reportes.service.ts",
       "source_location": "L700",
       "id": "reportes_service_reportesservice_gastos",
-      "community": 18,
+      "community": 19,
       "norm_label": ".gastos()"
     },
     {
@@ -6741,7 +6741,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\tabla-posiciones\\tabla-posiciones.service.ts",
       "source_location": "L1",
       "id": "d_tesis_mesh_backend_src_modules_tabla_posiciones_tabla_posiciones_service_ts",
-      "community": 18,
+      "community": 19,
       "norm_label": "tabla-posiciones.service.ts"
     },
     {
@@ -6750,7 +6750,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\tabla-posiciones\\tabla-posiciones.service.ts",
       "source_location": "L10",
       "id": "tabla_posiciones_service_nombrede",
-      "community": 18,
+      "community": 19,
       "norm_label": "nombrede()"
     },
     {
@@ -6759,7 +6759,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\tabla-posiciones\\tabla-posiciones.service.ts",
       "source_location": "L15",
       "id": "tabla_posiciones_service_inicioperiodo",
-      "community": 18,
+      "community": 19,
       "norm_label": "inicioperiodo()"
     },
     {
@@ -6768,7 +6768,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\tabla-posiciones\\tabla-posiciones.service.ts",
       "source_location": "L38",
       "id": "tabla_posiciones_service_tablaposicionesservice",
-      "community": 18,
+      "community": 19,
       "norm_label": "tablaposicionesservice"
     },
     {
@@ -6777,7 +6777,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\tabla-posiciones\\tabla-posiciones.service.ts",
       "source_location": "L39",
       "id": "tabla_posiciones_service_tablaposicionesservice_constructor",
-      "community": 18,
+      "community": 19,
       "norm_label": ".constructor()"
     },
     {
@@ -6786,7 +6786,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\tabla-posiciones\\tabla-posiciones.service.ts",
       "source_location": "L41",
       "id": "tabla_posiciones_service_tablaposicionesservice_obtener",
-      "community": 18,
+      "community": 19,
       "norm_label": ".obtener()"
     },
     {
@@ -6912,7 +6912,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\usuarios\\usuarios.fotos.ts",
       "source_location": "L102",
       "id": "usuarios_fotos_fotosperfilservice_borrarcarpeta",
-      "community": 19,
+      "community": 18,
       "norm_label": ".borrarcarpeta()"
     },
     {
@@ -7092,7 +7092,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\viajes\\activityDefaults.ts",
       "source_location": "L1",
       "id": "d_tesis_mesh_backend_src_modules_viajes_activitydefaults_ts",
-      "community": 2,
+      "community": 7,
       "norm_label": "activitydefaults.ts"
     },
     {
@@ -7110,7 +7110,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\viajes\\activityDefaults.ts",
       "source_location": "L32",
       "id": "activitydefaults_toleranciaatrasoefectiva",
-      "community": 2,
+      "community": 7,
       "norm_label": "toleranciaatrasoefectiva()"
     },
     {
@@ -7821,7 +7821,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\viajes\\viajes.service.ts",
       "source_location": "L886",
       "id": "viajes_service_viajesservice_actualizarviaje",
-      "community": 2,
+      "community": 7,
       "norm_label": ".actualizarviaje()"
     },
     {
@@ -7956,7 +7956,7 @@
       "source_file": "D:\\TESIS\\mesh\\backend\\src\\modules\\viajes\\viajes.service.ts",
       "source_location": "L1619",
       "id": "viajes_service_viajesservice_finalizarcomoadmin",
-      "community": 19,
+      "community": 18,
       "norm_label": ".finalizarcomoadmin()"
     },
     {
@@ -8408,6 +8408,15 @@
       "id": "guion_hacediasdesde",
       "community": 5,
       "norm_label": "hacediasdesde()"
+    },
+    {
+      "label": "enDiasHasta()",
+      "file_type": "code",
+      "source_file": "D:\\TESIS\\mesh\\backend\\src\\scripts\\demo\\guion.ts",
+      "source_location": "L37",
+      "id": "guion_endiashasta",
+      "community": 5,
+      "norm_label": "endiashasta()"
     },
     {
       "label": "relleno.ts",
@@ -9468,7 +9477,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\app\\editar-perfil.tsx",
       "source_location": "L52",
       "id": "editar_perfil_reflejarfoto",
-      "community": 0,
+      "community": 3,
       "norm_label": "reflejarfoto()"
     },
     {
@@ -9603,7 +9612,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\app\\ranking.tsx",
       "source_location": "L1",
       "id": "d_tesis_mesh_frontend_app_ranking_tsx",
-      "community": 21,
+      "community": 20,
       "norm_label": "ranking.tsx"
     },
     {
@@ -9612,7 +9621,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\app\\ranking.tsx",
       "source_location": "L77",
       "id": "ranking_formatvalor",
-      "community": 21,
+      "community": 20,
       "norm_label": "formatvalor()"
     },
     {
@@ -9981,7 +9990,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\app\\(tabs)\\two.tsx",
       "source_location": "L68",
       "id": "two_formatearfecha",
-      "community": 5,
+      "community": 0,
       "norm_label": "formatearfecha()"
     },
     {
@@ -9990,7 +9999,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\app\\(tabs)\\two.tsx",
       "source_location": "L78",
       "id": "two_formatearfechacorta",
-      "community": 5,
+      "community": 0,
       "norm_label": "formatearfechacorta()"
     },
     {
@@ -10485,7 +10494,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\app\\admin\\usuario\\[usuarioId].tsx",
       "source_location": "L101",
       "id": "usuarioid_eliminar",
-      "community": 0,
+      "community": 18,
       "norm_label": "eliminar()"
     },
     {
@@ -11745,7 +11754,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\app\\viaje\\[viajeId]\\live.tsx",
       "source_location": "L1200",
       "id": "live_handlecenteronme",
-      "community": 6,
+      "community": 11,
       "norm_label": "handlecenteronme()"
     },
     {
@@ -11781,7 +11790,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\app\\viaje\\[viajeId]\\metricas.tsx",
       "source_location": "L1",
       "id": "d_tesis_mesh_frontend_app_viaje_viajeid_metricas_tsx",
-      "community": 21,
+      "community": 20,
       "norm_label": "metricas.tsx"
     },
     {
@@ -11790,7 +11799,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\app\\viaje\\[viajeId]\\metricas.tsx",
       "source_location": "L84",
       "id": "metricas_volver",
-      "community": 21,
+      "community": 20,
       "norm_label": "volver()"
     },
     {
@@ -11799,7 +11808,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\app\\viaje\\[viajeId]\\metricas.tsx",
       "source_location": "L435",
       "id": "metricas_formatkm",
-      "community": 21,
+      "community": 20,
       "norm_label": "formatkm()"
     },
     {
@@ -11808,7 +11817,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\app\\viaje\\[viajeId]\\metricas.tsx",
       "source_location": "L476",
       "id": "metricas_xscale",
-      "community": 21,
+      "community": 20,
       "norm_label": "xscale()"
     },
     {
@@ -11817,7 +11826,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\app\\viaje\\[viajeId]\\metricas.tsx",
       "source_location": "L477",
       "id": "metricas_yscale",
-      "community": 21,
+      "community": 20,
       "norm_label": "yscale()"
     },
     {
@@ -11889,7 +11898,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\app\\viaje\\[viajeId]\\recap.tsx",
       "source_location": "L1",
       "id": "d_tesis_mesh_frontend_app_viaje_viajeid_recap_tsx",
-      "community": 21,
+      "community": 20,
       "norm_label": "recap.tsx"
     },
     {
@@ -11898,7 +11907,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\app\\viaje\\[viajeId]\\recap.tsx",
       "source_location": "L28",
       "id": "recap_puestode",
-      "community": 21,
+      "community": 20,
       "norm_label": "puestode()"
     },
     {
@@ -11907,7 +11916,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\app\\viaje\\[viajeId]\\recap.tsx",
       "source_location": "L34",
       "id": "recap_valorde",
-      "community": 21,
+      "community": 20,
       "norm_label": "valorde()"
     },
     {
@@ -11916,7 +11925,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\app\\viaje\\[viajeId]\\recap.tsx",
       "source_location": "L47",
       "id": "recap_titulocriterio",
-      "community": 21,
+      "community": 20,
       "norm_label": "titulocriterio()"
     },
     {
@@ -11925,7 +11934,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\app\\viaje\\[viajeId]\\recap.tsx",
       "source_location": "L53",
       "id": "recap_ordenarporcriterio",
-      "community": 21,
+      "community": 20,
       "norm_label": "ordenarporcriterio()"
     },
     {
@@ -11934,7 +11943,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\app\\viaje\\[viajeId]\\recap.tsx",
       "source_location": "L68",
       "id": "recap_piemejora",
-      "community": 21,
+      "community": 20,
       "norm_label": "piemejora()"
     },
     {
@@ -11943,7 +11952,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\app\\viaje\\[viajeId]\\recap.tsx",
       "source_location": "L125",
       "id": "recap_volver",
-      "community": 21,
+      "community": 20,
       "norm_label": "volver()"
     },
     {
@@ -12969,7 +12978,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\components\\ViajeRealtimeBridge.tsx",
       "source_location": "L1",
       "id": "d_tesis_mesh_frontend_components_viajerealtimebridge_tsx",
-      "community": 20,
+      "community": 22,
       "norm_label": "viajerealtimebridge.tsx"
     },
     {
@@ -12978,7 +12987,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\components\\ViajeRealtimeBridge.tsx",
       "source_location": "L22",
       "id": "viajerealtimebridge_datosextra",
-      "community": 20,
+      "community": 22,
       "norm_label": "datosextra()"
     },
     {
@@ -12987,7 +12996,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\components\\ViajeRealtimeBridge.tsx",
       "source_location": "L32",
       "id": "viajerealtimebridge_emitgpspingconack",
-      "community": 20,
+      "community": 22,
       "norm_label": "emitgpspingconack()"
     },
     {
@@ -12996,7 +13005,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\components\\ViajeRealtimeBridge.tsx",
       "source_location": "L56",
       "id": "viajerealtimebridge_confirmarenvioenvivo",
-      "community": 20,
+      "community": 22,
       "norm_label": "confirmarenvioenvivo()"
     },
     {
@@ -13005,7 +13014,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\components\\ViajeRealtimeBridge.tsx",
       "source_location": "L79",
       "id": "viajerealtimebridge_viajerealtimebridge",
-      "community": 20,
+      "community": 22,
       "norm_label": "viajerealtimebridge()"
     },
     {
@@ -14337,7 +14346,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\components\\maps\\MeshMapView.tsx",
       "source_location": "L241",
       "id": "meshmapview_panto",
-      "community": 6,
+      "community": 11,
       "norm_label": "panto()"
     },
     {
@@ -14526,7 +14535,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\components\\resumen\\ParadasResumen.tsx",
       "source_location": "L1",
       "id": "d_tesis_mesh_frontend_components_resumen_paradasresumen_tsx",
-      "community": 21,
+      "community": 20,
       "norm_label": "paradasresumen.tsx"
     },
     {
@@ -14535,7 +14544,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\components\\resumen\\ParadasResumen.tsx",
       "source_location": "L14",
       "id": "paradasresumen_duracionlegible",
-      "community": 21,
+      "community": 20,
       "norm_label": "duracionlegible()"
     },
     {
@@ -14544,7 +14553,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\components\\resumen\\ParadasResumen.tsx",
       "source_location": "L18",
       "id": "paradasresumen_titulo",
-      "community": 21,
+      "community": 20,
       "norm_label": "titulo()"
     },
     {
@@ -14553,7 +14562,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\components\\resumen\\ParadasResumen.tsx",
       "source_location": "L24",
       "id": "paradasresumen_horario",
-      "community": 21,
+      "community": 20,
       "norm_label": "horario()"
     },
     {
@@ -14562,7 +14571,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\components\\resumen\\ParadasResumen.tsx",
       "source_location": "L30",
       "id": "paradasresumen_quien",
-      "community": 21,
+      "community": 20,
       "norm_label": "quien()"
     },
     {
@@ -15390,7 +15399,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\context\\AuthContext.tsx",
       "source_location": "L1",
       "id": "d_tesis_mesh_frontend_context_authcontext_tsx",
-      "community": 20,
+      "community": 2,
       "norm_label": "authcontext.tsx"
     },
     {
@@ -15399,7 +15408,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\context\\AuthContext.tsx",
       "source_location": "L57",
       "id": "authcontext_profilekey",
-      "community": 20,
+      "community": 2,
       "norm_label": "profilekey()"
     },
     {
@@ -15408,7 +15417,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\context\\AuthContext.tsx",
       "source_location": "L60",
       "id": "authcontext_loadprofile",
-      "community": 20,
+      "community": 2,
       "norm_label": "loadprofile()"
     },
     {
@@ -15417,7 +15426,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\context\\AuthContext.tsx",
       "source_location": "L65",
       "id": "authcontext_saveprofile",
-      "community": 20,
+      "community": 2,
       "norm_label": "saveprofile()"
     },
     {
@@ -15426,7 +15435,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\context\\AuthContext.tsx",
       "source_location": "L71",
       "id": "authcontext_mergebackendprofile",
-      "community": 20,
+      "community": 2,
       "norm_label": "mergebackendprofile()"
     },
     {
@@ -15435,7 +15444,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\context\\AuthContext.tsx",
       "source_location": "L91",
       "id": "authcontext_displaynombre",
-      "community": 20,
+      "community": 2,
       "norm_label": "displaynombre()"
     },
     {
@@ -15444,7 +15453,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\context\\AuthContext.tsx",
       "source_location": "L97",
       "id": "authcontext_authprovider",
-      "community": 20,
+      "community": 2,
       "norm_label": "authprovider()"
     },
     {
@@ -15453,7 +15462,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\context\\AuthContext.tsx",
       "source_location": "L328",
       "id": "authcontext_useauth",
-      "community": 20,
+      "community": 22,
       "norm_label": "useauth()"
     },
     {
@@ -15480,7 +15489,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\context\\TripRealtimeContext.tsx",
       "source_location": "L1",
       "id": "d_tesis_mesh_frontend_context_triprealtimecontext_tsx",
-      "community": 20,
+      "community": 22,
       "norm_label": "triprealtimecontext.tsx"
     },
     {
@@ -15489,7 +15498,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\context\\TripRealtimeContext.tsx",
       "source_location": "L38",
       "id": "triprealtimecontext_usetriprealtime",
-      "community": 20,
+      "community": 22,
       "norm_label": "usetriprealtime()"
     },
     {
@@ -15498,7 +15507,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\context\\TripRealtimeContext.tsx",
       "source_location": "L46",
       "id": "triprealtimecontext_vibratealert",
-      "community": 20,
+      "community": 22,
       "norm_label": "vibratealert()"
     },
     {
@@ -15507,7 +15516,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\context\\TripRealtimeContext.tsx",
       "source_location": "L51",
       "id": "triprealtimecontext_sleep",
-      "community": 20,
+      "community": 22,
       "norm_label": "sleep()"
     },
     {
@@ -15516,7 +15525,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\context\\TripRealtimeContext.tsx",
       "source_location": "L55",
       "id": "triprealtimecontext_triprealtimeprovider",
-      "community": 20,
+      "community": 22,
       "norm_label": "triprealtimeprovider()"
     },
     {
@@ -16731,7 +16740,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\apiClient.ts",
       "source_location": "L1",
       "id": "d_tesis_mesh_frontend_lib_apiclient_ts",
-      "community": 20,
+      "community": 22,
       "norm_label": "apiclient.ts"
     },
     {
@@ -16740,7 +16749,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\apiClient.ts",
       "source_location": "L6",
       "id": "apiclient_meshapierror",
-      "community": 20,
+      "community": 22,
       "norm_label": "meshapierror"
     },
     {
@@ -16749,7 +16758,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\apiClient.ts",
       "source_location": "L7",
       "id": "apiclient_meshapierror_constructor",
-      "community": 20,
+      "community": 22,
       "norm_label": ".constructor()"
     },
     {
@@ -16758,7 +16767,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\apiClient.ts",
       "source_location": "L19",
       "id": "apiclient_getfirebaseidtoken",
-      "community": 20,
+      "community": 22,
       "norm_label": "getfirebaseidtoken()"
     },
     {
@@ -16767,7 +16776,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\apiClient.ts",
       "source_location": "L28",
       "id": "apiclient_bearerauthheaders",
-      "community": 20,
+      "community": 22,
       "norm_label": "bearerauthheaders()"
     },
     {
@@ -16785,7 +16794,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\apiClient.ts",
       "source_location": "L49",
       "id": "apiclient_isauthapierror",
-      "community": 20,
+      "community": 22,
       "norm_label": "isauthapierror()"
     },
     {
@@ -16794,7 +16803,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\apiClient.ts",
       "source_location": "L53",
       "id": "apiclient_meshfetch",
-      "community": 20,
+      "community": 22,
       "norm_label": "meshfetch()"
     },
     {
@@ -16821,7 +16830,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\apiClient.ts",
       "source_location": "L95",
       "id": "apiclient_authheaders",
-      "community": 20,
+      "community": 22,
       "norm_label": "authheaders()"
     },
     {
@@ -17325,7 +17334,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\format.ts",
       "source_location": "L1",
       "id": "d_tesis_mesh_frontend_lib_format_ts",
-      "community": 21,
+      "community": 20,
       "norm_label": "format.ts"
     },
     {
@@ -17334,7 +17343,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\format.ts",
       "source_location": "L10",
       "id": "format_concomadecimal",
-      "community": 21,
+      "community": 20,
       "norm_label": "concomadecimal()"
     },
     {
@@ -17343,7 +17352,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\format.ts",
       "source_location": "L15",
       "id": "format_formatdurationhm",
-      "community": 21,
+      "community": 20,
       "norm_label": "formatdurationhm()"
     },
     {
@@ -17352,7 +17361,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\format.ts",
       "source_location": "L24",
       "id": "format_formatkm",
-      "community": 21,
+      "community": 20,
       "norm_label": "formatkm()"
     },
     {
@@ -17361,7 +17370,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\format.ts",
       "source_location": "L30",
       "id": "format_formatkmcompact",
-      "community": 21,
+      "community": 20,
       "norm_label": "formatkmcompact()"
     },
     {
@@ -17370,7 +17379,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\format.ts",
       "source_location": "L39",
       "id": "format_formatspeedkmh",
-      "community": 21,
+      "community": 20,
       "norm_label": "formatspeedkmh()"
     },
     {
@@ -17379,7 +17388,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\format.ts",
       "source_location": "L45",
       "id": "format_formatmetros",
-      "community": 21,
+      "community": 20,
       "norm_label": "formatmetros()"
     },
     {
@@ -17388,7 +17397,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\format.ts",
       "source_location": "L51",
       "id": "format_formathoracorta",
-      "community": 21,
+      "community": 20,
       "norm_label": "formathoracorta()"
     },
     {
@@ -17397,7 +17406,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\format.ts",
       "source_location": "L56",
       "id": "format_formatpace",
-      "community": 21,
+      "community": 20,
       "norm_label": "formatpace()"
     },
     {
@@ -17406,7 +17415,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\format.ts",
       "source_location": "L68",
       "id": "format_formatpaceminkm",
-      "community": 21,
+      "community": 20,
       "norm_label": "formatpaceminkm()"
     },
     {
@@ -17415,7 +17424,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\format.ts",
       "source_location": "L76",
       "id": "format_formatdeltakm",
-      "community": 21,
+      "community": 20,
       "norm_label": "formatdeltakm()"
     },
     {
@@ -17424,7 +17433,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\format.ts",
       "source_location": "L82",
       "id": "format_formatdeltapace",
-      "community": 21,
+      "community": 20,
       "norm_label": "formatdeltapace()"
     },
     {
@@ -17433,7 +17442,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\format.ts",
       "source_location": "L93",
       "id": "format_conpuntodemiles",
-      "community": 21,
+      "community": 20,
       "norm_label": "conpuntodemiles()"
     },
     {
@@ -17442,7 +17451,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\format.ts",
       "source_location": "L101",
       "id": "format_formatmonto",
-      "community": 21,
+      "community": 20,
       "norm_label": "formatmonto()"
     },
     {
@@ -17451,7 +17460,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\format.ts",
       "source_location": "L114",
       "id": "format_enmascararmonto",
-      "community": 21,
+      "community": 20,
       "norm_label": "enmascararmonto()"
     },
     {
@@ -17460,7 +17469,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\format.ts",
       "source_location": "L125",
       "id": "format_parsemonto",
-      "community": 21,
+      "community": 20,
       "norm_label": "parsemonto()"
     },
     {
@@ -17469,7 +17478,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\format.ts",
       "source_location": "L133",
       "id": "format_montoparaeditar",
-      "community": 21,
+      "community": 20,
       "norm_label": "montoparaeditar()"
     },
     {
@@ -17478,7 +17487,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\format.ts",
       "source_location": "L141",
       "id": "format_formatkmtotal",
-      "community": 21,
+      "community": 20,
       "norm_label": "formatkmtotal()"
     },
     {
@@ -17487,7 +17496,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\format.ts",
       "source_location": "L149",
       "id": "format_formathorastotal",
-      "community": 21,
+      "community": 20,
       "norm_label": "formathorastotal()"
     },
     {
@@ -18279,7 +18288,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\meshSocket.ts",
       "source_location": "L1",
       "id": "d_tesis_mesh_frontend_lib_meshsocket_ts",
-      "community": 20,
+      "community": 22,
       "norm_label": "meshsocket.ts"
     },
     {
@@ -18288,7 +18297,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\meshSocket.ts",
       "source_location": "L21",
       "id": "meshsocket_waitforconnect",
-      "community": 20,
+      "community": 22,
       "norm_label": "waitforconnect()"
     },
     {
@@ -18297,7 +18306,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\meshSocket.ts",
       "source_location": "L47",
       "id": "meshsocket_aplicartoken",
-      "community": 20,
+      "community": 22,
       "norm_label": "aplicartoken()"
     },
     {
@@ -18306,7 +18315,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\meshSocket.ts",
       "source_location": "L52",
       "id": "meshsocket_rejoinrooms",
-      "community": 20,
+      "community": 22,
       "norm_label": "rejoinrooms()"
     },
     {
@@ -18315,7 +18324,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\meshSocket.ts",
       "source_location": "L62",
       "id": "meshsocket_connectmeshsocket",
-      "community": 20,
+      "community": 22,
       "norm_label": "connectmeshsocket()"
     },
     {
@@ -18324,7 +18333,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\meshSocket.ts",
       "source_location": "L104",
       "id": "meshsocket_esperaroseguirintentando",
-      "community": 20,
+      "community": 22,
       "norm_label": "esperaroseguirintentando()"
     },
     {
@@ -18333,7 +18342,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\meshSocket.ts",
       "source_location": "L113",
       "id": "meshsocket_getmeshsocket",
-      "community": 20,
+      "community": 22,
       "norm_label": "getmeshsocket()"
     },
     {
@@ -18342,7 +18351,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\meshSocket.ts",
       "source_location": "L121",
       "id": "meshsocket_joinviajeroom",
-      "community": 20,
+      "community": 22,
       "norm_label": "joinviajeroom()"
     },
     {
@@ -18351,7 +18360,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\meshSocket.ts",
       "source_location": "L132",
       "id": "meshsocket_leaveviajeroom",
-      "community": 20,
+      "community": 22,
       "norm_label": "leaveviajeroom()"
     },
     {
@@ -18360,7 +18369,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\meshSocket.ts",
       "source_location": "L141",
       "id": "meshsocket_onmeshsocketconnect",
-      "community": 20,
+      "community": 22,
       "norm_label": "onmeshsocketconnect()"
     },
     {
@@ -18369,7 +18378,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\meshSocket.ts",
       "source_location": "L150",
       "id": "meshsocket_disconnectmeshsocket",
-      "community": 20,
+      "community": 22,
       "norm_label": "disconnectmeshsocket()"
     },
     {
@@ -18396,7 +18405,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\nombres.ts",
       "source_location": "L1",
       "id": "d_tesis_mesh_frontend_lib_nombres_ts",
-      "community": 20,
+      "community": 2,
       "norm_label": "nombres.ts"
     },
     {
@@ -18405,7 +18414,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\nombres.ts",
       "source_location": "L10",
       "id": "nombres_nombrecompleto",
-      "community": 20,
+      "community": 2,
       "norm_label": "nombrecompleto()"
     },
     {
@@ -18702,7 +18711,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\pendientesStore.ts",
       "source_location": "L1",
       "id": "d_tesis_mesh_frontend_lib_pendientesstore_ts",
-      "community": 29,
+      "community": 27,
       "norm_label": "pendientesstore.ts"
     },
     {
@@ -18711,7 +18720,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\pendientesStore.ts",
       "source_location": "L19",
       "id": "pendientesstore_emitir",
-      "community": 29,
+      "community": 27,
       "norm_label": "emitir()"
     },
     {
@@ -18720,7 +18729,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\pendientesStore.ts",
       "source_location": "L25",
       "id": "pendientesstore_subscribe",
-      "community": 29,
+      "community": 27,
       "norm_label": "subscribe()"
     },
     {
@@ -18729,7 +18738,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\pendientesStore.ts",
       "source_location": "L30",
       "id": "pendientesstore_setinvitacionespendientescount",
-      "community": 29,
+      "community": 27,
       "norm_label": "setinvitacionespendientescount()"
     },
     {
@@ -18738,7 +18747,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\pendientesStore.ts",
       "source_location": "L34",
       "id": "pendientesstore_setsolicitudespendientescount",
-      "community": 29,
+      "community": 27,
       "norm_label": "setsolicitudespendientescount()"
     },
     {
@@ -18747,7 +18756,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\pendientesStore.ts",
       "source_location": "L39",
       "id": "pendientesstore_refrescarpendientes",
-      "community": 1,
+      "community": 27,
       "norm_label": "refrescarpendientes()"
     },
     {
@@ -18756,7 +18765,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\pendientesStore.ts",
       "source_location": "L51",
       "id": "pendientesstore_usependientes",
-      "community": 29,
+      "community": 27,
       "norm_label": "usependientes()"
     },
     {
@@ -18765,7 +18774,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\pendientesStore.ts",
       "source_location": "L61",
       "id": "pendientesstore_usependientesbadge",
-      "community": 29,
+      "community": 27,
       "norm_label": "usependientesbadge()"
     },
     {
@@ -19485,7 +19494,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\supabase.ts",
       "source_location": "L1",
       "id": "d_tesis_mesh_frontend_lib_supabase_ts",
-      "community": 29,
+      "community": 27,
       "norm_label": "supabase.ts"
     },
     {
@@ -19494,7 +19503,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\supabase.ts",
       "source_location": "L6",
       "id": "supabase_normalizesupabaseurl",
-      "community": 29,
+      "community": 27,
       "norm_label": "normalizesupabaseurl()"
     },
     {
@@ -19503,7 +19512,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\supabase.ts",
       "source_location": "L14",
       "id": "supabase_issupabaseconfigured",
-      "community": 29,
+      "community": 27,
       "norm_label": "issupabaseconfigured()"
     },
     {
@@ -19512,7 +19521,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\supabase.ts",
       "source_location": "L18",
       "id": "supabase_getsupabase",
-      "community": 29,
+      "community": 27,
       "norm_label": "getsupabase()"
     },
     {
@@ -19674,7 +19683,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\tripBroadcast.ts",
       "source_location": "L1",
       "id": "d_tesis_mesh_frontend_lib_tripbroadcast_ts",
-      "community": 29,
+      "community": 27,
       "norm_label": "tripbroadcast.ts"
     },
     {
@@ -19683,7 +19692,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\tripBroadcast.ts",
       "source_location": "L15",
       "id": "tripbroadcast_channelname",
-      "community": 29,
+      "community": 27,
       "norm_label": "channelname()"
     },
     {
@@ -19692,7 +19701,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\tripBroadcast.ts",
       "source_location": "L19",
       "id": "tripbroadcast_waitforsubscribed",
-      "community": 29,
+      "community": 27,
       "norm_label": "waitforsubscribed()"
     },
     {
@@ -19701,7 +19710,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\tripBroadcast.ts",
       "source_location": "L30",
       "id": "tripbroadcast_emittripstarted",
-      "community": 29,
+      "community": 27,
       "norm_label": "emittripstarted()"
     },
     {
@@ -19710,7 +19719,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\tripBroadcast.ts",
       "source_location": "L54",
       "id": "tripbroadcast_emittripstartedwithretry",
-      "community": 29,
+      "community": 27,
       "norm_label": "emittripstartedwithretry()"
     },
     {
@@ -19719,7 +19728,7 @@
       "source_file": "D:\\TESIS\\mesh\\frontend\\lib\\tripBroadcast.ts",
       "source_location": "L65",
       "id": "tripbroadcast_subscribetripchannel",
-      "community": 29,
+      "community": 27,
       "norm_label": "subscribetripchannel()"
     },
     {
@@ -24300,7 +24309,7 @@
     {
       "label": "guion-demo-presentacion.md",
       "_origin": "ast",
-      "community": 27,
+      "community": 28,
       "community_name": "Guion para armar la presentaci\u00f3n de la demo \u2014 Mesh",
       "file_type": "document",
       "node_kind": "page",
@@ -24312,7 +24321,7 @@
     {
       "label": "0. Tu tarea",
       "_origin": "ast",
-      "community": 27,
+      "community": 28,
       "community_name": "Guion para armar la presentaci\u00f3n de la demo \u2014 Mesh",
       "file_type": "document",
       "node_kind": "heading",
@@ -24324,7 +24333,7 @@
     {
       "label": "1. Qu\u00e9 es Mesh (para la apertura)",
       "_origin": "ast",
-      "community": 27,
+      "community": 28,
       "community_name": "Guion para armar la presentaci\u00f3n de la demo \u2014 Mesh",
       "file_type": "document",
       "node_kind": "heading",
@@ -24336,7 +24345,7 @@
     {
       "label": "2.1 Sprints ejecutados",
       "_origin": "ast",
-      "community": 27,
+      "community": 28,
       "community_name": "Guion para armar la presentaci\u00f3n de la demo \u2014 Mesh",
       "file_type": "document",
       "node_kind": "heading",
@@ -24348,7 +24357,7 @@
     {
       "label": "2.2 Estado del backlog por tier (67 historias en Jira)",
       "_origin": "ast",
-      "community": 27,
+      "community": 28,
       "community_name": "Guion para armar la presentaci\u00f3n de la demo \u2014 Mesh",
       "file_type": "document",
       "node_kind": "heading",
@@ -24360,7 +24369,7 @@
     {
       "label": "2.3 Historias por \u00e9pica (detalle para el slide de producto o el ap\u00e9ndice)",
       "_origin": "ast",
-      "community": 27,
+      "community": 28,
       "community_name": "Guion para armar la presentaci\u00f3n de la demo \u2014 Mesh",
       "file_type": "document",
       "node_kind": "heading",
@@ -24372,7 +24381,7 @@
     {
       "label": "2. Cronograma: d\u00f3nde estamos (datos de Jira, 16/09/2026)",
       "_origin": "ast",
-      "community": 27,
+      "community": 28,
       "community_name": "Guion para armar la presentaci\u00f3n de la demo \u2014 Mesh",
       "file_type": "document",
       "node_kind": "heading",
@@ -24384,7 +24393,7 @@
     {
       "label": "3.1 N\u00fameros del repositorio",
       "_origin": "ast",
-      "community": 27,
+      "community": 28,
       "community_name": "Guion para armar la presentaci\u00f3n de la demo \u2014 Mesh",
       "file_type": "document",
       "node_kind": "heading",
@@ -24396,7 +24405,7 @@
     {
       "label": "3.2 Stack (slide de arquitectura)",
       "_origin": "ast",
-      "community": 27,
+      "community": 28,
       "community_name": "Guion para armar la presentaci\u00f3n de la demo \u2014 Mesh",
       "file_type": "document",
       "node_kind": "heading",
@@ -24408,7 +24417,7 @@
     {
       "label": "3.3 Decisiones t\u00e9cnicas que vale la pena contar (son las que diferencian una tesis de un CRUD)",
       "_origin": "ast",
-      "community": 27,
+      "community": 28,
       "community_name": "Guion para armar la presentaci\u00f3n de la demo \u2014 Mesh",
       "file_type": "document",
       "node_kind": "heading",
@@ -24420,7 +24429,7 @@
     {
       "label": "3.4 Pruebas de campo (contar como evidencia de validaci\u00f3n)",
       "_origin": "ast",
-      "community": 27,
+      "community": 28,
       "community_name": "Guion para armar la presentaci\u00f3n de la demo \u2014 Mesh",
       "file_type": "document",
       "node_kind": "heading",
@@ -24432,7 +24441,7 @@
     {
       "label": "3. Estado del producto: qu\u00e9 existe hoy en el c\u00f3digo (repo, 16/09/2026)",
       "_origin": "ast",
-      "community": 27,
+      "community": 28,
       "community_name": "Guion para armar la presentaci\u00f3n de la demo \u2014 Mesh",
       "file_type": "document",
       "node_kind": "heading",
@@ -24444,7 +24453,7 @@
     {
       "label": "4. Estructura sugerida de la presentaci\u00f3n",
       "_origin": "ast",
-      "community": 27,
+      "community": 28,
       "community_name": "Guion para armar la presentaci\u00f3n de la demo \u2014 Mesh",
       "file_type": "document",
       "node_kind": "heading",
@@ -24456,7 +24465,7 @@
     {
       "label": "5. Guion de la demo en vivo (flujo recomendado)",
       "_origin": "ast",
-      "community": 27,
+      "community": 28,
       "community_name": "Guion para armar la presentaci\u00f3n de la demo \u2014 Mesh",
       "file_type": "document",
       "node_kind": "heading",
@@ -24468,7 +24477,7 @@
     {
       "label": "6. Riesgos, lecciones y pr\u00f3ximos pasos (para el slide de cierre)",
       "_origin": "ast",
-      "community": 27,
+      "community": 28,
       "community_name": "Guion para armar la presentaci\u00f3n de la demo \u2014 Mesh",
       "file_type": "document",
       "node_kind": "heading",
@@ -24480,7 +24489,7 @@
     {
       "label": "7. Checklist de lo que ten\u00e9s que buscar en los documentos de la tesis",
       "_origin": "ast",
-      "community": 27,
+      "community": 28,
       "community_name": "Guion para armar la presentaci\u00f3n de la demo \u2014 Mesh",
       "file_type": "document",
       "node_kind": "heading",
@@ -24492,7 +24501,7 @@
     {
       "label": "8. Fuentes de este guion",
       "_origin": "ast",
-      "community": 27,
+      "community": 28,
       "community_name": "Guion para armar la presentaci\u00f3n de la demo \u2014 Mesh",
       "file_type": "document",
       "node_kind": "heading",
@@ -24504,7 +24513,7 @@
     {
       "label": "Guion para armar la presentaci\u00f3n de la demo \u2014 Mesh",
       "_origin": "ast",
-      "community": 27,
+      "community": 28,
       "community_name": "Guion para armar la presentaci\u00f3n de la demo \u2014 Mesh",
       "file_type": "document",
       "node_kind": "heading",
@@ -44486,6 +44495,30 @@
       "_tgt": "guion_hacediasdesde",
       "source": "d_tesis_mesh_backend_src_scripts_demo_guion_ts",
       "target": "guion_hacediasdesde",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\TESIS\\mesh\\backend\\src\\scripts\\demo\\guion.ts",
+      "source_location": "L37",
+      "weight": 1.0,
+      "_src": "d_tesis_mesh_backend_src_scripts_demo_guion_ts",
+      "_tgt": "guion_endiashasta",
+      "source": "d_tesis_mesh_backend_src_scripts_demo_guion_ts",
+      "target": "guion_endiashasta",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "source_file": "D:\\TESIS\\mesh\\backend\\src\\scripts\\demo\\guion.ts",
+      "source_location": "L38",
+      "weight": 1.0,
+      "_src": "guion_endiashasta",
+      "_tgt": "guion_hacediasdesde",
+      "source": "guion_hacediasdesde",
+      "target": "guion_endiashasta",
       "confidence_score": 1.0
     },
     {

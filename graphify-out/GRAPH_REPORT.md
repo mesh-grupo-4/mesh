@@ -1,11 +1,11 @@
 # Graph Report - D:\TESIS\mesh  (2026-11-16)
 
 ## Corpus Check
-- 545 files · ~872,525 words
+- 545 files · ~879,093 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 2810 nodes · 4077 edges · 443 communities detected
+- 2811 nodes · 4079 edges · 443 communities detected
 - Extraction: 72% EXTRACTED · 28% INFERRED · 0% AMBIGUOUS · INFERRED: 1124 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
@@ -471,12 +471,12 @@
   D:\TESIS\mesh\backend\src\lib\nombres.ts → D:\TESIS\mesh\backend\src\modules\tabla-posiciones\tabla-posiciones.service.ts
 - `sacarDelCircuito()` --calls--> `meshConfirmDestructive()`  [INFERRED]
   D:\TESIS\mesh\frontend\app\(tabs)\entrenar.tsx → D:\TESIS\mesh\frontend\lib\meshAlert.ts
+- `formatearFecha()` --calls--> `formatearEnArg()`  [INFERRED]
+  D:\TESIS\mesh\frontend\app\(tabs)\two.tsx → D:\TESIS\mesh\frontend\lib\tiempoArg.ts
+- `formatearFechaCorta()` --calls--> `formatearEnArg()`  [INFERRED]
+  D:\TESIS\mesh\frontend\app\(tabs)\two.tsx → D:\TESIS\mesh\frontend\lib\tiempoArg.ts
 - `restaurar()` --calls--> `meshConfirmDestructive()`  [INFERRED]
   D:\TESIS\mesh\frontend\app\admin\checklist.tsx → D:\TESIS\mesh\frontend\lib\meshAlert.ts
-- `eliminar()` --calls--> `meshConfirmDestructive()`  [INFERRED]
-  D:\TESIS\mesh\frontend\app\admin\insignia\[insigniaId].tsx → D:\TESIS\mesh\frontend\lib\meshAlert.ts
-- `abrir()` --calls--> `meshAlert()`  [INFERRED]
-  D:\TESIS\mesh\frontend\app\grupo\[grupoId]\viajes.tsx → D:\TESIS\mesh\frontend\lib\meshAlert.ts
 
 ## Communities
 
@@ -486,15 +486,15 @@ Nodes (104): etiquetaActividad(), guardar(), cargar(), emitir(), marcarAlertasVi
 
 ### Community 1 - "Community 1"
 Cohesion: 0.03
-Nodes (151): cambiarEstadoAlerta(), crearAlerta(), listarAlertas(), buscarUsuariosAmistad(), cancelarSolicitudAmistad(), eliminarAmigo(), listarAmigos(), listarRelacionesAmistad() (+143 more)
+Nodes (150): cambiarEstadoAlerta(), crearAlerta(), listarAlertas(), buscarUsuariosAmistad(), cancelarSolicitudAmistad(), eliminarAmigo(), listarAmigos(), listarRelacionesAmistad() (+142 more)
 
 ### Community 2 - "Community 2"
 Cohesion: 0.03
-Nodes (38): esMotorizado(), toleranciaAtrasoEfectiva(), AlertasService, nombreDe(), columnasGpsExtra(), FantasmaService, interpolarRitmoConstante(), nombreDe() (+30 more)
+Nodes (44): esMotorizado(), AlertasService, nombreDe(), displayNombre(), loadProfile(), mergeBackendProfile(), profileKey(), saveProfile() (+36 more)
 
 ### Community 3 - "Community 3"
 Cohesion: 0.04
-Nodes (43): conMetrica(), enArg(), fechaDe(), lunesDe(), mesesRecientes(), semanasRecientes(), totalesPorActividad(), atrasoMetros() (+35 more)
+Nodes (44): conMetrica(), enArg(), fechaDe(), lunesDe(), mesesRecientes(), semanasRecientes(), totalesPorActividad(), atrasoMetros() (+36 more)
 
 ### Community 4 - "Community 4"
 Cohesion: 0.03
@@ -502,15 +502,15 @@ Nodes (50): ActividadGrid(), useListadoAdmin(), AparienciaScreen(), useTemaAyuda
 
 ### Community 5 - "Community 5"
 Cohesion: 0.03
-Nodes (51): diaAdmin(), fechaAdmin(), AlertaMapPickModal(), coincideBusqueda(), normalizarBusqueda(), avanzar(), editarPaso(), elegirActividad() (+43 more)
+Nodes (50): diaAdmin(), fechaAdmin(), AlertaMapPickModal(), coincideBusqueda(), normalizarBusqueda(), avanzar(), editarPaso(), elegirActividad() (+42 more)
 
 ### Community 6 - "Community 6"
-Cohesion: 0.03
-Nodes (52): confirmar(), elegirResultado(), formatDistanceKm(), haversineDistanceM(), toRad(), distanciaHastaLugar(), handleCenterOnMe(), irALugar() (+44 more)
+Cohesion: 0.04
+Nodes (50): confirmar(), elegirResultado(), formatDistanceKm(), haversineDistanceM(), toRad(), distanciaHastaLugar(), irALugar(), fitBoundsToCoords() (+42 more)
 
 ### Community 7 - "Community 7"
-Cohesion: 0.06
-Nodes (55): actividadInicialDesdePerfil(), actividadValida(), parametrosPorActividad(), textoParametrosActividad(), textoSeparacion(), enParalelo(), filasRuta(), momento() (+47 more)
+Cohesion: 0.05
+Nodes (56): actividadInicialDesdePerfil(), actividadValida(), parametrosPorActividad(), textoParametrosActividad(), textoSeparacion(), toleranciaAtrasoEfectiva(), enParalelo(), filasRuta() (+48 more)
 
 ### Community 8 - "Community 8"
 Cohesion: 0.03
@@ -526,7 +526,7 @@ Nodes (17): carpetaDe(), FotosGrupoService, carpetaFotoRecorrido(), FotosRecorri
 
 ### Community 11 - "Community 11"
 Cohesion: 0.04
-Nodes (41): extraerDatosGpsExtra(), finito(), velocidadImplicitaKmh(), dequeueGpsSample(), enqueueCheckIn(), enqueueGpsSample(), flushCheckIns(), flushGpsQueue() (+33 more)
+Nodes (43): extraerDatosGpsExtra(), finito(), velocidadImplicitaKmh(), dequeueGpsSample(), enqueueCheckIn(), enqueueGpsSample(), flushCheckIns(), flushGpsQueue() (+35 more)
 
 ### Community 12 - "Community 12"
 Cohesion: 0.03
@@ -553,24 +553,24 @@ Cohesion: 0.09
 Nodes (36): Adb(), Adb-En-Segundo-Plano(), Administrador-Zona(), Buscar-Escenario(), Buscar-Ventana(), Calcular-Lugar(), Cargar-WinRT(), Detener-Zona() (+28 more)
 
 ### Community 18 - "Community 18"
+Cohesion: 0.07
+Nodes (9): AdminService, codigoDuplicado(), desconectarSockets(), esViolacionUnique(), filtroTexto(), insigniaOtorgada(), paginar(), viajeAnonimo() (+1 more)
+
+### Community 19 - "Community 19"
 Cohesion: 0.14
 Nodes (26): armarMatrizCohortes(), clavesSerie(), completarSerie(), diaArg(), granularidadPorDefecto(), inicioBalde(), inicioDiaArg(), kpi() (+18 more)
 
-### Community 19 - "Community 19"
-Cohesion: 0.07
-Nodes (8): AdminService, codigoDuplicado(), desconectarSockets(), esViolacionUnique(), filtroTexto(), insigniaOtorgada(), paginar(), viajeAnonimo()
-
 ### Community 20 - "Community 20"
-Cohesion: 0.07
-Nodes (22): authHeaders(), bearerAuthHeaders(), getFirebaseIdToken(), MeshApiError, displayNombre(), loadProfile(), mergeBackendProfile(), profileKey() (+14 more)
-
-### Community 21 - "Community 21"
 Cohesion: 0.08
 Nodes (22): conComaDecimal(), conPuntoDeMiles(), enmascararMonto(), formatDeltaKm(), formatDurationHm(), formatHoraCorta(), formatHorasTotal(), formatKm() (+14 more)
 
-### Community 22 - "Community 22"
+### Community 21 - "Community 21"
 Cohesion: 0.18
 Nodes (4): sendExpoPush(), duracionSeg(), nombreDe(), ParadasService
+
+### Community 22 - "Community 22"
+Cohesion: 0.09
+Nodes (15): authHeaders(), bearerAuthHeaders(), getFirebaseIdToken(), MeshApiError, useAuth(), aplicarToken(), connectMeshSocket(), esperarOSeguirIntentando() (+7 more)
 
 ### Community 23 - "Community 23"
 Cohesion: 0.11
@@ -589,16 +589,16 @@ Cohesion: 0.23
 Nodes (4): calcularLiquidacion(), GastosService, nombreDe(), round2()
 
 ### Community 27 - "Community 27"
+Cohesion: 0.18
+Nodes (12): emitir(), refrescarPendientes(), setInvitacionesPendientesCount(), setSolicitudesPendientesCount(), subscribe(), getSupabase(), isSupabaseConfigured(), channelName() (+4 more)
+
+### Community 28 - "Community 28"
 Cohesion: 0.11
 Nodes (17): 0. Tu tarea, 1. Qué es Mesh (para la apertura), 2.1 Sprints ejecutados, 2.2 Estado del backlog por tier (67 historias en Jira), 2.3 Historias por épica (detalle para el slide de producto o el apéndice), 2. Cronograma: dónde estamos (datos de Jira, 16/09/2026), 3.1 Números del repositorio, 3.2 Stack (slide de arquitectura) (+9 more)
 
-### Community 28 - "Community 28"
-Cohesion: 0.19
-Nodes (8): ClimaService, codigoImplicaLluvia(), descripcionCodigoTiempo(), fechaIso(), fraccionEnTrazado(), largoTrazadoMetros(), distanciaMetros(), toRad()
-
 ### Community 29 - "Community 29"
 Cohesion: 0.19
-Nodes (11): emitir(), setInvitacionesPendientesCount(), setSolicitudesPendientesCount(), subscribe(), getSupabase(), isSupabaseConfigured(), channelName(), emitTripStarted() (+3 more)
+Nodes (8): ClimaService, codigoImplicaLluvia(), descripcionCodigoTiempo(), fechaIso(), fraccionEnTrazado(), largoTrazadoMetros(), distanciaMetros(), toRad()
 
 ### Community 30 - "Community 30"
 Cohesion: 0.12
@@ -2875,12 +2875,12 @@ Nodes (1): ref_http
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `get()` connect `Community 3` to `Community 0`, `Community 1`, `Community 2`, `Community 4`, `Community 6`, `Community 7`, `Community 10`, `Community 11`, `Community 14`, `Community 18`, `Community 23`, `Community 26`, `Community 28`?**
-  _High betweenness centrality (0.132) - this node is a cross-community bridge._
-- **Why does `meshAlert()` connect `Community 0` to `Community 5`, `Community 11`, `Community 13`?**
-  _High betweenness centrality (0.064) - this node is a cross-community bridge._
-- **Why does `generarRelleno()` connect `Community 7` to `Community 2`, `Community 3`, `Community 5`, `Community 18`, `Community 25`?**
-  _High betweenness centrality (0.041) - this node is a cross-community bridge._
+- **Why does `get()` connect `Community 3` to `Community 0`, `Community 1`, `Community 2`, `Community 4`, `Community 6`, `Community 7`, `Community 10`, `Community 11`, `Community 14`, `Community 19`, `Community 23`, `Community 26`, `Community 29`?**
+  _High betweenness centrality (0.149) - this node is a cross-community bridge._
+- **Why does `parseJson()` connect `Community 1` to `Community 3`, `Community 13`, `Community 22`?**
+  _High betweenness centrality (0.051) - this node is a cross-community bridge._
+- **Why does `meshFetchAuthed()` connect `Community 1` to `Community 3`, `Community 13`, `Community 22`?**
+  _High betweenness centrality (0.043) - this node is a cross-community bridge._
 - **Are the 134 inferred relationships involving `meshFetchAuthed()` (e.g. with `get()` and `enviar()`) actually correct?**
   _`meshFetchAuthed()` has 134 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 134 inferred relationships involving `apiUrl()` (e.g. with `get()` and `enviar()`) actually correct?**

@@ -228,7 +228,7 @@ export class ViajesService {
     if (modo === 'entrenamiento' && esMotorizado(tipoActividad)) {
       throw new HttpError(
         400,
-        'Las modalidades motorizadas (moto, auto) no admiten modo entrenamiento (RN-070)',
+        'Las modalidades motorizadas (moto, auto) no admiten modo entrenamiento',
         'MODO_INVALIDO'
       )
     }
@@ -241,7 +241,7 @@ export class ViajesService {
       if (esMotorizado(tipoActividad)) {
         throw new HttpError(
           400,
-          'Las modalidades motorizadas (moto, auto) no admiten modo competitivo (RN-070)',
+          'Las modalidades motorizadas (moto, auto) no admiten modo competitivo',
           'MODO_INVALIDO'
         )
       }

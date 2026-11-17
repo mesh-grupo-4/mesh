@@ -1,6 +1,7 @@
 /**
  * Viajes de relleno del seed de demo: finalizados, entre usuarios sin login y sin traza
- * GPS. Dan volumen a rankings, rachas, insignias y a la reportería del backoffice.
+ * GPS (salvo las salidas en solitario de las cuentas con `salidasSolo`). Dan volumen a
+ * rankings, rachas, insignias y a la reportería del backoffice.
  *
  * Solo arma las filas en memoria; `seed.ts` las inserta. Es determinístico: la misma
  * semilla genera siempre los mismos viajes (las fechas se corren con el día del seed).
@@ -127,7 +128,8 @@ export function generarRelleno(ctx: Contexto): Relleno {
 
   // Rachas (RN-075): una salida por semana calendario, desde la primera semana de su racha
   // hacia atrás.
-  for (const u of candidatos) {
+  const planesDeRacha = (u: UsuarioDemo, solo?: boolean): Plan[] => {
+    const suyos: Plan[] = []
     const desde = primeraSemanaRacha(u)
     for (let semana = desde; semana < desde + (u.rachaSemanas ?? 0); semana++) {
       const lunes = lunesActual - semana * 7 * MS_DIA
@@ -146,9 +148,11 @@ export function generarRelleno(ctx: Contexto): Relleno {
       if (salidas.length === 0) continue
       const finde = salidas.filter(({ d }) => d >= 5)
       const { inicio } = finde.length > 0 && azar() < 0.6 ? elegir(finde) : elegir(salidas)
-      if (disponible(u, inicio)) planes.push({ creador: u, inicio, solo: azar() < 0.55, actividad: u.actividad })
+      if (disponible(u, inicio)) suyos.push({ creador: u, inicio, solo: azar() < 0.55 || Boolean(solo), actividad: u.actividad })
     }
+    return suyos
   }
+  for (const u of candidatos) planes.push(...planesDeRacha(u))
 
   // El resto: algo más de viajes cuanto más reciente, y más los fines de semana.
   const ACTIVIDADES: TipoActividad[] = ['moto', 'auto', 'bici', 'running', 'trekking']
@@ -167,7 +171,7 @@ export function generarRelleno(ctx: Contexto): Relleno {
   }
 
   // ── Un viaje por plan ──────────────────────────────────────────────────────
-  for (const plan of planes) {
+  const construir = (plan: Plan) => {
     const { creador, inicio, actividad } = plan
     const motorizado = esMotorizado(actividad)
     const opciones = RUTAS_POR_ACTIVIDAD[actividad]
@@ -233,7 +237,7 @@ export function generarRelleno(ctx: Contexto): Relleno {
     const detenidoSeg = minutosPorParada.reduce((s, m) => s + m * 60, 0)
     const duracionSeg = Math.round(movimientoSeg + detenidoSeg + entre(60, 300))
     const fin = new Date(inicio.getTime() + duracionSeg * 1000)
-    if (fin.getTime() > ctx.ahora.getTime() - 30 * MS_MIN) continue
+    if (fin.getTime() > ctx.ahora.getTime() - 30 * MS_MIN) return
 
     const viajeId = randomUUID()
     const creadorId = ctx.usuario(creador.clave)
@@ -510,6 +514,23 @@ export function generarRelleno(ctx: Contexto): Relleno {
         r.privacidad.push({ viaje_id: viajeId, usuario_id: ctx.usuario(persona.clave), comparte_ubicacion: false })
       }
     }
+  }
+  for (const plan of planes) construir(plan)
+
+  // Cuentas con login que igual tienen historia propia (el equipo, `salidasSolo`): su racha
+  // y salidas sueltas, siempre en solitario. Van al final para no mover la secuencia del
+  // azar: el resto del relleno sale igual que sin ellas.
+  for (const u of ELENCO.filter((x) => x.login && x.salidasSolo)) {
+    const suyos = planesDeRacha(u, true)
+    const meta = suyos.length + u.salidasSolo!
+    let intentosSolo = 0
+    while (suyos.length < meta && intentosSolo++ < 2000) {
+      const haceDias = 1 + Math.floor(azar() ** 1.3 * (RELLENO.dias - 1))
+      const inicio = new Date(momento(ctx.hoy, haceDias, 0).getTime() + horaTipica(u.actividad) * MS_HORA)
+      if (!disponible(u, inicio) || !respetaRacha(u, inicio)) continue
+      suyos.push({ creador: u, inicio, solo: true, actividad: u.actividad })
+    }
+    suyos.forEach(construir)
   }
 
   return r

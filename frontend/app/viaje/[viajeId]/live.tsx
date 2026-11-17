@@ -748,7 +748,7 @@ export default function ViajeLiveScreen() {
         // El líder que finalizó maneja su propia navegación en ejecutarFinalizar.
         if (finalizandoRef.current) return
         // Para participantes: salir del mapa y mostrarles el resumen.
-        router.replace({ pathname: '/viaje/[viajeId]/resumen', params: { viajeId } })
+        router.replace({ pathname: '/viaje/[viajeId]/resumen', params: { viajeId, desdeCierre: '1' } })
       }
 
       const onSalio = (payload: {
@@ -879,7 +879,7 @@ export default function ViajeLiveScreen() {
     try {
       await finalizarViaje(viajeId, userId)
       void detenerTrackingViaje()
-      router.replace({ pathname: '/viaje/[viajeId]/resumen', params: { viajeId } })
+      router.replace({ pathname: '/viaje/[viajeId]/resumen', params: { viajeId, desdeCierre: '1' } })
     } catch (e) {
       finalizandoRef.current = false
       meshAlert('Error', e instanceof Error ? e.message : 'No se pudo finalizar el viaje')

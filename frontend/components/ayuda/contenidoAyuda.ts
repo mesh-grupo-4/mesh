@@ -427,7 +427,7 @@ export const AYUDA_ADMIN_PANEL: PasoDefinicion[] = [
   {
     nombre: 'adminPanel.plataforma',
     orden: ORDEN_PANTALLA.adminPanel,
-    texto: 'Totales agregados de la plataforma: usuarios, grupos y viajes finalizados. Sin posiciones ni velocidades (RN-126, RN-070).',
+    texto: 'Totales agregados de la plataforma: usuarios, grupos y viajes finalizados. Sin posiciones ni velocidades.',
   },
   {
     nombre: 'adminPanel.gestion',
@@ -453,12 +453,12 @@ export const AYUDA_ADMIN_USUARIO: PasoDefinicion[] = [
   {
     nombre: 'adminUsuario.cuenta',
     orden: ORDEN_PANTALLA.adminUsuario,
-    texto: 'Estado de la cuenta. Más abajo, sus totales de actividad, sin detalle de cada viaje (RN-126).',
+    texto: 'Estado de la cuenta. Más abajo, sus totales de actividad, sin detalle de cada viaje.',
   },
   {
     nombre: 'adminUsuario.acciones',
     orden: ORDEN_PANTALLA.adminUsuario + 1,
-    texto: 'Suspender, otorgar el rol superadmin o eliminar la cuenta. Todo queda registrado en la auditoría (RN-121).',
+    texto: 'Suspender, otorgar el rol superadmin o eliminar la cuenta. Todo queda registrado en la auditoría.',
   },
 ]
 
@@ -497,7 +497,7 @@ export const AYUDA_ADMIN_VIAJES: PasoDefinicion[] = [
   {
     nombre: 'adminViajes.lista',
     orden: ORDEN_PANTALLA.adminViajes + 1,
-    texto: 'Los viajes se muestran anónimos, sin nombre, personas, horarios ni ruta (RN-126). Tocá uno para forzar su finalización o eliminarlo.',
+    texto: 'Los viajes se muestran anónimos, sin nombre, personas, horarios ni ruta. Tocá uno para forzar su finalización o eliminarlo.',
   },
 ]
 
@@ -505,7 +505,7 @@ export const AYUDA_ADMIN_VIAJE: PasoDefinicion[] = [
   {
     nombre: 'adminViaje.datos',
     orden: ORDEN_PANTALLA.adminViaje,
-    texto: 'Solo lo necesario para gestionarlo: actividad, tipo, integrantes y estado. Quién, cuándo y por dónde no se muestran (RN-126).',
+    texto: 'Solo lo necesario para gestionarlo: actividad, tipo, integrantes y estado. Quién, cuándo y por dónde no se muestran.',
   },
   {
     nombre: 'adminViaje.accion',
@@ -536,7 +536,7 @@ export const AYUDA_ADMIN_AUDITORIA: PasoDefinicion[] = [
   {
     nombre: 'adminAuditoria.lista',
     orden: ORDEN_PANTALLA.adminAuditoria,
-    texto: 'Cada fila es una acción hecha desde el backoffice: quién la hizo, cuándo y sobre qué (RN-121).',
+    texto: 'Cada fila es una acción hecha desde el backoffice: quién la hizo, cuándo y sobre qué.',
   },
 ]
 

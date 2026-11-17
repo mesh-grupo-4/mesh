@@ -196,7 +196,7 @@ export function SeccionViajes({ r }: { r: ReporteViajes }) {
           ]}
         />
       </TarjetaGrafico>
-      <TarjetaGrafico titulo="Por actividad" sub="Viajes iniciados, distancia y duración. Sin velocidades (RN-070)." tabla={porActividad}>
+      <TarjetaGrafico titulo="Por actividad" sub="Viajes iniciados, distancia y duración. Sin velocidades." tabla={porActividad}>
         <BarrasHorizontales
           items={r.por_actividad.map((f) => ({
             label: rotulo(f.actividad),

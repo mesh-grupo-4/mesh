@@ -15,10 +15,7 @@ import {
 import { Pressable } from '@/components/Pressable'
 import { meshAlert, meshSuccess } from '@/lib/meshAlert';
 import { InvitarGruposAmigosModal } from '@/components/viaje-rapido/InvitarGruposAmigosModal'
-import { esMotorizado } from '@/lib/activityDefaults';
 import { ETIQUETA_MODO, TONO_MODO } from '@/lib/modoViaje';
-import { abrirRepetirEntrenamiento } from '@/lib/nuevoViaje';
-import { formatKm } from '@/lib/format';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker'
 import { Feather } from '@expo/vector-icons'
 import { useCopilot } from 'react-native-copilot'
@@ -46,8 +43,6 @@ import {
   eliminarViaje,
   obtenerViaje,
   obtenerRuta,
-  obtenerRecorrido,
-  obtenerResumenViaje,
   actualizarFechaViaje,
   actualizarViaje,
   listarParticipantesViaje,
@@ -67,7 +62,6 @@ import { nombreCompleto } from '@/lib/nombres'
 import { ajustarSiQuedoEnPasado, esFechaFutura } from '@/lib/fechaProgramada'
 import { aCamposArg, ahoraEnCamposArg, desdeCamposArg, formatearEnArg } from '@/lib/tiempoArg'
 import { RouteMapView } from '@/components/route-config/RouteMapView'
-import { RecorridoMapView } from '@/components/RecorridoMapView'
 import { MiniMapaEnCurso } from '@/components/live/MiniMapaEnCurso'
 import { ClimaViajeCard } from '@/components/ClimaViajeCard'
 import { ConfigAlertasCard } from '@/components/ConfigAlertasCard'
@@ -176,11 +170,6 @@ export default function ViajeDetalleScreen() {
   const [viaje, setViaje] = useState<ViajeDetalleApi | null>(null)
   const [participantes, setParticipantes] = useState<ViajeParticipanteApi[]>([])
   const [rutaMapa, setRutaMapa] = useState<RutaMapa | null>(null)
-  /** Traza GPS realmente recorrida; solo se carga cuando el viaje está finalizado. */
-  const [recorrido, setRecorrido] = useState<[number, number][][]>([])
-  const [cargandoRecorrido, setCargandoRecorrido] = useState(false)
-  /** Distancia que hice en un viaje finalizado (métricas del backend). */
-  const [distanciaRecorridaM, setDistanciaRecorridaM] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [accion, setAccion] = useState(false)
   const [modalPermisos, setModalPermisos] = useState(false)
@@ -263,23 +252,21 @@ export default function ViajeDetalleScreen() {
   const cargar = useCallback(async () => {
     if (!viajeId || !userId) return
     setLoading(true)
+    // Al redirigir al resumen el spinner sigue hasta que cambia la pantalla.
+    let redirigido = false
     try {
       const v = await obtenerViaje(viajeId, userId)
-      setViaje(v)
 
+      // Un viaje finalizado se ve en su resumen: una sola pantalla para el viaje cerrado.
       if (v.estado === 'finalizado') {
-        setCargandoRecorrido(true)
-        void obtenerRecorrido(viajeId)
-          .then((r) => setRecorrido(r.segmentos))
-          .catch((e) => {
-            console.warn('No se pudo cargar el recorrido realizado:', e)
-            setRecorrido([])
-          })
-          .finally(() => setCargandoRecorrido(false))
-        void obtenerResumenViaje(viajeId, userId)
-          .then((r) => setDistanciaRecorridaM(r.mis_metricas.distancia_m ?? r.totales.distancia_real_m))
-          .catch(() => setDistanciaRecorridaM(null))
+        redirigido = true
+        router.replace({
+          pathname: '/viaje/[viajeId]/resumen',
+          params: params.userId ? { viajeId, userId } : { viajeId },
+        })
+        return
       }
+      setViaje(v)
 
       try {
         const parts = await listarParticipantesViaje(viajeId, userId)
@@ -309,9 +296,9 @@ export default function ViajeDetalleScreen() {
       setViaje(null)
       meshAlert('Error', e instanceof Error ? e.message : 'No se pudo cargar el viaje')
     } finally {
-      setLoading(false)
+      if (!redirigido) setLoading(false)
     }
-  }, [viajeId, userId])
+  }, [viajeId, userId, router, params.userId])
 
   useFocusEffect(
     useCallback(() => {
@@ -609,10 +596,9 @@ export default function ViajeDetalleScreen() {
     try {
       await finalizarViaje(viajeId, userId)
       await detenerTrackingViaje()
-      await cargar()
+      router.replace({ pathname: '/viaje/[viajeId]/resumen', params: { viajeId, desdeCierre: '1' } })
     } catch (e) {
       meshAlert('Error', e instanceof Error ? e.message : 'No se pudo finalizar el viaje')
-    } finally {
       setAccion(false)
     }
   }
@@ -750,12 +736,6 @@ export default function ViajeDetalleScreen() {
     router.push({ pathname: '/viaje/[viajeId]/live', params: { viajeId } })
   }
 
-  /** Viaje finalizado: el recorrido hecho, a pantalla completa. */
-  const irRecorrido = () => {
-    if (!viajeId) return
-    router.push({ pathname: '/viaje/[viajeId]/recorrido', params: { viajeId } })
-  }
-
   const puntosRuta = (
     <View style={styles.routePoints}>
       <View style={styles.routePointRow}>
@@ -786,13 +766,7 @@ export default function ViajeDetalleScreen() {
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
       <TopBar
-        title={
-          viaje?.estado === 'planificado'
-            ? 'Configurando viaje'
-            : viaje?.estado === 'finalizado'
-              ? 'Finalizado'
-              : 'Viaje'
-        }
+        title={viaje?.estado === 'planificado' ? 'Configurando viaje' : 'Viaje'}
         sub={!viaje ? 'Cargando...' : undefined}
         onBack={() => router.back()}
         bordered={false}
@@ -899,19 +873,6 @@ export default function ViajeDetalleScreen() {
 
             {/* Mapa real de la ruta planificada; en curso, miniatura del estado actual */}
             <PasoAyuda {...AYUDA_VIAJE_DETALLE[0]!}>
-            {viaje.estado === 'finalizado' ? (
-              // Mapa propio (zoom y arrastre) con botones para agrandarlo y para volver a
-              // encuadrar el recorrido. Dentro de la tarjeta tocable, el mapa nativo se
-              // comía el toque y no se podía abrir.
-              <View style={[styles.cardRoute, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-                <RecorridoMapView
-                  segmentos={recorrido}
-                  cargando={cargandoRecorrido}
-                  altura={200}
-                  onExpandir={irRecorrido}
-                />
-              </View>
-            ) : (
             <Pressable
               onPress={viaje.estado === 'en_curso' ? irLive : irConfigurarRecorrido}
               disabled={!puedeEditarPlan && viaje.estado === 'planificado'}
@@ -969,7 +930,6 @@ export default function ViajeDetalleScreen() {
                 </View>
               )}
             </Pressable>
-            )}
             </PasoAyuda>
 
             {/* SCRUM-27: pronóstico sobre la ruta antes de salir (y durante). */}
@@ -985,15 +945,11 @@ export default function ViajeDetalleScreen() {
               <View style={[styles.statCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                 <Feather name="activity" size={16} color={theme.accent} style={{ marginBottom: 3 }} />
                 <Text style={[styles.statNum, { color: theme.text }]} numberOfLines={1}>
-                  {viaje.estado === 'finalizado'
-                    ? formatKm(distanciaRecorridaM)
-                    : viaje.ruta?.distancia_planeada_m
-                      ? `${(viaje.ruta.distancia_planeada_m / 1000).toFixed(1).replace('.', ',')} km`
-                      : '--'}
+                  {viaje.ruta?.distancia_planeada_m
+                    ? `${(viaje.ruta.distancia_planeada_m / 1000).toFixed(1).replace('.', ',')} km`
+                    : '--'}
                 </Text>
-                <Text style={[styles.statLabel, { color: theme.textDim }]}>
-                  {viaje.estado === 'finalizado' ? 'Recorrida' : 'Distancia'}
-                </Text>
+                <Text style={[styles.statLabel, { color: theme.textDim }]}>Distancia</Text>
               </View>
 
               <Pressable
@@ -1221,60 +1177,7 @@ export default function ViajeDetalleScreen() {
               )
             })()}
 
-            {viaje.estado === 'finalizado' && (
-              <View style={styles.preTripActions}>
-                <Btn
-                  variant="secondary"
-                  block
-                  size="sm"
-                  icon="bar-chart-2"
-                  onPress={() =>
-                    router.push({ pathname: '/viaje/[viajeId]/resumen', params: { viajeId } })
-                  }
-                >
-                  Ver resumen del recorrido
-                </Btn>
-                {viaje.es_grupal && (
-                  <Btn
-                    variant="secondary"
-                    block
-                    size="sm"
-                    icon="dollar-sign"
-                    onPress={() =>
-                      router.push({ pathname: '/viaje/[viajeId]/gastos', params: { viajeId } })
-                    }
-                  >
-                    Gastos y balance
-                  </Btn>
-                )}
-                <Btn
-                  variant="secondary"
-                  block
-                  size="sm"
-                  icon="trending-up"
-                  onPress={() =>
-                    router.push({ pathname: '/viaje/[viajeId]/metricas', params: { viajeId } })
-                  }
-                >
-                  Mis métricas detalladas
-                </Btn>
-                {/* RN-066: repetir la sesión (mismo recorrido, con esta traza como fantasma). */}
-                {viaje.modo === 'entrenamiento' && !esMotorizado(viaje.tipo_actividad) ? (
-                  <Btn
-                    variant="secondary"
-                    block
-                    size="sm"
-                    icon="repeat"
-                    onPress={() => abrirRepetirEntrenamiento(viaje.id)}
-                  >
-                    Repetir este entrenamiento
-                  </Btn>
-                ) : null}
-              </View>
-            )}
-
-            {/* RN-111/112: siempre visible, también con el viaje finalizado —
-                el registro de quién vio tu posición se consulta después. */}
+            {/* RN-111/112: el viaje finalizado lo ofrece desde su resumen. */}
             <View style={styles.optionsBlock}>
               <Btn
                 variant="secondary"

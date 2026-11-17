@@ -79,6 +79,12 @@ export type UsuarioDemo = {
    * rankings ni reportes. Sí puede valorar recorridos.
    */
   soloVitrina?: boolean
+  /**
+   * Cuenta con login que igual tiene historia propia: el relleno le arma su racha y esta
+   * cantidad de salidas sueltas más. Siempre en solitario, así no aparece en viajes de otros
+   * (y sin traza GPS, como todo el relleno).
+   */
+  salidasSolo?: number
 }
 
 export const ELENCO: UsuarioDemo[] = [
@@ -111,26 +117,25 @@ export const ELENCO: UsuarioDemo[] = [
   { clave: 'milagros', nombre: 'Milagros', apellido: 'Domínguez', actividad: 'otro', altaHaceDias: 3, nuevo: true },
 
   // El equipo de la tesis (UTN FRC, Grupo 4, 5K1), con sus fotos. Tienen login para sumarse
-  // en vivo al viaje "Recibida" desde sus celulares. Solo aparecen en ese viaje.
+  // en vivo al viaje "Recibida" desde sus celulares. Cada uno tiene su propia historia (racha
+  // y estadísticas distintas) para mostrar los perfiles desde ese viaje.
   ...(
     [
-      ['gabrielli', 'Pedro', 'Gabrielli'],
-      ['ferraro', 'Gonzalo', 'Ferraro'],
-      ['casoria', 'Bautista', 'Casoria'],
-      ['penafort', 'Joaquín', 'Peñafort'],
-      ['viale', 'Manuel', 'Viale'],
-      ['giorda', 'Franco', 'Giorda'],
+      ['gabrielli', 'Pedro', 'Gabrielli', { actividad: 'running', altaHaceDias: 260, rachaSemanas: 9, salidasSolo: 14 }],
+      ['ferraro', 'Gonzalo', 'Ferraro', { actividad: 'bici', altaHaceDias: 300, rachaSemanas: 16, salidasSolo: 22 }],
+      ['casoria', 'Bautista', 'Casoria', { actividad: 'trekking', altaHaceDias: 190, rachaSemanas: 3, rachaEnRiesgo: true, salidasSolo: 6 }],
+      ['penafort', 'Joaquín', 'Peñafort', { actividad: 'moto', altaHaceDias: 230, salidasSolo: 9 }],
+      ['viale', 'Manuel', 'Viale', { actividad: 'bici', altaHaceDias: 150, rachaSemanas: 5, salidasSolo: 4 }],
+      ['giorda', 'Franco', 'Giorda', { actividad: 'running', altaHaceDias: 210, rachaSemanas: 7, rachaEnRiesgo: true, salidasSolo: 11 }],
     ] as const
   ).map(
-    ([clave, nombre, apellido]): UsuarioDemo => ({
+    ([clave, nombre, apellido, historia]): UsuarioDemo => ({
       clave,
       nombre,
       apellido,
-      actividad: 'auto',
-      altaHaceDias: 240,
+      ...historia,
       login: true,
       foto: `${clave}.jpg`,
-      soloVitrina: true,
     })
   ),
 
@@ -279,13 +284,11 @@ export const INVITACIONES_GRUPO: InvitacionGrupoDemo[] = [
 export type AmistadDemo = { de: string; a: string; estado: 'pendiente' | 'aceptada' | 'rechazada'; haceDias: number }
 
 export const AMISTADES: AmistadDemo[] = [
-  // El equipo de la tesis.
+  // El equipo de la tesis: la mitad es amiga de la protagonista. Con Casoria, Peñafort y
+  // Viale no hay ninguna solicitud, así en la presentación se les manda desde su perfil.
   { de: 'gabrielli', a: 'lucia', estado: 'aceptada', haceDias: 230 },
   { de: 'ferraro', a: 'lucia', estado: 'aceptada', haceDias: 227 },
-  { de: 'casoria', a: 'lucia', estado: 'aceptada', haceDias: 224 },
-  { de: 'penafort', a: 'lucia', estado: 'aceptada', haceDias: 221 },
-  { de: 'viale', a: 'lucia', estado: 'aceptada', haceDias: 218 },
-  { de: 'giorda', a: 'lucia', estado: 'aceptada', haceDias: 215 },
+  { de: 'giorda', a: 'lucia', estado: 'aceptada', haceDias: 205 },
   // Amigos de la protagonista.
   { de: 'lucia', a: 'martin', estado: 'aceptada', haceDias: 290 },
   { de: 'sofia', a: 'lucia', estado: 'aceptada', haceDias: 200 },
