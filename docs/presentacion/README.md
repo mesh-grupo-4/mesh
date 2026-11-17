@@ -12,6 +12,7 @@ y el nombre de cada integrante. Lo que se proyecta es la pantalla de la notebook
 | `espejar-celulares.ps1` | El script que usan los tres lanzadores |
 | `iconos/` | Íconos de los accesos directos (Mesh con insignia de WiFi, cable o cerrar) |
 | `escenario.html` | Fondo de presentación (logo, nombres, indicador "en vivo") |
+| `cierre.html` | Animación de Mesh al finalizar con `Ctrl+Alt+Q`: se forma el logo y, con otro `Ctrl+Alt+Q`, se va andando |
 
 Usa [scrcpy](https://github.com/Genymobile/scrcpy): espeja por USB o WiFi, con muy poca
 latencia y sin instalar nada en el teléfono. **Solo Android**: con iPhone no funciona.
@@ -62,9 +63,23 @@ de ahí a la barra de tareas una vez, para tenerlo a mano.
 | `Ctrl+Alt+R` | Reconectar los dos espejos |
 | `Ctrl+Alt+I` | Invertir lados (si quedaron al revés de los nombres) |
 | `Ctrl+Alt+C` | Mostrar u ocultar la consola, con los mensajes del script |
-| `Ctrl+Alt+Q` | Finalizar: cierra espejos y fondo, y deja No molestar como estaba en cada teléfono |
+| `Ctrl+Alt+1` | Quitar el celular de la izquierda (para seguir con uno solo). Otra vez: lo vuelve a conectar |
+| `Ctrl+Alt+2` | Lo mismo con el celular de la derecha |
+| `Ctrl+Alt+Q` | Finalizar: se van los celulares y se forma el logo de Mesh, que queda en pantalla. Otro `Ctrl+Alt+Q`: Mesh se va andando y se cierra todo. Deja No molestar como estaba en cada teléfono |
 
-Si `Ctrl+Alt+Q` no responde, doble clic en **`Cerrar presentacion.cmd`**: hace lo mismo desde afuera.
+Si `Ctrl+Alt+Q` no responde, doble clic en **`Cerrar presentacion.cmd`**: hace lo mismo desde afuera, pero sin la animación.
+
+**Un solo celular:** `Ctrl+Alt+1` o `Ctrl+Alt+2` sacan el espejo de ese lado y su lugar queda con el fondo y el nombre.
+Ese celular no se reconecta solo hasta que se aprieta el mismo atajo de nuevo. Izquierda y derecha son
+las de la pantalla en ese momento (después de `Ctrl+Alt+I` también).
+
+**Animación de cierre:** es la misma de cuando se abre la app, 3,5 veces más lenta. El logo queda formado
+el tiempo que haga falta (preguntas, aplausos). Con otro `Ctrl+Alt+Q` las letras vuelven a la M, la M
+se va andando por la derecha y la pantalla se funde a negro. `Alt+F4` la cierra en cualquier momento.
+La lentitud se ajusta con `$CIERRE_LENTITUD` al principio del script.
+
+Ese segundo `Ctrl+Alt+Q` lo recibe la pantalla del logo: si no responde (por ejemplo, porque se hizo
+clic en otra ventana), hacer un clic sobre el logo y repetirlo.
 
 **Lo que hace solo**
 
@@ -135,6 +150,9 @@ depuración inalámbrica al cambiar de red, así que hay que reactivarla en el a
 Para ensayar el fondo sin celulares, abrir `escenario.html?guia=1` en el navegador
 (tecla F para pantalla completa). Con `?enlace=0` se oculta el indicador "en vivo".
 
+Para ver la animación de cierre, abrir `cierre.html` (`Ctrl+Alt+Q` se va, F pantalla completa, R repetir).
+Acepta `?lento=3.5&espera=1.5`.
+
 ## 5. Checklist del día
 
 **Para presentar en la facultad (WiFi)**
@@ -178,6 +196,7 @@ Para ensayar el fondo sin celulares, abrir `escenario.html?guia=1` en el navegad
 | Un espejo se congeló o no aparece | `Ctrl+Alt+R`; si no vuelve, `Ctrl+Alt+C` para ver el mensaje |
 | Las ventanas no coinciden con los nombres | `Ctrl+Alt+Q` y volver a abrir; si persiste, `-ConBordes` y acomodarlas a mano |
 | Se perdió el control (no responde nada) | Doble clic en `Cerrar presentacion.cmd` |
+| Hay que seguir con un solo celular | `Ctrl+Alt+1` (izquierda) o `Ctrl+Alt+2` (derecha); el mismo atajo lo vuelve a conectar |
 | El script no corre por permisos | Usar los `.cmd`, que lo lanzan con `-ExecutionPolicy Bypass` |
 
 Los logs de scrcpy quedan en `%TEMP%\mesh-presentacion`.

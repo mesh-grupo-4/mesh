@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="es" translate="no">
+<head>
+<meta charset="utf-8">
+<meta name="google" content="notranslate">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mesh · Cierre</title>
+<!--
+  Cierre de la presentación: la animación de apertura de la app (un grupo recorre
+  la M, la M se achica hacia la izquierda y aparece MESH), en grande y lenta. El
+  logo queda formado hasta que se aprieta Ctrl+Alt+Q: las letras se esconden en
+  la M, la M vuelve al centro y se va andando por la derecha, y la pantalla se
+  funde a negro. Al terminar, el título pasa a "Mesh · Hasta pronto": así se
+  entera espejar-celulares.ps1, que la abre al finalizar y la cierra entonces.
+  También se puede abrir sola para ensayar. Parámetros (query string):
+    lento=3.5     cuántas veces más lenta que en la app
+    espera=1.5    segundos de pantalla quieta antes de arrancar
+  Teclas: Ctrl+Alt+Q irse, F pantalla completa, R repetir.
+
+  Es un port de frontend/components/intro/IntroMesh.tsx: misma línea de tiempo y
+  mismas curvas. La geometría está copiada de frontend/components/intro/logoMesh.ts;
+  si cambia el logo, hay que copiarla de nuevo.
+-->
+<style>
+  :root { --bg: #0f0f0f; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { background: #000; }
+  html, body { width: 100%; height: 100%; overflow: hidden; }
+  body {
+    background: var(--bg);
+    cursor: none;
+    display: flex; align-items: center; justify-content: center;
+    transition: opacity 1.5s ease-in-out;
+  }
+  body.fuera { opacity: 0; }
+  /* Misma malla del escenario, para que el cambio de pantalla no salte. */
+  .malla {
+    position: fixed; inset: 0;
+    background-image: radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1.4px);
+    background-size: 28px 28px;
+    mask-image: radial-gradient(ellipse 75% 70% at 50% 50%, #000 30%, transparent 100%);
+  }
+  svg {
+    position: relative;
+    width: min(90vw, 162vh); height: auto;
+    overflow: visible;
+    opacity: 0;
+    transition: opacity 1s ease-out;
+  }
+  svg.visible { opacity: 1; }
+  .iniciales {
+    font-family: "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, sans-serif;
+    font-weight: 700; fill: #fff;
+    text-anchor: middle; dominant-baseline: central;
+  }
+</style>
+</head>
+<body>
+  <div class="malla"></div>
+  <svg id="escena" viewBox="0 0 360 200" aria-label="Mesh" role="img">
+    <defs>
+      <clipPath id="recorte"><rect id="recorteRect" x="0" y="0" width="360" height="200"/></clipPath>
+    </defs>
+    <g clip-path="url(#recorte)"><g id="letras"></g></g>
+    <g id="m">
+      <g id="cuerpo"><path id="cuerpoPath"/></g>
+      <g id="ruedas"></g>
+      <g id="marcadores"></g>
+    </g>
+  </svg>
+
+<script>
+  // --- Geometría del logo (copiada de logoMesh.ts) ---------------------------
+  const LOGO_COLOR = '#FE3A0F'
+
+  /** Caja de la M dentro del PNG. */
+  const M_CAJA = { x: 265, y: 228, ancho: 593, alto: 548 }
+
+  const M_CUERPO =
+    'M 716.1 228.9 C 657.7 233.8 607.4 279.6 590.1 343.6 C 588.2 350.7 587.8 352.3 586.5 358.6 C 584.1 370.1 582.6 382.1 582 395.6 C 581.8 399.2 581.6 439.3 581.5 511.8 C 581.3 635.2 581.4 628 579.4 630.6 C 574.4 637.2 562.1 635.3 559.4 627.5 C 559 626.6 559 612.8 558.9 522.7 C 558.7 389.7 558.8 392 555.4 373 C 554.2 366.7 553.9 365 553.1 361.4 C 536.7 287.2 486.2 236.4 423.2 230.8 C 412.1 229.8 395.3 230.7 386.9 232.6 C 386.1 232.8 384.3 233.2 383 233.5 C 330.9 245.3 283.9 297.8 270 359.5 C 267.9 369 266.8 376.1 266 385.1 C 265 396.7 264.9 656.2 265.9 658.2 C 268.1 662.5 271.9 662.6 277.7 658.4 C 290.4 649.3 302.5 643.8 316.9 640.6 C 335.9 636.4 354.8 640.6 380.8 654.8 C 392.2 661.1 395.7 661.8 398.1 658.3 C 399 657 399.1 633.4 399.2 484.4 C 399.2 414.6 399.3 407.5 399.7 406.2 C 402.7 396 415.1 394.7 419.6 404.1 C 421 406.9 421 407.5 420.9 413.9 C 420.2 453 420.2 607.3 421 625.3 C 424 694.8 463.9 740.3 531.9 751.5 C 565.9 757.1 606.7 753.4 636.7 742.1 C 683.3 724.5 711.5 687 717.1 635.1 C 717.3 633.2 717.6 631.3 717.6 631 C 718.9 624.2 718.8 574.5 717.2 488.9 C 716.2 430 716.7 407.2 719.1 402.1 C 721.9 396.4 731 395.3 735.3 400.2 C 738.2 403.5 738 400.4 738.1 447.1 C 738.2 469.4 738.3 490.9 738.5 495 C 739.1 511 739.2 524.9 739.2 554.2 C 739.3 587.4 739.2 585.9 740.6 587.5 C 742.6 589.7 744.3 589.3 750.3 585.5 C 785.8 563.3 820.1 567 851.4 596.3 C 854.5 599.2 856.4 599.3 857.4 596.9 C 858.5 594.2 858.4 408.1 857.2 386.8 C 856.6 374.6 855.5 365.1 853.4 354.3 C 837.9 273.9 782.6 223.3 716.1 228.9'
+
+  const RUEDAS = [
+    [333.57, 711.7],
+    [793.57, 645.72],
+  ]
+  const RUEDA_RADIO = 64
+  const RUEDA_ANILLO = 29.7
+  const RUEDA_CENTRO = 15.6
+
+  const LETRAS_Y = 236
+  const LETRAS_ALTO = 448
+  const LETRAS = [
+    {
+      d: 'M0 22 Q0 0 22 0 L283 0 Q305 0 305 22 L305 94 Q305 116 283 116 L182 116 Q170 116 170 128 L170 148 Q170 160 182 160 L268 160 Q290 160 290 182 L290 250 Q290 272 268 272 L182 272 Q170 272 170 284 L170 296 Q170 308 182 308 L290 308 Q312 308 312 330 L312 426 Q312 448 290 448 L22 448 Q0 448 0 426 Z',
+      x: 886,
+      ancho: 312,
+      inicio: 2440,
+    },
+    {
+      d: 'M112 0 L315 0 Q335 0 335 20 L335 100 Q335 120 315 120 L190 120 A20 20 0 0 0 190 160 L268 160 C335 160 378 205 378 268 L378 335 C378 405 335 448 265 448 L72 448 Q52 448 52 428 L52 335 Q52 315 72 315 L205 315 A20 20 0 0 0 205 275 L108 275 C44 275 0 230 0 170 L0 108 C0 44 46 0 112 0 Z',
+      x: 1206,
+      ancho: 378,
+      inicio: 2350,
+    },
+    {
+      d: 'M0 22 Q0 0 22 0 L143 0 Q165 0 165 22 L165 173 Q165 183 175 183 L220 183 Q230 183 230 173 L230 22 Q230 0 252 0 L373 0 Q395 0 395 22 L395 426 Q395 448 373 448 L252 448 Q230 448 230 426 L230 283 Q230 273 220 273 L175 273 Q165 273 165 283 L165 426 Q165 448 143 448 L22 448 Q0 448 0 426 Z',
+      x: 1597,
+      ancho: 395,
+      inicio: 2280,
+    },
+  ]
+
+  /** Largo total de la cinta de la M, de rueda a rueda. */
+  const RUTA_LARGO = 1760.2
+  /** Separación entre puntos consecutivos de `RUTA`. */
+  const RUTA_PASO = 12
+  /** Línea central de la cinta, remuestreada por distancia: [x0, y0, x1, y1, ...]. */
+  const RUTA = [
+    333.6,711.7,333.5,699.1,333.5,686.5,333.4,675.5,333.4,662.9,333.3,650.3,333.2,639.3,333.2,626.7,333.1,614.1,333.0,603.1,333.0,590.5,332.9,579.5,332.9,566.9,332.8,554.4,332.7,543.3,332.7,530.7,332.6,518.2,332.6,507.1,332.5,494.6,332.4,483.5,332.4,471.0,332.3,458.4,332.3,447.4,332.2,434.8,332.1,422.2,332.1,411.2,332.0,398.6,332.5,387.7,334.5,375.9,338.2,363.9,343.2,353.2,349.6,343.3,357.7,334.1,366.9,326.3,377.1,320.1,388.0,315.6,399.4,312.8,411.7,312.0,423.4,313.2,435.3,316.4,446.1,321.3,456.1,327.8,465.1,336.0,472.5,344.9,479.0,355.5,483.7,366.3,487.0,377.8,488.7,389.7,489.0,401.5,489.0,413.9,489.0,426.2,489.0,437.5,489.0,449.9,489.0,462.2,489.0,473.5,489.0,485.9,489.0,498.2,489.0,509.5,489.0,521.9,489.0,534.2,489.0,545.5,489.0,557.9,489.0,570.2,489.0,581.5,489.0,593.9,489.0,606.2,489.0,617.5,489.5,629.9,492.0,641.5,496.7,652.7,502.9,662.5,510.8,671.3,520.2,678.9,530.7,685.1,541.6,689.5,553.2,692.5,565.1,693.9,577.1,693.7,588.9,691.9,600.9,688.3,611.6,683.4,621.8,676.7,630.7,668.8,638.1,659.6,644.1,649.0,648.1,637.7,649.9,626.0,650.0,614.1,650.0,601.8,650.0,589.4,650.0,578.1,650.0,565.8,650.0,553.4,650.0,542.1,650.0,529.8,650.0,517.4,650.0,506.1,650.0,493.8,650.0,481.4,650.0,470.1,650.0,457.8,650.0,445.4,650.0,434.1,650.0,421.8,650.0,409.4,650.0,398.1,650.6,386.3,652.8,373.9,656.3,362.6,661.2,352.0,667.7,341.8,675.5,332.8,684.8,324.9,695.1,318.7,706.2,314.5,718.2,312.3,729.8,312.3,741.8,314.5,752.9,318.7,763.2,324.9,772.5,332.8,780.3,341.8,786.8,352.0,791.7,362.6,795.2,373.9,797.3,385.7,798.0,398.2,797.8,410.7,797.6,421.9,797.3,434.3,797.1,446.7,796.9,457.9,796.7,470.4,796.5,482.8,796.3,494.0,796.1,506.4,795.9,517.6,795.6,530.1,795.4,542.5,795.2,553.7,795.0,566.1,794.8,578.6,794.6,589.7,794.4,602.2,794.1,614.6,794.0,625.8,793.7,638.2,793.6,645.7,
+  ]
+
+  // --- Parámetros -------------------------------------------------------------
+  const q = new URLSearchParams(location.search);
+  const num = (k, d) => { const v = parseFloat(q.get(k)); return Number.isFinite(v) && v >= 0 ? v : d; };
+  const LENTO = Math.max(0.1, num('lento', 3.5));
+  const ESPERA_MS = num('espera', 1.5) * 1000;
+  const TITULO = document.title;
+  /** Lo busca espejar-celulares.ps1 para cerrar la ventana: no cambiarlo sin cambiar el script. */
+  const TITULO_FIN = 'Mesh · Hasta pronto';
+
+  // --- Línea de tiempo de IntroMesh, en ms de la app --------------------------
+  const RECORRIDO_INICIO = 100;
+  const RECORRIDO_FIN = 2000;
+  const SALIDA_INICIO = 2080;
+  const SALIDA_FIN = 2680;
+  const ACHICA_INICIO = 2120;
+  const LETRA_DURACION = 460;
+  /** Ahí termina la entrada: la última letra llega a su lugar y las ruedas dejan de girar. */
+  const FIN_LETRAS = Math.max(...LETRAS.map((l) => l.inicio + LETRA_DURACION));
+  const FIN = Math.max(SALIDA_INICIO + 800, FIN_LETRAS);
+
+  // --- Salida (Ctrl+Alt+Q), en ms con la misma escala que la entrada ----------
+  /** Las letras vuelven a la M: la entrada de las letras, al revés. */
+  const S_LETRAS_FIN = FIN_LETRAS - Math.min(...LETRAS.map((l) => l.inicio));
+  /** La M vuelve al centro y recupera el tamaño del principio. */
+  const S_VUELVE_FIN = S_LETRAS_FIN + 600;
+  /** Amague hacia atrás antes de arrancar. */
+  const S_ARRANCA = S_VUELVE_FIN + 220;
+  /** Acelera y sale de la pantalla por la derecha. */
+  const S_SALE_FIN = S_ARRANCA + 700;
+  /** Giro de las ruedas por unidad recorrida, en grados. */
+  const GIRO_POR_UNIDAD = 3;
+
+  // --- Escena, en dp de la app (el SVG la escala a la pantalla) ---------------
+  const ESCENA_ANCHO = 360;
+  const ESCENA_ALTO = 200;
+  const ESCENA_CENTRO_Y = ESCENA_ALTO / 2;
+  const ESCALA_INICIAL = 0.25;
+  const LOGOTIPO_ANCHO = 236;
+  const LOGOTIPO_UNIDADES = 1727;
+  const ESCALA_FINAL = LOGOTIPO_ANCHO / LOGOTIPO_UNIDADES;
+  const LOGOTIPO_IZQUIERDA = (ESCENA_ANCHO - LOGOTIPO_ANCHO) / 2;
+
+  const M_CENTRO_X = M_CAJA.x + M_CAJA.ancho / 2;
+  const M_CENTRO_Y = M_CAJA.y + M_CAJA.alto / 2;
+  const M_MITAD = M_CAJA.ancho / 2;
+  const X_INICIAL = ESCENA_ANCHO / 2;
+  const X_FINAL = LOGOTIPO_IZQUIERDA + M_MITAD * ESCALA_FINAL;
+  const BORDE_FINAL = X_FINAL + M_MITAD * ESCALA_FINAL;
+  /** Altura de las ruedas, en unidades del logo: ahí pivotea la M al inclinarse. */
+  const PIVOTE_Y = 650;
+
+  // Integrantes decorativos, con las iniciales del equipo (como en la app).
+  // Tamaños en unidades del logo: 1 dp de la app = 4 unidades mientras la M está grande.
+  const MARCADOR_AVATAR = 26 / ESCALA_INICIAL;
+  const MARCADOR_ANILLO = 2 / ESCALA_INICIAL;
+  const INTEGRANTES = [
+    { iniciales: 'GF', color: '#4a9eff', separacion: 0, fase: 0, soyYo: false },
+    { iniciales: 'JP', color: '#6bcb77', separacion: 124, fase: 2.1, soyYo: false },
+    { iniciales: 'FG', color: '#ffd93d', separacion: 246, fase: 4.2, soyYo: true },
+    { iniciales: 'MV', color: '#c77dff', separacion: 372, fase: 1.1, soyYo: false },
+    { iniciales: 'BC', color: '#20c997', separacion: 500, fase: 3.3, soyYo: false },
+    { iniciales: 'PG', color: '#748ffc', separacion: 624, fase: 5.2, soyYo: false },
+  ];
+  const SEPARACION_MAXIMA = 624;
+  const ATRASO_ULTIMO = 46;
+
+  // --- Curvas (idénticas a IntroMesh) -----------------------------------------
+  const avance = (t, desde, hasta) => Math.min(1, Math.max(0, (t - desde) / (hasta - desde)));
+  const suave = (u) => (u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2);
+  const salida = (u) => (u < 0.72 ? 1.035 * suave(u / 0.72) : 1.035 - 0.035 * suave((u - 0.72) / 0.28));
+  function inclinacion(u) {
+    if (u <= 0) return 0;
+    if (u < 0.55) return -10 * Math.sin((Math.PI * u) / 0.55);
+    return 4 * Math.sin((Math.PI * (u - 0.55)) / 0.45);
+  }
+  const centroM = (t) => X_INICIAL + (X_FINAL - X_INICIAL) * salida(avance(t, SALIDA_INICIO, SALIDA_FIN));
+  const escalaM = (t) => ESCALA_INICIAL + (ESCALA_FINAL - ESCALA_INICIAL) * suave(avance(t, ACHICA_INICIO, SALIDA_FIN));
+  const bordeDerechoM = (t) => centroM(t) + M_MITAD * escalaM(t);
+  const cabeza = (t) => (0.5 - 0.5 * Math.cos(Math.PI * avance(t, RECORRIDO_INICIO, RECORRIDO_FIN))) * (RUTA_LARGO + SEPARACION_MAXIMA);
+  function puntoRuta(distancia) {
+    const ultimo = RUTA.length / 2 - 1;
+    const i = Math.min(ultimo - 0.001, Math.max(0, distancia / RUTA_PASO));
+    const a = Math.floor(i);
+    const f = i - a;
+    return [
+      RUTA[a * 2] + (RUTA[a * 2 + 2] - RUTA[a * 2]) * f,
+      RUTA[a * 2 + 1] + (RUTA[a * 2 + 3] - RUTA[a * 2 + 1]) * f,
+    ];
+  }
+
+  // --- Armado del SVG ---------------------------------------------------------
+  const SVG = 'http://www.w3.org/2000/svg';
+  function nodo(tipo, attrs, padre) {
+    const n = document.createElementNS(SVG, tipo);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    if (padre) padre.appendChild(n);
+    return n;
+  }
+  const $ = (id) => document.getElementById(id);
+
+  // Todo lo de la M se dibuja en unidades del logo; el grupo #m lo lleva a la escena.
+  $('cuerpoPath').setAttribute('d', M_CUERPO);
+  $('cuerpoPath').setAttribute('fill', LOGO_COLOR);
+
+  const R = RUEDA_RADIO;
+  const ANILLO =
+    `M${-R} 0a${R} ${R} 0 1 0 ${2 * R} 0a${R} ${R} 0 1 0 ${-2 * R} 0z` +
+    `M${-RUEDA_ANILLO} 0a${RUEDA_ANILLO} ${RUEDA_ANILLO} 0 1 0 ${2 * RUEDA_ANILLO} 0a${RUEDA_ANILLO} ${RUEDA_ANILLO} 0 1 0 ${-2 * RUEDA_ANILLO} 0z`;
+  const ruedas = RUEDAS.map(([cx, cy], i) => {
+    const g = nodo('g', {}, $('ruedas'));
+    nodo('path', { d: ANILLO, fill: LOGO_COLOR, 'fill-rule': 'evenodd' }, g);
+    nodo('circle', { r: RUEDA_CENTRO, fill: LOGO_COLOR }, g);
+    // Un círculo perfecto no se ve girar: los rayos existen solo mientras la M se mueve.
+    const rayos = nodo('g', { opacity: 0 }, g);
+    for (const giro of [0, 120, 240]) {
+      nodo('rect', {
+        x: -5, y: -RUEDA_ANILLO - 2, width: 10, height: RUEDA_ANILLO - RUEDA_CENTRO + 6,
+        fill: LOGO_COLOR, transform: `rotate(${giro})`,
+      }, rayos);
+    }
+    return { g, rayos, cx, cy, rebota: i === 1 };
+  });
+
+  const marcadores = INTEGRANTES.map((m, i) => {
+    const g = nodo('g', { opacity: 0 }, $('marcadores'));
+    if (m.soyYo) {
+      nodo('circle', { r: MARCADOR_AVATAR / 2 + MARCADOR_ANILLO / 2, fill: 'none', stroke: '#15803d', 'stroke-width': MARCADOR_ANILLO }, g);
+    }
+    nodo('circle', { r: MARCADOR_AVATAR / 2, fill: m.color }, g);
+    const texto = nodo('text', { class: 'iniciales', 'font-size': Math.round(26 * 0.38) / ESCALA_INICIAL }, g);
+    texto.textContent = m.iniciales;
+    return { ...m, g, esUltimo: i === INTEGRANTES.length - 1 };
+  });
+
+  const letras = LETRAS.map((l) => {
+    const ancho = l.ancho * ESCALA_FINAL;
+    const izquierda = LOGOTIPO_IZQUIERDA + (l.x - M_CAJA.x) * ESCALA_FINAL;
+    // Arranca escondida detrás de la M y sale hacia su lugar.
+    const recorrido = izquierda + ancho - BORDE_FINAL + 6;
+    const mover = nodo('g', {}, $('letras'));
+    const ubicar = nodo('g', {
+      transform: `translate(${LOGOTIPO_IZQUIERDA - M_CAJA.x * ESCALA_FINAL} ${ESCENA_CENTRO_Y - M_CENTRO_Y * ESCALA_FINAL}) scale(${ESCALA_FINAL})`,
+    }, mover);
+    nodo('path', { d: l.d, fill: LOGO_COLOR, transform: `translate(${l.x} ${LETRAS_Y})` }, ubicar);
+    return { ...l, mover, recorrido };
+  });
+
+  // --- Cuadro a cuadro ----------------------------------------------------------
+  function dibujar(t) {
+    $('m').setAttribute('transform',
+      `translate(${centroM(t)} ${ESCENA_CENTRO_Y}) scale(${escalaM(t)}) translate(${-M_CENTRO_X} ${-M_CENTRO_Y})`);
+    const a = inclinacion(avance(t, SALIDA_INICIO, SALIDA_FIN));
+    $('cuerpo').setAttribute('transform', `translate(0 ${PIVOTE_Y}) skewX(${a}) translate(0 ${-PIVOTE_Y})`);
+    // Las letras solo se ven a la derecha de la M, que se va moviendo.
+    $('recorteRect').setAttribute('x', bordeDerechoM(t));
+
+    for (const r of ruedas) {
+      let escala = 1;
+      if (r.rebota) {
+        const llegada = Math.min(1, Math.max(0, (cabeza(t) - RUTA_LARGO) / SEPARACION_MAXIMA));
+        escala = 1 + 0.1 * Math.sin(Math.PI * llegada);
+      }
+      r.g.setAttribute('transform', `translate(${r.cx} ${r.cy}) scale(${escala})`);
+      r.rayos.setAttribute('opacity',
+        avance(t, SALIDA_INICIO, SALIDA_INICIO + 120) * (1 - avance(t, SALIDA_INICIO + 620, SALIDA_INICIO + 800)));
+      r.rayos.setAttribute('transform', `rotate(${-1500 * suave(avance(t, SALIDA_INICIO, SALIDA_INICIO + 660))})`);
+    }
+
+    for (const m of marcadores) {
+      const atraso = m.esUltimo ? ATRASO_ULTIMO * Math.sin(Math.PI * avance(t, RECORRIDO_INICIO, RECORRIDO_FIN)) : 0;
+      const pos = cabeza(t) - m.separacion - atraso;
+      if (pos <= 0 || pos >= RUTA_LARGO) { m.g.setAttribute('opacity', 0); continue; }
+      const centro = puntoRuta(pos);
+      const atras = puntoRuta(pos - 3);
+      const adelante = puntoRuta(pos + 3);
+      const nx = -(adelante[1] - atras[1]);
+      const ny = adelante[0] - atras[0];
+      const largo = Math.hypot(nx, ny) || 1;
+      const extremo = Math.min(1, pos / 90, (RUTA_LARGO - pos) / 90);
+      const vaiven = 12 * Math.sin(pos / 170 + m.fase) * extremo;
+      const x = centro[0] + (nx / largo) * vaiven;
+      const y = centro[1] + (ny / largo) * vaiven;
+      const escala = Math.max(0.001, Math.min(1, pos / 110, (RUTA_LARGO - pos) / 110));
+      m.g.setAttribute('opacity', 1);
+      m.g.setAttribute('transform', `translate(${x} ${y}) scale(${escala})`);
+    }
+
+    for (const l of letras) {
+      const u = avance(t, l.inicio, l.inicio + LETRA_DURACION);
+      l.mover.setAttribute('transform', `translate(${-l.recorrido * Math.pow(1 - u, 3)} 0)`);
+    }
+  }
+
+  /** Parte del logo formado (dibujar(FIN)): solo cambia la M, las ruedas y las letras. */
+  function dibujarSalida(s, salidaX) {
+    for (const l of letras) {
+      const u = avance(FIN_LETRAS - s, l.inicio, l.inicio + LETRA_DURACION);
+      l.mover.setAttribute('transform', `translate(${-l.recorrido * Math.pow(1 - u, 3)} 0)`);
+    }
+
+    const vuelve = suave(avance(s, S_LETRAS_FIN, S_VUELVE_FIN));
+    const amague = Math.sin(Math.PI * avance(s, S_VUELVE_FIN, S_ARRANCA));
+    const sale = avance(s, S_ARRANCA, S_SALE_FIN);
+    const escala = ESCALA_FINAL + (ESCALA_INICIAL - ESCALA_FINAL) * vuelve;
+    const x = X_FINAL + (X_INICIAL - X_FINAL) * vuelve - 8 * amague + (salidaX - X_INICIAL) * Math.pow(sale, 2.4);
+    // Al arrancar se echa hacia atrás, como en la entrada pero para el otro lado.
+    const inclina = -3 * amague + 9 * Math.sin((Math.PI / 2) * Math.min(1, sale / 0.35));
+
+    $('m').setAttribute('transform',
+      `translate(${x} ${ESCENA_CENTRO_Y}) scale(${escala}) translate(${-M_CENTRO_X} ${-M_CENTRO_Y})`);
+    $('cuerpo').setAttribute('transform', `translate(0 ${PIVOTE_Y}) skewX(${inclina}) translate(0 ${-PIVOTE_Y})`);
+    $('recorteRect').setAttribute('x', x + M_MITAD * escala);
+    for (const r of ruedas) {
+      r.g.setAttribute('transform', `translate(${r.cx} ${r.cy})`);
+      r.rayos.setAttribute('opacity', avance(s, S_LETRAS_FIN, S_LETRAS_FIN + 120));
+      r.rayos.setAttribute('transform', `rotate(${(x - X_FINAL) * GIRO_POR_UNIDAD})`);
+    }
+  }
+
+  /** Borde derecho de la pantalla más media M, en unidades de la escena. */
+  function fueraDePantalla() {
+    const anchoEscena = $('escena').getBoundingClientRect().width || innerWidth;
+    return ESCENA_ANCHO / 2 + (ESCENA_ANCHO * innerWidth) / anchoEscena / 2 + 90;
+  }
+
+  // entrada → formado → saliendo → fin
+  let fase = 'entrada';
+  let pidioSalida = false;
+  let inicio = 0;
+  let cuadro = 0;
+  let temporizador = 0;
+
+  function animar(ahora) {
+    const t = Math.min(FIN, Math.max(0, (ahora - inicio - ESPERA_MS) / LENTO));
+    dibujar(t);
+    if (t < FIN) { cuadro = requestAnimationFrame(animar); return; }
+    fase = 'formado';
+    if (pidioSalida) salir();
+  }
+
+  function salir() {
+    if (fase === 'entrada') { pidioSalida = true; return; }   // primero termina de formarse
+    if (fase !== 'formado') return;
+    fase = 'saliendo';
+    const salidaX = fueraDePantalla();
+    const desde = performance.now();
+    const paso = (ahora) => {
+      const s = Math.min(S_SALE_FIN, (ahora - desde) / LENTO);
+      dibujarSalida(s, salidaX);
+      if (s < S_SALE_FIN) { cuadro = requestAnimationFrame(paso); return; }
+      fase = 'fin';
+      document.body.classList.add('fuera');
+      temporizador = setTimeout(() => { document.title = TITULO_FIN; }, 1600);
+    };
+    cuadro = requestAnimationFrame(paso);
+  }
+
+  function empezar() {
+    cancelAnimationFrame(cuadro);
+    clearTimeout(temporizador);
+    fase = 'entrada';
+    pidioSalida = false;
+    document.title = TITULO;
+    document.body.classList.remove('fuera');
+    dibujar(0);
+    // La M aparece de a poco mientras se van los celulares; después arranca.
+    requestAnimationFrame(() => $('escena').classList.add('visible'));
+    inicio = performance.now();
+    cuadro = requestAnimationFrame(animar);
+  }
+  empezar();
+
+  addEventListener('keydown', (e) => {
+    if (e.ctrlKey && e.altKey && e.code === 'KeyQ') {
+      e.preventDefault();
+      if (!e.repeat) salir();
+      return;
+    }
+    const k = e.key.toLowerCase();
+    if (k === 'r') empezar();
+    if (k !== 'f') return;
+    if (document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen();
+  });
+</script>
+</body>
+</html>

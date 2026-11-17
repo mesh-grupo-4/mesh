@@ -18,7 +18,11 @@
   Atajos (funcionan desde cualquier ventana):
     Ctrl+Alt+M  mostrar los celulares       Ctrl+Alt+R  reconectar
     Ctrl+Alt+I  invertir lados              Ctrl+Alt+C  mostrar/ocultar consola
-    Ctrl+Alt+Q  finalizar
+    Ctrl+Alt+1  quitar / volver a conectar el celular de la izquierda
+    Ctrl+Alt+2  quitar / volver a conectar el celular de la derecha
+    Ctrl+Alt+Q  finalizar: se van los celulares y se forma el logo de Mesh
+                (cierre.html). Queda ahí hasta otro Ctrl+Alt+Q: Mesh se va
+                andando y se cierra todo.
 
 .EXAMPLE
   .\espejar-celulares.ps1
@@ -56,6 +60,11 @@ $FRACCION_ARRIBA = 0.13          # borde superior de los celulares
 $FRACCION_ALTO = 0.74            # alto de los celulares
 $CENTROS_DOS = @(0.30, 0.70)
 $CENTROS_UNO = @(0.50)
+
+# --- Cierre con la animación de Mesh (parámetros de cierre.html) --------------
+$CIERRE_LENTITUD = 3.5           # cuántas veces más lenta que en la app
+$CIERRE_ESPERA = 1.5             # segundos quieta mientras se van los celulares
+$CIERRE_TITULO_FIN = 'Hasta pronto'   # título que pone cierre.html cuando Mesh ya se fue
 
 function Escribir-Paso([string]$texto) { Write-Host "`n> $texto" -ForegroundColor Cyan }
 function Fallar([string]$texto) {
@@ -124,6 +133,7 @@ public class MeshAtajos : NativeWindow, IDisposable {
 $logs = Join-Path $env:TEMP 'mesh-presentacion'
 New-Item -ItemType Directory -Force $logs | Out-Null
 $perfil = Join-Path $logs 'perfil-navegador'
+$perfilCierre = Join-Path $logs 'perfil-cierre'    # otra instancia: se abre encima del escenario
 $archivoWifi = Join-Path $logs 'wifi.txt'          # direcciones WiFi de la última vez
 $archivoDnd = Join-Path $logs 'no-molestar.txt'    # modo No molestar previo de cada celular
 $archivoCerrar = Join-Path $logs 'cerrar.pedido'   # lo crea -Cerrar para pedir el cierre
@@ -177,10 +187,49 @@ function Listar-Dispositivos {
 }
 
 # Edge y Chrome se relanzan a sí mismos: el proceso que devuelve Start-Process
-# termina enseguida. El escenario se reconoce por su perfil propio.
-function Procesos-Escenario {
+# termina enseguida. El escenario y el cierre se reconocen por su perfil propio.
+function Procesos-Navegador([string]$dir) {
   @(Get-CimInstance Win32_Process -Filter "Name='msedge.exe' OR Name='chrome.exe'" |
-    Where-Object { $_.CommandLine -and $_.CommandLine.Contains($perfil) -and $_.CommandLine -notmatch '--type=' })
+    Where-Object { $_.CommandLine -and $_.CommandLine.Contains($dir) -and $_.CommandLine -notmatch '--type=' })
+}
+function Procesos-Escenario { Procesos-Navegador $perfil }
+
+function Proceso-Con-Ventana([string]$dir) {
+  Procesos-Navegador $dir | ForEach-Object { Get-Process -Id $_.ProcessId -ErrorAction SilentlyContinue } |
+    Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero } | Select-Object -First 1
+}
+
+function Ventana-Navegador([string]$dir) {
+  $p = Proceso-Con-Ventana $dir
+  if ($p) { return $p.MainWindowHandle }
+  return [IntPtr]::Zero
+}
+
+# El título de la ventana es el de la página.
+function Titulo-Navegador([string]$dir) {
+  $p = Proceso-Con-Ventana $dir
+  if ($p) { return $p.MainWindowTitle }
+  return ''
+}
+
+function Buscar-Navegador {
+  @(
+    "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe",
+    "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe",
+    "$env:ProgramFiles\Google\Chrome\Application\chrome.exe",
+    "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe"
+  ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+}
+
+# Pantalla completa sin barras, con un perfil propio para poder cerrarlo después.
+function Abrir-Kiosco([string]$navegador, [string]$url, [string]$dir) {
+  $argsNav = @(
+    "--kiosk", "`"$url`"", "--edge-kiosk-type=fullscreen",
+    "--user-data-dir=`"$dir`"", "--no-first-run", "--no-default-browser-check",
+    "--lang=es-AR", "--disable-features=Translate,msEdgeTranslate",
+    "--window-position=$($b.X + 40),$($b.Y + 40)"
+  )
+  Start-Process -FilePath $navegador -ArgumentList $argsNav | Out-Null
 }
 
 # --- No molestar -------------------------------------------------------------
@@ -295,6 +344,7 @@ if ($Cerrar) {
   }
   Get-Process scrcpy -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
   foreach ($p in Procesos-Escenario) { Matar-Proceso $p.ProcessId -Arbol }
+  foreach ($p in Procesos-Navegador $perfilCierre) { Matar-Proceso $p.ProcessId -Arbol }
   Restaurar-No-Molestar
   Detener-Zona
   Remove-Item $archivoCerrar -Force -ErrorAction SilentlyContinue
@@ -603,6 +653,7 @@ for ($i = 0; $i -lt $celulares.Count; $i++) {
     X = 0; Y = 0; AnchoVentana = 0; AltoVentana = 0
     Proceso = $null; Hwnd = [IntPtr]::Zero; Log = $null
     ProximoIntento = [datetime]::MinValue; Caido = $false
+    Pausado = $false   # quitado con Ctrl+Alt+1/2: no se reconecta solo
   }
   $lado = 'centro'
   if ($celulares.Count -eq 2) { if ($i -eq 0) { $lado = 'izquierda' } else { $lado = 'derecha' } }
@@ -732,11 +783,7 @@ function Mandar-Atras($v) {
   [MeshVentana]::SetWindowPos($v.Hwnd, $despues, 0, 0, 0, 0, $SOLO_ORDEN) | Out-Null
 }
 
-function Buscar-Escenario {
-  $p = Procesos-Escenario | ForEach-Object { Get-Process -Id $_.ProcessId -ErrorAction SilentlyContinue } |
-    Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero } | Select-Object -First 1
-  if ($p) { $script:hwndEscenario = $p.MainWindowHandle }
-}
+function Buscar-Escenario { $script:hwndEscenario = Ventana-Navegador $perfil }
 
 function Escena-En-Foco {
   $foco = [MeshVentana]::GetForegroundWindow()
@@ -787,7 +834,68 @@ function Alternar-Consola {
   }
 }
 
-function Finalizar { $script:contexto.ExitThread() }
+# Saca un celular de la presentación (para seguir con uno solo) o, si ya estaba
+# afuera, lo vuelve a conectar. $lado: 0 izquierda, 1 derecha, según dónde está
+# ahora (Invertir lados los cambia). Con un solo celular, el 0 es el del centro.
+function Alternar-Celular([int]$lado) {
+  $ordenados = @($espejos | Sort-Object Centro)
+  if ($lado -ge $ordenados.Count) { return }
+  $v = $ordenados[$lado]
+  if ($v.Pausado) {
+    $v.Pausado = $false
+    $v.Caido = $true                          # así avisa "Reconectado" cuando vuelve
+    $v.ProximoIntento = [datetime]::MinValue  # el vigilante lo reintenta ya
+    Write-Host "  Volviendo a conectar a $($v.Nombre) ($($v.Modelo))..." -ForegroundColor Cyan
+  } else {
+    $v.Pausado = $true
+    if ($v.Proceso -and -not $v.Proceso.HasExited) { Stop-Process -Id $v.Proceso.Id -Force -ErrorAction SilentlyContinue }
+    $v.Hwnd = [IntPtr]::Zero
+    $atajo = $lado + 1
+    Write-Host "  Quité a $($v.Nombre) ($($v.Modelo)). Ctrl+Alt+$atajo para volver a conectarlo." -ForegroundColor Cyan
+  }
+}
+
+# Ctrl+Alt+Q y el menú cierran con la animación de Mesh; "Cerrar presentacion.cmd"
+# cierra directo.
+$conCierre = $false
+function Finalizar([switch]$ConAnimacion) {
+  if ($ConAnimacion) { $script:conCierre = $true }
+  $script:contexto.ExitThread()
+}
+
+# Abre cierre.html encima de todo y espera a que aparezca. Devuelve $false si
+# no hay navegador.
+function Abrir-Cierre {
+  $navegador = Buscar-Navegador
+  if (-not $navegador) { return $false }
+  $inv = [Globalization.CultureInfo]::InvariantCulture
+  $query = 'lento={0}&espera={1}' -f $CIERRE_LENTITUD.ToString($inv), $CIERRE_ESPERA.ToString($inv)
+  $url = ([uri](Join-Path $PSScriptRoot 'cierre.html')).AbsoluteUri + '?' + $query
+  Abrir-Kiosco $navegador $url $perfilCierre
+  $cronometro = [Diagnostics.Stopwatch]::StartNew()
+  $hwnd = [IntPtr]::Zero
+  while ($hwnd -eq [IntPtr]::Zero -and $cronometro.Elapsed.TotalSeconds -lt 8) {
+    Start-Sleep -Milliseconds 200
+    $hwnd = Ventana-Navegador $perfilCierre
+  }
+  if ($hwnd -ne [IntPtr]::Zero) { [MeshVentana]::Enfocar($hwnd) | Out-Null }
+  return $true
+}
+
+# El logo queda formado sin límite de tiempo. El segundo Ctrl+Alt+Q lo recibe la
+# página (los atajos globales ya se soltaron): Mesh se va andando, la pantalla
+# se funde a negro y la página cambia el título, que es la señal para cerrarla.
+# También termina si cierran la ventana (Alt+F4) o corren "Cerrar presentacion.cmd".
+function Esperar-Cierre {
+  Write-Host '  Logo de Mesh en pantalla. Ctrl+Alt+Q para que se vaya (o Alt+F4).'
+  while ($true) {
+    if (Test-Path $archivoCerrar) { break }
+    if (@(Procesos-Navegador $perfilCierre).Count -eq 0) { break }
+    if ((Titulo-Navegador $perfilCierre) -match [regex]::Escape($CIERRE_TITULO_FIN)) { break }
+    Start-Sleep -Milliseconds 500
+  }
+  foreach ($p in Procesos-Navegador $perfilCierre) { Matar-Proceso $p.ProcessId -Arbol }
+}
 
 function Cargar-Icono {
   $png = Join-Path $PSScriptRoot '..\..\frontend\assets\images\favicon.png'
@@ -808,6 +916,7 @@ function Vigilar {
   if (Test-Path $archivoCerrar) { Finalizar; return }
 
   foreach ($v in $espejos) {
+    if ($v.Pausado) { continue }
     if (-not $v.Proceso -or $v.Proceso.HasExited) { $v.Hwnd = [IntPtr]::Zero; Reintentar $v; continue }
     if ($v.Hwnd -eq [IntPtr]::Zero) { Buscar-Ventana $v }
   }
@@ -842,12 +951,7 @@ try {
 
   if (-not $SinEscenario) {
     Escribir-Paso 'Abriendo el escenario'
-    $navegador = @(
-      "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe",
-      "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe",
-      "$env:ProgramFiles\Google\Chrome\Application\chrome.exe",
-      "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe"
-    ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+    $navegador = Buscar-Navegador
     if (-not $navegador) {
       Write-Host '  No encontré Edge ni Chrome: sigo sin escenario.' -ForegroundColor Yellow
       $SinEscenario = $true
@@ -861,13 +965,7 @@ try {
         '{0}={1}' -f $_.Key, [uri]::EscapeDataString(([string]$_.Value).Replace(',', '.'))
       }) -join '&'
       $url = ([uri](Join-Path $PSScriptRoot 'escenario.html')).AbsoluteUri + '?' + $query
-      $argsNav = @(
-        "--kiosk", "`"$url`"", "--edge-kiosk-type=fullscreen",
-        "--user-data-dir=`"$perfil`"", "--no-first-run", "--no-default-browser-check",
-        "--lang=es-AR", "--disable-features=Translate,msEdgeTranslate",
-        "--window-position=$($b.X + 40),$($b.Y + 40)"
-      )
-      Start-Process -FilePath $navegador -ArgumentList $argsNav | Out-Null
+      Abrir-Kiosco $navegador $url $perfil
       $espera = [Diagnostics.Stopwatch]::StartNew()
       while ($hwndEscenario -eq [IntPtr]::Zero -and $espera.Elapsed.TotalSeconds -lt 10) {
         Start-Sleep -Milliseconds 300
@@ -919,7 +1017,10 @@ try {
     @{ Texto = 'Invertir lados';                Atajo = 'Ctrl+Alt+I'; Id = 4; Tecla = 'I'; Accion = { Invertir-Lados } },
     @{ Texto = 'Mostrar u ocultar la consola';  Atajo = 'Ctrl+Alt+C'; Id = 5; Tecla = 'C'; Accion = { Alternar-Consola } },
     $null,
-    @{ Texto = 'Finalizar presentación';        Atajo = 'Ctrl+Alt+Q'; Id = 1; Tecla = 'Q'; Accion = { Finalizar } }
+    @{ Texto = 'Quitar o reconectar el celular izquierdo'; Atajo = 'Ctrl+Alt+1'; Id = 6; Tecla = 'D1'; Accion = { Alternar-Celular 0 } },
+    @{ Texto = 'Quitar o reconectar el celular derecho';   Atajo = 'Ctrl+Alt+2'; Id = 7; Tecla = 'D2'; Accion = { Alternar-Celular 1 } },
+    $null,
+    @{ Texto = 'Finalizar presentación';        Atajo = 'Ctrl+Alt+Q'; Id = 1; Tecla = 'Q'; Accion = { Finalizar -ConAnimacion } }
   )
   $accionesPorId = @{}
   $atajos = New-Object MeshAtajos
@@ -952,7 +1053,8 @@ try {
   Write-Host "`nTodo listo." -ForegroundColor Green
   Write-Host '  El control queda en el ícono de Mesh de la bandeja (al lado del reloj).'
   Write-Host '  Ctrl+Alt+M mostrar celulares   Ctrl+Alt+R reconectar   Ctrl+Alt+I invertir'
-  Write-Host '  Ctrl+Alt+C consola             Ctrl+Alt+Q finalizar'
+  Write-Host '  Ctrl+Alt+C consola             Ctrl+Alt+1 / 2 quitar o reconectar el celular izquierdo / derecho'
+  Write-Host '  Ctrl+Alt+Q finalizar (con la animación de Mesh)'
   if ($sinAtajo.Count -gt 0) {
     Write-Host "  Otro programa ya usa: $($sinAtajo -join ', '). Usá el menú del ícono." -ForegroundColor Yellow
   }
@@ -974,12 +1076,21 @@ finally {
   if ($reloj) { $reloj.Stop(); $reloj.Dispose() }
   if ($icono) { $icono.Visible = $false; $icono.Dispose() }
   if ($atajos) { $atajos.Dispose() }
+  # Con Ctrl+Alt+Q la animación se abre primero, encima del escenario: así al
+  # irse los celulares no se ve el escritorio. No molestar y la zona se
+  # restauran mientras el logo está en pantalla.
+  $hayCierre = $false
+  if ($conCierre -and -not $fallo -and -not $SinEscenario) {
+    Escribir-Paso 'Cerrando con la animación de Mesh'
+    try { $hayCierre = Abrir-Cierre } catch { Write-Host "  No pude abrir la animación: $_" -ForegroundColor Yellow }
+  }
   foreach ($v in $espejos) {
     if ($v.Proceso -and -not $v.Proceso.HasExited) { Matar-Proceso $v.Proceso.Id -Arbol }
   }
   foreach ($p in Procesos-Escenario) { Matar-Proceso $p.ProcessId -Arbol }
   Restaurar-No-Molestar
   Detener-Zona
+  if ($hayCierre) { Esperar-Cierre }
   Remove-Item $archivoCerrar -Force -ErrorAction SilentlyContinue
 }
 if ($fallo) { exit 1 }
