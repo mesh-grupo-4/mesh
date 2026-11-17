@@ -108,6 +108,11 @@ export default function ViajesGrupoScreen() {
       );
       return;
     }
+    // Un viaje finalizado va directo a su resumen: pasar por el detalle mostraba un salto de pantalla.
+    if (v.estado === 'finalizado') {
+      router.push({ pathname: '/viaje/[viajeId]/resumen', params: { viajeId: v.id } });
+      return;
+    }
     router.push({ pathname: '/viaje/[viajeId]', params: { viajeId: v.id } });
   };
 

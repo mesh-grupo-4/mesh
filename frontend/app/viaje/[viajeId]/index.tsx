@@ -1017,7 +1017,12 @@ export default function ViajeDetalleScreen() {
               <View style={[styles.alertConfigCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                 <Pressable
                   onPress={() => setParticipantesAbierto((v) => !v)}
-                  style={({ pressed }) => [styles.alertConfigHeader, { opacity: pressed ? 0.7 : 1 }]}
+                  hitSlop={6}
+                  style={({ pressed }) => [
+                    styles.participantesHeader,
+                    !participantesAbierto && styles.participantesHeaderCerrado,
+                    { opacity: pressed ? 0.7 : 1 },
+                  ]}
                   accessibilityRole="button"
                   accessibilityLabel="Participantes"
                   accessibilityState={{ expanded: participantesAbierto }}
@@ -1028,7 +1033,7 @@ export default function ViajeDetalleScreen() {
                   </Text>
                   <Feather
                     name={participantesAbierto ? 'chevron-up' : 'chevron-down'}
-                    size={16}
+                    size={22}
                     color={theme.textDim}
                   />
                 </Pressable>
@@ -1522,10 +1527,20 @@ const styles = StyleSheet.create({
     padding: 11,
     gap: 8,
   },
-  alertConfigHeader: {
+  // Ocupa todo el ancho de la tarjeta (anula su padding) y una altura cómoda para el dedo.
+  participantesHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    minHeight: 52,
+    marginHorizontal: -11,
+    marginTop: -11,
+    paddingHorizontal: 11,
+    paddingVertical: 14,
+  },
+  // Cerrada, la cabecera es toda la tarjeta: se toca en cualquier parte.
+  participantesHeaderCerrado: {
+    marginBottom: -11,
   },
   alertConfigTitle: {
     flex: 1,

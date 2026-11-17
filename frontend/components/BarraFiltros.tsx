@@ -41,9 +41,9 @@ const TRANSICION = LinearTransition.duration(240)
  * Fila de herramientas de los listados (Viajes, Entrenar, Grupos, Rutas): a la
  * izquierda la lupa y el botón "Filtros", a la derecha el resumen.
  * Scrollea con la lista: nada queda fijo arriba. La lupa se estira en la misma
- * fila hasta ser el campo de búsqueda, empujando "Filtros" a la derecha y
- * ocultando el resumen hasta que se vuelve a cerrar. Los filtros viven en su
- * propia pantalla.
+ * fila hasta ser el campo de búsqueda, empujando "Filtros" a la derecha (que
+ * queda solo con su ícono) y ocultando el resumen hasta que se vuelve a cerrar.
+ * Los filtros viven en su propia pantalla.
  */
 export function HerramientasLista({
   resumen,
@@ -136,25 +136,40 @@ export function HerramientasLista({
           </Animated.View>
         ) : null}
 
+        {/* Con la búsqueda abierta el botón se achica al ícono: la lupa gana ese ancho y los filtros siguen a mano. */}
         {filtros ? (
-          <Animated.View layout={TRANSICION}>
+          <Animated.View
+            layout={TRANSICION}
+            style={[
+              styles.botonFiltros,
+              {
+                backgroundColor: conFiltros ? theme.accentWeak : theme.surface,
+                borderColor: conFiltros ? theme.accent : theme.border,
+              },
+            ]}
+          >
             <Pressable
               onPress={filtros.onPress}
               hitSlop={4}
               accessibilityRole="button"
               accessibilityLabel={conFiltros ? `Filtros, ${filtros.cantidad} aplicados` : 'Filtros'}
               style={({ pressed }) => [
-                styles.botonFiltros,
-                {
-                  backgroundColor: conFiltros ? theme.accentWeak : pressed ? theme.surface2 : theme.surface,
-                  borderColor: conFiltros ? theme.accent : theme.border,
-                },
+                styles.botonFiltrosToque,
+                abierto && styles.botonFiltrosCompacto,
+                pressed && !conFiltros && { backgroundColor: theme.surface2 },
               ]}
             >
               <Feather name="sliders" size={15} color={conFiltros ? theme.accent : theme.text} />
-              <Text style={[styles.botonFiltrosTexto, { color: conFiltros ? theme.accent : theme.text }]}>
-                Filtros
-              </Text>
+              {!abierto ? (
+                <Animated.Text
+                  entering={FadeIn.duration(180).delay(80)}
+                  exiting={FadeOut.duration(100)}
+                  numberOfLines={1}
+                  style={[styles.botonFiltrosTexto, { color: conFiltros ? theme.accent : theme.text }]}
+                >
+                  Filtros
+                </Animated.Text>
+              ) : null}
               {conFiltros ? (
                 <View style={[styles.contador, { backgroundColor: theme.accent }]}>
                   <Text style={[styles.contadorTexto, { color: theme.onAccent }]}>{filtros.cantidad}</Text>
@@ -265,15 +280,18 @@ const styles = StyleSheet.create({
   lupaToque: { flex: 1, alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center' },
   buscadorInput: { flex: 1, fontSize: 15, padding: 0 },
   cerrarBusqueda: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
-  botonFiltros: {
+  // El borde y el fondo van en la caja animada para que se achiquen junto con ella.
+  botonFiltros: { height: 40, borderRadius: 20, borderWidth: 1, overflow: 'hidden' },
+  botonFiltrosToque: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 7,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 1,
+    height: 38,
+    borderRadius: 19,
     paddingHorizontal: 14,
   },
+  // Solo el ícono: 11.5 + 15 + 11.5 + borde = 40, el mismo círculo que la lupa cerrada.
+  botonFiltrosCompacto: { paddingHorizontal: 11.5, justifyContent: 'center' },
   botonFiltrosTexto: { fontSize: 14.5, fontWeight: '700' },
   contador: {
     minWidth: 19,

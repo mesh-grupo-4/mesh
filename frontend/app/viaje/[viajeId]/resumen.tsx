@@ -450,6 +450,16 @@ export default function ViajeResumenScreen() {
   // Privacidad y compartir ruta: en la pestaña Configuración (grupal) o al final del resumen.
   const accionesViaje = esPropio ? (
     <View style={styles.acciones}>
+      {/* RN-111/112: el registro de quién vio tu posición se consulta también después del viaje. */}
+      <Btn
+        variant="secondary"
+        block
+        size="sm"
+        icon="shield"
+        onPress={() => router.push({ pathname: '/viaje/[viajeId]/privacidad', params: { viajeId } })}
+      >
+        Privacidad y ubicación
+      </Btn>
       {puedeCompartirRuta ? (
         <>
           <Btn
@@ -470,16 +480,6 @@ export default function ViajeResumenScreen() {
           ) : null}
         </>
       ) : null}
-      {/* RN-111/112: el registro de quién vio tu posición se consulta también después del viaje. */}
-      <Btn
-        variant="secondary"
-        block
-        size="sm"
-        icon="shield"
-        onPress={() => router.push({ pathname: '/viaje/[viajeId]/privacidad', params: { viajeId } })}
-      >
-        Privacidad y ubicación
-      </Btn>
     </View>
   ) : null
 

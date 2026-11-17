@@ -223,6 +223,12 @@ function TarjetaViaje({
     </>
   )
 
+  // Un viaje finalizado va directo a su resumen: pasar por el detalle mostraba un salto de pantalla.
+  const abrir = () =>
+    v.estado === 'finalizado'
+      ? router.push({ pathname: '/viaje/[viajeId]/resumen', params: { viajeId: v.id } })
+      : router.push({ pathname: '/viaje/[viajeId]', params: { viajeId: v.id } })
+
   if (!onEnterSelection || !onToggle) {
     return (
       <Pressable
@@ -231,7 +237,7 @@ function TarjetaViaje({
           { backgroundColor: theme.surface, borderColor: theme.border },
           dimmed && styles.tarjetaDimmed,
         ]}
-        onPress={() => router.push({ pathname: '/viaje/[viajeId]', params: { viajeId: v.id } })}
+        onPress={abrir}
       >
         {contenido}
       </Pressable>
@@ -246,7 +252,7 @@ function TarjetaViaje({
       disabled={!selectable}
       onEnterSelection={onEnterSelection}
       onToggle={onToggle}
-      onPress={() => router.push({ pathname: '/viaje/[viajeId]', params: { viajeId: v.id } })}
+      onPress={abrir}
       onDisabledPress={onDisabledPress}
       style={[
         styles.tarjeta,
@@ -288,7 +294,8 @@ function TarjetaFinalizado({
       disabled={!selectable}
       onEnterSelection={onEnterSelection ?? (() => {})}
       onToggle={onToggle ?? (() => {})}
-      onPress={() => router.push({ pathname: '/viaje/[viajeId]', params: { viajeId: v.id } })}
+      // Directo al resumen: pasar por el detalle mostraba un salto de pantalla.
+      onPress={() => router.push({ pathname: '/viaje/[viajeId]/resumen', params: { viajeId: v.id } })}
       style={[styles.tarjeta, styles.tarjetaDimmed, { backgroundColor: theme.surface, borderColor: theme.border }]}
     >
       <View style={styles.tarjetaHeader}>
@@ -963,7 +970,9 @@ const styles = StyleSheet.create({
   // Tarjetas
   tarjeta: { borderRadius: 14, padding: 14, borderWidth: 1.2, gap: 6 },
   tarjetaDimmed: { opacity: 0.75 },
-  tarjetaHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  // minHeight = alto del botón de quitar (18 + padding 4·2): con o sin tacho,
+  // los badges quedan a la misma distancia del ícono.
+  tarjetaHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 26 },
   botonQuitar: { padding: 4, marginLeft: 2 },
   tarjetaTitulo: { flex: 1, fontSize: 15.5, fontWeight: '700' },
   tarjetaMeta: { fontSize: 13, lineHeight: 18 },

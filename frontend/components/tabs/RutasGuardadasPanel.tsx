@@ -266,7 +266,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 14,
     marginHorizontal: 20,
-    marginBottom: 12,
     gap: 10,
   },
   nombre: { fontSize: 16, fontWeight: '700' },

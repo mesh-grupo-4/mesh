@@ -2,7 +2,6 @@ import React from 'react';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Tabs } from 'expo-router';
 import { useTheme } from '@/components/MeshUI';
-import { CenterInicioTabButton } from '@/components/CenterInicioTabButton';
 import { capaBlurTab } from '@/components/BlurTargetTab';
 import { MeshTabBar } from '@/components/MeshTabBar';
 import { useAuth } from '@/context/AuthContext';
@@ -45,9 +44,7 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Inicio',
-          tabBarIcon: () => null,
-          tabBarLabel: () => null,
-          tabBarButton: (props) => <CenterInicioTabButton {...props} />,
+          tabBarIcon: ({ color }) => <TabBarIcon name="home" color={color} />,
         }}
       />
       <Tabs.Screen
