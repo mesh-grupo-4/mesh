@@ -259,6 +259,15 @@ TipoActividadPath:
     $ref: './schemas.yaml#/TipoActividad'
   example: moto
 
+CategoriaParadaPath:
+  name: categoria
+  in: path
+  required: true
+  description: Categoría de parada planificable (RN-134).
+  schema:
+    $ref: './schemas.yaml#/CategoriaParadaPlanificable'
+  example: gastronomia
+
 InsigniaId:
   name: insigniaId
   in: path

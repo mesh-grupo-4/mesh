@@ -98,3 +98,24 @@ CalcularRuta:
               code: ROUTING_TIMEOUT
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'
+
+DuracionesParada:
+  get:
+    operationId: obtenerDuracionesParada
+    summary: Minutos promedio de parada por categoría
+    description: |
+      RN-134: minutos que suma cada parada planificada al tiempo estimado del viaje, según su categoría. El planificador los usa para mostrar el tiempo total con paradas antes de guardar la ruta. Los define el superadmin; mientras no lo haga rigen los del sistema.
+    tags:
+      - Routing
+    responses:
+      '200':
+        description: Minutos vigentes por categoría.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/DuracionesParadaVigentes'
+            example: {"minutos": {"combustible": 10, "descanso": 15, "gastronomia": 45, "sanitario": 10, "punto_control": 5, "otro": 15}}
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'

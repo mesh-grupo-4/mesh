@@ -523,7 +523,7 @@ export const AYUDA_ADMIN_REPORTES: PasoDefinicion[] = [
   {
     nombre: 'adminReportes.filtros',
     orden: ORDEN_PANTALLA.adminReportes + 1,
-    texto: 'Ajustá el rango de fechas (o los meses de retención) y, en algunas secciones, filtrá por actividad.',
+    texto: 'Elegí un atajo o tocá Desde y Hasta para cualquier período (hasta 2 años). En retención elegís los meses y, en algunas secciones, filtrás por actividad.',
   },
   {
     nombre: 'adminReportes.exportar',

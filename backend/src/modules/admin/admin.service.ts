@@ -6,6 +6,11 @@ import { transferirLiderazgo, type TransactionClient } from '../grupos/grupos.se
 import { ViajesService } from '../viajes/viajes.service'
 import { FotosPerfilService } from '../usuarios/usuarios.fotos'
 import { ACTIVIDADES_CHECKLIST, itemsSugeridos } from '../checklist/checklistDefaults'
+import {
+  CATEGORIAS_PLANIFICABLES,
+  minutosPorDefecto,
+  type CategoriaPlanificable,
+} from '../paradas/duracionesParada'
 import type {
   ActualizarInsigniaInput,
   ActualizarUsuarioAdminInput,
@@ -31,11 +36,13 @@ export type AccionAdmin =
   | 'viaje.eliminar'
   | 'checklist.definir_sugeridos'
   | 'checklist.restaurar_sugeridos'
+  | 'duracion_parada.definir'
+  | 'duracion_parada.restaurar'
   | 'insignia.crear'
   | 'insignia.editar'
   | 'insignia.eliminar'
 
-type EntidadAdmin = 'usuario' | 'grupo' | 'viaje' | 'checklist' | 'insignia'
+type EntidadAdmin = 'usuario' | 'grupo' | 'viaje' | 'checklist' | 'insignia' | 'duracion_parada'
 
 /**
  * Operaciones sobre la cuenta de Firebase. Se inyectan para poder testear el
@@ -769,6 +776,77 @@ export class AdminService {
         tipo_actividad: tipo,
       })
       await tx.checklistActividad.delete({ where: { id: fila.id } })
+    })
+    return predeterminada
+  }
+
+  // ── Duración promedio de paradas (RN-134) ───────────────────────────────
+
+  /**
+   * Minutos vigentes de cada categoría planificable. `personalizado: false` significa
+   * que rige el valor por defecto de `duracionesParada.ts`.
+   */
+  async listarDuracionesParada() {
+    const definidas = await this.prisma.duracionParada.findMany()
+    const porCategoria = new Map(definidas.map((d) => [d.categoria, d]))
+    return {
+      items: CATEGORIAS_PLANIFICABLES.map((categoria) => {
+        const definida = porCategoria.get(categoria)
+        return {
+          categoria,
+          minutos: definida ? definida.minutos : minutosPorDefecto(categoria),
+          minutos_por_defecto: minutosPorDefecto(categoria),
+          personalizado: !!definida,
+          updated_at: definida?.updated_at ?? null,
+        }
+      }),
+    }
+  }
+
+  /**
+   * Redefine los minutos promedio de una categoría. Rige para toda estimación que se
+   * calcule de acá en adelante, incluidas las rutas ya guardadas: el tiempo de
+   * paradas se calcula al leer la ruta, no se congela al guardarla.
+   */
+  async definirDuracionParada(actorId: string, categoria: CategoriaPlanificable, minutos: number) {
+    return this.prisma.$transaction(async (tx) => {
+      const fila = await tx.duracionParada.upsert({
+        where: { categoria },
+        create: { categoria, minutos },
+        update: { minutos },
+      })
+      await this.auditar(tx, actorId, 'duracion_parada.definir', 'duracion_parada', fila.id, {
+        categoria,
+        minutos,
+      })
+      return {
+        categoria,
+        minutos: fila.minutos,
+        minutos_por_defecto: minutosPorDefecto(categoria),
+        personalizado: true,
+        updated_at: fila.updated_at,
+      }
+    })
+  }
+
+  /** Vuelve al valor por defecto. Si la categoría no estaba personalizada, no hay nada que auditar. */
+  async restaurarDuracionParada(actorId: string, categoria: CategoriaPlanificable) {
+    const predeterminada = {
+      categoria,
+      minutos: minutosPorDefecto(categoria),
+      minutos_por_defecto: minutosPorDefecto(categoria),
+      personalizado: false,
+      updated_at: null,
+    }
+    const fila = await this.prisma.duracionParada.findUnique({ where: { categoria } })
+    if (!fila) return predeterminada
+
+    await this.prisma.$transaction(async (tx) => {
+      await this.auditar(tx, actorId, 'duracion_parada.restaurar', 'duracion_parada', fila.id, {
+        categoria,
+        minutos_anteriores: fila.minutos,
+      })
+      await tx.duracionParada.delete({ where: { id: fila.id } })
     })
     return predeterminada
   }

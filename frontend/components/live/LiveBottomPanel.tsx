@@ -163,6 +163,7 @@ export function LiveBottomPanel({
               paradaDesde={paradaDesde}
               esIncidenteDetectado={esIncidenteDetectado}
               retomaElGrupo={retomaElGrupo}
+              esLider={esLider}
               puedeSolicitar={puedeSolicitar}
               solicitudPendiente={solicitudPendiente}
               ocupado={paradaEnCurso || accion}

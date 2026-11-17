@@ -10,7 +10,6 @@ import {
   Text,
   View,
 } from 'react-native'
-import { Feather } from '@expo/vector-icons'
 import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router'
 import QRCode from 'react-native-qrcode-svg'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -18,8 +17,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { AjustesViajeCards } from '@/components/AjustesViajeCards'
 import { AvisoUbicacion, textoPermisoSistema } from '@/components/AvisoUbicacion'
 import { ClimaViajeCard } from '@/components/ClimaViajeCard'
-import { Badge, Btn, TopBar, useTheme } from '@/components/MeshUI'
+import { ActivityTile, Badge, Btn, TopBar, useTheme } from '@/components/MeshUI'
 import { CodigoViaje } from '@/components/CodigoViaje'
+import { ParametrosGrupoCard } from '@/components/ParametrosGrupoCard'
+import { PrivacidadViajePanel } from '@/components/PrivacidadViajePanel'
+import { SegmentTabs } from '@/components/SegmentTabs'
+import { FilaResumen, TarjetaResumen } from '@/components/viaje-nuevo/Resumen'
+import { ETIQUETA_MODO } from '@/lib/modoViaje'
 import { DestinoPicker } from '@/components/viaje-rapido/DestinoPicker'
 import { InvitarGruposAmigosModal } from '@/components/viaje-rapido/InvitarGruposAmigosModal'
 import { useAuth } from '@/context/AuthContext'
@@ -40,6 +44,7 @@ import {
   listarParticipantesViaje,
   obtenerRuta,
   obtenerViaje,
+  salirViaje,
   type TipoActividadApi,
   type ViajeDetalleApi,
   type ViajeParticipanteApi,
@@ -48,10 +53,19 @@ import {
 /** Cada cuánto se refresca quién se sumó mientras la sala está abierta. */
 const MS_REFRESCO_PARTICIPANTES = 5000
 
+function plural(n: number, uno: string, varios: string): string {
+  return `${n} ${n === 1 ? uno : varios}`
+}
+
 /**
  * Sala de espera del "Viaje YA". El viaje ya existe en estado `planificado`
  * (así el QR sigue vigente, RN-015): el líder invita, opcionalmente agrega
- * destino y lo arranca cuando están todos. Solo la ve el líder (RN-030).
+ * destino y lo arranca cuando están todos.
+ *
+ * También la ve el participante que se sumó por QR o código, sin los controles
+ * del líder (RN-030: el backend valida igual): ve quién está, el destino y la
+ * configuración, y espera a que el líder arranque. Un viaje planificado para
+ * más adelante se sigue viendo en su detalle.
  */
 export default function SalaEsperaScreen() {
   const theme = useTheme()
@@ -77,6 +91,12 @@ export default function SalaEsperaScreen() {
   const [guardandoDestino, setGuardandoDestino] = useState(false)
   const [modalPermisos, setModalPermisos] = useState(false)
   const [arrancando, setArrancando] = useState(false)
+  const [pestana, setPestana] = useState<'detalles' | 'config'>('detalles')
+  const esLider = viaje != null && viaje.creador_id === userId
+  /** Para el refresco periódico: el líder solo refresca la lista; el participante, también el viaje. */
+  const esLiderRef = useRef(true)
+  /** Ruta conocida: el destino se vuelve a pedir solo cuando el líder la cambia. */
+  const rutaClave = useRef<string | null>(null)
   const { ubicacion } = useUbicacionActual({ activo: eligiendoDestino })
 
   useVolverInterno(eligiendoDestino, () => {
@@ -116,32 +136,51 @@ export default function SalaEsperaScreen() {
     }
   }, [viajeId, userId])
 
-  const cargar = useCallback(async () => {
-    if (!viajeId || !userId) return
-    try {
-      const v = await obtenerViaje(viajeId, userId)
-      // La sala es solo para el líder y solo antes de arrancar.
-      if (v.estado === 'en_curso') {
-        router.replace({ pathname: '/viaje/[viajeId]/live', params: { viajeId } })
-        return
+  const cargar = useCallback(
+    async (silencioso = false) => {
+      if (!viajeId || !userId) return
+      try {
+        const v = await obtenerViaje(viajeId, userId)
+        const lider = v.creador_id === userId
+        esLiderRef.current = lider
+        // La sala es solo antes de arrancar. Ya en curso, el líder va al mapa y el
+        // participante al detalle, donde confirma que se suma (RN-029b).
+        if (v.estado === 'en_curso') {
+          router.replace({ pathname: lider ? '/viaje/[viajeId]/live' : '/viaje/[viajeId]', params: { viajeId } })
+          return
+        }
+        // Participante: ya confirmado y con la hora de salida cumplida (Viaje YA).
+        const participanteEnSala =
+          v.mi_participacion?.estado === 'confirmado' && new Date(v.fecha_programada).getTime() <= Date.now()
+        if (v.estado !== 'planificado' || (!lider && !participanteEnSala)) {
+          router.replace({ pathname: '/viaje/[viajeId]', params: { viajeId } })
+          return
+        }
+        setViaje(v)
+        const clave = `${v.ruta?.id ?? ''}:${v.ruta?.distancia_planeada_m ?? ''}`
+        const tareas = [cargarParticipantes()]
+        if (clave !== rutaClave.current) {
+          rutaClave.current = clave
+          tareas.push(cargarDestino())
+        }
+        await Promise.all(tareas)
+      } catch (e) {
+        if (silencioso) console.warn('No se pudo refrescar la sala:', e)
+        else meshAlert('Error', e instanceof Error ? e.message : 'No se pudo cargar el viaje.')
+      } finally {
+        setCargando(false)
       }
-      if (v.estado !== 'planificado' || v.creador_id !== userId) {
-        router.replace({ pathname: '/viaje/[viajeId]', params: { viajeId } })
-        return
-      }
-      setViaje(v)
-      await Promise.all([cargarParticipantes(), cargarDestino()])
-    } catch (e) {
-      meshAlert('Error', e instanceof Error ? e.message : 'No se pudo cargar el viaje.')
-    } finally {
-      setCargando(false)
-    }
-  }, [viajeId, userId, cargarParticipantes, cargarDestino])
+    },
+    [viajeId, userId, cargarParticipantes, cargarDestino]
+  )
 
   useFocusEffect(
     useCallback(() => {
       void cargar()
-      const t = setInterval(() => void cargarParticipantes(), MS_REFRESCO_PARTICIPANTES)
+      const t = setInterval(
+        () => void (esLiderRef.current ? cargarParticipantes() : cargar(true)),
+        MS_REFRESCO_PARTICIPANTES
+      )
       return () => clearInterval(t)
     }, [cargar, cargarParticipantes])
   )
@@ -233,6 +272,27 @@ export default function SalaEsperaScreen() {
     })
   }
 
+  /** RN-029c: el participante avisa que no va; antes de arrancar no hay ubicación que cortar. */
+  const confirmarNoVoy = () => {
+    meshConfirmDestructive({
+      title: 'Ya no voy a ir',
+      message: 'El grupo va a ver que no vas a participar de este viaje.',
+      confirmLabel: 'No voy',
+      cancelLabel: 'Volver',
+      onConfirm: async () => {
+        if (!viaje || !userId) return
+        setArrancando(true)
+        try {
+          await salirViaje(viaje.id, userId)
+          router.replace('/(tabs)')
+        } catch (e) {
+          meshAlert('Error', e instanceof Error ? e.message : 'No se pudo salir del viaje.')
+          setArrancando(false)
+        }
+      },
+    })
+  }
+
   const volver = () => {
     if (router.canGoBack()) router.back()
     else router.replace('/(tabs)')
@@ -273,7 +333,45 @@ export default function SalaEsperaScreen() {
       ) : (
         <>
           <ScrollView contentContainerStyle={styles.content}>
-            <View style={[styles.card, styles.qrCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+            <SegmentTabs
+              tabs={[
+                { key: 'detalles', label: 'Detalles' },
+                { key: 'config', label: 'Configuración' },
+              ]}
+              active={pestana}
+              onChange={(k) => setPestana(k as 'detalles' | 'config')}
+              theme={theme}
+            />
+
+            {pestana === 'config' ? (
+              <>
+                {/* RN-025: el viaje rápido nace con los defaults de la actividad; el líder los ajusta acá. */}
+                {viaje && userId ? (
+                  esLider ? (
+                    <AjustesViajeCards
+                      viaje={viaje}
+                      userId={userId}
+                      onActualizado={(a) => setViaje((prev) => (prev ? { ...prev, ...a } : prev))}
+                      plegable={false}
+                    />
+                  ) : (
+                    <ParametrosGrupoCard
+                      viaje={viaje}
+                      editable={false}
+                      guardando={false}
+                      onGuardar={() => {}}
+                      plegable={false}
+                    />
+                  )
+                ) : null}
+                {/* RN-111/112: compartir ubicación y quién la vio. */}
+                <Text style={[styles.seccion, { color: theme.text }]}>Privacidad y ubicación</Text>
+                <PrivacidadViajePanel viajeId={viajeId} />
+              </>
+            ) : (
+            <>
+            {/* Viaje YA: lo primero es que la gente se sume, así que el QR va arriba y destacado. */}
+            <View style={[styles.card, styles.qrCard, { backgroundColor: theme.accentWeak, borderColor: theme.accent }]}>
               <View style={styles.qrInner}>
                 <QRCode value={inviteUrl} size={200} backgroundColor="#ffffff" color="#0f0f0f" />
               </View>
@@ -285,41 +383,54 @@ export default function SalaEsperaScreen() {
                 <Btn variant="secondary" icon="share-2" onPress={() => void compartirLink()} style={styles.flex}>
                   Compartir link
                 </Btn>
-                <Btn variant="secondary" icon="users" onPress={() => setInvitarAbierto(true)} style={styles.flex}>
-                  Grupos o amigos
-                </Btn>
+                {/* POST /invitaciones es solo del líder; el participante comparte el link. */}
+                {esLider ? (
+                  <Btn variant="secondary" icon="users" onPress={() => setInvitarAbierto(true)} style={styles.flex}>
+                    Grupos o amigos
+                  </Btn>
+                ) : null}
               </View>
             </View>
 
-            <View style={[styles.card, styles.destino, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-              <View style={[styles.destinoIcono, { backgroundColor: theme.accentWeak }]}>
-                <Feather name="flag" size={20} color={theme.accent} />
-              </View>
-              <View style={styles.flex}>
-                <Text style={[styles.label, { color: theme.textDim }]}>Destino</Text>
-                <Text style={[styles.destinoNombre, { color: theme.text }]} numberOfLines={2}>
-                  {destino ?? 'Sin destino (opcional)'}
-                </Text>
-              </View>
-              <Btn variant="outline" size="sm" onPress={() => setEligiendoDestino(true)}>
-                {destino ? 'Cambiar' : 'Agregar'}
-              </Btn>
-            </View>
+            {/* Lo elegido, como el "Revisá y creá" de Planificar; el líder toca para cambiar. */}
+            {viaje ? (
+              <TarjetaResumen>
+                <FilaResumen
+                  leading={<ActivityTile activity={viaje.tipo_actividad} size={30} />}
+                  etiqueta="Actividad"
+                  valor={etiquetaActividad(viaje.tipo_actividad)}
+                />
+                <FilaResumen icon="tag" etiqueta="Nombre" valor={viaje.nombre?.trim() || 'Viaje rápido'} />
+                <FilaResumen icon="target" etiqueta="Modo" valor={ETIQUETA_MODO[viaje.modo]} />
+                <FilaResumen
+                  icon="map"
+                  etiqueta="Destino"
+                  valor={destino ?? (esLider ? 'Sin destino (opcional)' : 'Sin destino')}
+                  onPress={esLider ? () => setEligiendoDestino(true) : undefined}
+                />
+                <FilaResumen
+                  icon="users"
+                  etiqueta="Con quién"
+                  valor={
+                    [
+                      plural(confirmados.length, 'confirmado', 'confirmados'),
+                      pendientes.length > 0 ? plural(pendientes.length, 'invitado', 'invitados') : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')
+                  }
+                  // POST /invitaciones es solo del líder.
+                  onPress={esLider ? () => setInvitarAbierto(true) : undefined}
+                  ultima
+                />
+              </TarjetaResumen>
+            ) : null}
 
             {/* RN-108: el pronóstico va sobre el recorrido; sin destino no hay nada que mostrar. */}
             {destino ? (
               <View style={styles.clima}>
                 <ClimaViajeCard viajeId={viajeId} habilitado claveRefresco={destino} />
               </View>
-            ) : null}
-
-            {/* RN-025: el viaje rápido nace con los defaults de la actividad; acá se ajustan. */}
-            {viaje && userId ? (
-              <AjustesViajeCards
-                viaje={viaje}
-                userId={userId}
-                onActualizado={(a) => setViaje((prev) => (prev ? { ...prev, ...a } : prev))}
-              />
             ) : null}
 
             <Text style={[styles.seccion, { color: theme.text }]}>
@@ -349,20 +460,38 @@ export default function SalaEsperaScreen() {
                 <Text style={[styles.vacio, { color: theme.textMute }]}>Todavía no se sumó nadie.</Text>
               )}
             </View>
+            </>
+            )}
           </ScrollView>
 
           <View style={[styles.footer, { paddingBottom: insets.bottom + 16, borderTopColor: theme.border }]}>
-            <Btn block size="xl" icon="play" onPress={pedirArrancar} loading={arrancando} disabled={!viaje || arrancando}>
-              Arrancar viaje
-            </Btn>
-            <Btn variant="ghost" block onPress={confirmarCancelar} disabled={!viaje || arrancando}>
-              Cancelar viaje
-            </Btn>
+            {esLider ? (
+              <>
+                <Btn block size="xl" icon="play" onPress={pedirArrancar} loading={arrancando} disabled={!viaje || arrancando}>
+                  Arrancar viaje
+                </Btn>
+                <Btn variant="ghost" block onPress={confirmarCancelar} disabled={!viaje || arrancando}>
+                  Cancelar viaje
+                </Btn>
+              </>
+            ) : viaje ? (
+              <>
+                <View style={[styles.esperando, { backgroundColor: theme.accentWeak }]}>
+                  <ActivityIndicator color={theme.accent} />
+                  <Text style={[styles.esperandoTexto, { color: theme.text }]}>
+                    Esperando que {viaje.creador.nombre} arranque el viaje
+                  </Text>
+                </View>
+                <Btn variant="ghost" block icon="log-out" onPress={confirmarNoVoy} disabled={arrancando} loading={arrancando}>
+                  Ya no voy a ir
+                </Btn>
+              </>
+            ) : null}
           </View>
         </>
       )}
 
-      {userId && (
+      {userId && esLider && (
         <InvitarGruposAmigosModal
           visible={invitarAbierto}
           viajeId={viajeId}
@@ -408,21 +537,19 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   content: { padding: 16, gap: 14, paddingBottom: 24 },
   card: { borderRadius: 18, borderWidth: 1, padding: 16 },
-  qrCard: { alignItems: 'center', gap: 12 },
+  qrCard: { alignItems: 'center', gap: 12, borderWidth: 2 },
   qrInner: { backgroundColor: '#ffffff', padding: 14, borderRadius: 16 },
   qrTexto: { fontSize: 15, textAlign: 'center' },
   fila: { flexDirection: 'row', gap: 10, alignSelf: 'stretch' },
   flex: { flex: 1 },
-  destino: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  destinoIcono: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   // La tarjeta de clima trae su propio margen superior; el `gap` de la lista ya separa.
   clima: { marginTop: -12 },
-  label: { fontSize: 13, fontWeight: '600' },
-  destinoNombre: { fontSize: 16, fontWeight: '700', marginTop: 2 },
   seccion: { fontSize: 18, fontWeight: '800', marginTop: 4 },
   persona: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, paddingVertical: 12 },
   personaNombre: { flex: 1, fontSize: 16, fontWeight: '600' },
   vacio: { fontSize: 15, paddingVertical: 8 },
+  esperando: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 14, padding: 14, marginBottom: 4 },
+  esperandoTexto: { flex: 1, fontSize: 16, fontWeight: '700' },
   footer: { paddingHorizontal: 16, paddingTop: 12, gap: 4,borderTopWidth: StyleSheet.hairlineWidth },
   modalBg: { flex: 1, justifyContent: 'center', padding: 20 },
   modalCard: { borderRadius: 20, borderWidth: 1, padding: 20 },

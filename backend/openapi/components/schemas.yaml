@@ -2886,6 +2886,8 @@ RutaViaje:
     - destino
     - linestring
     - tiempo_estimado_seg
+    - tiempo_paradas_seg
+    - tiempo_total_estimado_seg
     - distancia_planeada_m
     - paradas
   properties:
@@ -2898,7 +2900,23 @@ RutaViaje:
     tiempo_estimado_seg:
       type: integer
       nullable: true
+      description: Tiempo en movimiento que devolvió el servicio de rutas, sin paradas.
       example: 5400
+    tiempo_paradas_seg:
+      type: integer
+      minimum: 0
+      description: |
+        RN-134: suma de los minutos promedio de cada parada planificada según su
+        categoría (configurables desde el backoffice). Se calcula al leer la ruta, así
+        que refleja la configuración vigente.
+      example: 3300
+    tiempo_total_estimado_seg:
+      type: integer
+      nullable: true
+      description: |
+        RN-134: `tiempo_estimado_seg` + `tiempo_paradas_seg`. Null si no hay tiempo en
+        movimiento.
+      example: 8700
     distancia_planeada_m:
       type: number
       nullable: true
@@ -5716,6 +5734,8 @@ AccionAdmin:
     - viaje.eliminar
     - checklist.definir_sugeridos
     - checklist.restaurar_sugeridos
+    - duracion_parada.definir
+    - duracion_parada.restaurar
     - insignia.crear
     - insignia.editar
     - insignia.eliminar
@@ -5732,14 +5752,15 @@ EntradaAuditoriaAdmin:
       $ref: '#/AccionAdmin'
     entidad:
       type: string
-      enum: [usuario, grupo, viaje, checklist, insignia]
+      enum: [usuario, grupo, viaje, checklist, insignia, duracion_parada]
     entidad_id:
       type: string
       format: uuid
       description: |
         Puede apuntar a una entidad ya eliminada; por eso no es FK. En `checklist` es la
         fila de `checklist_actividad` de esa actividad (RN-132); en `insignia`, la insignia
-        del catálogo (RN-133).
+        del catálogo (RN-133); en `duracion_parada`, la fila de `duracion_parada` de esa
+        categoría (RN-134).
     detalle:
       type: object
       nullable: true
@@ -5804,6 +5825,76 @@ ListaChecklistActividadesAdmin:
       description: Siempre las cinco actividades de RN-021.
       items:
         $ref: '#/ChecklistActividadAdmin'
+
+CategoriaParadaPlanificable:
+  type: string
+  description: RN-134 — categorías de parada que se pueden planificar en una ruta (todas menos `accidente`).
+  enum: [combustible, descanso, gastronomia, sanitario, punto_control, otro]
+  example: gastronomia
+
+DuracionesParadaVigentes:
+  type: object
+  description: |
+    RN-134: minutos promedio vigentes de cada categoría de parada planificable. Los usa
+    el planificador para estimar el tiempo total del viaje con paradas.
+  required: [minutos]
+  properties:
+    minutos:
+      type: object
+      required: [combustible, descanso, gastronomia, sanitario, punto_control, otro]
+      properties:
+        combustible: { type: integer, minimum: 0 }
+        descanso: { type: integer, minimum: 0 }
+        gastronomia: { type: integer, minimum: 0 }
+        sanitario: { type: integer, minimum: 0 }
+        punto_control: { type: integer, minimum: 0 }
+        otro: { type: integer, minimum: 0 }
+      additionalProperties: false
+
+DuracionParadaAdmin:
+  type: object
+  description: RN-134 — minutos promedio vigentes de una categoría de parada.
+  required: [categoria, minutos, minutos_por_defecto, personalizado, updated_at]
+  properties:
+    categoria:
+      $ref: '#/CategoriaParadaPlanificable'
+    minutos:
+      type: integer
+      minimum: 0
+      maximum: 240
+    minutos_por_defecto:
+      type: integer
+      minimum: 0
+      description: Valor del sistema, el que rige al restaurar.
+    personalizado:
+      type: boolean
+      description: '`false`: rige el valor por defecto del sistema.'
+    updated_at:
+      type: string
+      format: date-time
+      nullable: true
+      description: Última edición del superadmin (UTC). Null si rige el valor por defecto.
+
+ListaDuracionesParadaAdmin:
+  type: object
+  required: [items]
+  properties:
+    items:
+      type: array
+      description: Siempre las seis categorías planificables.
+      items:
+        $ref: '#/DuracionParadaAdmin'
+
+DefinirDuracionParadaRequest:
+  type: object
+  required: [minutos]
+  properties:
+    minutos:
+      type: integer
+      minimum: 0
+      maximum: 240
+      description: Minutos promedio de una parada de esta categoría. 0 = no suma tiempo.
+  additionalProperties: false
 
 DefinirChecklistActividadRequest:
   type: object

@@ -46,6 +46,7 @@ import { AYUDA_VIAJE_CREAR } from '@/components/ayuda/contenidoAyuda'
 import { Collapsible } from '@/components/Collapsible'
 import { ActividadGrid } from '@/components/viaje-nuevo/ActividadGrid'
 import { SelectorModo } from '@/components/viaje-nuevo/SelectorModo'
+import { FilaResumen, TarjetaResumen } from '@/components/viaje-nuevo/Resumen'
 import { useVolverInterno } from '@/hooks/useVolver'
 
 const MSG_FECHA_PASADA = 'La fecha y hora programadas deben ser futuras.'
@@ -624,7 +625,7 @@ export default function CrearViajeScreen() {
       <>
         <Text style={[styles.titulo, { color: theme.text }]}>Revisá y creá</Text>
 
-        <View style={[styles.tarjetaResumen, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <TarjetaResumen>
           <FilaResumen
             leading={<ActivityTile activity={tipoActividad} size={30} />}
             etiqueta="Actividad"
@@ -651,7 +652,7 @@ export default function CrearViajeScreen() {
             onPress={() => editarPaso('invitados')}
             ultima
           />
-        </View>
+        </TarjetaResumen>
 
         {/* RN-065 (SCRUM-48): modo del viaje. */}
         <Text style={[styles.etiqueta, { color: theme.textDim }]}>Modo</Text>
@@ -882,52 +883,6 @@ function FilaSeleccion({
   )
 }
 
-function FilaResumen({
-  icon,
-  leading,
-  etiqueta,
-  valor,
-  capitalizar = false,
-  ultima = false,
-  onPress,
-}: {
-  icon?: keyof typeof Feather.glyphMap
-  leading?: ReactNode
-  etiqueta: string
-  valor: string
-  capitalizar?: boolean
-  ultima?: boolean
-  /** Sin `onPress` la fila es solo informativa (ej. lo que impone una plantilla). */
-  onPress?: () => void
-}) {
-  const theme = useTheme()
-  return (
-    <Pressable
-      accessibilityRole={onPress ? 'button' : undefined}
-      accessibilityLabel={onPress ? `Cambiar ${etiqueta}` : undefined}
-      disabled={!onPress}
-      onPress={onPress}
-      style={[styles.filaResumen, !ultima && { borderBottomWidth: 1, borderBottomColor: theme.border }]}
-    >
-      <View style={styles.filaResumenIcono}>
-        {leading ?? <Feather name={icon ?? 'circle'} size={20} color={theme.accent} />}
-      </View>
-      <View style={styles.flex}>
-        <Text style={[styles.filaResumenEtiqueta, { color: theme.textDim }]} numberOfLines={1}>
-          {etiqueta}
-        </Text>
-        <Text
-          style={[styles.filaResumenValor, { color: theme.text }, capitalizar && styles.capitalizar]}
-          numberOfLines={2}
-        >
-          {valor}
-        </Text>
-      </View>
-      {onPress ? <Feather name="edit-2" size={16} color={theme.textMute} /> : null}
-    </Pressable>
-  )
-}
-
 const styles = StyleSheet.create({
   container: { flex: 1 },
   flex: { flex: 1 },
@@ -993,12 +948,6 @@ const styles = StyleSheet.create({
   filaSelTitulo: { fontSize: 16, fontWeight: '600' },
   filaSelMeta: { fontSize: 13 },
   vacio: { fontSize: 14, paddingVertical: 4 },
-  tarjetaResumen: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 14 },
-  filaResumen: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14 },
-  filaResumenIcono: { width: 32, alignItems: 'center' },
-  filaResumenEtiqueta: { fontSize: 13, fontWeight: '600' },
-  filaResumenValor: { fontSize: 16, fontWeight: '700', marginTop: 2 },
-  capitalizar: { textTransform: 'capitalize' },
   parametros: { marginTop: 8 },
   pie: { paddingHorizontal: 16, paddingTop: 8 },
 })

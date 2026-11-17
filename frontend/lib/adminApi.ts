@@ -1,6 +1,7 @@
 import { apiUrl, meshFetchAuthed, parseJson } from './apiClient'
 import type { ActividadPreferidaApi } from './usuariosApi'
 import type { InsigniaApi } from './insigniasApi'
+import type { StopCategory } from '@/components/route-config/routeTypes'
 
 /**
  * Backoffice superadmin (RN-120 a RN-126). Contrato en
@@ -77,6 +78,16 @@ export type ChecklistActividadAdmin = {
   updated_at: string | null
 }
 
+/** RN-134: minutos promedio de una parada planificada según su categoría. */
+export type DuracionParadaAdmin = {
+  categoria: StopCategory
+  minutos: number
+  minutos_por_defecto: number
+  /** `false`: rige el valor por defecto del sistema. */
+  personalizado: boolean
+  updated_at: string | null
+}
+
 /** RN-133: insignia del catálogo vista desde el backoffice, incluidas las inactivas. */
 export type InsigniaAdmin = InsigniaApi & {
   /** `false`: no se otorga más ni aparece en el catálogo público; quien la tiene la conserva. */
@@ -92,7 +103,7 @@ export type DatosInsigniaAdmin = Omit<InsigniaAdmin, 'id' | 'codigo' | 'created_
 export type EntradaAuditoria = {
   id: string
   accion: string
-  entidad: 'usuario' | 'grupo' | 'viaje' | 'checklist' | 'insignia'
+  entidad: 'usuario' | 'grupo' | 'viaje' | 'checklist' | 'insignia' | 'duracion_parada'
   entidad_id: string
   detalle: Record<string, unknown> | null
   created_at: string
@@ -184,6 +195,16 @@ export const definirChecklistActividadAdmin = (tipo: ActividadPreferidaApi, item
 
 export const restaurarChecklistActividadAdmin = (tipo: ActividadPreferidaApi) =>
   enviar<ChecklistActividadAdmin>('DELETE', `/api/admin/checklist/${tipo}`)
+
+// ── Duración promedio de paradas (RN-134) ──
+export const listarDuracionesParadaAdmin = () =>
+  get<{ items: DuracionParadaAdmin[] }>('/api/admin/duraciones-parada')
+
+export const definirDuracionParadaAdmin = (categoria: StopCategory, minutos: number) =>
+  enviar<DuracionParadaAdmin>('PUT', `/api/admin/duraciones-parada/${categoria}`, { minutos })
+
+export const restaurarDuracionParadaAdmin = (categoria: StopCategory) =>
+  enviar<DuracionParadaAdmin>('DELETE', `/api/admin/duraciones-parada/${categoria}`)
 
 // ── Auditoría ──
 export const listarAuditoriaAdmin = (p: { pagina?: number }) =>

@@ -27,6 +27,8 @@ type Props = {
   onReintentarCalculo: () => void
   resumenDistancia: string | null
   resumenTiempo: string | null
+  /** RN-134: "X en movimiento + Y de paradas". Null si no hay paradas planificadas. */
+  resumenTiempoDetalle?: string | null
   confirmarHabilitado: boolean
   guardando: boolean
   mapPickMode: boolean
@@ -58,6 +60,7 @@ export const RouteBottomSheet = forwardRef<RouteBottomSheetHandle, Props>(functi
     onReintentarCalculo,
     resumenDistancia,
     resumenTiempo,
+    resumenTiempoDetalle,
     confirmarHabilitado,
     guardando,
     mapPickMode,
@@ -270,6 +273,9 @@ export const RouteBottomSheet = forwardRef<RouteBottomSheetHandle, Props>(functi
               <Text style={[styles.resumenTxt, { color: theme.textDim }]}>
                 Tiempo estimado: {resumenTiempo}
               </Text>
+              {resumenTiempoDetalle ? (
+                <Text style={[styles.resumenTxt, { color: theme.textDim }]}>{resumenTiempoDetalle}</Text>
+              ) : null}
             </>
           ) : (
             <Text style={[styles.muted, { color: theme.textDim }]}>

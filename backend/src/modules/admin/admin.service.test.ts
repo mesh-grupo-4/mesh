@@ -488,6 +488,73 @@ describe('checklist de preparativos (RN-132)', () => {
   })
 })
 
+describe('duración promedio de paradas (RN-134)', () => {
+  const filaGastronomia = {
+    id: '88888888-8888-8888-8888-888888888888',
+    categoria: 'gastronomia',
+    minutos: 60,
+    updated_at: new Date('2026-11-17T12:00:00.000Z'),
+  }
+
+  it('lista las seis categorías planificables y marca cuáles personalizó el superadmin', async () => {
+    const { service } = armar({
+      duracionParada: { findMany: vi.fn().mockResolvedValue([filaGastronomia]) },
+    })
+
+    const { items } = await service.listarDuracionesParada()
+
+    expect(items.map((i) => i.categoria)).toEqual([
+      'combustible',
+      'descanso',
+      'gastronomia',
+      'sanitario',
+      'punto_control',
+      'otro',
+    ])
+    expect(items[2]).toMatchObject({ minutos: 60, minutos_por_defecto: 45, personalizado: true })
+    expect(items[0]).toMatchObject({ minutos: 10, personalizado: false, updated_at: null })
+  })
+
+  it('definir los minutos los guarda y lo audita', async () => {
+    const upsert = vi.fn().mockResolvedValue(filaGastronomia)
+    const { service, prisma } = armar({ duracionParada: { upsert } })
+
+    const res = await service.definirDuracionParada(adminId, 'gastronomia', 60)
+
+    expect(res).toMatchObject({ categoria: 'gastronomia', minutos: 60, personalizado: true })
+    expect(upsert).toHaveBeenCalledWith({
+      where: { categoria: 'gastronomia' },
+      create: { categoria: 'gastronomia', minutos: 60 },
+      update: { minutos: 60 },
+    })
+    expect(acciones(prisma)).toEqual(['duracion_parada.definir'])
+  })
+
+  it('restaurar borra la personalización y vuelve al valor por defecto', async () => {
+    const del = vi.fn().mockResolvedValue(filaGastronomia)
+    const { service, prisma } = armar({
+      duracionParada: { findUnique: vi.fn().mockResolvedValue(filaGastronomia), delete: del },
+    })
+
+    const res = await service.restaurarDuracionParada(adminId, 'gastronomia')
+
+    expect(res).toMatchObject({ minutos: 45, personalizado: false, updated_at: null })
+    expect(del).toHaveBeenCalledWith({ where: { id: filaGastronomia.id } })
+    expect(acciones(prisma)).toEqual(['duracion_parada.restaurar'])
+  })
+
+  it('restaurar una categoría sin personalizar no audita nada', async () => {
+    const { service, prisma } = armar({
+      duracionParada: { findUnique: vi.fn().mockResolvedValue(null), delete: vi.fn() },
+    })
+
+    await service.restaurarDuracionParada(adminId, 'descanso')
+
+    expect(prisma.duracionParada.delete).not.toHaveBeenCalled()
+    expect(acciones(prisma)).toEqual([])
+  })
+})
+
 describe('catálogo de insignias (RN-133)', () => {
   const insigniaId = '77777777-7777-7777-7777-777777777777'
   const fila = {

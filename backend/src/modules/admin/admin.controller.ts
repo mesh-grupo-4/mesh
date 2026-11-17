@@ -4,8 +4,10 @@ import {
   actualizarInsigniaSchema,
   actualizarUsuarioAdminSchema,
   cambiarRolSistemaSchema,
+  categoriaParadaParam,
   crearInsigniaSchema,
   definirChecklistActividadSchema,
+  definirDuracionParadaSchema,
   listarAuditoriaQuery,
   listarGruposQuery,
   listarUsuariosQuery,
@@ -107,6 +109,20 @@ export function crearAdminController(service: AdminService) {
     restaurarChecklistActividad: asyncHandler(async (req, res) => {
       const tipo = tipoActividadParam.parse(req.params.tipoActividad)
       res.json(await service.restaurarChecklistActividad(req.userId!, tipo))
+    }),
+
+    // ── Duración promedio de paradas (RN-134) ──
+    listarDuracionesParada: asyncHandler(async (_req, res) => {
+      res.json(await service.listarDuracionesParada())
+    }),
+    definirDuracionParada: asyncHandler(async (req, res) => {
+      const categoria = categoriaParadaParam.parse(req.params.categoria)
+      const { minutos } = definirDuracionParadaSchema.parse(req.body)
+      res.json(await service.definirDuracionParada(req.userId!, categoria, minutos))
+    }),
+    restaurarDuracionParada: asyncHandler(async (req, res) => {
+      const categoria = categoriaParadaParam.parse(req.params.categoria)
+      res.json(await service.restaurarDuracionParada(req.userId!, categoria))
     }),
 
     // ── Catálogo de insignias (RN-133) ──

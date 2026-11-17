@@ -61,11 +61,14 @@ import { waypointsFromRutaDetalle } from '@/lib/routePayload'
 import { nombreCompleto } from '@/lib/nombres'
 import { ajustarSiQuedoEnPasado, esFechaFutura } from '@/lib/fechaProgramada'
 import { aCamposArg, ahoraEnCamposArg, desdeCamposArg, formatearEnArg } from '@/lib/tiempoArg'
+import { formatDurationHm } from '@/lib/format'
 import { RouteMapView } from '@/components/route-config/RouteMapView'
 import { MiniMapaEnCurso } from '@/components/live/MiniMapaEnCurso'
 import { ClimaViajeCard } from '@/components/ClimaViajeCard'
 import { ConfigAlertasCard } from '@/components/ConfigAlertasCard'
 import { ParametrosGrupoCard } from '@/components/ParametrosGrupoCard'
+import { PrivacidadViajePanel } from '@/components/PrivacidadViajePanel'
+import { SegmentTabs } from '@/components/SegmentTabs'
 import {
   REGION_FALLBACK,
   waypointTieneCoords,
@@ -83,6 +86,10 @@ import {
 type RutaMapa = {
   waypoints: RouteWaypoint[]
   routeLine: [number, number][]
+  /** RN-134: movimiento + paradas planificadas. Null si la ruta no tiene tiempo. */
+  tiempoTotalSeg: number | null
+  /** RN-134: lo que suman las paradas planificadas (minutos promedio por categoría). */
+  tiempoParadasSeg: number
 }
 
 /** Etiqueta del estado de un participante. 'salido' = abandonó el viaje en curso. */
@@ -185,6 +192,8 @@ export default function ViajeDetalleScreen() {
   const [guardandoNombre, setGuardandoNombre] = useState(false)
   const [invitarAbierto, setInvitarAbierto] = useState(false)
   const [participantesAbierto, setParticipantesAbierto] = useState(false)
+  /** Detalles del viaje / Configuración (parámetros, alertas y privacidad, siempre desplegados). */
+  const [pestana, setPestana] = useState<'detalles' | 'config'>('detalles')
 
   const esLider = viaje != null && userId === viaje.creador_id
   /** RN-029b: con el viaje en curso, si ya tocó "Me sumo" (el líder siempre está sumado). */
@@ -284,7 +293,12 @@ export default function ViajeDetalleScreen() {
             ...h.paradas.map((p, i) => ({ ...p, id: `parada-${i}` })),
             { ...h.destino, id: 'destino' },
           ]
-          setRutaMapa({ waypoints, routeLine: h.routeLineLatLng })
+          setRutaMapa({
+            waypoints,
+            routeLine: h.routeLineLatLng,
+            tiempoTotalSeg: r.tiempo_total_estimado_seg ?? r.tiempo_estimado_seg,
+            tiempoParadasSeg: r.tiempo_paradas_seg ?? 0,
+          })
         } else {
           setRutaMapa(null)
         }
@@ -871,6 +885,42 @@ export default function ViajeDetalleScreen() {
               </View>
             </View>
 
+            <SegmentTabs
+              tabs={[
+                { key: 'detalles', label: 'Detalles' },
+                { key: 'config', label: 'Configuración' },
+              ]}
+              active={pestana}
+              onChange={(k) => setPestana(k as 'detalles' | 'config')}
+              theme={theme}
+            />
+
+            {pestana === 'config' ? (
+              <View style={styles.configTab}>
+                {/* SCRUM-26: parámetros del grupo (RN-025). */}
+                {viaje.es_grupal ? (
+                  <ParametrosGrupoCard
+                    viaje={viaje}
+                    editable={puedeEditarParametros}
+                    guardando={guardandoParametros}
+                    onGuardar={(input) => void guardarParametros(input)}
+                    plegable={false}
+                  />
+                ) : null}
+                {puedeConfigurarAlertas ? (
+                  <ConfigAlertasCard
+                    viaje={viaje}
+                    guardando={guardandoAlertaConfig}
+                    onGuardar={(input) => void guardarConfigAlerta(input)}
+                    plegable={false}
+                  />
+                ) : null}
+                {/* RN-111/112: compartir ubicación y quién la vio. */}
+                <Text style={[styles.configSeccion, { color: theme.text }]}>Privacidad y ubicación</Text>
+                <PrivacidadViajePanel viajeId={viajeId} />
+              </View>
+            ) : (
+            <>
             {/* Mapa real de la ruta planificada; en curso, miniatura del estado actual */}
             <PasoAyuda {...AYUDA_VIAJE_DETALLE[0]!}>
             <Pressable
@@ -952,6 +1002,14 @@ export default function ViajeDetalleScreen() {
                 <Text style={[styles.statLabel, { color: theme.textDim }]}>Distancia</Text>
               </View>
 
+              <View style={[styles.statCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+                <Feather name="watch" size={16} color={theme.accent} style={{ marginBottom: 3 }} />
+                <Text style={[styles.statNum, { color: theme.text }]} numberOfLines={1}>
+                  {formatDurationHm(rutaMapa?.tiempoTotalSeg)}
+                </Text>
+                <Text style={[styles.statLabel, { color: theme.textDim }]}>Duración</Text>
+              </View>
+
               <Pressable
                 onPress={() => abrirPicker('time')}
                 disabled={!puedeEditarPlan || guardandoFecha}
@@ -995,25 +1053,16 @@ export default function ViajeDetalleScreen() {
               </Pressable>
             </View>
             </PasoAyuda>
-
-            {(puedeConfigurarAlertas || viaje.es_grupal) && (
-            <View style={styles.collapsibleGroup}>
-            {/* SCRUM-26: parámetros del grupo (RN-025). */}
-            <ParametrosGrupoCard
-              viaje={viaje}
-              editable={puedeEditarParametros}
-              guardando={guardandoParametros}
-              onGuardar={(input) => void guardarParametros(input)}
-            />
-            {puedeConfigurarAlertas && viaje ? (
-              <ConfigAlertasCard
-                viaje={viaje}
-                guardando={guardandoAlertaConfig}
-                onGuardar={(input) => void guardarConfigAlerta(input)}
-              />
+            {rutaMapa && rutaMapa.tiempoTotalSeg != null && rutaMapa.tiempoParadasSeg > 0 ? (
+              <Text style={[styles.duracionDetalle, { color: theme.textDim }]}>
+                {`Duración estimada con paradas: ${formatDurationHm(
+                  rutaMapa.tiempoTotalSeg - rutaMapa.tiempoParadasSeg
+                )} en movimiento + ${formatDurationHm(rutaMapa.tiempoParadasSeg)} de paradas planificadas.`}
+              </Text>
             ) : null}
 
             {viaje.es_grupal && (
+            <View style={styles.collapsibleGroup}>
               <View style={[styles.alertConfigCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
                 <Pressable
                   onPress={() => setParticipantesAbierto((v) => !v)}
@@ -1097,7 +1146,6 @@ export default function ViajeDetalleScreen() {
                   </Btn>
                 ) : null}
               </View>
-            )}
             </View>
             )}
 
@@ -1182,21 +1230,6 @@ export default function ViajeDetalleScreen() {
               )
             })()}
 
-            {/* RN-111/112: el viaje finalizado lo ofrece desde su resumen. */}
-            <View style={styles.optionsBlock}>
-              <Btn
-                variant="secondary"
-                block
-                size="sm"
-                icon="shield"
-                onPress={() =>
-                  router.push({ pathname: '/viaje/[viajeId]/privacidad', params: { viajeId } })
-                }
-              >
-                Privacidad y ubicación
-              </Btn>
-            </View>
-
             {puedeCompartirRuta && (
               <View style={styles.optionsBlock}>
                 <Btn
@@ -1224,6 +1257,8 @@ export default function ViajeDetalleScreen() {
                   </Btn>
                 ) : null}
               </View>
+            )}
+            </>
             )}
 
           </ScrollViewAyuda>
@@ -1514,6 +1549,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginTop: 2,
   },
+  duracionDetalle: {
+    fontSize: 13,
+    marginTop: 6,
+  },
   statLabel: {
     fontSize: 10.5,
     fontWeight: '600',
@@ -1572,6 +1611,14 @@ const styles = StyleSheet.create({
   },
   collapsibleGroup: {
     gap: 6,
+  },
+  configTab: {
+    gap: 12,
+  },
+  configSeccion: {
+    fontSize: 16,
+    fontWeight: '800',
+    marginTop: 4,
   },
   topBarActions: {
     flexDirection: 'row',

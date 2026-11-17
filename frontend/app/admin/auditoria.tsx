@@ -17,6 +17,7 @@ import { useTheme } from '@/components/MeshUI'
 import { PasoAyuda } from '@/components/ayuda/PasoAyuda'
 import { AYUDA_ADMIN_AUDITORIA } from '@/components/ayuda/contenidoAyuda'
 import { listarAuditoriaAdmin, type EntradaAuditoria } from '@/lib/adminApi'
+import { CATEGORIAS_PARADA } from '@/lib/paradasApi'
 
 const DESCRIPCION_ACCION: Record<string, string> = {
   'usuario.editar': 'Editó un perfil',
@@ -31,6 +32,8 @@ const DESCRIPCION_ACCION: Record<string, string> = {
   'viaje.eliminar': 'Eliminó un viaje',
   'checklist.definir_sugeridos': 'Editó el checklist sugerido',
   'checklist.restaurar_sugeridos': 'Restauró el checklist sugerido',
+  'duracion_parada.definir': 'Editó la duración de una parada',
+  'duracion_parada.restaurar': 'Restauró la duración de una parada',
   'insignia.crear': 'Creó una insignia',
   'insignia.editar': 'Editó una insignia',
   'insignia.eliminar': 'Eliminó una insignia',
@@ -40,6 +43,9 @@ const DESCRIPCION_ACCION: Record<string, string> = {
 function objetivo(e: EntradaAuditoria): string {
   const d = e.detalle ?? {}
   if (typeof d.tipo_actividad === 'string') return ETIQUETA_ACTIVIDAD[d.tipo_actividad] ?? d.tipo_actividad
+  if (typeof d.categoria === 'string') {
+    return CATEGORIAS_PARADA.find((c) => c.id === d.categoria)?.label ?? d.categoria
+  }
   const valor = d.email ?? d.nombre ?? d.codigo
   return typeof valor === 'string' && valor ? valor : e.entidad_id.slice(0, 8)
 }

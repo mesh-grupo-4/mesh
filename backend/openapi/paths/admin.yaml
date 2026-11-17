@@ -727,6 +727,92 @@ ChecklistActividadAdmin:
       '500':
         $ref: '../components/responses.yaml#/InternalServerError'
 
+DuracionesParadaAdmin:
+  get:
+    operationId: adminListarDuracionesParada
+    summary: Minutos promedio de parada por categoría
+    description: |
+      RN-134: los minutos promedio que se suman al tiempo estimado de un viaje por cada parada planificada, según su categoría. `personalizado: false` indica que rige el valor por defecto del sistema.
+    tags:
+      - Admin
+    responses:
+      '200':
+        description: Duraciones vigentes de cada categoría planificable.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ListaDuracionesParadaAdmin'
+            example: {"items": [{"categoria": "combustible", "minutos": 10, "minutos_por_defecto": 10, "personalizado": false, "updated_at": null}, {"categoria": "gastronomia", "minutos": 60, "minutos_por_defecto": 45, "personalizado": true, "updated_at": "2026-11-17T15:00:00.000Z"}]}
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/SuperadminRequerido'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+DuracionParadaAdmin:
+  parameters:
+    - $ref: '../components/parameters.yaml#/CategoriaParadaPath'
+  put:
+    operationId: adminDefinirDuracionParada
+    summary: Redefinir los minutos promedio de una categoría de parada
+    description: |
+      RN-134: fija los minutos promedio de una parada de esta categoría. Rige para toda estimación que se calcule desde ahora, incluidas las rutas ya guardadas (el tiempo de paradas se calcula al leer la ruta). Queda auditado (`duracion_parada.definir`).
+    tags:
+      - Admin
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '../components/schemas.yaml#/DefinirDuracionParadaRequest'
+          example: {"minutos": 60}
+    responses:
+      '200':
+        description: Duración guardada.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/DuracionParadaAdmin'
+            example: {"categoria": "gastronomia", "minutos": 60, "minutos_por_defecto": 45, "personalizado": true, "updated_at": "2026-11-17T15:00:00.000Z"}
+      '400':
+        description: Categoría inexistente o no planificable (`accidente`), o minutos fuera de 0–240 (`VALIDATION_ERROR`).
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/ValidationError'
+            example: {"error": "Validación fallida", "code": "VALIDATION_ERROR", "details": {"formErrors": [], "fieldErrors": {"minutos": ["Hasta 240 minutos por parada"]}}}
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/SuperadminRequerido'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
+  delete:
+    operationId: adminRestaurarDuracionParada
+    summary: Volver a los minutos por defecto de una categoría
+    description: |
+      RN-134: descarta lo que definió el superadmin y vuelve a regir el valor del sistema. Si la categoría no estaba personalizada no cambia nada y no se audita; si lo estaba, queda auditado (`duracion_parada.restaurar`).
+    tags:
+      - Admin
+    responses:
+      '200':
+        description: Valor por defecto vigente.
+        content:
+          application/json:
+            schema:
+              $ref: '../components/schemas.yaml#/DuracionParadaAdmin'
+            example: {"categoria": "gastronomia", "minutos": 45, "minutos_por_defecto": 45, "personalizado": false, "updated_at": null}
+      '400':
+        $ref: '../components/responses.yaml#/BadRequest'
+      '401':
+        $ref: '../components/responses.yaml#/Unauthorized'
+      '403':
+        $ref: '../components/responses.yaml#/SuperadminRequerido'
+      '500':
+        $ref: '../components/responses.yaml#/InternalServerError'
+
 InsigniasAdmin:
   get:
     operationId: adminListarInsignias
@@ -897,7 +983,7 @@ AuditoriaAdmin:
         in: query
         required: false
         description: Filtra por tipo de entidad.
-        schema: {"type": "string", "enum": ["usuario", "grupo", "viaje", "checklist", "insignia"]}
+        schema: {"type": "string", "enum": ["usuario", "grupo", "viaje", "checklist", "insignia", "duracion_parada"]}
       - name: entidad_id
         in: query
         required: false

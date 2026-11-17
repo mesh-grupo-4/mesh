@@ -107,6 +107,7 @@ export default function ConfigurarRutaScreen() {
     reintentarCalculo,
     resumenDistancia,
     resumenTiempo,
+    resumenTiempoDetalle,
     confirmarHabilitado,
     guardando,
     modoSeleccionMapa,
@@ -238,6 +239,7 @@ export default function ConfigurarRutaScreen() {
             onReintentarCalculo={reintentarCalculo}
             resumenDistancia={resumenDistancia}
             resumenTiempo={resumenTiempo}
+            resumenTiempoDetalle={resumenTiempoDetalle}
             confirmarHabilitado={confirmarHabilitado}
             guardando={guardando}
             mapPickMode={Boolean(modoSeleccionMapa)}

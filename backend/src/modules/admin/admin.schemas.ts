@@ -27,7 +27,7 @@ export const listarViajesQuery = z.object({
 
 export const listarAuditoriaQuery = z.object({
   accion: z.string().trim().min(1).max(60).optional(),
-  entidad: z.enum(['usuario', 'grupo', 'viaje', 'checklist', 'insignia']).optional(),
+  entidad: z.enum(['usuario', 'grupo', 'viaje', 'checklist', 'insignia', 'duracion_parada']).optional(),
   entidad_id: z.string().uuid().optional(),
   ...paginacion,
 })
@@ -73,6 +73,25 @@ export const definirChecklistActividadSchema = z.object({
     .min(1, 'Dejá al menos un ítem sugerido')
     .max(30, 'Hasta 30 ítems sugeridos por actividad')
     .refine((items) => new Set(items).size === items.length, 'Hay ítems repetidos'),
+})
+
+/** RN-134: categorías de parada planificables (sin `accidente`). */
+export const categoriaParadaParam = z.enum([
+  'combustible',
+  'descanso',
+  'gastronomia',
+  'sanitario',
+  'punto_control',
+  'otro',
+])
+
+/** RN-134: minutos promedio de una categoría. 0 vale (no suma tiempo); tope de 4 horas. */
+export const definirDuracionParadaSchema = z.object({
+  minutos: z
+    .number()
+    .int('Los minutos tienen que ser un número entero')
+    .min(0, 'Los minutos no pueden ser negativos')
+    .max(240, 'Hasta 240 minutos por parada'),
 })
 
 /**

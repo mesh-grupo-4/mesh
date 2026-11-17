@@ -23,6 +23,8 @@ type Props = {
   guardando: boolean
   onGuardar: (input: ConfigAlertasInput) => void
   inicialAbierto?: boolean
+  /** false: siempre desplegada y sin chevron (pestaña Configuración). */
+  plegable?: boolean
 }
 
 /**
@@ -30,23 +32,28 @@ type Props = {
  * (RN-036) y quién puede crear alertas manuales. Solo se le muestra al líder;
  * el backend valida igual (RN-030).
  */
-export function ConfigAlertasCard({ viaje, guardando, onGuardar, inicialAbierto = false }: Props) {
+export function ConfigAlertasCard({ viaje, guardando, onGuardar, inicialAbierto = false, plegable = true }: Props) {
   const theme = useTheme()
-  const [abierto, setAbierto] = useState(inicialAbierto)
+  const [abiertoEstado, setAbierto] = useState(inicialAbierto)
+  const abierto = !plegable || abiertoEstado
   const soloLider = viaje.alertas_solo_lider ?? true
 
   return (
     <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
       <Pressable
         onPress={() => setAbierto((v) => !v)}
+        disabled={!plegable}
+        feedback={plegable}
         style={({ pressed }) => [styles.header, { opacity: pressed ? 0.7 : 1 }]}
-        accessibilityRole="button"
+        accessibilityRole={plegable ? 'button' : 'header'}
         accessibilityLabel="Configurar alertas"
-        accessibilityState={{ expanded: abierto }}
+        accessibilityState={plegable ? { expanded: abierto } : undefined}
       >
         <Feather name="alert-triangle" size={16} color={theme.accent} />
         <Text style={[styles.title, { color: theme.text }]}>Configurar alertas</Text>
-        <Feather name={abierto ? 'chevron-up' : 'chevron-down'} size={16} color={theme.textDim} />
+        {plegable ? (
+          <Feather name={abierto ? 'chevron-up' : 'chevron-down'} size={16} color={theme.textDim} />
+        ) : null}
       </Pressable>
 
       {abierto ? (

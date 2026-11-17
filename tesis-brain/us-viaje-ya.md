@@ -23,16 +23,21 @@
    - Con una ruta de "Mis rutas" (plantilla) no se pregunta actividad ni destino: los trae la plantilla. El modo se elige en la misma pantalla de confirmación (sin competitivo si la actividad es motorizada).
    - Si se entró desde un grupo, ese grupo queda invitado.
    - Se crea con `inmediato: true`, nombre automático `Viaje rápido · <Actividad> · <HH:MM>` (UTC-3, RN-105), `esGrupal: true` y el modo elegido.
-4. **Sala de espera** (`app/viaje/[viajeId]/sala.tsx`, solo el líder):
-   - QR + compartir link (RN-015/016).
-   - Invitar grupos o amigos en cualquier momento (`POST /invitaciones`, RN-028/029).
-   - Agregar o cambiar el destino.
-   - Con destino definido, **clima sobre el recorrido** (RN-108). Sin destino no se muestra.
-   - **Parámetros del grupo y configuración de alertas** (RN-025): nacen con los defaults de la actividad y el líder los ajusta acá.
-   - Lista de quién se sumó (confirmado) y quién está invitado (pendiente); se refresca cada 5 s.
-   - **Arrancar viaje**: aviso de ubicación (RN-110) → `POST /iniciar` → mapa en vivo. Desde ahí el QR deja de valer (RN-015).
-
-   - **Cancelar viaje**: elimina el viaje (`DELETE /api/viajes/{viajeId}`, solo el líder y antes de arrancar).
+4. **Sala de espera** (`app/viaje/[viajeId]/sala.tsx`). La ven el líder y quien se suma por **QR o código** (`lib/joinViajeQr.ts`). Al participante solo se le muestra si ya confirmó y la hora de salida llegó; un viaje planificado para más adelante lo pasa a su detalle. Tiene dos pestañas:
+   - **Detalles** (propio del Viaje YA: lo primero es sumar gente, el resto se mira de pasada):
+     - Arriba de todo y destacado: QR + código + compartir link (RN-015/016). Los dos lo pueden compartir; "Grupos o amigos" es solo del líder.
+     - **Resumen** con el mismo formato que "Revisá y creá" de Planificar (`components/viaje-nuevo/Resumen.tsx`): actividad, nombre, modo, destino y con quién. El líder toca **Destino** para agregarlo o cambiarlo y **Con quién** para invitar grupos o amigos (`POST /invitaciones`, RN-028/029). El participante solo lo ve.
+     - Con destino definido, **clima sobre el recorrido** (RN-108). Sin destino no se muestra.
+     - Lista de quién se sumó (confirmado) y quién está invitado (pendiente); se refresca cada 5 s. Para el participante también se refresca el estado del viaje.
+   - **Configuración**, todo desplegado:
+     - **Parámetros del grupo** (RN-025): nacen con los defaults de la actividad. El líder los ajusta; el participante los ve en solo lectura.
+     - **Configuración de alertas**: solo el líder.
+     - **Privacidad y ubicación** (RN-111/112): compartir ubicación en este viaje y quiénes la vieron (`components/PrivacidadViajePanel.tsx`).
+   - Abajo, según el rol:
+     - Líder, **Arrancar viaje**: aviso de ubicación (RN-110) → `POST /iniciar` → mapa en vivo. Desde ahí el QR deja de valer (RN-015).
+     - Líder, **Cancelar viaje**: elimina el viaje (`DELETE /api/viajes/{viajeId}`, solo el líder y antes de arrancar).
+     - Participante: "Esperando que *líder* arranque el viaje" + **Ya no voy a ir** (`POST /salir`, RN-029c). Cuando el líder arranca le llega el aviso de viaje iniciado (`TripRealtimeContext`) para sumarse.
+   - El detalle de un viaje planificado (`app/viaje/[viajeId]/index.tsx`) comparte **solo las pestañas**: su Detalles sigue siendo el suyo (mapa, distancia, hora y fecha, participantes) y en Configuración van parámetros, alertas (líder) y privacidad.
 5. **Planificar viaje** (`app/viaje/crear.tsx`) es un wizard con los mismos componentes (`components/viaje-nuevo/`): actividad → cuándo (fecha + nombre) → recorrido (trazar ahora / después) → con quién (solo / en grupo + invitados) → resumen con modo y parámetros (RN-025). Desde el resumen se vuelve a cualquier paso. Con plantilla se saltean actividad y recorrido; si se entró desde un grupo, ese grupo viene preseleccionado.
 6. **Viaje en curso** (cualquier viaje grupal, no solo el rápido): al desplegar el panel inferior del mapa en vivo aparecen **Gastos** (quien se sumó) y **Ajustes** (solo el líder: parámetros y alertas, `PATCH /api/viajes/{viajeId}`). El motor relee el viaje en cada ping, así que el ajuste aplica al instante; el resto del grupo refresca el detalle con el evento `viaje:actualizado`.
 

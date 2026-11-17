@@ -1300,6 +1300,10 @@ RutaViajeRecurso:
     description: |
       Ruta con origen, destino, trazado y paradas ordenadas. Accesible para el creador
       y cualquier integrante que no haya rechazado la invitación.
+
+      RN-134: `tiempo_estimado_seg` es el tiempo en movimiento; `tiempo_paradas_seg`
+      suma los minutos promedio de cada parada según su categoría y
+      `tiempo_total_estimado_seg` es la suma de ambos.
     tags:
       - Viajes
     parameters:
@@ -1311,6 +1315,7 @@ RutaViajeRecurso:
           application/json:
             schema:
               $ref: '../components/schemas.yaml#/RutaViaje'
+            example: {"origen": {"lat": -31.4135, "lng": -64.1811, "nombre": "Córdoba Capital"}, "destino": {"lat": -31.7236, "lng": -65.0074, "nombre": "Mina Clavero"}, "linestring": {"type": "LineString", "coordinates": [[-64.1811, -31.4135], [-65.0074, -31.7236]]}, "tiempo_estimado_seg": 5400, "tiempo_paradas_seg": 3300, "tiempo_total_estimado_seg": 8700, "distancia_planeada_m": 84210.5, "paradas": [{"orden": 1, "lat": -31.6, "lng": -64.6, "nombre": "Parador El Cóndor", "categoria": "gastronomia"}, {"orden": 2, "lat": -31.65, "lng": -64.8, "nombre": "YPF Copina", "categoria": "combustible"}]}
       '401':
         $ref: '../components/responses.yaml#/Unauthorized'
       '403':

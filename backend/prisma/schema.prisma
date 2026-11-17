@@ -786,6 +786,18 @@ model ChecklistActividad {
   @@map("checklist_actividad")
 }
 
+/// RN-134: minutos promedio de una parada planificada según su categoría, que el
+/// superadmin redefinió. Sin fila rigen los de `duracionesParada.ts`. Se suman al
+/// tiempo en movimiento para estimar la duración total del viaje.
+model DuracionParada {
+  id         String          @id @default(uuid()) @db.Uuid
+  categoria  CategoriaParada @unique
+  minutos    Int
+  updated_at DateTime        @updatedAt @map("updated_at")
+
+  @@map("duracion_parada")
+}
+
 /// Gasto compartido cargado por un integrante durante el viaje (US: liquidación
 /// grupal). Se prorratea entre quienes elige quien lo registra, no entre todo el
 /// viaje: por eso `GastoParticipante` guarda la lista por gasto, no un split fijo.

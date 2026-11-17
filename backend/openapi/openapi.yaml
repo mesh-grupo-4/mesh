@@ -278,6 +278,8 @@ paths:
   # ── Routing ────────────────────────────────────────────────────────────────
   /api/routing/calcular:
     $ref: './paths/routing.yaml#/CalcularRuta'
+  /api/routing/duraciones-parada:
+    $ref: './paths/routing.yaml#/DuracionesParada'
 
   # ── Lugares ────────────────────────────────────────────────────────────────
   /api/lugares/en-ruta:
@@ -494,6 +496,10 @@ paths:
     $ref: './paths/admin.yaml#/ChecklistActividadesAdmin'
   /api/admin/checklist/{tipoActividad}:
     $ref: './paths/admin.yaml#/ChecklistActividadAdmin'
+  /api/admin/duraciones-parada:
+    $ref: './paths/admin.yaml#/DuracionesParadaAdmin'
+  /api/admin/duraciones-parada/{categoria}:
+    $ref: './paths/admin.yaml#/DuracionParadaAdmin'
   /api/admin/insignias:
     $ref: './paths/admin.yaml#/InsigniasAdmin'
   /api/admin/insignias/{insigniaId}:

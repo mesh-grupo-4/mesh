@@ -16,6 +16,7 @@ import {
   SeccionSeguridad,
   SeccionViajes,
 } from '@/components/admin/reportes/Secciones'
+import { errorDeRango, hoyArg, RangoFechas, sumarDias, type Rango } from '@/components/admin/reportes/RangoFechas'
 import { Btn, Chip, useTheme } from '@/components/MeshUI'
 import { meshAlert } from '@/lib/meshAlert'
 import {
@@ -85,24 +86,15 @@ const ACTIVIDADES: { clave: Actividad; label: string }[] = [
   { clave: 'otro', label: 'Otro' },
 ]
 
-/** Hoy en hora argentina (RN-105), como fecha calendario AAAA-MM-DD. */
-function hoyArg(): string {
-  return new Date(Date.now() - 3 * 3_600_000).toISOString().slice(0, 10)
-}
-
-function restarDias(dia: string, n: number): string {
-  return new Date(Date.parse(`${dia}T00:00:00Z`) - n * 86_400_000).toISOString().slice(0, 10)
-}
-
-function rangoDe(preset: Preset): { desde: string; hasta: string } {
+function rangoDe(preset: Preset): Rango {
   const hasta = hoyArg()
   switch (preset) {
     case '30d':
-      return { desde: restarDias(hasta, 29), hasta }
+      return { desde: sumarDias(hasta, -29), hasta }
     case '90d':
-      return { desde: restarDias(hasta, 89), hasta }
+      return { desde: sumarDias(hasta, -89), hasta }
     case '12m':
-      return { desde: restarDias(hasta, 364), hasta }
+      return { desde: sumarDias(hasta, -364), hasta }
     case 'anio':
       return { desde: `${hasta.slice(0, 4)}-01-01`, hasta }
   }
@@ -116,7 +108,10 @@ export default function AdminReportesScreen() {
   const theme = useTheme()
   const { start } = useCopilot()
   const [seccion, setSeccion] = useState('resumen')
-  const [preset, setPreset] = useState<Preset>('90d')
+  // El período siempre es un desde/hasta editable; el atajo solo lo completa y
+  // queda marcado mientras el rango coincida con él (null = personalizado).
+  const [preset, setPreset] = useState<Preset | null>('90d')
+  const [rango, setRango] = useState<Rango>(() => rangoDe('90d'))
   const [actividad, setActividad] = useState<Actividad | undefined>(undefined)
   const [mesesRetencion, setMesesRetencion] = useState(6)
   // Los datos van con la sección que los pidió: al cambiar de sección, la vista nueva
@@ -129,13 +124,31 @@ export default function AdminReportesScreen() {
 
   const actual = SECCIONES.find((s) => s.clave === seccion)!
   const filtro = useMemo<FiltroReporte>(
-    () => ({ ...rangoDe(preset), actividad: actual.conActividad ? actividad : undefined }),
-    [preset, actividad, actual.conActividad]
+    () => ({ ...rango, actividad: actual.conActividad ? actividad : undefined }),
+    [rango, actividad, actual.conActividad]
   )
+  const rangoInvalido = seccion !== 'retencion' && errorDeRango(rango) !== null
+
+  const elegirPreset = (p: Preset) => {
+    setPreset(p)
+    setRango(rangoDe(p))
+  }
+
+  const elegirRango = (r: Rango) => {
+    setPreset(null)
+    setRango(r)
+  }
 
   const cargar = useCallback(async () => {
     // Si el usuario cambia de filtro antes de que llegue la respuesta, la vieja se descarta.
     const id = ++pedido.current
+    // Un rango inválido no se pide: el error ya se ve debajo de las fechas.
+    if (rangoInvalido) {
+      setDatos(null)
+      setError(null)
+      setCargando(false)
+      return
+    }
     setCargando(true)
     setError(null)
     try {
@@ -149,7 +162,7 @@ export default function AdminReportesScreen() {
     } finally {
       if (id === pedido.current) setCargando(false)
     }
-  }, [actual, filtro, mesesRetencion])
+  }, [actual, filtro, mesesRetencion, rangoInvalido])
 
   useEffect(() => {
     void cargar()
@@ -198,13 +211,16 @@ export default function AdminReportesScreen() {
               ))}
             </View>
           ) : (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-              {PRESETS.map((p) => (
-                <Chip key={p.clave} active={p.clave === preset} onPress={() => setPreset(p.clave)}>
-                  {p.label}
-                </Chip>
-              ))}
-            </ScrollView>
+            <>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+                {PRESETS.map((p) => (
+                  <Chip key={p.clave} active={p.clave === preset} onPress={() => elegirPreset(p.clave)}>
+                    {p.label}
+                  </Chip>
+                ))}
+              </ScrollView>
+              <RangoFechas rango={rango} onChange={elegirRango} />
+            </>
           )}
           {actual.conActividad ? (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>

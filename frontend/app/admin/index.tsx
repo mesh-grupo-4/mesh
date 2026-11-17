@@ -101,6 +101,12 @@ export default function AdminPanelScreen() {
             onPress={() => router.push('/admin/checklist')}
           />
           <Fila
+            icono="clock"
+            titulo="Duración de paradas"
+            detalle="Minutos promedio de cada tipo de parada, que se suman al tiempo estimado del viaje"
+            onPress={() => router.push('/admin/duraciones-parada')}
+          />
+          <Fila
             icono="award"
             titulo="Insignias"
             detalle="Crear, editar, desactivar y eliminar las insignias que se otorgan al finalizar un viaje"

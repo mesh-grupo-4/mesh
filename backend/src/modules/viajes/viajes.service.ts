@@ -19,6 +19,7 @@ import {
 } from '../../lib/postgis'
 import { filtrosGpsPorActividad } from '../../lib/gpsFilters'
 import { armarParadasDelResumen } from './viajes.paradas-resumen'
+import { obtenerDuracionesVigentes, tiempoParadasSeg } from '../paradas/duracionesParada'
 import { columnasGpsExtra } from '../../lib/datosGpsExtra'
 import { esIntegranteActivo, unirUsuarioAlViaje, WHERE_INTEGRANTE_ACTIVO } from './viajes.membership'
 import type {
@@ -637,6 +638,14 @@ export class ViajesService {
       throw new HttpError(404, 'Ruta no configurada', 'ROUTE_NOT_FOUND')
     }
 
+    // RN-134: el tiempo en movimiento no incluye las paradas planificadas; se suman
+    // aparte con los minutos promedio de cada categoría.
+    const duraciones = await obtenerDuracionesVigentes(this.prisma)
+    const paradasSeg = tiempoParadasSeg(
+      ruta.paradas_intermedias.map((p) => p.categoria),
+      duraciones
+    )
+
     return {
       origen: {
         lat: ruta.origen_lat,
@@ -650,6 +659,9 @@ export class ViajesService {
       },
       linestring: ruta.linestring_geojson,
       tiempo_estimado_seg: ruta.tiempo_estimado_seg,
+      tiempo_paradas_seg: paradasSeg,
+      tiempo_total_estimado_seg:
+        ruta.tiempo_estimado_seg != null ? ruta.tiempo_estimado_seg + paradasSeg : null,
       distancia_planeada_m: ruta.distancia_planeada_m,
       paradas: ruta.paradas_intermedias.map((p) => ({
         orden: p.orden,

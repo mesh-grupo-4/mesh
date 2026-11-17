@@ -19,6 +19,8 @@ type Props = {
   esIncidenteDetectado?: boolean
   /** RN-045: es el líder en una parada grupal; al retomar, retoman todos. */
   retomaElGrupo?: boolean
+  /** El líder elige después si se detiene él o todo el grupo: el botón dice "Detener". */
+  esLider?: boolean
   /** El botón de solicitar no se muestra al líder ni en viajes individuales. */
   puedeSolicitar: boolean
   /** Hay una solicitud propia esperando respuesta del líder. */
@@ -46,6 +48,7 @@ export function ParadaActionsBar({
   paradaDesde,
   esIncidenteDetectado = false,
   retomaElGrupo = false,
+  esLider = false,
   puedeSolicitar,
   solicitudPendiente,
   ocupado,
@@ -119,10 +122,10 @@ export function ParadaActionsBar({
         onPress={onDetenerse}
         disabled={ocupado}
         accessibilityRole="button"
-        accessibilityLabel="Registrar que me detuve"
+        accessibilityLabel={esLider ? 'Registrar una detención' : 'Registrar que me detuve'}
       >
         <Feather name="pause" size={19} color="#111827" />
-        <Text style={styles.detenerseTxt}>Me detuve</Text>
+        <Text style={styles.detenerseTxt}>{esLider ? 'Detener' : 'Me detuve'}</Text>
       </Pressable>
 
       {puedeSolicitar ? (

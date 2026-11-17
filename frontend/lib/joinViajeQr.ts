@@ -5,8 +5,9 @@ import { MeshApiError } from '@/lib/apiClient'
 import { unirseViajePorCodigo, unirseViajePorQr } from '@/lib/viajesApi'
 import { CODIGO_EXPIRED_MESSAGE, QR_EXPIRED_MESSAGE } from '@/lib/inviteLinks'
 
+/** Viaje YA: quien se suma cae en la sala de espera; si el viaje es para más adelante, la sala lo pasa al detalle. */
 function abrirViaje(viajeId: string) {
-  router.replace({ pathname: '/viaje/[viajeId]', params: { viajeId } })
+  router.replace({ pathname: '/viaje/[viajeId]/sala', params: { viajeId } })
 }
 
 export async function ejecutarUnionPorQr(viajeId: string, userId: string): Promise<boolean> {

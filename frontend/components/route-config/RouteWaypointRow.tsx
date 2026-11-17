@@ -111,14 +111,17 @@ export function RouteWaypointRow({
 
   const onSelectMiUbicacion = () => {
     if (!ubicacionActual) return
-    setQuery(NOMBRE_UBICACION_ACTUAL)
+    // Una parada se nombra por su posición ("Parada 1"), igual que al elegirla
+    // en el mapa; "Tu ubicación actual" queda solo para origen y destino.
+    const nombre = waypoint.type === 'STOP' ? label : NOMBRE_UBICACION_ACTUAL
+    setQuery(nombre)
     setFocused(false)
     inputRef.current?.blur()
     Keyboard.dismiss()
     onUpdate(waypoint.id, {
       lat: ubicacionActual.latitude,
       lon: ubicacionActual.longitude,
-      name: NOMBRE_UBICACION_ACTUAL,
+      name: nombre,
     })
   }
 

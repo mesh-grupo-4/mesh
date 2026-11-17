@@ -13,6 +13,12 @@ import {
 } from '@/lib/osrm'
 import { toPutRutaBody, waypointsFromRutaDetalle } from '@/lib/routePayload'
 import { guardarRutaEnBackend, obtenerRuta } from '@/lib/viajesApi'
+import {
+  DURACIONES_PARADA_POR_DEFECTO,
+  obtenerDuracionesParada,
+  tiempoParadasSeg,
+  type DuracionesParada,
+} from '@/lib/duracionesParada'
 import type { TipoActividadApi } from '@/lib/viajesApi'
 
 import {
@@ -186,6 +192,24 @@ export function useRoutePlanner({
     () => perfilOsrmDesdeActividad(tipoActividad ?? 'bici'),
     [tipoActividad]
   )
+
+  // RN-134: minutos promedio por categoría de parada, para sumarlos al tiempo en movimiento.
+  const [duracionesParada, setDuracionesParada] =
+    useState<DuracionesParada>(DURACIONES_PARADA_POR_DEFECTO)
+  useEffect(() => {
+    let activo = true
+    obtenerDuracionesParada()
+      .then((d) => {
+        if (activo) setDuracionesParada(d)
+      })
+      .catch((e) => {
+        // Sin red rigen los valores por defecto: la estimación sigue siendo útil.
+        if (__DEV__) console.warn('[useRoutePlanner] No se pudieron leer las duraciones de parada:', e)
+      })
+    return () => {
+      activo = false
+    }
+  }, [])
 
   const [regionInicial, setRegionInicial] = useState(REGION_FALLBACK)
   const [ubicacionActual, setUbicacionActual] = useState<CameraTarget | null>(null)
@@ -663,7 +687,17 @@ export function useRoutePlanner({
     !modoSeleccionMapa
 
   const resumenDistancia = rutaOk ? formatDistance(rutaOk.distanceM) : null
-  const resumenTiempo = rutaOk ? formatDuration(rutaOk.durationSec) : null
+  const paradasSeg = tiempoParadasSeg(
+    paradas.map((p) => p.category),
+    duracionesParada
+  )
+  // RN-134: el tiempo estimado incluye las paradas planificadas; el detalle separa
+  // cuánto es en movimiento y cuánto de paradas.
+  const resumenTiempo = rutaOk ? formatDuration(rutaOk.durationSec + paradasSeg) : null
+  const resumenTiempoDetalle =
+    rutaOk && paradasSeg > 0
+      ? `${formatDuration(rutaOk.durationSec)} en movimiento + ${formatDuration(paradasSeg)} de paradas`
+      : null
 
   const guardar = useCallback(async () => {
     if (!confirmarHabilitado || !rutaOk || !waypointTieneCoords(origen) || !waypointTieneCoords(destino)) {
@@ -702,6 +736,7 @@ export function useRoutePlanner({
     reintentarCalculo,
     resumenDistancia,
     resumenTiempo,
+    resumenTiempoDetalle,
     confirmarHabilitado,
     guardando,
     modoSeleccionMapa,

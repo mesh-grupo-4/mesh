@@ -12,6 +12,8 @@ type Props = {
   /** Se llama con lo que devolvió el backend para que la pantalla actualice su copia del viaje. */
   onActualizado: (actualizado: ViajeActualizadoApi) => void
   inicialAbierto?: boolean
+  /** false: tarjetas siempre desplegadas (pestaña Configuración). */
+  plegable?: boolean
 }
 
 /**
@@ -19,7 +21,7 @@ type Props = {
  * del grupo y configuración de alertas. El motor relee el viaje en cada ping, así
  * que un cambio en vivo aplica al instante. El backend valida el rol (RN-030).
  */
-export function AjustesViajeCards({ viaje, userId, onActualizado, inicialAbierto = false }: Props) {
+export function AjustesViajeCards({ viaje, userId, onActualizado, inicialAbierto = false, plegable = true }: Props) {
   const [guardando, setGuardando] = useState(false)
 
   const guardar = async (input: Parameters<typeof actualizarViaje>[2]) => {
@@ -41,6 +43,7 @@ export function AjustesViajeCards({ viaje, userId, onActualizado, inicialAbierto
         guardando={guardando}
         onGuardar={(input) => void guardar(input)}
         inicialAbierto={inicialAbierto}
+        plegable={plegable}
       />
       {viaje.es_grupal ? (
         <ConfigAlertasCard
@@ -48,6 +51,7 @@ export function AjustesViajeCards({ viaje, userId, onActualizado, inicialAbierto
           guardando={guardando}
           onGuardar={(input) => void guardar(input)}
           inicialAbierto={inicialAbierto}
+          plegable={plegable}
         />
       ) : null}
     </View>
