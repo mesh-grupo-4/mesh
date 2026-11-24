@@ -87,6 +87,12 @@ type Props = {
   /** Punto de "estoy acá" (GPS del dispositivo). */
   userLocation?: LatLng | null
   interactive?: boolean
+  /**
+   * Android: Google Maps en modo lite, una imagen fija del mapa pensada para listas (sin
+   * gestos ni animaciones de cámara). Implica `interactive={false}`. iOS no tiene modo lite
+   * y lo ignora: ahí queda un mapa común sin interacción.
+   */
+  liteMode?: boolean
   onReady?: () => void
   onRegionChangeComplete?: (center: LatLng) => void
   /** El usuario arrastró el mapa a mano (no una animación nuestra) — señal para pausar el "seguirme". */
@@ -200,7 +206,8 @@ export const MeshMapView = forwardRef<MeshMapViewHandle, Props>(function MeshMap
     markers,
     polylines,
     userLocation = null,
-    interactive = true,
+    interactive: interactivePedido = true,
+    liteMode = false,
     onReady,
     onRegionChangeComplete,
     onUserDrag,
@@ -208,6 +215,7 @@ export const MeshMapView = forwardRef<MeshMapViewHandle, Props>(function MeshMap
   },
   ref
 ) {
+  const interactive = interactivePedido && !liteMode
   const mapRef = useRef<MapView>(null)
   const listoRef = useRef(false)
   // Última acción de cámara pedida antes de que el mapa esté listo: se aplica en onMapReady.
@@ -263,6 +271,7 @@ export const MeshMapView = forwardRef<MeshMapViewHandle, Props>(function MeshMap
         ref={mapRef}
         style={StyleSheet.absoluteFill}
         provider={PROVIDER}
+        liteMode={liteMode && Platform.OS === 'android'}
         initialCamera={initialCamera}
         mapType={mapStyle.mapType}
         // En Android el esquema nativo solo se lee al crear el mapa: queda en claro

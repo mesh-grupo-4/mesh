@@ -29,7 +29,7 @@ import { abrirNuevoViaje } from '@/lib/nuevoViaje';
 import { listarRutasPlantilla, type RutaPlantillaResumenApi } from '@/lib/rutasCompartidasApi';
 import { coincideBusqueda, normalizarBusqueda } from '@/lib/busqueda';
 import { confirmarQuitarGuardada } from '@/lib/rutasGuardadas';
-import { TrazadoMiniatura } from '@/components/tabs/TrazadoMiniatura';
+import { MiniaturaRuta } from '@/components/tabs/MiniaturaRuta';
 
 type FiltroAutor = 'todas' | 'mias' | 'otros';
 
@@ -150,18 +150,25 @@ export function RutasGuardadasPanel({ encabezado }: { encabezado: ReactNode }) {
           accessibilityRole="button"
           accessibilityLabel={`Ver ruta ${item.nombre}`}
         >
-          <TrazadoMiniatura coordenadas={item.trazado_miniatura ?? []} />
           <View style={styles.cuerpo}>
-            <View>
-              <Text style={[styles.nombre, { color: theme.text }]} numberOfLines={2}>
-                {item.nombre}
-              </Text>
-              <Text style={[styles.meta, { color: theme.textDim }]}>
-                {item.tipo_actividad}
-                {item.distancia_planeada_m != null ? ` · ${formatKm(item.distancia_planeada_m)}` : ''}
-                {item.tiempo_estimado_seg != null ? ` · ${formatDurationHm(item.tiempo_estimado_seg)}` : ''}
-                {item.con_checklist ? ' · con checklist' : ''}
-              </Text>
+            <View style={styles.cabeza}>
+              <View style={styles.textos}>
+                <Text style={[styles.nombre, { color: theme.text }]} numberOfLines={2}>
+                  {item.nombre}
+                </Text>
+                <Text style={[styles.meta, { color: theme.textDim }]}>
+                  {item.tipo_actividad}
+                  {item.distancia_planeada_m != null ? ` · ${formatKm(item.distancia_planeada_m)}` : ''}
+                  {item.tiempo_estimado_seg != null ? ` · ${formatDurationHm(item.tiempo_estimado_seg)}` : ''}
+                  {item.con_checklist ? ' · con checklist' : ''}
+                </Text>
+                {item.origen_nombre || item.destino_nombre ? (
+                  <Text style={[styles.extremos, { color: theme.textMute }]} numberOfLines={2}>
+                    {item.origen_nombre || 'Origen'} → {item.destino_nombre || 'Destino'}
+                  </Text>
+                ) : null}
+              </View>
+              <MiniaturaRuta coordenadas={item.trazado_miniatura ?? []} />
             </View>
             <View style={styles.row}>
               <Btn
@@ -265,14 +272,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     marginTop: 36,
   },
-  // El banner del trazado va de borde a borde arriba; el padding queda en el cuerpo.
   card: {
     borderWidth: 1,
     borderRadius: 12,
     marginHorizontal: 20,
-    overflow: 'hidden',
   },
   cuerpo: { padding: 14, gap: 10 },
+  // Texto a la izquierda y mapa cuadrado de la ruta a la derecha.
+  cabeza: { flexDirection: 'row', gap: 12 },
+  textos: { flex: 1, minWidth: 0 },
+  extremos: { marginTop: 4, fontSize: 13, fontWeight: '600' },
   nombre: { fontSize: 16, fontWeight: '700' },
   meta: { marginTop: 4, fontSize: 13, fontWeight: '600' },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

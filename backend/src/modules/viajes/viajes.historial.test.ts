@@ -5,6 +5,7 @@ import { ViajesService } from './viajes.service'
 const usuarioId = '11111111-1111-1111-1111-111111111111'
 const viajeA = '22222222-2222-2222-2222-222222222222'
 const viajeB = '33333333-3333-3333-3333-333333333333'
+const viajeC = '44444444-4444-4444-4444-444444444444'
 
 vi.mock('../../realtime/ioRegistry', () => ({
   getIo: () => ({ to: () => ({ emit: vi.fn() }) }),
@@ -15,6 +16,13 @@ vi.mock('../../lib/postgis', async (original) => {
   const real = await original<typeof import('../../lib/postgis')>()
   return { ...real, computeTrazaRecorrido: (...args: unknown[]) => trazaMock(...args) }
 })
+
+const recorridosMock = vi.fn(async (): Promise<Map<string, [number, number][]>> => new Map())
+const planificadasMock = vi.fn(async (): Promise<Map<string, [number, number][]>> => new Map())
+vi.mock('../../lib/miniaturas', () => ({
+  miniaturasDeRecorridos: (...args: unknown[]) => recorridosMock(...(args as [])),
+  miniaturasDeRutasPlanificadas: (...args: unknown[]) => planificadasMock(...(args as [])),
+}))
 
 function viajeFinalizado(id: string, finReal: string, creadorId: string) {
   return {
@@ -106,6 +114,56 @@ describe('US2 — historial de viajes', () => {
     const lista = await new ViajesService(m.prisma).listarFinalizados(usuarioId)
     expect(lista[0]?.mi_estado).toBe('creador')
     expect(lista[1]?.mi_estado).toBe('confirmado')
+  })
+})
+
+describe('Miniatura de mapa en los listados de viajes', () => {
+  const recorrido: [number, number][] = [
+    [-64.18, -31.41],
+    [-64.2, -31.43],
+  ]
+  const ruta: [number, number][] = [
+    [-64.1, -31.4],
+    [-64.3, -31.5],
+  ]
+
+  it('finalizados: usa el recorrido real y, sin GPS, la ruta planificada', async () => {
+    const m = armarPrisma(
+      [
+        viajeFinalizado(viajeA, '2026-08-20T18:00:00.000Z', usuarioId),
+        viajeFinalizado(viajeB, '2026-08-10T18:00:00.000Z', usuarioId),
+        viajeFinalizado(viajeC, '2026-08-01T18:00:00.000Z', usuarioId),
+      ],
+      []
+    )
+    recorridosMock.mockResolvedValueOnce(new Map([[viajeA, recorrido]]))
+    planificadasMock.mockResolvedValueOnce(
+      new Map([
+        [viajeA, ruta],
+        [viajeB, ruta],
+      ])
+    )
+
+    const lista = await new ViajesService(m.prisma).listarFinalizados(usuarioId)
+
+    expect(lista.map((v) => v.trazado_miniatura)).toEqual([recorrido, ruta, []])
+    expect(recorridosMock).toHaveBeenCalledWith(m.prisma, usuarioId, [viajeA, viajeB, viajeC])
+  })
+
+  it('planificados: usa la ruta del viaje y deja vacío el que no tiene', async () => {
+    const m = armarPrisma(
+      [
+        { ...viajeFinalizado(viajeA, '2026-08-20T18:00:00.000Z', usuarioId), estado: 'planificado' },
+        { ...viajeFinalizado(viajeB, '2026-08-20T18:00:00.000Z', usuarioId), estado: 'en_curso' },
+      ],
+      []
+    )
+    planificadasMock.mockResolvedValueOnce(new Map([[viajeA, ruta]]))
+
+    const lista = await new ViajesService(m.prisma).listarPlanificados(usuarioId)
+
+    expect(lista.map((v) => v.trazado_miniatura)).toEqual([ruta, []])
+    expect(planificadasMock).toHaveBeenCalledWith(m.prisma, [viajeA, viajeB])
   })
 })
 

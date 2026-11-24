@@ -159,6 +159,9 @@ ViajesPlanificados:
 
       `mi_estado` resume la situación propia: `creador` para quien lo creó, o el estado
       de su invitación.
+
+      `trazado_miniatura` trae la ruta planificada simplificada para el mapa en miniatura
+      de cada tarjeta (vacío si el viaje no tiene ruta).
     tags:
       - Viajes
     responses:
@@ -183,6 +186,10 @@ ViajesPlanificados:
                 fecha_programada: '2026-09-06T12:30:00.000Z'
                 estado: planificado
                 mi_estado: creador
+                trazado_miniatura:
+                  - [-64.1888, -31.4201]
+                  - [-64.3302, -31.5218]
+                  - [-64.4310, -31.6604]
               # Ya arrancó: aparece en la misma lista con estado `en_curso`.
               - id: 1b8d4c37-6e29-4f05-a3b7-9c2f8e5d0a41
                 creador_id: 2c9a7d61-4e83-4b2f-9a17-6d0e5b8c1f23
@@ -195,6 +202,8 @@ ViajesPlanificados:
                 fecha_programada: '2026-08-24T10:00:00.000Z'
                 estado: en_curso
                 mi_estado: confirmado
+                # Viaje sin ruta cargada: no hay mapa para la miniatura.
+                trazado_miniatura: []
       '401':
         $ref: '../components/responses.yaml#/Unauthorized'
       '500':
@@ -212,6 +221,9 @@ ViajesFinalizados:
 
       Cada entrada trae las métricas **propias** del consultante (US2):
       `mi_distancia_m` y `mi_tiempo_movimiento_seg`. Van en `null` si no hubo traza GPS.
+
+      `trazado_miniatura` es el mapa en miniatura de cada tarjeta: el recorrido real propio
+      simplificado o, sin traza GPS, la ruta planificada.
     tags:
       - Viajes
     responses:
@@ -238,6 +250,10 @@ ViajesFinalizados:
                 mi_estado: creador
                 mi_distancia_m: 31480.6
                 mi_tiempo_movimiento_seg: 5327
+                trazado_miniatura:
+                  - [-64.1712, -31.4089]
+                  - [-64.2205, -31.3871]
+                  - [-64.2631, -31.4012]
               # Salió antes del cierre: el tramo recorrido igual cuenta en el historial.
               # Sin traza GPS, las métricas propias van en `null`.
               - id: 0a7c5d92-4f81-4e36-b2a9-7d1e6c3b0f58
@@ -254,6 +270,10 @@ ViajesFinalizados:
                 mi_estado: salido
                 mi_distancia_m: null
                 mi_tiempo_movimiento_seg: null
+                # Sin traza propia: la miniatura muestra la ruta planificada.
+                trazado_miniatura:
+                  - [-64.1803, -31.4166]
+                  - [-64.1921, -31.4302]
       '401':
         $ref: '../components/responses.yaml#/Unauthorized'
       '500':

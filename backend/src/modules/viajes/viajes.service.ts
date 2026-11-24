@@ -18,6 +18,7 @@ import {
   computeTrazaRecorrido,
 } from '../../lib/postgis'
 import { filtrosGpsPorActividad } from '../../lib/gpsFilters'
+import { miniaturasDeRecorridos, miniaturasDeRutasPlanificadas } from '../../lib/miniaturas'
 import { armarParadasDelResumen } from './viajes.paradas-resumen'
 import { obtenerDuracionesVigentes, tiempoParadasSeg } from '../paradas/duracionesParada'
 import { columnasGpsExtra } from '../../lib/datosGpsExtra'
@@ -405,6 +406,12 @@ export class ViajesService {
       orderBy: { fecha_programada: 'asc' },
     })
 
+    // Mapa en miniatura de la ruta de cada tarjeta, en una consulta para toda la lista.
+    const miniaturas = await miniaturasDeRutasPlanificadas(
+      this.prisma,
+      viajes.map((v) => v.id)
+    )
+
     return viajes.map((v) => ({
       id: v.id,
       creador_id: v.creador_id,
@@ -417,6 +424,7 @@ export class ViajesService {
       fecha_programada: v.fecha_programada,
       estado: v.estado,
       mi_estado: v.creador_id === usuarioId ? 'creador' : (v.integrantes[0]?.estado ?? null),
+      trazado_miniatura: miniaturas.get(v.id) ?? [],
     }))
   }
 
@@ -872,6 +880,14 @@ export class ViajesService {
     })
     const metricaPorViaje = new Map(metricas.map((m) => [m.viaje_id, m]))
 
+    // Miniatura de cada tarjeta: el recorrido real propio y, si no hay GPS (no salió o se
+    // perdió todo), la ruta planificada. Dos consultas para toda la lista.
+    const ids = viajes.map((v) => v.id)
+    const [recorridos, planificadas] = await Promise.all([
+      miniaturasDeRecorridos(this.prisma, usuarioId, ids),
+      miniaturasDeRutasPlanificadas(this.prisma, ids),
+    ])
+
     return viajes.map((v) => {
       const mia = metricaPorViaje.get(v.id)
       return {
@@ -880,7 +896,7 @@ export class ViajesService {
         nombre: v.nombre,
         es_grupal: v.es_grupal,
         tipo_actividad: v.tipo_actividad,
-      modo: v.modo,
+        modo: v.modo,
         velocidad_esperada: v.velocidad_esperada,
         distancia_max_separacion: v.distancia_max_separacion,
         fecha_programada: v.fecha_programada,
@@ -890,6 +906,7 @@ export class ViajesService {
           v.creador_id === usuarioId ? ('creador' as const) : (v.integrantes[0]?.estado ?? null),
         mi_distancia_m: mia?.distancia_m ?? null,
         mi_tiempo_movimiento_seg: mia?.tiempo_movimiento_seg ?? null,
+        trazado_miniatura: recorridos.get(v.id) ?? planificadas.get(v.id) ?? [],
       }
     })
   }

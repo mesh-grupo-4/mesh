@@ -1226,23 +1226,26 @@ RutaPlantillaResumen:
         viaje cuyo link importó. `false` si es de otro usuario o si el origen ya no existe.
       example: false
     trazado_miniatura:
-      type: array
-      description: |
-        Trazado simplificado con PostGIS (`ST_SimplifyPreserveTopology`, tolerancia relativa
-        al tamaño de la ruta) para dibujarlo en miniatura en el listado. Coordenadas GeoJSON
-        `[lng, lat]` con 5 decimales, en el orden del recorrido. Vacío si la plantilla no
-        tiene un trazado válido. No sirve para navegar: para eso está el detalle.
-      items:
-        type: array
-        minItems: 2
-        maxItems: 2
-        items:
-          type: number
-      example:
-        - [-64.4987, -31.4205]
-        - [-64.7612, -31.5833]
-        - [-65.0021, -31.7302]
+      $ref: '#/TrazadoMiniatura'
   additionalProperties: false
+
+TrazadoMiniatura:
+  type: array
+  description: |
+    Trazado simplificado con PostGIS (`ST_SimplifyPreserveTopology`, tolerancia relativa
+    al tamaño de la ruta) para dibujar el mapa en miniatura de los listados. Coordenadas
+    GeoJSON `[lng, lat]` con 5 decimales, en el orden del recorrido. Vacío si no hay
+    trazado. No sirve para navegar ni para calcular: para eso está el detalle.
+  items:
+    type: array
+    minItems: 2
+    maxItems: 2
+    items:
+      type: number
+  example:
+    - [-64.4987, -31.4205]
+    - [-64.7612, -31.5833]
+    - [-65.0021, -31.7302]
 
 ImportacionRuta:
   type: object
@@ -2060,6 +2063,7 @@ ViajeResumenPlanificado:
     - fecha_programada
     - estado
     - mi_estado
+    - trazado_miniatura
   properties:
     id:
       type: string
@@ -2090,6 +2094,10 @@ ViajeResumenPlanificado:
       $ref: '#/EstadoViaje'
     mi_estado:
       $ref: '#/EstadoParticipacion'
+    trazado_miniatura:
+      allOf:
+        - $ref: '#/TrazadoMiniatura'
+      description: Ruta planificada del viaje, simplificada. Vacío si el viaje no tiene ruta.
   additionalProperties: false
 
 ViajeResumenFinalizado:
@@ -2110,6 +2118,7 @@ ViajeResumenFinalizado:
     - mi_estado
     - mi_distancia_m
     - mi_tiempo_movimiento_seg
+    - trazado_miniatura
   properties:
     id:
       type: string
@@ -2152,6 +2161,12 @@ ViajeResumenFinalizado:
       nullable: true
       description: Tiempo propio en movimiento en este viaje (US2). `null` sin traza GPS.
       example: 3600
+    trazado_miniatura:
+      allOf:
+        - $ref: '#/TrazadoMiniatura'
+      description: |
+        Recorrido real del consultante (su propia traza GPS), simplificado. Si no tiene
+        traza, la ruta planificada del viaje; si tampoco hay, vacío.
   additionalProperties: false
 
 ViajeEnCurso:

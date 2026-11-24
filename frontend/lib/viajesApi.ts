@@ -31,6 +31,8 @@ export type ViajePlanificadoApi = {
   fecha_programada: string
   estado: 'planificado' | 'en_curso' | 'finalizado'
   mi_estado: 'creador' | 'confirmado' | 'pendiente' | 'rechazado' | null
+  /** Ruta planificada simplificada para el mapa en miniatura, GeoJSON [lng, lat]. Vacío sin ruta. */
+  trazado_miniatura: [number, number][]
 }
 
 export type ViajeFinalizadoApi = {
@@ -49,6 +51,8 @@ export type ViajeFinalizadoApi = {
   /** US2: métricas propias del viaje. Null si no hubo traza GPS. */
   mi_distancia_m: number | null
   mi_tiempo_movimiento_seg: number | null
+  /** Recorrido real propio simplificado (o, sin GPS, la ruta planificada), GeoJSON [lng, lat]. */
+  trazado_miniatura: [number, number][]
 }
 
 /**

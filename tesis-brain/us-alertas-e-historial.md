@@ -83,7 +83,24 @@ Migraciones: `20260821170000_alertas`, `20260828190000_alertas_solo_lider`, `202
 | `GET` | `/api/viajes/{viajeId}/alertas` | Cualquier integrante, incluido quien salió |
 | `PATCH` | `/api/viajes/{viajeId}` | Líder: `alertasSoloLider` entre otros campos |
 | `GET` | `/api/viajes/{viajeId}/recorrido` | Tu traza GPS del viaje, simplificada |
-| `GET` | `/api/viajes/finalizados` | Historial con `mi_distancia_m` y `mi_tiempo_movimiento_seg`; excluye los que el participante ocultó |
+| `GET` | `/api/viajes/finalizados` | Historial con `mi_distancia_m`, `mi_tiempo_movimiento_seg` y `trazado_miniatura`; excluye los que el participante ocultó |
+| `GET` | `/api/viajes/planificados` | Próximos y en curso, con `trazado_miniatura` (ruta planificada) |
+
+**Miniatura de mapa en la lista de viajes.** Cada tarjeta de la pestaña Viajes
+(`frontend/app/(tabs)/two.tsx`) lleva a la derecha un mapa cuadrado (`MiniaturaRuta`, el mismo
+de Rutas guardadas, Google Maps en modo lite; ver [[us-explorar-recorridos]]):
+
+- **Próximos / en curso:** la ruta planificada.
+- **Finalizados:** tu recorrido real (tu propia traza GPS, una consulta para toda la lista) y,
+  si no hay GPS, la ruta planificada. Es una vista de tus propios datos: no pasa por el
+  compartir ubicación (RN-111) ni deja registro de acceso (RN-112), igual que `/recorrido`.
+- **Sin recorrido** (Viaje YA sin destino, viaje sin ruta cargada o trazado de un solo punto):
+  el mismo cuadro con el ícono grande de la actividad y "Sin ruta todavía" / "Sin recorrido",
+  para que todas las tarjetas tengan la misma forma.
+
+El backend simplifica los trazados en PostGIS (`backend/src/lib/miniaturas.ts`,
+`ST_SimplifyPreserveTopology` con tolerancia de 1/80 de la ruta) y los manda como
+`[lng, lat]`. No incluye velocidades: no hay nada que comparar entre motorizados (RN-070).
 | `POST` | `/api/viajes/{viajeId}/ocultar` | Participante (`confirmado`/`salido`) de un viaje finalizado. 403 `CREATOR_MUST_DELETE` si es el creador |
 
 **Socket** (room `viaje:{id}`): `viaje:alerta` con `{ viajeId, alerta }`.

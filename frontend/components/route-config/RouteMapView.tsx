@@ -56,6 +56,11 @@ type Props = {
   botonEncuadrar?: boolean
   /** Capa transparente sobre el mapa que se come los gestos (el toque lo maneja el padre); el botón queda encima. */
   bloquearGestos?: boolean
+  /**
+   * Miniatura de lista: mapa lite sin gestos (ver `MeshMapView`), encuadre sin animación y
+   * puntos chicos en lugar de pines, que en un cuadro de 100 px taparían la ruta.
+   */
+  miniatura?: boolean
 }
 
 export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function RouteMapView(
@@ -75,6 +80,7 @@ export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function Route
     userLocation = null,
     botonEncuadrar = false,
     bloquearGestos = false,
+    miniatura = false,
   },
   ref
 ) {
@@ -114,8 +120,9 @@ export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function Route
 
   useEffect(() => {
     if (!puedeEncuadrar) return
-    mapRef.current?.fitBounds(coordsEncuadre!, padding, true)
-  }, [coordsEncuadre, puedeEncuadrar, padding])
+    // El modo lite no anima la cámara: en la miniatura el encuadre va directo.
+    mapRef.current?.fitBounds(coordsEncuadre!, padding, !miniatura)
+  }, [coordsEncuadre, puedeEncuadrar, padding, miniatura])
 
   const polylines = useMemo((): PolylineSpec[] => {
     if (mapPickMode) return []
@@ -145,16 +152,27 @@ export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function Route
 
   const markers = useMemo<MarkerSpec[]>(() => {
     if (mapPickMode) return []
-    return waypoints.filter(waypointTieneCoords).map((w) => ({
-      id: w.id,
-      lat: w.lat,
-      lng: w.lon,
-      content: <PinMarker color={colorMarcador(w.type, theme)} />,
-      contentKey: colorMarcador(w.type, theme),
-      anchor: PIN_ANCHOR,
-      popup: w.name ? { title: w.name } : undefined,
-    }))
-  }, [waypoints, mapPickMode, theme])
+    return waypoints.filter(waypointTieneCoords).map((w) => {
+      const color = colorMarcador(w.type, theme)
+      return miniatura
+        ? {
+            id: w.id,
+            lat: w.lat,
+            lng: w.lon,
+            content: <View style={[styles.puntoMiniatura, { backgroundColor: color }]} />,
+            contentKey: `mini-${color}`,
+          }
+        : {
+            id: w.id,
+            lat: w.lat,
+            lng: w.lon,
+            content: <PinMarker color={color} />,
+            contentKey: color,
+            anchor: PIN_ANCHOR,
+            popup: w.name ? { title: w.name } : undefined,
+          }
+    })
+  }, [waypoints, mapPickMode, theme, miniatura])
 
   return (
     <View style={StyleSheet.absoluteFill}>
@@ -167,6 +185,8 @@ export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function Route
         polylines={polylines}
         userLocation={userLocation}
         onRegionChangeComplete={onRegionChangeComplete}
+        liteMode={miniatura}
+        interactive={!miniatura}
       />
       {bloquearGestos ? <View style={StyleSheet.absoluteFill} /> : null}
       {botonEncuadrar && puedeEncuadrar ? (
@@ -174,4 +194,14 @@ export const RouteMapView = forwardRef<RouteMapViewHandle, Props>(function Route
       ) : null}
     </View>
   )
+})
+
+const styles = StyleSheet.create({
+  puntoMiniatura: {
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#ffffff',
+  },
 })

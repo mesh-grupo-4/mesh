@@ -1,0 +1,109 @@
+import { useMemo } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import { Feather } from '@expo/vector-icons';
+
+import { ActivityTile, useTheme } from '@/components/MeshUI';
+import { RouteMapView } from '@/components/route-config/RouteMapView';
+import type { RouteWaypoint } from '@/components/route-config/routeTypes';
+
+type Props = {
+  /** Trazado simplificado del listado, en coordenadas GeoJSON [lng, lat]. */
+  coordenadas: [number, number][];
+  tamano?: number;
+  /**
+   * Sin trazado, el cuadro muestra el ícono grande de esta actividad (en lugar de un ícono
+   * de mapa genérico), así las tarjetas con y sin recorrido mantienen la misma forma.
+   */
+  actividad?: string;
+  /** Texto chico debajo del ícono cuando no hay trazado (p. ej. "Sin recorrido"). */
+  textoSinTrazado?: string;
+};
+
+/** Margen del encuadre: deja aire para los puntos de inicio y fin en los bordes. */
+const MARGEN_ENCUADRE = { top: 14, right: 14, bottom: 14, left: 14 };
+
+/**
+ * Por debajo de esta extensión (en grados, ~10 m) el trazado es un punto: el encuadre se
+ * iría al zoom máximo y no se vería nada útil, así que cuenta como sin recorrido.
+ */
+const EXTENSION_MINIMA_GRADOS = 0.0001;
+
+function tieneExtension(coords: [number, number][]): boolean {
+  const lngs = coords.map(([lng]) => lng);
+  const lats = coords.map(([, lat]) => lat);
+  return (
+    Math.max(Math.max(...lngs) - Math.min(...lngs), Math.max(...lats) - Math.min(...lats)) >=
+    EXTENSION_MINIMA_GRADOS
+  );
+}
+
+/**
+ * Mapa cuadrado de una ruta para las tarjetas de lista: el mismo mapa que el detalle (capa
+ * elegida por el usuario, trazado y marcadores de inicio y fin), en modo lite y sin gestos.
+ * El toque lo maneja la tarjeta: el mapa no recibe eventos, así en Android tampoco abre la
+ * app de Google Maps, que es lo que hace el modo lite al tocarlo.
+ */
+export function MiniaturaRuta({ coordenadas, tamano = 104, actividad, textoSinTrazado }: Props) {
+  const theme = useTheme();
+
+  const mapa = useMemo(() => {
+    if (coordenadas.length < 2 || !tieneExtension(coordenadas)) return null;
+    const routeLine = coordenadas.map(([lng, lat]) => [lat, lng] as [number, number]);
+    const [oLat, oLng] = routeLine[0]!;
+    const [dLat, dLng] = routeLine[routeLine.length - 1]!;
+    const waypoints: RouteWaypoint[] = [
+      { id: 'origen', type: 'ORIGIN', lat: oLat, lon: oLng, name: '', order: 0 },
+      { id: 'destino', type: 'DESTINATION', lat: dLat, lon: dLng, name: '', order: 1 },
+    ];
+    return {
+      routeLine,
+      waypoints,
+      region: { latitude: oLat, longitude: oLng, latitudeDelta: 0.08, longitudeDelta: 0.08 },
+    };
+  }, [coordenadas]);
+
+  return (
+    <View
+      pointerEvents="none"
+      style={[styles.caja, { width: tamano, height: tamano, backgroundColor: theme.surface2 }]}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
+      {mapa ? (
+        <RouteMapView
+          waypoints={mapa.waypoints}
+          routeLineLatLng={mapa.routeLine}
+          initialRegion={mapa.region}
+          cameraTarget={null}
+          fitPadding={MARGEN_ENCUADRE}
+          miniatura
+        />
+      ) : (
+        <>
+          {actividad ? (
+            <ActivityTile activity={actividad} size={44} />
+          ) : (
+            <Feather name="map" size={26} color={theme.textMute} />
+          )}
+          {textoSinTrazado ? (
+            <Text style={[styles.sinTrazado, { color: theme.textMute }]} numberOfLines={2}>
+              {textoSinTrazado}
+            </Text>
+          ) : null}
+        </>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  caja: {
+    borderRadius: 10,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 6,
+  },
+  sinTrazado: { fontSize: 11.5, fontWeight: '600', textAlign: 'center' },
+});
