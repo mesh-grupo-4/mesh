@@ -97,6 +97,12 @@ de Rutas guardadas, Google Maps en modo lite; ver [[us-explorar-recorridos]]):
 - **Sin recorrido** (Viaje YA sin destino, viaje sin ruta cargada o trazado de un solo punto):
   el mismo cuadro con el ícono grande de la actividad y "Sin ruta todavía" / "Sin recorrido",
   para que todas las tarjetas tengan la misma forma.
+- **Fila de datos** al pie de todas las tarjetas: Distancia, Tiempo y Actividad. En próximos son
+  los de la ruta planificada (`distancia_planeada_m`, `tiempo_estimado_seg` en
+  `/api/viajes/planificados`, `null` sin ruta → "--"); en finalizados, tus métricas. La
+  actividad va siempre: el mapa no la muestra.
+- El cuadro mide 136: el logo de Google tiene tamaño fijo y los términos de Google Maps no
+  permiten ocultarlo, y en un cuadro de 104 tapaba media miniatura.
 
 El backend simplifica los trazados en PostGIS (`backend/src/lib/miniaturas.ts`,
 `ST_SimplifyPreserveTopology` con tolerancia de 1/80 de la ruta) y los manda como

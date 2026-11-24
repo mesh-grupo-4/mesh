@@ -161,7 +161,8 @@ ViajesPlanificados:
       de su invitación.
 
       `trazado_miniatura` trae la ruta planificada simplificada para el mapa en miniatura
-      de cada tarjeta (vacío si el viaje no tiene ruta).
+      de cada tarjeta, y `distancia_planeada_m` / `tiempo_estimado_seg` los datos de esa
+      ruta para la fila de la tarjeta. Sin ruta: trazado vacío y datos en `null`.
     tags:
       - Viajes
     responses:
@@ -186,6 +187,8 @@ ViajesPlanificados:
                 fecha_programada: '2026-09-06T12:30:00.000Z'
                 estado: planificado
                 mi_estado: creador
+                distancia_planeada_m: 38750.2
+                tiempo_estimado_seg: 2940
                 trazado_miniatura:
                   - [-64.1888, -31.4201]
                   - [-64.3302, -31.5218]
@@ -202,7 +205,9 @@ ViajesPlanificados:
                 fecha_programada: '2026-08-24T10:00:00.000Z'
                 estado: en_curso
                 mi_estado: confirmado
-                # Viaje sin ruta cargada: no hay mapa para la miniatura.
+                # Viaje sin ruta cargada: no hay mapa ni datos de ruta.
+                distancia_planeada_m: null
+                tiempo_estimado_seg: null
                 trazado_miniatura: []
       '401':
         $ref: '../components/responses.yaml#/Unauthorized'

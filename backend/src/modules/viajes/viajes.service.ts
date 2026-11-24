@@ -402,6 +402,7 @@ export class ViajesService {
           where: { usuario_id: usuarioId },
           select: { estado: true },
         },
+        ruta: { select: { distancia_planeada_m: true, tiempo_estimado_seg: true } },
       },
       orderBy: { fecha_programada: 'asc' },
     })
@@ -424,6 +425,9 @@ export class ViajesService {
       fecha_programada: v.fecha_programada,
       estado: v.estado,
       mi_estado: v.creador_id === usuarioId ? 'creador' : (v.integrantes[0]?.estado ?? null),
+      // Datos de la ruta para la fila de la tarjeta; null si el viaje todavía no tiene ruta.
+      distancia_planeada_m: v.ruta?.distancia_planeada_m ?? null,
+      tiempo_estimado_seg: v.ruta?.tiempo_estimado_seg ?? null,
       trazado_miniatura: miniaturas.get(v.id) ?? [],
     }))
   }

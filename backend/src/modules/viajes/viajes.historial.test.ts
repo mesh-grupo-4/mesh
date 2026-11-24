@@ -150,11 +150,19 @@ describe('Miniatura de mapa en los listados de viajes', () => {
     expect(recorridosMock).toHaveBeenCalledWith(m.prisma, usuarioId, [viajeA, viajeB, viajeC])
   })
 
-  it('planificados: usa la ruta del viaje y deja vacío el que no tiene', async () => {
+  it('planificados: usa la ruta del viaje (trazado, distancia y tiempo) y deja vacío el que no tiene', async () => {
     const m = armarPrisma(
       [
-        { ...viajeFinalizado(viajeA, '2026-08-20T18:00:00.000Z', usuarioId), estado: 'planificado' },
-        { ...viajeFinalizado(viajeB, '2026-08-20T18:00:00.000Z', usuarioId), estado: 'en_curso' },
+        {
+          ...viajeFinalizado(viajeA, '2026-08-20T18:00:00.000Z', usuarioId),
+          estado: 'planificado',
+          ruta: { distancia_planeada_m: 50300, tiempo_estimado_seg: 3600 },
+        },
+        {
+          ...viajeFinalizado(viajeB, '2026-08-20T18:00:00.000Z', usuarioId),
+          estado: 'en_curso',
+          ruta: null,
+        },
       ],
       []
     )
@@ -163,6 +171,11 @@ describe('Miniatura de mapa en los listados de viajes', () => {
     const lista = await new ViajesService(m.prisma).listarPlanificados(usuarioId)
 
     expect(lista.map((v) => v.trazado_miniatura)).toEqual([ruta, []])
+    // La distancia y el tiempo de la ruta van a la fila de datos; sin ruta, null.
+    expect(lista.map((v) => [v.distancia_planeada_m, v.tiempo_estimado_seg])).toEqual([
+      [50300, 3600],
+      [null, null],
+    ])
     expect(planificadasMock).toHaveBeenCalledWith(m.prisma, [viajeA, viajeB])
   })
 })

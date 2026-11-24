@@ -2063,6 +2063,8 @@ ViajeResumenPlanificado:
     - fecha_programada
     - estado
     - mi_estado
+    - distancia_planeada_m
+    - tiempo_estimado_seg
     - trazado_miniatura
   properties:
     id:
@@ -2094,6 +2096,16 @@ ViajeResumenPlanificado:
       $ref: '#/EstadoViaje'
     mi_estado:
       $ref: '#/EstadoParticipacion'
+    distancia_planeada_m:
+      type: number
+      nullable: true
+      description: Distancia de la ruta planificada. `null` si el viaje no tiene ruta.
+      example: 50300
+    tiempo_estimado_seg:
+      type: integer
+      nullable: true
+      description: Tiempo estimado de la ruta planificada. `null` sin ruta o sin estimación.
+      example: 3660
     trazado_miniatura:
       allOf:
         - $ref: '#/TrazadoMiniatura'

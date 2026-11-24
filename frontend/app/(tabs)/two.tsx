@@ -168,6 +168,40 @@ function InfoViaje({ modo, esGrupal }: { modo: ModoViajeApi; esGrupal: boolean }
   )
 }
 
+/**
+ * Fila de datos al pie de cada tarjeta de viaje: distancia, tiempo y actividad. La actividad
+ * va siempre, así se sabe qué es aunque el mapa no la muestre. Un dato que falta va en "--".
+ */
+function FilaDatosViaje({
+  distanciaM,
+  tiempoSeg,
+  etiquetaTiempo,
+  actividad,
+  theme,
+}: {
+  distanciaM: number | null
+  tiempoSeg: number | null
+  etiquetaTiempo: string
+  actividad: TipoActividadApi
+  theme: ReturnType<typeof useTheme>
+}) {
+  const datos = [
+    { valor: formatKm(distanciaM), etiqueta: 'Distancia' },
+    { valor: formatDurationHm(tiempoSeg), etiqueta: etiquetaTiempo },
+    { valor: etiquetaActividad(actividad), etiqueta: 'Actividad' },
+  ]
+  return (
+    <View style={[styles.tarjetaMetricas, { borderTopColor: theme.border }]}>
+      {datos.map((d) => (
+        <View key={d.etiqueta} style={styles.tarjetaMetrica}>
+          <Text style={[styles.tarjetaMetricaValor, { color: theme.text }]}>{d.valor}</Text>
+          <Text style={[styles.tarjetaMetricaLabel, { color: theme.textMute }]}>{d.etiqueta}</Text>
+        </View>
+      ))}
+    </View>
+  )
+}
+
 function TarjetaViaje({
   v,
   dimmed = false,
@@ -194,40 +228,49 @@ function TarjetaViaje({
   const nombre = v.nombre ?? etiquetaActividad(v.tipo_actividad)
   const modo = v.modo ?? 'recreativo'
   const contenido = (
-    <View style={styles.tarjetaFila}>
-      <View style={styles.tarjetaTextos}>
-        <View style={styles.tarjetaHeader}>
-          <Text
-            style={[styles.tarjetaTitulo, { color: dimmed ? theme.textDim : theme.text }]}
-            numberOfLines={1}
-          >
-            {nombre}
+    <>
+      <View style={styles.tarjetaFila}>
+        <View style={styles.tarjetaTextos}>
+          <View style={styles.tarjetaHeader}>
+            <Text
+              style={[styles.tarjetaTitulo, { color: dimmed ? theme.textDim : theme.text }]}
+              numberOfLines={1}
+            >
+              {nombre}
+            </Text>
+            {dimmed ? (
+              <Badge tone="mute">No realizado</Badge>
+            ) : v.estado === 'en_curso' ? (
+              <Badge tone="live" pulse>
+                En vivo
+              </Badge>
+            ) : null}
+            {onQuitar && !selectionActive ? (
+              <BotonQuitar nombre={nombre} onPress={onQuitar} theme={theme} />
+            ) : null}
+          </View>
+          <InfoViaje modo={modo} esGrupal={v.es_grupal} />
+          <Text style={[styles.tarjetaMeta, { color: dimmed ? theme.textMute : theme.textDim }]}>
+            <Feather name="calendar" size={12} />{'  '}{formatearFecha(v.fecha_programada)}
           </Text>
-          {dimmed ? (
-            <Badge tone="mute">No realizado</Badge>
-          ) : v.estado === 'en_curso' ? (
-            <Badge tone="live" pulse>
-              En vivo
-            </Badge>
-          ) : null}
-          {onQuitar && !selectionActive ? (
-            <BotonQuitar nombre={nombre} onPress={onQuitar} theme={theme} />
-          ) : null}
+          <Text style={[styles.tarjetaRol, { color: theme.textMute }]}>
+            {v.mi_estado === 'creador' ? 'Organizador' : v.mi_estado === 'confirmado' ? 'Participante' : ''}
+          </Text>
         </View>
-        <InfoViaje modo={modo} esGrupal={v.es_grupal} />
-        <Text style={[styles.tarjetaMeta, { color: dimmed ? theme.textMute : theme.textDim }]}>
-          <Feather name="calendar" size={12} />{'  '}{formatearFecha(v.fecha_programada)}
-        </Text>
-        <Text style={[styles.tarjetaRol, { color: theme.textMute }]}>
-          {v.mi_estado === 'creador' ? 'Organizador' : v.mi_estado === 'confirmado' ? 'Participante' : ''}
-        </Text>
+        <MiniaturaRuta
+          coordenadas={v.trazado_miniatura ?? []}
+          actividad={v.tipo_actividad}
+          textoSinTrazado={v.estado === 'planificado' ? 'Sin ruta todavía' : 'Sin recorrido'}
+        />
       </View>
-      <MiniaturaRuta
-        coordenadas={v.trazado_miniatura ?? []}
+      <FilaDatosViaje
+        distanciaM={v.distancia_planeada_m ?? null}
+        tiempoSeg={v.tiempo_estimado_seg ?? null}
+        etiquetaTiempo="Tiempo est."
         actividad={v.tipo_actividad}
-        textoSinTrazado={v.estado === 'planificado' ? 'Sin ruta todavía' : 'Sin recorrido'}
+        theme={theme}
       />
-    </View>
+    </>
   )
 
   // Un viaje finalizado va directo a su resumen: pasar por el detalle mostraba un salto de pantalla.
@@ -334,30 +377,13 @@ function TarjetaFinalizado({
           textoSinTrazado="Sin recorrido"
         />
       </View>
-      {v.mi_distancia_m != null || v.mi_tiempo_movimiento_seg != null ? (
-        <View style={[styles.tarjetaMetricas, { borderTopColor: theme.border }]}>
-          <View style={styles.tarjetaMetrica}>
-            <Text style={[styles.tarjetaMetricaValor, { color: theme.text }]}>
-              {formatKm(v.mi_distancia_m)}
-            </Text>
-            <Text style={[styles.tarjetaMetricaLabel, { color: theme.textMute }]}>Distancia</Text>
-          </View>
-          <View style={styles.tarjetaMetrica}>
-            <Text style={[styles.tarjetaMetricaValor, { color: theme.text }]}>
-              {formatDurationHm(v.mi_tiempo_movimiento_seg)}
-            </Text>
-            <Text style={[styles.tarjetaMetricaLabel, { color: theme.textMute }]}>
-              En movimiento
-            </Text>
-          </View>
-          <View style={styles.tarjetaMetrica}>
-            <Text style={[styles.tarjetaMetricaValor, { color: theme.text }]}>
-              {etiquetaActividad(v.tipo_actividad)}
-            </Text>
-            <Text style={[styles.tarjetaMetricaLabel, { color: theme.textMute }]}>Actividad</Text>
-          </View>
-        </View>
-      ) : null}
+      <FilaDatosViaje
+        distanciaM={v.mi_distancia_m}
+        tiempoSeg={v.mi_tiempo_movimiento_seg}
+        etiquetaTiempo="En movimiento"
+        actividad={v.tipo_actividad}
+        theme={theme}
+      />
     </SelectableCard>
   )
 }

@@ -38,12 +38,15 @@ function tieneExtension(coords: [number, number][]): boolean {
 }
 
 /**
+ * El logo de Google tiene tamaño fijo y no se puede ocultar (términos de Google Maps): por
+ * eso el cuadro no baja de ~136, para que el logo no tape media miniatura.
+ *
  * Mapa cuadrado de una ruta para las tarjetas de lista: el mismo mapa que el detalle (capa
  * elegida por el usuario, trazado y marcadores de inicio y fin), en modo lite y sin gestos.
  * El toque lo maneja la tarjeta: el mapa no recibe eventos, así en Android tampoco abre la
  * app de Google Maps, que es lo que hace el modo lite al tocarlo.
  */
-export function MiniaturaRuta({ coordenadas, tamano = 104, actividad, textoSinTrazado }: Props) {
+export function MiniaturaRuta({ coordenadas, tamano = 136, actividad, textoSinTrazado }: Props) {
   const theme = useTheme();
 
   const mapa = useMemo(() => {
