@@ -231,6 +231,33 @@ export const INSIGNIAS_ESPECIALES: InsigniaEspecialDemo[] = [
   },
 ]
 
+// ── Configuración del backoffice ─────────────────────────────────────────────
+
+/**
+ * Duraciones de parada que la protagonista personalizó desde el backoffice (RN-134). A
+ * diferencia del resto, la tabla `duracion_parada` es global: rige para las estimaciones
+ * de todas las rutas, también las de cuentas reales. La limpieza vuelve cada categoría
+ * al valor por defecto, siempre que siga teniendo los minutos que dejó el seed.
+ */
+export const DURACIONES_PARADA_DEMO: { categoria: CategoriaParada; minutos: number; haceDias: number }[] = [
+  { categoria: 'gastronomia', minutos: 60, haceDias: 18 },
+]
+
+/**
+ * Cambios del backoffice que se hicieron y después se deshicieron: solo quedan en la
+ * bitácora (RN-121), sin tocar la configuración global. `restauradoHaceDias` es cuándo
+ * se volvió al valor por defecto.
+ */
+export const AJUSTES_DESHECHOS = {
+  duracion: { categoria: 'descanso' as CategoriaParada, minutos: 25, haceDias: 27, restauradoHaceDias: 25 },
+  checklist: {
+    actividad: 'moto' as TipoActividad,
+    agregados: ['Kit antipinchaduras', 'Traba disco'],
+    haceDias: 31,
+    restauradoHaceDias: 29,
+  },
+}
+
 // ── Grupos, invitaciones y amistades ─────────────────────────────────────────
 
 export type GrupoDemo = {

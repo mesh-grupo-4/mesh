@@ -66,9 +66,11 @@ import {
   type Contexto,
 } from './comun'
 import {
+  AJUSTES_DESHECHOS,
   AMISTADES,
   CIRCUITOS,
   DOMINIO_DEMO,
+  DURACIONES_PARADA_DEMO,
   ELENCO,
   GRUPOS,
   INSIGNIAS_ESPECIALES,
@@ -159,6 +161,11 @@ async function limpiar(): Promise<number> {
   // La bitácora del backoffice no tiene FK a propósito (RN-121): se limpia a mano.
   await prisma.auditoriaAdmin.deleteMany({
     where: { OR: [{ actor_id: { in: ids } }, { detalle: { path: ['demo'], equals: true } }] },
+  })
+  // Duraciones de parada (RN-134): la tabla es global. Vuelve al defecto solo lo que sigue
+  // como lo dejó el seed; si alguien lo cambió después desde el backoffice, se respeta.
+  await prisma.duracionParada.deleteMany({
+    where: { OR: DURACIONES_PARADA_DEMO.map(({ categoria, minutos }) => ({ categoria, minutos })) },
   })
   if (ids.length === 0) return 0
 
@@ -1094,8 +1101,30 @@ async function main() {
   const circuitos = await sembrarCircuitos(ctx, vitrina, planificados, plantillas)
   log(`${circuitos} circuitos de entrenamiento`)
 
+  // Duraciones de parada personalizadas (RN-134). Global: la limpieza las restaura.
+  const duraciones = await Promise.all(
+    DURACIONES_PARADA_DEMO.map(({ categoria, minutos, haceDias }) =>
+      prisma.duracionParada.upsert({
+        where: { categoria },
+        // Misma fecha que su entrada en la bitácora: el backoffice muestra cuándo se editó.
+        create: { categoria, minutos, updated_at: momento(hoy, haceDias, 16) },
+        update: { minutos, updated_at: momento(hoy, haceDias, 16) },
+        select: { id: true, categoria: true },
+      })
+    )
+  )
+  log(`${duraciones.length} duración(es) de parada personalizada(s) en el backoffice`)
+
   // Bitácora del backoffice (RN-121). `demo: true` la distingue de acciones reales.
   const ficha = (clave: string) => ({ email: email(clave), demo: true })
+  // Las insignias especiales se crearon antes de otorgar la primera.
+  const primeraEspecial = Math.min(
+    ...INSIGNIAS_ESPECIALES.flatMap((i) => i.para.map((c) => (ultimoViaje(c)?.fin ?? ahora).getTime()))
+  )
+  const creadasHaceDias = Math.ceil((ahora.getTime() - primeraEspecial) / MS_DIA) + 2
+  const { duracion: durDeshecha, checklist: chkDeshecho } = AJUSTES_DESHECHOS
+  const filaDeshecha = randomUUID()
+  const checklistDeshecho = randomUUID()
   const auditoria: [string | null, string, string, string, Prisma.InputJsonObject, number][] = [
     [null, 'usuario.cambiar_rol', 'usuario', protagonistaId, { ...ficha(PROTAGONISTA), de: 'usuario', a: 'superadmin', origen: 'cli' }, 300],
     [PROTAGONISTA, 'usuario.eliminar', 'usuario', randomUUID(), { email: 'spam.promos@correo.test', nombre: 'Promos Ya', grupos_transferidos: 0, grupos_eliminados: 0, viajes_transferidos: 0, viajes_eliminados: 1, demo: true }, 90],
@@ -1107,6 +1136,18 @@ async function main() {
     [PROTAGONISTA, 'usuario.editar', 'usuario', ctx.usuario('paula'), { campos: ['nombre', 'apellido'], demo: true }, 20],
     [PROTAGONISTA, 'grupo.quitar_miembro', 'grupo', ctx.grupo('nocturna'), { nombre: 'Rodada Nocturna', usuario_id: ctx.usuario('ramiro'), resultado: 'quitado', lider_nuevo_id: null, demo: true }, DIAS_SUSPENSION],
     [PROTAGONISTA, 'usuario.suspender', 'usuario', ctx.usuario('ramiro'), { ...ficha('ramiro'), motivo: ctx.ficha('ramiro').suspendido ?? '' }, DIAS_SUSPENSION],
+    ...especiales.map((e): (typeof auditoria)[number] => {
+      const def = INSIGNIAS_ESPECIALES.find((i) => i.codigo === e.codigo)!
+      return [PROTAGONISTA, 'insignia.crear', 'insignia', e.id, { codigo: def.codigo, nombre: def.nombre, demo: true }, creadasHaceDias]
+    }),
+    [PROTAGONISTA, 'checklist.definir_sugeridos', 'checklist', checklistDeshecho, { tipo_actividad: chkDeshecho.actividad, items: [...itemsSugeridos(chkDeshecho.actividad), ...chkDeshecho.agregados], demo: true }, chkDeshecho.haceDias],
+    [PROTAGONISTA, 'checklist.restaurar_sugeridos', 'checklist', checklistDeshecho, { tipo_actividad: chkDeshecho.actividad, demo: true }, chkDeshecho.restauradoHaceDias],
+    [PROTAGONISTA, 'duracion_parada.definir', 'duracion_parada', filaDeshecha, { categoria: durDeshecha.categoria, minutos: durDeshecha.minutos, demo: true }, durDeshecha.haceDias],
+    [PROTAGONISTA, 'duracion_parada.restaurar', 'duracion_parada', filaDeshecha, { categoria: durDeshecha.categoria, minutos_anteriores: durDeshecha.minutos, demo: true }, durDeshecha.restauradoHaceDias],
+    ...duraciones.map((d): (typeof auditoria)[number] => {
+      const def = DURACIONES_PARADA_DEMO.find((x) => x.categoria === d.categoria)!
+      return [PROTAGONISTA, 'duracion_parada.definir', 'duracion_parada', d.id, { categoria: def.categoria, minutos: def.minutos, demo: true }, def.haceDias]
+    }),
   ]
   await prisma.auditoriaAdmin.createMany({
     data: auditoria.map(([actor, accion, entidad, entidad_id, detalle, haceDias], i) => ({

@@ -50,6 +50,9 @@ export type Relleno = {
 /** Días que lleva suspendido el usuario suspendido del guion: antes de eso sí viajaba. */
 export const DIAS_SUSPENSION = 12
 
+/** Más de lo que dura el viaje de relleno más largo: alcanza para saber en qué semana llega. */
+const MARGEN_LLEGADA = 12 * MS_HORA
+
 type Plan = { creador: UsuarioDemo; inicio: Date; solo: boolean; actividad: TipoActividad }
 
 export function generarRelleno(ctx: Contexto): Relleno {
@@ -110,9 +113,12 @@ export function generarRelleno(ctx: Contexto): Relleno {
    */
   const respetaRacha = (u: UsuarioDemo, cuando: Date) => {
     if (!u.rachaSemanas) return true
-    const semana = semanasAtras(cuando)
-    if (u.rachaEnRiesgo && semana === 0) return false
-    return semana !== primeraSemanaRacha(u) + u.rachaSemanas
+    // La racha cuenta la llegada, no la salida: se revisan las dos semanas posibles.
+    return [cuando, new Date(cuando.getTime() + MARGEN_LLEGADA)].every((t) => {
+      const semana = semanasAtras(t)
+      if (u.rachaEnRiesgo && semana === 0) return false
+      return semana !== primeraSemanaRacha(u) + u.rachaSemanas!
+    })
   }
 
   const horaTipica = (actividad: TipoActividad): number => {
@@ -145,6 +151,9 @@ export function generarRelleno(ctx: Contexto): Relleno {
         })
         .filter(({ inicio }) => inicio.getTime() >= lunes + 5 * MS_HORA && inicio.getTime() < hoyInicio + MS_DIA)
         .filter(({ d, inicio }) => lunes + d * MS_DIA < hoyInicio || inicio.getTime() >= hoyInicio + 5 * MS_HORA)
+        // La racha cuenta la llegada: una salida del domingo a la tarde puede terminar el
+        // lunes y caer en la semana siguiente, dejando esta vacía.
+        .filter(({ inicio }) => semanasAtras(new Date(inicio.getTime() + MARGEN_LLEGADA)) === semana)
       if (salidas.length === 0) continue
       const finde = salidas.filter(({ d }) => d >= 5)
       const { inicio } = finde.length > 0 && azar() < 0.6 ? elegir(finde) : elegir(salidas)
