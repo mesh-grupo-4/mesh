@@ -78,13 +78,16 @@ Recorrido despublicado → `404 RECORRIDO_NOT_FOUND`.
   **Usar en viaje** (en la tarjeta y en el detalle) abre el selector Viaje YA / Planificar con la
   plantilla precargada. Tocar = ver, botón = acción: antes tocar la tarjeta ya arrancaba a crear
   el viaje y no había forma de ver la ruta.
-  Cada tarjeta lleva a la derecha un **mapa cuadrado de la ruta** (`components/tabs/MiniaturaRuta.tsx`):
-  el mismo mapa del detalle (capa elegida por el usuario, trazado, puntos de inicio y fin) en
-  **modo lite** de Google Maps (`liteMode` en `MeshMapView`, vía `RouteMapView miniatura`), una
-  imagen fija pensada para listas, sin gestos; el toque lo maneja la tarjeta. iOS no tiene modo
-  lite: ahí es un mapa común sin interacción. A la izquierda quedan nombre, datos y
-  "origen → destino". Se descartó un banner arriba con el trazado dibujado sobre fondo liso: no
-  se entendía dónde quedaba la ruta. El listado `GET /api/rutas-plantilla` manda `trazado_miniatura`:
+  Cada tarjeta lleva arriba un **banner con el mapa de la ruta** (`components/tabs/MiniaturaRuta.tsx`
+  con `banner`, 150 de alto y de borde a borde, como la foto en Explorar). Va arriba y no a la
+  derecha para que no se confunda con las tarjetas de Viajes, que sí llevan el mapa cuadrado
+  al costado. El mapa es el mismo del detalle (capa elegida por el usuario, trazado, puntos de
+  inicio y fin) en **modo lite** de Google Maps (`liteMode` en `MeshMapView`, vía
+  `RouteMapView miniatura`), una imagen fija pensada para listas, sin gestos; el toque lo maneja
+  la tarjeta. iOS no tiene modo lite: ahí es un mapa común sin interacción. Sin trazado, el
+  banner muestra el ícono de la actividad. Debajo van nombre, datos, "origen → destino" y los
+  botones. Se descartó el trazado dibujado sobre fondo liso: no se entendía dónde quedaba la
+  ruta. El listado `GET /api/rutas-plantilla` manda `trazado_miniatura`:
   el trazado simplificado en PostGIS (`ST_SimplifyPreserveTopology`, tolerancia de 1/80 del
   lado más largo de la ruta), en coordenadas `[lng, lat]`.
 

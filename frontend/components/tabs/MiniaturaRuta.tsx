@@ -17,7 +17,15 @@ type Props = {
   actividad?: string;
   /** Texto chico debajo del ícono cuando no hay trazado (p. ej. "Sin recorrido"). */
   textoSinTrazado?: string;
+  /**
+   * Banner de borde a borde arriba de la tarjeta (alto `ALTO_BANNER`, sin esquinas propias:
+   * las recorta la tarjeta), en lugar del cuadro de `tamano`. Es el formato de Rutas
+   * guardadas, parecido a la foto de Explorar.
+   */
+  banner?: boolean;
 };
+
+const ALTO_BANNER = 150;
 
 /** Margen del encuadre: deja aire para los puntos de inicio y fin en los bordes. */
 const MARGEN_ENCUADRE = { top: 14, right: 14, bottom: 14, left: 14 };
@@ -46,7 +54,13 @@ function tieneExtension(coords: [number, number][]): boolean {
  * El toque lo maneja la tarjeta: el mapa no recibe eventos, así en Android tampoco abre la
  * app de Google Maps, que es lo que hace el modo lite al tocarlo.
  */
-export function MiniaturaRuta({ coordenadas, tamano = 136, actividad, textoSinTrazado }: Props) {
+export function MiniaturaRuta({
+  coordenadas,
+  tamano = 136,
+  actividad,
+  textoSinTrazado,
+  banner = false,
+}: Props) {
   const theme = useTheme();
 
   const mapa = useMemo(() => {
@@ -68,7 +82,11 @@ export function MiniaturaRuta({ coordenadas, tamano = 136, actividad, textoSinTr
   return (
     <View
       pointerEvents="none"
-      style={[styles.caja, { width: tamano, height: tamano, backgroundColor: theme.surface2 }]}
+      style={[
+        styles.caja,
+        banner ? styles.banner : { width: tamano, height: tamano },
+        { backgroundColor: theme.surface2 },
+      ]}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
     >
@@ -108,5 +126,6 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 6,
   },
+  banner: { width: '100%', height: ALTO_BANNER, borderRadius: 0 },
   sinTrazado: { fontSize: 11.5, fontWeight: '600', textAlign: 'center' },
 });

@@ -11,6 +11,14 @@ import {
 /** Gris neutro: se ve tanto en el tema claro como en el oscuro. */
 const RIPPLE_ANDROID = { color: 'rgba(128, 128, 128, 0.28)', foreground: true } as const
 const OPACIDAD_PRESIONADO_IOS = 0.6
+/**
+ * Espera antes de mostrar el ripple, la misma que usa Android en sus listas (tap timeout).
+ * Sin ella, cada vez que el dedo apoya sobre una tarjeta para scrollear, el ripple arrancaba
+ * y la tarjeta entera parpadeaba en claro (muy visible en Explorar, con tarjetas grandes).
+ * Si el scroll empieza dentro de la espera, el toque se cancela sin ripple; un toque corto
+ * igual dispara `onPress`.
+ */
+const RETRASO_RIPPLE_ANDROID_MS = 100
 
 type Props = PressableProps & {
   /** En false no da respuesta visual: para fondos de modal y tarjetas que solo frenan el toque. */
@@ -42,6 +50,7 @@ export const Pressable = forwardRef<View, Props>(function Pressable(
         ref={ref}
         style={estiloAndroid}
         android_ripple={android_ripple ?? RIPPLE_ANDROID}
+        unstable_pressDelay={RETRASO_RIPPLE_ANDROID_MS}
         {...props}
       />
     )
