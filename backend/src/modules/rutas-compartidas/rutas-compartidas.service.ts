@@ -1,5 +1,5 @@
 import { randomBytes } from 'crypto'
-import type { CategoriaParada, Prisma, PrismaClient, TipoActividad } from '@prisma/client'
+import { Prisma, type CategoriaParada, type PrismaClient, type TipoActividad } from '@prisma/client'
 import { HttpError } from '../../lib/httpError'
 import { rutaSnapshotSchema, type RutaSnapshot } from './rutas-compartidas.schemas'
 
@@ -21,6 +21,9 @@ export function nombreDesdeSnapshot(snapshot: RutaSnapshot): string {
   if (destino) return `Hacia ${destino}`
   return 'Ruta compartida'
 }
+
+/** Detalle de la miniatura del listado: el trazado se simplifica a ~1/80 de su tamaño. */
+const MINIATURA_RESOLUCION = 80
 
 function nuevoToken(): string {
   return randomBytes(32).toString('base64url')
@@ -286,26 +289,44 @@ export class RutasCompartidasService {
     }
   }
 
+  /**
+   * Trazado de cada plantilla del usuario simplificado para dibujarlo en miniatura en el
+   * listado, como coordenadas GeoJSON [lng, lat]. La tolerancia es relativa al tamaño de la
+   * ruta (1/MINIATURA_RESOLUCION del lado más largo de su caja), así una vuelta corta y un
+   * viaje largo quedan con una cantidad parecida de puntos. Plantillas con un trazado que no
+   * es una LineString de al menos dos puntos no aparecen en el mapa devuelto.
+   */
+  private async trazadosMiniatura(usuarioId: string): Promise<Map<string, [number, number][]>> {
+    const filas = await this.prisma.$queryRaw<{ id: string; coords: [number, number][] | null }[]>(
+      Prisma.sql`
+        WITH g AS (
+          SELECT id, ST_GeomFromGeoJSON(linestring_geojson::text) AS geom
+          FROM ruta_plantilla
+          WHERE usuario_id = ${usuarioId}::uuid
+            AND linestring_geojson->>'type' = 'LineString'
+            AND jsonb_array_length(linestring_geojson->'coordinates') >= 2
+        )
+        SELECT
+          id::text AS id,
+          (ST_AsGeoJSON(
+            ST_SimplifyPreserveTopology(
+              geom,
+              GREATEST(ST_XMax(geom) - ST_XMin(geom), ST_YMax(geom) - ST_YMin(geom))
+                / ${MINIATURA_RESOLUCION}::float8
+            ),
+            5
+          )::json) -> 'coordinates' AS coords
+        FROM g
+      `
+    )
+    return new Map(filas.map((f) => [f.id, f.coords ?? []]))
+  }
+
   async listarPlantillas(usuarioId: string) {
-    const rows = await this.prisma.rutaPlantilla.findMany({
-      where: { usuario_id: usuarioId },
-      orderBy: { created_at: 'desc' },
-      select: {
-        id: true,
-        nombre: true,
-        tipo_actividad: true,
-        distancia_planeada_m: true,
-        tiempo_estimado_seg: true,
-        origen_nombre: true,
-        destino_nombre: true,
-        created_at: true,
-        checklist: true,
-        recorrido_publicado: { select: { usuario_id: true } },
-        ruta_compartida: {
-          select: { ruta: { select: { viaje: { select: { creador_id: true } } } } },
-        },
-      },
-    })
+    const [rows, trazados] = await Promise.all([
+      this.listarFilasPlantilla(usuarioId),
+      this.trazadosMiniatura(usuarioId),
+    ])
 
     return rows.map((r) => {
       // Autor de la ruta de origen: quien publicó el recorrido o creó el viaje compartido.
@@ -323,7 +344,30 @@ export class RutasCompartidasService {
         created_at: r.created_at,
         con_checklist: r.checklist.length > 0,
         creada_por_mi: autorId === usuarioId,
+        trazado_miniatura: trazados.get(r.id) ?? [],
       }
+    })
+  }
+
+  private listarFilasPlantilla(usuarioId: string) {
+    return this.prisma.rutaPlantilla.findMany({
+      where: { usuario_id: usuarioId },
+      orderBy: { created_at: 'desc' },
+      select: {
+        id: true,
+        nombre: true,
+        tipo_actividad: true,
+        distancia_planeada_m: true,
+        tiempo_estimado_seg: true,
+        origen_nombre: true,
+        destino_nombre: true,
+        created_at: true,
+        checklist: true,
+        recorrido_publicado: { select: { usuario_id: true } },
+        ruta_compartida: {
+          select: { ruta: { select: { viaje: { select: { creador_id: true } } } } },
+        },
+      },
     })
   }
 

@@ -33,6 +33,8 @@ export type RutaPlantillaResumenApi = {
   con_checklist: boolean
   /** La ruta de origen es propia (recorrido que publiqué o viaje que creé). */
   creada_por_mi: boolean
+  /** Trazado simplificado para la miniatura del listado, GeoJSON [lng, lat]. Vacío si no hay. */
+  trazado_miniatura: [number, number][]
 }
 
 export type RutaPlantillaDetalleApi = RutaSnapshotPreviewApi & {

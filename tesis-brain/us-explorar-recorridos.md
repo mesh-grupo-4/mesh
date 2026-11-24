@@ -78,6 +78,12 @@ Recorrido despublicado → `404 RECORRIDO_NOT_FOUND`.
   **Usar en viaje** (en la tarjeta y en el detalle) abre el selector Viaje YA / Planificar con la
   plantilla precargada. Tocar = ver, botón = acción: antes tocar la tarjeta ya arrancaba a crear
   el viaje y no había forma de ver la ruta.
+  Cada tarjeta lleva arriba un **banner con el dibujo del trazado** (`components/tabs/TrazadoMiniatura.tsx`),
+  igual que la foto en las tarjetas de Explorar: línea de la ruta sobre fondo neutro, inicio en
+  verde y final en rojo (un solo punto si es circuito). Sin mapa nativo por tarjeta, para que la
+  lista no se vuelva pesada. El listado `GET /api/rutas-plantilla` manda `trazado_miniatura`:
+  el trazado simplificado en PostGIS (`ST_SimplifyPreserveTopology`, tolerancia de 1/80 del
+  lado más largo de la ruta), en coordenadas `[lng, lat]`.
 
 ### Ayuda en línea (E14)
 

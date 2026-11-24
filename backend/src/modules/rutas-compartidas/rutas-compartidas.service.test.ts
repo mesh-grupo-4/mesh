@@ -52,6 +52,7 @@ function createMockPrisma() {
   const rutaPlantillaParadaCreateMany = vi.fn()
   const rutaCreate = vi.fn()
   const paradaIntermediaCreateMany = vi.fn()
+  const queryRaw = vi.fn(async () => [])
   const transaction = vi.fn(async (fn: (tx: unknown) => unknown) =>
     fn({
       rutaPlantilla: {
@@ -95,10 +96,12 @@ function createMockPrisma() {
       create: rutaPlantillaCreate,
     },
     $transaction: transaction,
+    $queryRaw: queryRaw,
   }
 
   return {
     prisma: prisma as unknown as PrismaClient,
+    queryRaw,
     viajeFindUnique,
     rutaCompartidaFindUnique,
     rutaCompartidaUpsert,
@@ -164,6 +167,49 @@ describe('RutasCompartidasService', () => {
       ['link-propio', true],
       ['link-ajeno', false],
       ['origen-borrado', false],
+    ])
+  })
+
+  it('listarPlantillas suma el trazado en miniatura y deja vacío el que no tiene', async () => {
+    const { prisma, rutaPlantillaFindMany, queryRaw } = createMockPrisma()
+    const service = new RutasCompartidasService(prisma)
+    const base = {
+      nombre: 'Ruta',
+      tipo_actividad: 'bici',
+      distancia_planeada_m: null,
+      tiempo_estimado_seg: null,
+      origen_nombre: null,
+      destino_nombre: null,
+      created_at: new Date('2026-11-01T12:00:00.000Z'),
+      checklist: [],
+      recorrido_publicado: null,
+      ruta_compartida: null,
+    }
+    rutaPlantillaFindMany.mockResolvedValue([
+      { ...base, id: 'con-trazado' },
+      { ...base, id: 'sin-trazado' },
+    ])
+    queryRaw.mockResolvedValue([
+      {
+        id: 'con-trazado',
+        coords: [
+          [-64.2, -31.4],
+          [-64.3, -31.5],
+        ],
+      },
+    ] as never)
+
+    const lista = await service.listarPlantillas(usuarioId)
+
+    expect(lista.map((p) => [p.id, p.trazado_miniatura])).toEqual([
+      [
+        'con-trazado',
+        [
+          [-64.2, -31.4],
+          [-64.3, -31.5],
+        ],
+      ],
+      ['sin-trazado', []],
     ])
   })
 

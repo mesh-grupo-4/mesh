@@ -1171,7 +1171,9 @@ RutaPlantilla:
 
 RutaPlantillaResumen:
   type: object
-  description: Vista reducida para el listado. No incluye el trazado ni las paradas.
+  description: |
+    Vista reducida para el listado. Del trazado trae solo una versión simplificada para la
+    miniatura (`trazado_miniatura`); no incluye las paradas.
   required:
     - id
     - nombre
@@ -1183,6 +1185,7 @@ RutaPlantillaResumen:
     - created_at
     - con_checklist
     - creada_por_mi
+    - trazado_miniatura
   properties:
     id:
       type: string
@@ -1222,6 +1225,23 @@ RutaPlantillaResumen:
         `true` si la ruta de origen es del propio usuario: publicó el recorrido o creó el
         viaje cuyo link importó. `false` si es de otro usuario o si el origen ya no existe.
       example: false
+    trazado_miniatura:
+      type: array
+      description: |
+        Trazado simplificado con PostGIS (`ST_SimplifyPreserveTopology`, tolerancia relativa
+        al tamaño de la ruta) para dibujarlo en miniatura en el listado. Coordenadas GeoJSON
+        `[lng, lat]` con 5 decimales, en el orden del recorrido. Vacío si la plantilla no
+        tiene un trazado válido. No sirve para navegar: para eso está el detalle.
+      items:
+        type: array
+        minItems: 2
+        maxItems: 2
+        items:
+          type: number
+      example:
+        - [-64.4987, -31.4205]
+        - [-64.7612, -31.5833]
+        - [-65.0021, -31.7302]
   additionalProperties: false
 
 ImportacionRuta:

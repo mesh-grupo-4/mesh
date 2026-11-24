@@ -29,6 +29,7 @@ import { abrirNuevoViaje } from '@/lib/nuevoViaje';
 import { listarRutasPlantilla, type RutaPlantillaResumenApi } from '@/lib/rutasCompartidasApi';
 import { coincideBusqueda, normalizarBusqueda } from '@/lib/busqueda';
 import { confirmarQuitarGuardada } from '@/lib/rutasGuardadas';
+import { TrazadoMiniatura } from '@/components/tabs/TrazadoMiniatura';
 
 type FiltroAutor = 'todas' | 'mias' | 'otros';
 
@@ -149,34 +150,37 @@ export function RutasGuardadasPanel({ encabezado }: { encabezado: ReactNode }) {
           accessibilityRole="button"
           accessibilityLabel={`Ver ruta ${item.nombre}`}
         >
-          <View>
-            <Text style={[styles.nombre, { color: theme.text }]} numberOfLines={2}>
-              {item.nombre}
-            </Text>
-            <Text style={[styles.meta, { color: theme.textDim }]}>
-              {item.tipo_actividad}
-              {item.distancia_planeada_m != null ? ` · ${formatKm(item.distancia_planeada_m)}` : ''}
-              {item.tiempo_estimado_seg != null ? ` · ${formatDurationHm(item.tiempo_estimado_seg)}` : ''}
-              {item.con_checklist ? ' · con checklist' : ''}
-            </Text>
-          </View>
-          <View style={styles.row}>
-            <Btn
-              variant="primary"
-              size="sm"
-              icon="plus"
-              onPress={() =>
-                abrirNuevoViaje({ plantillaId: item.id, tipoActividad: item.tipo_actividad })
-              }
-            >
-              Usar en viaje
-            </Btn>
-            <CorazonGuardar
-              guardada
-              cargando={quitandoId === item.id}
-              nombre={item.nombre}
-              onPress={() => quitar(item)}
-            />
+          <TrazadoMiniatura coordenadas={item.trazado_miniatura ?? []} />
+          <View style={styles.cuerpo}>
+            <View>
+              <Text style={[styles.nombre, { color: theme.text }]} numberOfLines={2}>
+                {item.nombre}
+              </Text>
+              <Text style={[styles.meta, { color: theme.textDim }]}>
+                {item.tipo_actividad}
+                {item.distancia_planeada_m != null ? ` · ${formatKm(item.distancia_planeada_m)}` : ''}
+                {item.tiempo_estimado_seg != null ? ` · ${formatDurationHm(item.tiempo_estimado_seg)}` : ''}
+                {item.con_checklist ? ' · con checklist' : ''}
+              </Text>
+            </View>
+            <View style={styles.row}>
+              <Btn
+                variant="primary"
+                size="sm"
+                icon="plus"
+                onPress={() =>
+                  abrirNuevoViaje({ plantillaId: item.id, tipoActividad: item.tipo_actividad })
+                }
+              >
+                Usar en viaje
+              </Btn>
+              <CorazonGuardar
+                guardada
+                cargando={quitandoId === item.id}
+                nombre={item.nombre}
+                onPress={() => quitar(item)}
+              />
+            </View>
           </View>
         </Pressable>
       )}
@@ -261,13 +265,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     marginTop: 36,
   },
+  // El banner del trazado va de borde a borde arriba; el padding queda en el cuerpo.
   card: {
     borderWidth: 1,
     borderRadius: 12,
-    padding: 14,
     marginHorizontal: 20,
-    gap: 10,
+    overflow: 'hidden',
   },
+  cuerpo: { padding: 14, gap: 10 },
   nombre: { fontSize: 16, fontWeight: '700' },
   meta: { marginTop: 4, fontSize: 13, fontWeight: '600' },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
