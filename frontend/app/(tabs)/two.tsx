@@ -1,5 +1,5 @@
 import { useEspacioTabBar } from '@/hooks/useEspacioTabBar'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import {
   View,
   Text,
@@ -9,7 +9,7 @@ import {
 } from 'react-native'
 import { Pressable } from '@/components/Pressable'
 import { router, useFocusEffect } from 'expo-router'
-import { Feather } from '@expo/vector-icons'
+import { Feather, Ionicons } from '@expo/vector-icons'
 import { useCopilot } from 'react-native-copilot'
 import { useAuth } from '@/context/AuthContext'
 import { useTripRealtime } from '@/context/TripRealtimeContext'
@@ -39,7 +39,7 @@ import { SelectionActionBar } from '@/components/SelectionActionBar'
 import { BotonSeleccionar, SelectionHeader } from '@/components/SelectionHeader'
 import { useSelectionMode } from '@/hooks/useSelectionMode'
 import { etiquetaActividad } from '@/lib/activityDefaults'
-import { ETIQUETA_MODO, TONO_MODO } from '@/lib/modoViaje'
+import { ETIQUETA_MODO, colorModo } from '@/lib/modoViaje'
 import { formatDurationHm, formatKm } from '@/lib/format'
 import { aCamposArg, desdeCamposArg, formatearEnArg } from '@/lib/tiempoArg'
 import {
@@ -66,13 +66,15 @@ import { MiniaturaRuta } from '@/components/tabs/MiniaturaRuta'
 
 type Tab = 'mis_viajes' | 'pasados'
 
-function formatearFecha(iso: string): string {
+/** "26 nov 2026, 19:30": entra en una línea al lado del mapa de la tarjeta. */
+function formatearFechaHoraCorta(iso: string): string {
   return formatearEnArg(iso, {
     day: 'numeric',
-    month: 'long',
+    month: 'short',
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    hour12: false,
   })
 }
 
@@ -158,31 +160,50 @@ function motivoNoEliminable(v: ViajePlanificadoApi): string {
   return 'Este viaje no se puede eliminar.'
 }
 
-/** Modo del viaje (con su color) e individual/grupal, debajo del título de la tarjeta. */
-function InfoViaje({ modo, esGrupal }: { modo: ModoViajeApi; esGrupal: boolean }) {
+/**
+ * Línea debajo del título: badge de estado (en vivo / no realizado) si hay, el modo del viaje
+ * en su color y el rol. Va en texto y no en chips para dejarle el ancho al título.
+ */
+function InfoViaje({
+  modo,
+  rol,
+  badge,
+  theme,
+}: {
+  modo: ModoViajeApi
+  rol: string
+  badge?: ReactNode
+  theme: ReturnType<typeof useTheme>
+}) {
   return (
     <View style={styles.tarjetaInfo}>
-      <Badge tone={TONO_MODO[modo]}>{ETIQUETA_MODO[modo]}</Badge>
-      <Badge tone="mute">{esGrupal ? 'Grupal' : 'Individual'}</Badge>
+      {badge}
+      <Text style={styles.tarjetaInfoTexto} numberOfLines={1}>
+        <Text style={{ color: colorModo(modo, theme) }}>{ETIQUETA_MODO[modo]}</Text>
+        {rol ? <Text style={{ color: theme.textMute }}>{` · ${rol}`}</Text> : null}
+      </Text>
     </View>
   )
 }
 
 /**
- * Fila de datos al pie de cada tarjeta de viaje: distancia, tiempo y actividad. La actividad
- * va siempre, así se sabe qué es aunque el mapa no la muestre. Un dato que falta va en "--".
+ * Fila de datos al pie de cada tarjeta de viaje: distancia, tiempo, actividad y salida
+ * (individual o grupal, con una o tres personitas). La actividad va siempre, así se sabe qué
+ * es aunque el mapa no la muestre. Un dato que falta va en "--".
  */
 function FilaDatosViaje({
   distanciaM,
   tiempoSeg,
   etiquetaTiempo,
   actividad,
+  esGrupal,
   theme,
 }: {
   distanciaM: number | null
   tiempoSeg: number | null
   etiquetaTiempo: string
   actividad: TipoActividadApi
+  esGrupal: boolean
   theme: ReturnType<typeof useTheme>
 }) {
   const datos = [
@@ -194,10 +215,22 @@ function FilaDatosViaje({
     <View style={[styles.tarjetaMetricas, { borderTopColor: theme.border }]}>
       {datos.map((d) => (
         <View key={d.etiqueta} style={styles.tarjetaMetrica}>
-          <Text style={[styles.tarjetaMetricaValor, { color: theme.text }]}>{d.valor}</Text>
+          <Text style={[styles.tarjetaMetricaValor, { color: theme.text }]} numberOfLines={1}>
+            {d.valor}
+          </Text>
           <Text style={[styles.tarjetaMetricaLabel, { color: theme.textMute }]}>{d.etiqueta}</Text>
         </View>
       ))}
+      {/* Ícono y "Salida" centrados entre sí: la palabra queda debajo del medio del dato. */}
+      <View style={styles.tarjetaMetricaSalida}>
+        <View style={styles.tarjetaMetricaSalidaValor}>
+          <Ionicons name={esGrupal ? 'people' : 'person'} size={16} color={theme.text} />
+          <Text style={[styles.tarjetaMetricaValor, { color: theme.text }]} numberOfLines={1}>
+            {esGrupal ? 'Grupal' : 'Individual'}
+          </Text>
+        </View>
+        <Text style={[styles.tarjetaMetricaLabel, { color: theme.textMute }]}>Salida</Text>
+      </View>
     </View>
   )
 }
@@ -230,44 +263,48 @@ function TarjetaViaje({
   const contenido = (
     <>
       <View style={styles.tarjetaFila}>
-        <View style={styles.tarjetaTextos}>
-          <View style={styles.tarjetaHeader}>
-            <Text
-              style={[styles.tarjetaTitulo, { color: dimmed ? theme.textDim : theme.text }]}
-              numberOfLines={1}
-            >
-              {nombre}
-            </Text>
-            {dimmed ? (
-              <Badge tone="mute">No realizado</Badge>
-            ) : v.estado === 'en_curso' ? (
-              <Badge tone="live" pulse>
-                En vivo
-              </Badge>
-            ) : null}
-            {onQuitar && !selectionActive ? (
-              <BotonQuitar nombre={nombre} onPress={onQuitar} theme={theme} />
-            ) : null}
-          </View>
-          <InfoViaje modo={modo} esGrupal={v.es_grupal} />
-          <Text style={[styles.tarjetaMeta, { color: dimmed ? theme.textMute : theme.textDim }]}>
-            <Feather name="calendar" size={12} />{'  '}{formatearFecha(v.fecha_programada)}
-          </Text>
-          <Text style={[styles.tarjetaRol, { color: theme.textMute }]}>
-            {v.mi_estado === 'creador' ? 'Organizador' : v.mi_estado === 'confirmado' ? 'Participante' : ''}
-          </Text>
-        </View>
         <MiniaturaRuta
           coordenadas={v.trazado_miniatura ?? []}
           actividad={v.tipo_actividad}
           textoSinTrazado={v.estado === 'planificado' ? 'Sin ruta todavía' : 'Sin recorrido'}
         />
+        <View style={styles.tarjetaTextos}>
+          <View style={styles.tarjetaHeader}>
+            <Text
+              style={[styles.tarjetaTitulo, { color: dimmed ? theme.textDim : theme.text }]}
+              numberOfLines={2}
+            >
+              {nombre}
+            </Text>
+            {onQuitar && !selectionActive ? (
+              <BotonQuitar nombre={nombre} onPress={onQuitar} theme={theme} />
+            ) : null}
+          </View>
+          <InfoViaje
+            modo={modo}
+            rol={v.mi_estado === 'creador' ? 'Organizador' : v.mi_estado === 'confirmado' ? 'Participante' : ''}
+            badge={
+              dimmed ? (
+                <Badge tone="mute">No realizado</Badge>
+              ) : v.estado === 'en_curso' ? (
+                <Badge tone="live" pulse>
+                  En vivo
+                </Badge>
+              ) : null
+            }
+            theme={theme}
+          />
+          <Text style={[styles.tarjetaMeta, { color: dimmed ? theme.textMute : theme.textDim }]}>
+            <Feather name="calendar" size={12} />{'  '}{formatearFechaHoraCorta(v.fecha_programada)}
+          </Text>
+        </View>
       </View>
       <FilaDatosViaje
         distanciaM={v.distancia_planeada_m ?? null}
         tiempoSeg={v.tiempo_estimado_seg ?? null}
         etiquetaTiempo="Tiempo est."
         actividad={v.tipo_actividad}
+        esGrupal={v.es_grupal}
         theme={theme}
       />
     </>
@@ -349,16 +386,25 @@ function TarjetaFinalizado({
       style={[styles.tarjeta, styles.tarjetaDimmed, { backgroundColor: theme.surface, borderColor: theme.border }]}
     >
       <View style={styles.tarjetaFila}>
+        <MiniaturaRuta
+          coordenadas={v.trazado_miniatura ?? []}
+          actividad={v.tipo_actividad}
+          textoSinTrazado="Sin recorrido"
+        />
         <View style={styles.tarjetaTextos}>
           <View style={styles.tarjetaHeader}>
-            <Text style={[styles.tarjetaTitulo, { color: theme.textDim }]} numberOfLines={1}>
+            <Text style={[styles.tarjetaTitulo, { color: theme.textDim }]} numberOfLines={2}>
               {nombre}
             </Text>
             {onQuitar && !selectionActive ? (
               <BotonQuitar nombre={nombre} onPress={onQuitar} theme={theme} />
             ) : null}
           </View>
-          <InfoViaje modo={modo} esGrupal={v.es_grupal} />
+          <InfoViaje
+            modo={modo}
+            rol={v.mi_estado === 'creador' ? 'Organizador' : 'Participante'}
+            theme={theme}
+          />
           <Text style={[styles.tarjetaMeta, { color: theme.textMute }]}>
             <Feather name="calendar" size={12} />{'  '}{formatearFechaCorta(v.fecha_programada)}
           </Text>
@@ -367,21 +413,14 @@ function TarjetaFinalizado({
               <Feather name="flag" size={12} />{'  '}Finalizó {formatearFechaCorta(v.fecha_fin_real)}
             </Text>
           )}
-          <Text style={[styles.tarjetaRol, { color: theme.textMute }]}>
-            {v.mi_estado === 'creador' ? 'Organizador' : 'Participante'}
-          </Text>
         </View>
-        <MiniaturaRuta
-          coordenadas={v.trazado_miniatura ?? []}
-          actividad={v.tipo_actividad}
-          textoSinTrazado="Sin recorrido"
-        />
       </View>
       <FilaDatosViaje
         distanciaM={v.mi_distancia_m}
         tiempoSeg={v.mi_tiempo_movimiento_seg}
         etiquetaTiempo="En movimiento"
         actividad={v.tipo_actividad}
+        esGrupal={v.es_grupal}
         theme={theme}
       />
     </SelectableCard>
@@ -1012,23 +1051,27 @@ const styles = StyleSheet.create({
   tarjetaDimmed: { opacity: 0.75 },
   // minHeight = alto del botón de quitar (18 + padding 4·2): con o sin tacho,
   // los badges quedan a la misma distancia del ícono.
-  // Textos a la izquierda y mapa cuadrado de la ruta (o ícono de la actividad) a la derecha.
+  // Mapa cuadrado de la ruta (o ícono de la actividad) a la izquierda y textos a la derecha:
+  // así el título tiene dos líneas enteras en lugar de cortarse contra el mapa.
   tarjetaFila: { flexDirection: 'row', gap: 12 },
   tarjetaTextos: { flex: 1, minWidth: 0, gap: 6 },
-  tarjetaHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 26 },
+  tarjetaHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, minHeight: 26 },
   botonQuitar: { padding: 4, marginLeft: 2 },
-  tarjetaTitulo: { flex: 1, fontSize: 15.5, fontWeight: '700' },
+  tarjetaTitulo: { flex: 1, fontSize: 16, lineHeight: 21, fontWeight: '700' },
   tarjetaMeta: { fontSize: 13, lineHeight: 18 },
-  tarjetaInfo: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  tarjetaInfo: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 },
+  tarjetaInfoTexto: { flexShrink: 1, fontSize: 12.5, fontWeight: '600' },
   tarjetaGrupo: { fontSize: 12.5, fontWeight: '600' },
-  tarjetaRol: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.3 },
   tarjetaMetricas: {
     flexDirection: 'row',
     marginTop: 10,
     paddingTop: 10,
     borderTopWidth: 1,
   },
-  tarjetaMetrica: { flex: 1, gap: 2 },
+  tarjetaMetrica: { flex: 1, minWidth: 0, gap: 2 },
+  // Salida toma su propio ancho ("Individual" + ícono) y centra la etiqueta debajo del dato.
+  tarjetaMetricaSalida: { flexShrink: 0, alignItems: 'center', gap: 2 },
+  tarjetaMetricaSalidaValor: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   tarjetaMetricaValor: { fontSize: 15, fontWeight: '800' },
   tarjetaMetricaLabel: { fontSize: 11, fontWeight: '600' },
   filaAcciones: { flexDirection: 'row', gap: 10, marginTop: 8 },
