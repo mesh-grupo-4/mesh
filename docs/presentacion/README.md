@@ -3,6 +3,10 @@
 Muestra dos celulares Android en vivo, lado a lado, sobre un fondo con la marca de Mesh
 y el rol de cada celular (*Líder* / *Participante*). Lo que se proyecta es la pantalla de la notebook.
 
+Abre la **presentación completa de la defensa** (`docs/presentacion-web/index.html`): los celulares
+aparecen solo en las pantallas de demo y en el resto quedan escondidos detrás. Con `-SinDiapositivas`
+abre, en cambio, el fondo solo (`escenario.html`), como antes.
+
 | Archivo | Qué hace |
 |---|---|
 | `Presentar por cable.cmd` | Doble clic: arranca todo con los celulares enchufados |
@@ -12,8 +16,9 @@ y el rol de cada celular (*Líder* / *Participante*). Lo que se proyecta es la p
 | `Instalar accesos directos.cmd` | Crea los accesos del menú Inicio para anclar a la barra de tareas |
 | `espejar-celulares.ps1` | El script que usan los tres lanzadores |
 | `iconos/` | Íconos de los accesos directos (Mesh con insignia de WiFi, cable o cerrar) |
-| `escenario.html` | Fondo de presentación (logo, roles, indicador "en vivo") |
-| `cierre.html` | Animación de Mesh al finalizar con `Ctrl+Alt+Q`: se forma el logo y, con otro `Ctrl+Alt+Q`, se va andando |
+| `../presentacion-web/index.html` | La presentación de la defensa; sus pantallas de demo son el fondo de los celulares |
+| `escenario.html` | Fondo solo (logo, roles, indicador "en vivo"), para `-SinDiapositivas` |
+| `cierre.html` | Animación de Mesh al finalizar con `Ctrl+Alt+Q`: se forma el logo y, con otro `Ctrl+Alt+Q`, se va andando. La presentación la muestra en su última pantalla |
 
 Usa [scrcpy](https://github.com/Genymobile/scrcpy): espeja por USB o WiFi, con muy poca
 latencia y sin instalar nada en el teléfono. **Solo Android**: con iPhone no funciona.
@@ -51,7 +56,9 @@ Para quitarlos: `.\instalar-accesos.ps1 -Quitar`.
 Doble clic en **`Presentar por cable.cmd`** (o `Presentar por WiFi.cmd`). En unos 30 segundos:
 
 1. Prepara los teléfonos: activa **No molestar**, cierra la barra de notificaciones y **abre Mesh**.
-2. Abre el fondo en pantalla completa y un espejo por celular, cada uno sobre su rol.
+2. Abre la presentación en pantalla completa y un espejo por celular, cada uno sobre su rol.
+   Los espejos se ven solo en las pantallas de demo (la página avisa con su título,
+   *Mesh · Defensa · Celulares*); en el resto quedan detrás de la presentación.
 3. La consola se oculta y queda el **ícono de Mesh en la bandeja** de Windows, al lado del reloj.
 
 Windows 11 manda los íconos nuevos a la flechita **^** de la bandeja. Conviene arrastrarlo
@@ -61,13 +68,13 @@ de ahí a la barra de tareas una vez, para tenerlo a mano.
 
 | Atajo | Qué hace |
 |---|---|
-| `Ctrl+Alt+M` | Mostrar los celulares (también: doble clic en el ícono) |
+| `Ctrl+Alt+M` | Volver a la presentación, con los celulares si la pantalla es de demo (también: doble clic en el ícono) |
 | `Ctrl+Alt+R` | Reconectar los dos espejos |
 | `Ctrl+Alt+I` | Invertir lados (si quedaron al revés de los roles) |
 | `Ctrl+Alt+C` | Mostrar u ocultar la consola, con los mensajes del script |
 | `Ctrl+Alt+1` | Quitar el celular de la izquierda (para seguir con uno solo). Otra vez: lo vuelve a conectar |
 | `Ctrl+Alt+2` | Lo mismo con el celular de la derecha |
-| `Ctrl+Alt+Q` | Finalizar: se van los celulares y se forma el logo de Mesh, que queda en pantalla. Otro `Ctrl+Alt+Q`: Mesh se va andando y se cierra todo. Deja No molestar como estaba en cada teléfono |
+| `Ctrl+Alt+Q` | Finalizar: se van los celulares y la presentación salta a su cierre, donde se forma el logo de Mesh. Otro `Ctrl+Alt+Q`: Mesh se va andando y se cierra todo. Si la presentación ya estaba en el cierre, Mesh se va con el primero. Deja No molestar como estaba en cada teléfono |
 
 Si `Ctrl+Alt+Q` no responde, doble clic en **`Cerrar presentacion.cmd`**: hace lo mismo desde afuera, pero sin la animación.
 
@@ -83,7 +90,11 @@ se va andando por la derecha y la pantalla se funde a negro. `Alt+F4` la cierra 
 La lentitud se ajusta con `$CIERRE_LENTITUD` al principio del script.
 
 Ese segundo `Ctrl+Alt+Q` lo recibe la pantalla del logo: si no responde (por ejemplo, porque se hizo
-clic en otra ventana), hacer un clic sobre el logo y repetirlo.
+clic en otra ventana), hacer un clic sobre el logo y repetirlo. Con la presentación, ese clic es un clic
+izquierdo, que vuelve una pantalla: en ese caso, avanzar con clic derecho y repetir `Ctrl+Alt+Q`.
+
+**En las pantallas de demo**, avanzar con clic en los costados de la presentación, nunca sobre un
+celular: ahí el clic es un toque en el teléfono, y el clic derecho es "atrás" en Android.
 
 **Lo que hace solo**
 
@@ -101,6 +112,7 @@ clic en otra ventana), hacer un clic sobre el logo y repetirlo.
 .\espejar-celulares.ps1 -Pantalla 1                       # proyector en modo Extender
 .\espejar-celulares.ps1 -Wifi -Liviano                    # lo mismo que Presentar por hotspot del celular.cmd
 .\espejar-celulares.ps1 -SinPreparar                      # no toca No molestar ni abre Mesh
+.\espejar-celulares.ps1 -SinDiapositivas                  # solo el fondo (escenario.html), sin la presentación
 .\espejar-celulares.ps1 -SinEscenario -ConBordes          # solo las ventanas, movibles
 .\espejar-celulares.ps1 -Cerrar                           # lo mismo que Cerrar presentacion.cmd
 ```
@@ -186,8 +198,10 @@ depuración inalámbrica al cambiar de red, así que hay que reactivarla en el a
 
 ## 4. Ensayar el fondo
 
-Para ensayar el fondo sin celulares, abrir `escenario.html?guia=1` en el navegador
-(tecla F para pantalla completa). Con `?enlace=0` se oculta el indicador "en vivo".
+Para ensayar la presentación sin celulares, abrir `../presentacion-web/index.html` en el navegador
+(tecla F para pantalla completa): en las pantallas de demo se dibuja dónde van a quedar los celulares.
+
+Para el fondo solo, abrir `escenario.html?guia=1`. Con `?enlace=0` se oculta el indicador "en vivo".
 
 Para ver la animación de cierre, abrir `cierre.html` (`Ctrl+Alt+Q` se va, F pantalla completa, R repetir).
 Acepta `?lento=3.5&espera=1.5`.

@@ -4,26 +4,38 @@
 <meta charset="utf-8">
 <meta name="google" content="notranslate">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mesh · Presentación</title>
+<title>Mesh · Defensa</title>
 <link rel="icon" href="mesh-logo.png">
 <!--
-  Presentación web de Mesh. Se abre con doble clic (no necesita internet ni servidor).
+  Defensa final de Mesh: toda la presentación en una página, demo incluida.
+  Se abre con doble clic (no necesita internet ni servidor) o la abre
+  docs/presentacion/espejar-celulares.ps1 con los celulares espejados encima.
 
   Controles (pensados para irse pasando el mouse entre presentadores):
     Clic derecho ........ avanzar (o mostrar el próximo punto de la pantalla)
     Clic izquierdo ...... retroceder
     Flechas / PageUp / PageDown / Espacio: lo mismo con teclado o con un puntero de presentación
     F ................... pantalla completa
+    T ................... mostrar u ocultar el cronómetro (arranca con el primer avance)
+    S ................... en la demo, sin el script: ensayar con un solo celular
     ? ................... ver u ocultar la ayuda de controles
     Inicio / Fin ........ primera / última pantalla
+    Ctrl+Alt+Q .......... ir al cierre; en el cierre, Mesh se va andando
 
   Cómo sumar pantallas: copiar un <section class="slide"> y cambiar su contenido.
     data-seccion="..."      nombre de la parte (se ve abajo a la izquierda)
     data-quien="..."        quién la presenta (opcional; si está vacío no se muestra)
+    data-celulares          pantalla de demo: se ven los celulares espejados (ver más abajo)
     class="paso"            elementos que aparecen de a uno con cada clic derecho
     data-evento="x"         en un paso: al verse, la pantalla suma la clase ev-x (y .ev-x se muestra)
     <video class="fondo">   video de fondo: arranca al entrar, se frena al salir.
                             data-velocidad="0.7" = cámara lenta (1 = velocidad normal)
+
+  Celulares: en las pantallas con data-celulares el título de la página pasa a
+  "Mesh · Defensa · Celulares". espejar-celulares.ps1 lee ese título y muestra
+  los espejos solo ahí; en el resto quedan escondidos detrás de la presentación.
+  Lugar de los celulares: mismos parámetros que docs/presentacion/escenario.html
+  (izq, rolIzq, der, rolDer, arriba, alto, celulares, estado).
 -->
 <style>
   :root {
@@ -35,8 +47,13 @@
     --good: #4fb477;
     --amber: #e3a33b;
     --blue: #5b9bd5;
+    --panel: rgba(22, 22, 22, .78);
+    --borde: rgba(255, 255, 255, .1);
     /* Unidad proporcional: mantiene el diseño 16:9 en cualquier pantalla. */
     --u: min(1vw, 1.7778vh);
+    /* Lugar de los celulares en la demo (fracciones de la pantalla, como el escenario). */
+    --arriba: 0.13;
+    --alto: 0.74;
     --font: "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -47,7 +64,9 @@
     -webkit-font-smoothing: antialiased;
     user-select: none;
     -webkit-user-select: none;
+    transition: opacity 1.5s ease-in-out;
   }
+  body.fuera { opacity: 0; }
   body.sin-cursor, body.sin-cursor * { cursor: none !important; }
   img, video { -webkit-user-drag: none; }
 
@@ -74,6 +93,7 @@
   .velo.izq { background: linear-gradient(90deg, rgba(10,10,10,.9) 0%, rgba(10,10,10,.6) 42%, rgba(10,10,10,.08) 78%); }
   .velo.abajo { background: linear-gradient(0deg, rgba(10,10,10,.92) 0%, rgba(10,10,10,.45) 45%, rgba(10,10,10,.1) 75%); }
   .velo.total { background: rgba(10,10,10,.66); }
+  .velo.fuerte { background: rgba(10,10,10,.8); }
 
   .contenido {
     position: absolute; inset: 0;
@@ -81,6 +101,8 @@
     display: flex; flex-direction: column; justify-content: center;
   }
   .contenido.abajo { justify-content: flex-end; padding-bottom: calc(var(--u) * 9); }
+  /* Pantallas con mucho contenido: el título arriba y el resto abajo. */
+  .contenido.arriba { justify-content: flex-start; padding-top: calc(var(--u) * 5.6); padding-bottom: calc(var(--u) * 5.4); }
 
   .kicker {
     font-size: calc(var(--u) * 1.35); font-weight: 700;
@@ -90,12 +112,25 @@
   }
   h1, h2 { font-weight: 700; letter-spacing: -0.025em; line-height: 1.02; text-wrap: balance; }
   h2 { font-size: calc(var(--u) * 5.6); max-width: 15ch; }
+  h2.chico { font-size: calc(var(--u) * 4); max-width: 26ch; }
   .bajada {
     margin-top: calc(var(--u) * 2.2);
     font-size: calc(var(--u) * 1.9); line-height: 1.4;
     color: var(--text-dim); max-width: 44ch; text-wrap: pretty;
   }
+  .bajada.chica { font-size: calc(var(--u) * 1.6); margin-top: calc(var(--u) * 1.4); max-width: 60ch; }
   .acento { color: var(--accent); }
+  .malla {
+    position: absolute; inset: 0;
+    background-image: radial-gradient(rgba(255,255,255,.07) 1px, transparent 1.4px);
+    background-size: calc(var(--u) * 2.2) calc(var(--u) * 2.2);
+    mask-image: radial-gradient(ellipse 80% 75% at 60% 50%, #000 30%, transparent 100%);
+  }
+  .resplandor {
+    position: absolute; width: calc(var(--u) * 60); height: calc(var(--u) * 60); border-radius: 50%;
+    background: radial-gradient(closest-side, rgba(215,102,85,.16), transparent);
+    pointer-events: none;
+  }
 
   /* Puntos que aparecen con cada clic derecho */
   .paso { opacity: 0; transform: translateY(calc(var(--u) * 1.4)); transition: opacity .55s ease, transform .55s cubic-bezier(.2, .7, .3, 1); }
@@ -124,7 +159,7 @@
   svg .etiqueta .sub { font-weight: 700; }
   svg .pausa { fill: var(--bg); }
 
-  /* ---------- 1. Portada ---------- */
+  /* ---------- Portada ---------- */
   .portada .contenido { justify-content: flex-end; padding-bottom: calc(var(--u) * 8); }
   .logo { display: flex; align-items: center; gap: calc(var(--u) * 2.2); }
   .logo img { height: calc(var(--u) * 11); width: auto; filter: drop-shadow(0 calc(var(--u) * .4) calc(var(--u) * 2) rgba(0,0,0,.5)); }
@@ -150,7 +185,7 @@
   .raton.der::after { right: 0; }
   .raton.izq::after { left: 0; background: var(--text-mute); }
 
-  /* ---------- 2. Tríptico ---------- */
+  /* ---------- Tríptico ---------- */
   .triptico { display: flex; flex-direction: column; padding: calc(var(--u) * 6) calc(var(--u) * 6) calc(var(--u) * 5); height: 100%; }
   .triptico header { display: flex; align-items: flex-end; justify-content: space-between; gap: calc(var(--u) * 4); margin-bottom: calc(var(--u) * 3); }
   .triptico h2 { max-width: none; }
@@ -163,7 +198,7 @@
     font-size: calc(var(--u) * 3.2); letter-spacing: -0.02em;
   }
 
-  /* ---------- 4. Preguntas + sendero ---------- */
+  /* ---------- Preguntas + sendero ---------- */
   .preguntas { list-style: none; margin-top: calc(var(--u) * 3.2); display: grid; gap: calc(var(--u) * 1.3); }
   .preguntas li {
     display: flex; align-items: center; gap: calc(var(--u) * 1.6);
@@ -176,7 +211,7 @@
   .sendero { position: absolute; left: 0; right: 0; bottom: calc(var(--u) * 4); width: 100%; height: auto; }
   .sendero .ruta { stroke-width: 10; stroke: rgba(255,255,255,.22); }
 
-  /* ---------- 5. Apps ---------- */
+  /* ---------- Lo que hay hoy: apps ---------- */
   .apps { display: flex; flex-wrap: wrap; gap: calc(var(--u) * 1); margin-top: calc(var(--u) * 3); }
   .apps span {
     font-size: calc(var(--u) * 1.7); font-weight: 600;
@@ -186,13 +221,35 @@
   }
   .remate { margin-top: calc(var(--u) * 3.2); font-size: calc(var(--u) * 2.8); font-weight: 700; letter-spacing: -0.015em; max-width: 24ch; }
 
-  /* ---------- 6. Mesh mira al grupo ---------- */
-  .malla {
-    position: absolute; inset: 0;
-    background-image: radial-gradient(rgba(255,255,255,.07) 1px, transparent 1.4px);
-    background-size: calc(var(--u) * 2.2) calc(var(--u) * 2.2);
-    mask-image: radial-gradient(ellipse 80% 75% at 60% 50%, #000 30%, transparent 100%);
+  /* ---------- Notas al pie ---------- */
+  .nota { margin-top: calc(var(--u) * 2.6); font-size: calc(var(--u) * 1.35); color: var(--text-mute); line-height: 1.45; max-width: 70ch; }
+
+  /* ---------- Tarjetas y columnas ---------- */
+  .tarjetas { display: grid; grid-template-columns: repeat(var(--cols, 3), 1fr); gap: calc(var(--u) * 1.6); margin-top: calc(var(--u) * 3.4); }
+  .tarjeta {
+    position: relative;
+    padding: calc(var(--u) * 2.2) calc(var(--u) * 2.2) calc(var(--u) * 2.4);
+    border-radius: calc(var(--u) * 1.3);
+    background: var(--panel); border: 1px solid var(--borde);
+    backdrop-filter: blur(10px);
   }
+  .tarjeta .num { font-size: calc(var(--u) * 1.2); font-weight: 800; letter-spacing: .14em; color: var(--accent); }
+  .tarjeta h3 { margin-top: calc(var(--u) * .9); font-size: calc(var(--u) * 2.2); font-weight: 700; letter-spacing: -0.015em; line-height: 1.1; }
+  .tarjeta p { margin-top: calc(var(--u) * .9); font-size: calc(var(--u) * 1.45); line-height: 1.45; color: var(--text-dim); text-wrap: pretty; }
+  .tarjeta ul { list-style: none; margin-top: calc(var(--u) * 1.2); display: grid; gap: calc(var(--u) * .8); }
+  .tarjeta li { position: relative; padding-left: calc(var(--u) * 1.6); font-size: calc(var(--u) * 1.4); line-height: 1.35; color: var(--text-dim); }
+  .tarjeta li::before { content: ""; position: absolute; left: 0; top: .62em; width: calc(var(--u) * .7); height: 2px; background: var(--accent); }
+  .tarjeta li b { color: var(--text); font-weight: 650; }
+  /* Pantallas con seis tarjetas o listas largas: todo un poco más compacto. */
+  .tarjetas.compactas { margin-top: calc(var(--u) * 2.4); gap: calc(var(--u) * 1.3); }
+  .compactas .tarjeta { padding: calc(var(--u) * 1.7) calc(var(--u) * 1.9) calc(var(--u) * 1.8); }
+  .compactas .tarjeta h3 { font-size: calc(var(--u) * 1.95); margin-top: calc(var(--u) * .6); }
+  .compactas .tarjeta p { font-size: calc(var(--u) * 1.35); margin-top: calc(var(--u) * .6); }
+  .compactas .tarjeta ul { margin-top: calc(var(--u) * .9); gap: calc(var(--u) * .55); }
+  .compactas .tarjeta li { font-size: calc(var(--u) * 1.3); }
+  h2.una-linea { max-width: none; }
+
+  /* ---------- Para quién ---------- */
   .dos-columnas { display: grid; grid-template-columns: 1fr 1.15fr; align-items: center; gap: calc(var(--u) * 4); }
   .solucion h2 { font-size: calc(var(--u) * 6.4); }
   .mapa, .red { width: 100%; height: auto; }
@@ -205,7 +262,6 @@
   }
   .chip i { width: calc(var(--u) * .9); height: calc(var(--u) * .9); border-radius: 50%; background: var(--c); }
 
-  /* ---------- 7. Red de integrantes ---------- */
   .red .enlace { stroke: rgba(255,255,255,.2); stroke-width: 2.5; fill: none; }
   .red .nodo { fill: #e8e3de; stroke: var(--bg); stroke-width: 5; }
   .red .lider { fill: var(--accent); }
@@ -214,25 +270,406 @@
   .red text { fill: var(--text-dim); font: 600 24px var(--font); text-anchor: middle; letter-spacing: .04em; }
   .red .t-lider { fill: #fff; font-size: 21px; font-weight: 800; }
 
-  /* ---------- 7 y 8. Listas ---------- */
   .lista { list-style: none; margin-top: calc(var(--u) * 3); display: grid; gap: calc(var(--u) * 1.6); }
   .lista li { display: flex; align-items: baseline; gap: calc(var(--u) * 1.6); font-size: calc(var(--u) * 2.3); font-weight: 600; }
   .lista li::before { content: ""; flex: none; width: calc(var(--u) * 2); height: 3px; background: var(--accent); transform: translateY(calc(var(--u) * -.6)); }
   .lista small { display: block; font-size: calc(var(--u) * 1.5); font-weight: 400; color: var(--text-dim); margin-top: calc(var(--u) * .3); }
 
-  .equipo { display: grid; grid-template-columns: repeat(3, 1fr); gap: calc(var(--u) * 1.6); margin-top: calc(var(--u) * 3.6); max-width: calc(var(--u) * 80); }
+  /* ---------- Equipo ---------- */
+  .equipo { display: grid; grid-template-columns: repeat(3, 1fr); gap: calc(var(--u) * 1.6); margin-top: calc(var(--u) * 3.6); max-width: calc(var(--u) * 85); }
   .persona {
     padding: calc(var(--u) * 2) calc(var(--u) * 2.2); border-radius: calc(var(--u) * 1.2);
     background: rgba(18,18,18,.66); backdrop-filter: blur(10px);
     border: 1px solid rgba(255,255,255,.1);
   }
-  .persona b { display: block; font-size: calc(var(--u) * 2.2); letter-spacing: -0.01em; }
+  .persona b { display: block; font-size: calc(var(--u) * 2.1); white-space: nowrap; letter-spacing: -0.01em; }
   .persona span { display: block; margin-top: calc(var(--u) * .5); font-size: calc(var(--u) * 1.3); color: var(--accent); font-weight: 650; letter-spacing: .06em; text-transform: uppercase; }
 
   .pase {
     margin-top: calc(var(--u) * 3);
     display: inline-flex; align-items: center; gap: calc(var(--u) * 1);
     font-size: calc(var(--u) * 1.5); color: var(--text-dim);
+  }
+
+  /* ---------- Separadores de sección ---------- */
+  .separador h2 { font-size: calc(var(--u) * 7.2); max-width: 14ch; }
+  .separador .indice { display: flex; gap: calc(var(--u) * 1); margin-bottom: calc(var(--u) * 2.4); }
+  .separador .indice i { width: calc(var(--u) * 4); height: 4px; border-radius: 2px; background: rgba(255,255,255,.22); }
+  .separador .indice i.hecho { background: var(--accent); }
+
+  /* ---------- Recorrido del proyecto (línea de tiempo) ---------- */
+  .linea-tiempo { position: relative; margin-top: calc(var(--u) * 5); display: grid; grid-template-columns: repeat(7, 1fr); gap: calc(var(--u) * 1.2); }
+  .linea-tiempo::before {
+    content: ""; position: absolute; left: 0; right: 0; top: calc(var(--u) * .7); height: 3px;
+    background: linear-gradient(90deg, var(--accent), rgba(215,102,85,.25));
+  }
+  .hito { position: relative; padding-top: calc(var(--u) * 3); }
+  .hito::before {
+    content: ""; position: absolute; top: 0; left: 0;
+    width: calc(var(--u) * 1.5); height: calc(var(--u) * 1.5); border-radius: 50%;
+    background: var(--bg); border: 3px solid var(--accent);
+  }
+  .hito.pausa::before { border-color: var(--text-mute); border-style: dashed; }
+  .hito.fuerte::before { background: var(--accent); }
+  .hito small { display: block; font-size: calc(var(--u) * 1.1); font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+  .hito.pausa small { color: var(--text-mute); }
+  .hito b { display: block; margin-top: calc(var(--u) * .6); font-size: calc(var(--u) * 1.7); line-height: 1.15; letter-spacing: -0.01em; }
+  .hito p { margin-top: calc(var(--u) * .7); font-size: calc(var(--u) * 1.3); line-height: 1.4; color: var(--text-dim); }
+
+  /* ---------- Métricas: velocity ---------- */
+  .metricas { display: grid; grid-template-columns: calc(var(--u) * 26) 1fr; gap: calc(var(--u) * 4); align-items: end; margin-top: calc(var(--u) * 2.6); }
+  .cifras { display: grid; gap: calc(var(--u) * 2.2); }
+  .cifra b { display: block; font-size: calc(var(--u) * 5.4); font-weight: 750; letter-spacing: -0.04em; line-height: .95; font-variant-numeric: tabular-nums; }
+  .cifra span { display: block; margin-top: calc(var(--u) * .4); font-size: calc(var(--u) * 1.4); color: var(--text-dim); line-height: 1.35; }
+  .cifra.acento b { color: var(--accent); }
+  .velocity { width: 100%; height: auto; }
+  .velocity .barra { fill: #e8e3de; transform-box: fill-box; transform-origin: bottom; transform: scaleY(0); transition: transform 1s cubic-bezier(.2, .7, .3, 1); transition-delay: calc(var(--i) * 80ms + 300ms); }
+  .velocity .barra.pico { fill: var(--accent); }
+  .slide.activa .velocity .barra { transform: scaleY(1); }
+  .velocity .vacia { fill: none; stroke: rgba(255,255,255,.22); stroke-width: 2; stroke-dasharray: 5 6; }
+  .velocity .valor { fill: var(--text); font: 700 22px var(--font); text-anchor: middle; }
+  .velocity .eje { fill: var(--text-mute); font: 700 17px var(--font); text-anchor: middle; letter-spacing: .04em; }
+  .velocity .motivo { fill: var(--text-mute); font: 600 15px var(--font); text-anchor: middle; }
+  .velocity .base { stroke: rgba(255,255,255,.25); stroke-width: 2; }
+  .velocity .promedio { stroke: var(--amber); stroke-width: 2; stroke-dasharray: 8 7; }
+  .velocity .t-promedio { fill: var(--amber); font: 700 17px var(--font); }
+
+  /* ---------- Arquitectura ---------- */
+  .arq { margin-top: calc(var(--u) * 3.2); display: grid; gap: calc(var(--u) * 2.4); }
+  .arq-fila { display: grid; grid-template-columns: 1fr calc(var(--u) * 11) 1.12fr calc(var(--u) * 11) 1fr; align-items: stretch; }
+  .arq-fila .cable { align-self: center; }
+  .pieza code { font-family: inherit; font-weight: 650; color: var(--text); }
+  .pieza {
+    padding: calc(var(--u) * 2) calc(var(--u) * 2.1);
+    border-radius: calc(var(--u) * 1.3);
+    background: var(--panel); border: 1px solid var(--borde);
+    min-height: calc(var(--u) * 21);
+  }
+  .pieza.central { border-color: var(--accent); background: rgba(215,102,85,.1); }
+  .pieza small { display: block; font-size: calc(var(--u) * 1.05); font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+  .pieza b { display: block; margin-top: calc(var(--u) * .6); font-size: calc(var(--u) * 2.3); letter-spacing: -0.02em; line-height: 1.1; }
+  .pieza > span { display: block; margin-top: calc(var(--u) * .5); font-size: calc(var(--u) * 1.3); color: var(--text-dim); }
+  .pieza ul { list-style: none; margin-top: calc(var(--u) * 1.3); display: grid; gap: calc(var(--u) * .55); }
+  .pieza li { font-size: calc(var(--u) * 1.3); color: var(--text-dim); padding-left: calc(var(--u) * 1.3); position: relative; line-height: 1.3; }
+  .pieza li::before { content: ""; position: absolute; left: 0; top: .6em; width: calc(var(--u) * .6); height: 2px; background: var(--accent); }
+  .cable { position: relative; height: calc(var(--u) * 8); display: flex; align-items: center; justify-content: center; }
+  .cable::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 2px dashed rgba(215,102,85,.5); }
+  .cable span {
+    position: relative; z-index: 1; top: calc(var(--u) * -2.2);
+    font-size: calc(var(--u) * 1.05); font-weight: 700; letter-spacing: .06em; color: var(--text-dim);
+    text-align: center; line-height: 1.25;
+  }
+  .cable i, .cable em {
+    position: absolute; top: calc(50% - calc(var(--u) * .45)); left: 0;
+    width: calc(var(--u) * .9); height: calc(var(--u) * .9); border-radius: 50%;
+    background: var(--accent); box-shadow: 0 0 calc(var(--u) * 1) rgba(215,102,85,.8);
+    animation: viaja 2.2s cubic-bezier(.45, 0, .55, 1) infinite;
+  }
+  .cable em { animation-name: vuelve; animation-delay: 1.1s; }
+  @keyframes viaja { from { left: 0; opacity: 0; } 15% { opacity: 1; } 85% { opacity: 1; } to { left: calc(100% - calc(var(--u) * .9)); opacity: 0; } }
+  @keyframes vuelve { from { left: calc(100% - calc(var(--u) * .9)); opacity: 0; } 15% { opacity: 1; } 85% { opacity: 1; } to { left: 0; opacity: 0; } }
+  .externos { display: grid; grid-template-columns: repeat(4, 1fr); gap: calc(var(--u) * 1.4); }
+  .externos div { padding: calc(var(--u) * 1.3) calc(var(--u) * 1.6); border-radius: calc(var(--u) * 1); border: 1px dashed rgba(255,255,255,.2); }
+  .externos b { display: block; font-size: calc(var(--u) * 1.55); }
+  .externos span { display: block; margin-top: calc(var(--u) * .3); font-size: calc(var(--u) * 1.2); color: var(--text-dim); line-height: 1.35; }
+
+  /* ---------- Motor de eventos ---------- */
+  .flujo { display: grid; grid-template-columns: repeat(5, 1fr); gap: calc(var(--u) * 1); margin-top: calc(var(--u) * 3.4); }
+  .etapa {
+    position: relative; padding: calc(var(--u) * 1.6) calc(var(--u) * 1.6) calc(var(--u) * 1.8);
+    border-radius: calc(var(--u) * 1.1); background: var(--panel); border: 1px solid var(--borde);
+  }
+  .etapa:not(:last-child)::after {
+    content: ""; position: absolute; right: calc(var(--u) * -.95); top: 50%; z-index: 1;
+    width: calc(var(--u) * .9); height: calc(var(--u) * .9); transform: translateY(-50%) rotate(45deg);
+    border-top: 2px solid var(--accent); border-right: 2px solid var(--accent);
+  }
+  .etapa.motor { border-color: var(--accent); background: rgba(215,102,85,.12); }
+  .etapa small { font-size: calc(var(--u) * 1.05); font-weight: 800; letter-spacing: .14em; color: var(--accent); }
+  .etapa b { display: block; margin-top: calc(var(--u) * .5); font-size: calc(var(--u) * 1.75); line-height: 1.15; letter-spacing: -0.01em; }
+  .etapa p { margin-top: calc(var(--u) * .6); font-size: calc(var(--u) * 1.25); line-height: 1.4; color: var(--text-dim); }
+  .eventos { display: grid; grid-template-columns: repeat(4, 1fr); gap: calc(var(--u) * 1.4); margin-top: calc(var(--u) * 2.4); }
+  .evento { padding: calc(var(--u) * 1.4) calc(var(--u) * 1.6); border-radius: calc(var(--u) * 1); border-left: 5px solid var(--c); background: rgba(255,255,255,.035); }
+  .evento b { display: flex; align-items: center; gap: calc(var(--u) * .8); font-size: calc(var(--u) * 1.7); }
+  .evento b i { width: calc(var(--u) * .9); height: calc(var(--u) * .9); border-radius: 50%; background: var(--c); }
+  .evento p { margin-top: calc(var(--u) * .6); font-size: calc(var(--u) * 1.3); line-height: 1.4; color: var(--text-dim); }
+
+  /* ---------- Funcionalidades ---------- */
+  .funciones { display: grid; grid-template-columns: repeat(4, 1fr); gap: calc(var(--u) * 1.4); margin-top: calc(var(--u) * 3); }
+  .funciones .tarjeta { padding-top: calc(var(--u) * 1.9); }
+  .funciones .tarjeta h3 { font-size: calc(var(--u) * 2); margin-top: calc(var(--u) * .5); }
+  .funciones .tarjeta li { font-size: calc(var(--u) * 1.32); }
+
+  /* ---------- Pase a la demo ---------- */
+  .agenda { display: grid; grid-template-columns: repeat(3, auto); gap: calc(var(--u) * 4); margin-top: calc(var(--u) * 3.4); justify-content: start; }
+  .agenda h3 { font-size: calc(var(--u) * 1.1); font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); margin-bottom: calc(var(--u) * 1.2); }
+  .agenda ol { list-style: none; display: grid; gap: calc(var(--u) * .8); }
+  .agenda li { display: flex; gap: calc(var(--u) * 1); align-items: baseline; font-size: calc(var(--u) * 1.9); font-weight: 600; }
+  .agenda li span { flex: none; width: calc(var(--u) * 2.6); font-size: calc(var(--u) * 1.2); font-weight: 800; color: var(--text-mute); font-variant-numeric: tabular-nums; }
+
+  /* ---------- Desafíos ---------- */
+  .logros { display: flex; flex-wrap: wrap; gap: calc(var(--u) * .9) calc(var(--u) * 3.2); margin-top: calc(var(--u) * 1.6); font-size: calc(var(--u) * 1.45); color: var(--text-dim); }
+  .logros b { color: var(--accent); font-weight: 750; }
+  .desafios { display: grid; grid-template-columns: repeat(3, 1fr); gap: calc(var(--u) * 1.3); margin-top: calc(var(--u) * 2.2); }
+  .desafio {
+    padding: calc(var(--u) * 1.4) calc(var(--u) * 1.8) calc(var(--u) * 1.5); border-radius: calc(var(--u) * 1.1);
+    background: var(--panel); border: 1px solid var(--borde);
+  }
+  .desafio > span { display: block; font-size: calc(var(--u) * 1.15); font-weight: 800; letter-spacing: .14em; color: var(--accent); }
+  .desafio b { display: block; margin-top: calc(var(--u) * .4); font-size: calc(var(--u) * 1.7); letter-spacing: -0.015em; line-height: 1.15; }
+  .desafio small { display: block; margin-top: calc(var(--u) * .35); font-size: calc(var(--u) * 1.2); color: var(--text-mute); line-height: 1.4; }
+  .desafio .flecha { display: block; position: relative; height: 1px; margin: calc(var(--u) * 1) 0 calc(var(--u) * .9); background: var(--borde); }
+  .desafio .flecha::after { content: ""; position: absolute; left: 0; top: -1px; width: calc(var(--u) * 3); height: 3px; border-radius: 2px; background: var(--good); }
+  .desafio p { font-size: calc(var(--u) * 1.32); line-height: 1.42; color: var(--text); text-wrap: pretty; }
+  .desafio p em { font-style: normal; color: var(--good); font-weight: 650; }
+
+  /* ---------- Agradecimientos ---------- */
+  .gracias-lista { list-style: none; margin-top: calc(var(--u) * 3.2); display: grid; gap: calc(var(--u) * 1.5); max-width: calc(var(--u) * 70); }
+  .gracias-lista li { font-size: calc(var(--u) * 2.1); font-weight: 600; letter-spacing: -0.01em; line-height: 1.25; }
+  .gracias-lista small { display: block; margin-top: calc(var(--u) * .35); font-size: calc(var(--u) * 1.4); font-weight: 400; color: var(--text-dim); }
+
+  /* ---------- Cierre: la animación de Mesh (docs/presentacion/cierre.html) ---------- */
+  .final iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: none; background: transparent; }
+  .final .al-pie {
+    position: absolute; left: 0; right: 0; bottom: calc(var(--u) * 6);
+    text-align: center; opacity: 0;
+  }
+  .final.activa .al-pie { animation: aparece 1.4s ease 11s forwards; }
+  .final .al-pie > * { transition: opacity .8s ease; }
+  .final.saliendo .al-pie > * { opacity: 0; }
+  .final .al-pie b { display: block; font-size: calc(var(--u) * 3); font-weight: 700; letter-spacing: -0.02em; }
+  .final .al-pie span { display: block; margin-top: calc(var(--u) * .8); font-size: calc(var(--u) * 1.4); color: var(--text-dim); letter-spacing: .04em; }
+  @keyframes aparece { to { opacity: 1; } }
+
+  /* ---------- Ritmo "una idea por pantalla" (desde la pantalla 10) ---------- */
+  /* Títulos que entran palabra por palabra (el JS envuelve cada palabra en .pal). */
+  .cinetico .pal {
+    display: inline-block; opacity: 0; filter: blur(8px);
+    transform: translateY(.35em) scale(.96);
+    transition: opacity .5s ease, filter .5s ease, transform .6s cubic-bezier(.2, .8, .2, 1);
+    transition-delay: calc(var(--i, 0) * 75ms + 150ms);
+  }
+  .slide.activa .cinetico .pal { opacity: 1; filter: none; transform: none; }
+  /* Resaltador que se dibuja debajo de las palabras clave. */
+  .marcador {
+    background: linear-gradient(var(--accent), var(--accent)) no-repeat 0 96% / 0% .085em;
+    transition: background-size .7s cubic-bezier(.6, 0, .2, 1) var(--d, .6s);
+    -webkit-box-decoration-break: clone; box-decoration-break: clone;
+  }
+  .slide.activa .marcador, .paso.visto .marcador { background-size: 100% .085em; }
+
+  /* Elementos que entran solos, uno detrás del otro, al llegar a la pantalla. */
+  .entra { opacity: 0; transform: translateY(calc(var(--u) * 1.6)); transition: opacity .5s ease, transform .6s cubic-bezier(.2, .8, .2, 1); }
+  .slide.activa .entra { opacity: 1; transform: none; transition-delay: calc(var(--k, 0) * 140ms + 550ms); }
+
+  /* Números grandes */
+  .numeros { display: grid; grid-template-columns: repeat(3, calc(var(--u) * 22)); gap: calc(var(--u) * 3); margin-top: calc(var(--u) * 4.5); }
+  .numero b { display: block; font-size: calc(var(--u) * 10); font-weight: 750; letter-spacing: -0.05em; line-height: .9; }
+  .numero:first-child b { color: var(--accent); }
+  .numero span { display: block; margin-top: calc(var(--u) * 1); font-size: calc(var(--u) * 1.6); color: var(--text-dim); max-width: 18ch; line-height: 1.3; }
+  .golpe { margin-top: calc(var(--u) * 5); font-size: calc(var(--u) * 3); font-weight: 650; letter-spacing: -0.02em; }
+
+  /* Etiquetas (píldoras) que aparecen de a una */
+  .pildoras { display: flex; flex-wrap: wrap; align-items: center; gap: calc(var(--u) * 1); }
+  .pildoras > * {
+    transition: opacity .4s ease, transform .5s cubic-bezier(.3, 1.4, .5, 1);
+    transition-delay: calc(var(--k, 0) * 70ms + 120ms);
+  }
+  .slide:not(.activa) .pildoras > *, .paso:not(.visto) .pildoras > *, .pildoras.paso:not(.visto) > * { opacity: 0; transform: scale(.8) translateY(calc(var(--u) * .8)); }
+  .pildoras span {
+    display: inline-flex; align-items: center; gap: calc(var(--u) * .7);
+    padding: calc(var(--u) * .85) calc(var(--u) * 1.8); border-radius: 99px;
+    background: rgba(255,255,255,.06); border: 1px solid var(--borde);
+    font-size: calc(var(--u) * 1.75); font-weight: 600; white-space: nowrap;
+  }
+  .pildoras span.borde-acento { border-color: var(--accent); background: rgba(215,102,85,.16); color: #fff; }
+  .pildoras > i { font-style: normal; color: var(--text-mute); font-size: calc(var(--u) * 1.8); }
+  .pildoras.centradas { justify-content: center; margin-top: calc(var(--u) * 4.5); }
+  .pildoras.alertas { margin-top: calc(var(--u) * 2.6); }
+  .pildoras.alertas span::before { content: ""; width: calc(var(--u) * .8); height: calc(var(--u) * .8); border-radius: 50%; background: var(--c); box-shadow: 0 0 calc(var(--u) * 1) var(--c); }
+  .pildoras.cadena { margin-top: calc(var(--u) * 3.4); gap: calc(var(--u) * .7); flex-wrap: nowrap; }
+  .pildoras.cadena span, .pildoras.alertas span { font-size: calc(var(--u) * 1.45); padding: calc(var(--u) * .75) calc(var(--u) * 1.4); }
+  .pildoras.cadena > i { font-size: calc(var(--u) * 1.4); }
+  .pildoras.numeradas { margin-top: calc(var(--u) * 3); max-width: calc(var(--u) * 70); }
+  .pildoras.numeradas span { background: rgba(10,10,10,.5); backdrop-filter: blur(6px); }
+  .pildoras.numeradas span i {
+    font-style: normal; display: grid; place-items: center;
+    width: calc(var(--u) * 2.1); height: calc(var(--u) * 2.1); border-radius: 50%;
+    background: var(--accent); color: #fff; font-size: calc(var(--u) * 1.1); font-weight: 800;
+  }
+  .fila-pildoras { display: grid; grid-template-columns: calc(var(--u) * 15) 1fr; align-items: center; margin-top: calc(var(--u) * 3.2); }
+  h2 + .fila-pildoras { margin-top: calc(var(--u) * 5); }
+  .fila-pildoras > small { font-size: calc(var(--u) * 1.15); font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: var(--text-mute); }
+
+  /* Línea de tiempo que se dibuja sola */
+  .linea-tiempo.dibuja::before { transform: scaleX(0); transform-origin: left; transition: transform 1.6s cubic-bezier(.6, 0, .2, 1) .4s; }
+  .slide.activa .linea-tiempo.dibuja::before { transform: scaleX(1); }
+  .linea-tiempo.dibuja { margin-top: calc(var(--u) * 7); }
+  .linea-tiempo.dibuja .hito b { font-size: calc(var(--u) * 2.1); }
+
+  /* Velocity a todo el ancho */
+  .velocity.ancha { display: block; width: 100%; height: calc(var(--u) * 30); margin-top: calc(var(--u) * 3); }
+
+  /* Arquitectura simple: tres bloques y dos cables con datos que viajan */
+  .arq-simple { display: grid; grid-template-columns: 1fr calc(var(--u) * 13) 1fr calc(var(--u) * 13) 1fr; align-items: stretch; margin-top: calc(var(--u) * 6); }
+  .bloque { padding: calc(var(--u) * 3) calc(var(--u) * 2.6); border-radius: calc(var(--u) * 1.8); background: rgba(255,255,255,.04); border: 1px solid var(--borde); text-align: center; }
+  .bloque b { display: block; font-size: calc(var(--u) * 3.6); font-weight: 750; letter-spacing: -0.03em; }
+  .bloque span { display: block; margin-top: calc(var(--u) * .8); font-size: calc(var(--u) * 1.4); color: var(--text-dim); }
+  .bloque.central { border-color: var(--accent); background: rgba(215,102,85,.1); box-shadow: 0 0 calc(var(--u) * 6) rgba(215,102,85,.18); }
+  .cable { position: relative; }
+  .cable span { position: absolute; left: 0; right: 0; top: calc(50% - var(--u) * 3.4); text-align: center; font-size: calc(var(--u) * 1.15); font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--text-mute); }
+  .cable i { position: absolute; left: 0; right: 0; top: 50%; height: 2px; background: rgba(255,255,255,.18); }
+  .cable em { position: absolute; top: 50%; left: 0; width: calc(var(--u) * .9); height: calc(var(--u) * .9); margin-top: calc(var(--u) * -.45); border-radius: 50%; background: var(--accent); box-shadow: 0 0 calc(var(--u) * 1.2) var(--accent); animation: viaja 1.8s ease-in-out infinite alternate; }
+  @keyframes viaja { to { left: calc(100% - var(--u) * .9); } }
+
+  /* Motor de eventos: radar que late cada 5 segundos */
+  .motor-simple { display: grid; grid-template-columns: calc(var(--u) * 28) 1fr; align-items: center; gap: calc(var(--u) * 5); }
+  .motor-simple h2 { max-width: 14ch; }
+  .radar { position: relative; width: calc(var(--u) * 26); aspect-ratio: 1; display: grid; place-items: center; }
+  .radar i { position: absolute; inset: 0; border-radius: 50%; border: 2px solid var(--accent); opacity: 0; animation: late-radar 3s ease-out infinite; }
+  .radar i:nth-child(2) { animation-delay: 1s; }
+  .radar i:nth-child(3) { animation-delay: 2s; }
+  @keyframes late-radar { from { transform: scale(.3); opacity: .9; } to { transform: scale(1); opacity: 0; } }
+  .radar b { position: relative; display: flex; align-items: center; justify-content: center; width: 44%; aspect-ratio: 1; border-radius: 50%; background: var(--accent); font-size: calc(var(--u) * 5.4); font-weight: 750; letter-spacing: -0.04em; box-shadow: 0 0 calc(var(--u) * 5) rgba(215,102,85,.5); }
+  .radar b small { font-size: .45em; margin: .55em 0 0 .05em; }
+
+  /* Antes, durante, después */
+  .tres-tiempos { display: grid; grid-template-columns: repeat(3, 1fr); gap: calc(var(--u) * 3.5); margin-top: calc(var(--u) * 1); }
+  .tiempo h3 { font-size: calc(var(--u) * 6); font-weight: 750; letter-spacing: -0.04em; line-height: 1; margin-bottom: calc(var(--u) * 2.4); }
+  .tiempo .pildoras { flex-direction: column; align-items: flex-start; }
+  .tres-tiempos + .fila-pildoras { margin-top: calc(var(--u) * 5); }
+
+  /* Demo: el dato fuerte del "detrás de escena" */
+  .detras strong { display: block; margin-top: 1.2vh; font-size: 2.7vh; font-weight: 750; line-height: 1.15; letter-spacing: -0.015em; color: var(--text); }
+  .detras strong + p { margin-top: .9vh; }
+
+  /* Conclusiones: desafío → respuesta */
+  .golpes { list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: calc(var(--u) * 2.2) calc(var(--u) * 5); margin-top: calc(var(--u) * 4.5); }
+  h2.mediano { font-size: calc(var(--u) * 4.6); }
+  .golpes li { padding-bottom: calc(var(--u) * 1.8); border-bottom: 1px solid var(--borde); }
+  .golpes b { display: block; margin-top: calc(var(--u) * .5); }
+  .golpes .antes { font-size: calc(var(--u) * 1.7); color: var(--text-mute); }
+  .golpes i { font-style: normal; color: var(--accent); font-size: calc(var(--u) * 1.7); margin-left: calc(var(--u) * .8); }
+  .golpes b { font-size: calc(var(--u) * 2.3); font-weight: 700; letter-spacing: -0.01em; }
+
+  /* Lecciones: dos listas */
+  .dos-listas { display: grid; grid-template-columns: 1fr 1fr; gap: calc(var(--u) * 3); margin-top: calc(var(--u) * 5); }
+  .dos-listas > div { padding: calc(var(--u) * 3.2); border-radius: calc(var(--u) * 1.8); background: rgba(255,255,255,.04); border: 1px solid var(--borde); border-top: 3px solid var(--c, var(--accent)); }
+  .dos-listas > div:has(h3[style*="good"]) { --c: var(--good); }
+  .dos-listas > div:has(h3[style*="amber"]) { --c: var(--amber); }
+  .dos-listas h3 { font-size: calc(var(--u) * 1.3); font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: var(--c); }
+  .dos-listas ul { list-style: none; margin-top: calc(var(--u) * 1); }
+  .dos-listas li { margin-top: calc(var(--u) * 1.6); font-size: calc(var(--u) * 2.1); font-weight: 650; letter-spacing: -0.01em; line-height: 1.2; }
+
+  /* ---------- Demo: escenario de los celulares ---------- */
+  /* Mismo layout que docs/presentacion/escenario.html: los espejos de scrcpy se
+     ubican encima, alineados con las etiquetas. Las medidas van en vh/vw (no en
+     --u) porque el script calcula las ventanas sobre la pantalla entera. */
+  .slide.demo { background: transparent; }
+  #escenario {
+    position: fixed; inset: 0; z-index: 1; pointer-events: none;
+    opacity: 0; transition: opacity .8s ease;
+  }
+  body.con-celulares #escenario { opacity: 1; }
+  #escenario .malla { background-size: 28px 28px; mask-image: radial-gradient(ellipse 75% 70% at 50% 50%, #000 30%, transparent 100%); }
+  .halo {
+    position: absolute;
+    top: calc((var(--arriba) + var(--alto) / 2) * 100vh);
+    width: calc(var(--alto) * 85vh); height: calc(var(--alto) * 110vh);
+    transform: translate(-50%, -50%);
+    background: radial-gradient(closest-side, rgba(215,102,85,.22), rgba(215,102,85,.06) 55%, transparent);
+    filter: blur(8px);
+  }
+  .etq {
+    position: absolute;
+    top: calc((var(--arriba) + var(--alto)) * 100vh + 2.2vh);
+    transform: translateX(-50%);
+    display: flex; align-items: center; gap: 1.2vh; white-space: nowrap;
+  }
+  .etq strong { font-size: 3vh; font-weight: 650; letter-spacing: -0.01em; }
+  .rol {
+    font-size: 1.7vh; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+    padding: .5vh 1.3vh; border-radius: 99px;
+    border: 1.5px solid var(--accent); color: var(--accent);
+  }
+  .rol.lider { background: var(--accent); color: #fff; }
+  .enlace-vivo { position: absolute; top: calc((var(--arriba) + var(--alto) / 2) * 100vh); height: 0; }
+  .enlace-vivo .linea { position: absolute; inset: 0; border-top: 2px dashed rgba(215,102,85,.35); }
+  .enlace-vivo .pulso {
+    position: absolute; top: -5px; width: 10px; height: 10px; border-radius: 50%;
+    background: var(--accent); box-shadow: 0 0 14px 2px rgba(215,102,85,.7);
+    animation: viaja-px 2.4s cubic-bezier(.45, 0, .55, 1) infinite;
+  }
+  .enlace-vivo .pulso.vuelta { animation-name: vuelve-px; animation-delay: 1.2s; }
+  @keyframes viaja-px { from { left: 0; opacity: 0; } 12% { opacity: 1; } 88% { opacity: 1; } to { left: calc(100% - 10px); opacity: 0; } }
+  @keyframes vuelve-px { from { left: calc(100% - 10px); opacity: 0; } 12% { opacity: 1; } 88% { opacity: 1; } to { left: 0; opacity: 0; } }
+  .vivo {
+    position: absolute; left: 50%; top: 0; transform: translate(-50%, -50%);
+    display: flex; align-items: center; gap: 1vh; white-space: nowrap;
+    padding: .9vh 1.8vh; border-radius: 99px;
+    background: #151515; border: 1px solid #2e2e2e;
+    font-size: 1.6vh; font-weight: 700; letter-spacing: .14em;
+  }
+  .vivo i { width: 1.1vh; height: 1.1vh; border-radius: 50%; background: var(--good); animation: late 1.6s ease-in-out infinite; }
+  @keyframes late { 0%, 100% { box-shadow: 0 0 0 0 rgba(79,180,119,.6); } 50% { box-shadow: 0 0 0 .8vh rgba(79,180,119,0); } }
+  /* Un solo celular (Ctrl+Alt+1/2 del script): centrado, sin etiquetas ni "en vivo". */
+  .etq, .enlace-vivo, .halo, .guia { transition: opacity .35s ease, left .35s ease; }
+  body.solo .etq, body.solo .enlace-vivo, body.solo #halo2, body.solo #guia2 { opacity: 0; }
+  body.solo #halo1, body.solo #guia1 { left: 50vw !important; }
+  /* Sin el script (ensayo): dónde van a quedar los celulares. */
+  .guia {
+    display: none; position: absolute; transform: translateX(-50%);
+    top: calc(var(--arriba) * 100vh); height: calc(var(--alto) * 100vh);
+    aspect-ratio: 9 / 20; border-radius: 3vh;
+    background: #1c1c1c; border: 2px dashed #3a3a3a;
+  }
+  body.ensayo .guia { display: block; }
+
+  .demo-cabeza {
+    position: absolute; left: 0; right: 0; top: 0; height: calc(var(--arriba) * 100vh);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .9vh;
+  }
+  .demo-cabeza .kicker { margin: 0; font-size: 1.45vh; }
+  .demo-cabeza h3 { font-size: 4.4vh; font-weight: 700; letter-spacing: -0.02em; line-height: 1; }
+  .guion, .detras {
+    position: absolute; top: calc((var(--arriba) + var(--alto) / 2) * 100vh); transform: translateY(-50%);
+    width: 15.5vw;
+  }
+  .guion { left: 2.6vw; list-style: none; display: grid; gap: 2.2vh; counter-reset: paso; }
+  .guion li {
+    position: relative; padding-left: 4.2vh; counter-increment: paso;
+    font-size: 2.05vh; font-weight: 600; line-height: 1.3; color: var(--text-mute);
+  }
+  .guion li::before {
+    content: counter(paso); position: absolute; left: 0; top: -.15vh;
+    width: 2.9vh; height: 2.9vh; border-radius: 50%; display: grid; place-items: center;
+    font-size: 1.45vh; font-weight: 800; border: 1.5px solid rgba(255,255,255,.22); color: var(--text-mute);
+  }
+  /* En el guion los pasos se ven desde el principio, apagados; el clic enciende el actual. */
+  .guion .paso { opacity: 1; transform: none; }
+  .guion .paso.visto { color: var(--text-dim); }
+  .guion .paso.visto::before { border-color: var(--text-mute); color: var(--text-dim); }
+  .guion .paso.visto:not(:has(~ .paso.visto)) { color: var(--text); }
+  .guion .paso.visto:not(:has(~ .paso.visto))::before { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .guion li small { display: block; margin-top: .4vh; font-size: 1.55vh; font-weight: 400; color: inherit; opacity: .85; }
+  .detras { right: 2.6vw; padding: 2.2vh 2.2vh 2.4vh; border-radius: 1.6vh; background: rgba(22,22,22,.7); border: 1px solid var(--borde); }
+  .detras span { display: block; font-size: 1.3vh; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: var(--accent); }
+  .detras p { margin-top: 1.1vh; font-size: 1.85vh; line-height: 1.45; color: var(--text-dim); }
+  .detras p b { color: var(--text); font-weight: 650; }
+  .detras code { font-family: inherit; font-weight: 700; color: var(--text); }
+  /* Demo grabada (opcional): si el video existe, reemplaza a los celulares en esa pantalla. */
+  .video-demo {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    top: calc(var(--arriba) * 100vh); height: calc(var(--alto) * 100vh); max-width: 58vw;
+    border-radius: 2vh; background: #000; display: none;
+  }
+  .slide.con-video .video-demo { display: block; }
+  /* Pantallas más cuadradas (4:3, 5:4): los márgenes al costado de los celulares se achican. */
+  @media (max-aspect-ratio: 3/2) {
+    .guion { left: 1.6vw; width: 14vw; }
+    .guion li { font-size: 1.8vh; padding-left: 3.6vh; }
+    .detras { right: 1.6vw; width: 14vw; }
+    .detras p { font-size: 1.6vh; }
   }
 
   /* ---------- Barra inferior ---------- */
@@ -246,11 +683,14 @@
     display: flex; align-items: center; gap: calc(var(--u) * .9);
     font-size: calc(var(--u) * 1.05); font-weight: 650; letter-spacing: .1em; text-transform: uppercase;
     color: rgba(255,255,255,.62);
+    transition: opacity .6s ease;
   }
   #seccion img { height: calc(var(--u) * 1.8); }
   #seccion .quien { color: var(--accent); }
   #seccion .num { color: rgba(255,255,255,.4); font-variant-numeric: tabular-nums; }
-  body.en-portada #seccion { opacity: 0; }
+  #seccion .reloj { display: none; color: var(--amber); font-variant-numeric: tabular-nums; }
+  body.con-reloj #seccion .reloj { display: inline; }
+  body.en-portada #seccion, body.en-final #seccion, body.en-final #barra { opacity: 0; }
 
   /* ---------- Ayuda ---------- */
   #ayuda {
@@ -268,15 +708,35 @@
 
   @media (prefers-reduced-motion: reduce) {
     .fondo, .foto, .slide.activa .fondo, .slide.activa .foto { transition: none; transform: none; }
-    svg .onda, .red .anillo { animation: none; }
+    svg .onda, .red .anillo, .cable i, .cable em, .enlace-vivo .pulso, .vivo i { animation: none; }
   }
 </style>
 </head>
 <body class="en-portada">
 
+<!-- Escenario de la demo: queda debajo de las pantallas con data-celulares. -->
+<div id="escenario" aria-hidden="true">
+  <div class="malla"></div>
+  <div class="halo" id="halo1"></div>
+  <div class="halo" id="halo2"></div>
+  <div class="guia" id="guia1"></div>
+  <div class="guia" id="guia2"></div>
+  <div class="enlace-vivo" id="enlace">
+    <div class="linea"></div>
+    <div class="pulso"></div>
+    <div class="pulso vuelta"></div>
+    <div class="vivo"><i></i>EN VIVO</div>
+  </div>
+  <div class="etq" id="etq1"><strong></strong><span class="rol"></span></div>
+  <div class="etq" id="etq2"><strong></strong><span class="rol"></span></div>
+</div>
+
 <main id="deck">
 
-  <!-- 1 · Portada -->
+  <!-- ===================================================================== -->
+  <!-- 1 · INTRODUCCIÓN: las pantallas de manu-viejo.html, sin cambios          -->
+  <!-- ===================================================================== -->
+
   <section class="slide portada" data-seccion="Introducción" data-quien="">
     <video class="fondo" src="videos/moto-aerea-ruta.mp4" muted loop playsinline preload="auto" data-velocidad="0.7"></video>
     <div class="velo abajo"></div>
@@ -304,8 +764,6 @@
       <span><i class="raton izq"></i>Clic izquierdo: volver</span>
     </div>
   </section>
-
-  <!-- 2 · Salimos en grupo -->
   <section class="slide" data-seccion="Introducción" data-quien="">
     <div class="triptico">
       <header>
@@ -319,8 +777,6 @@
       </div>
     </div>
   </section>
-
-  <!-- 3 · Fuera de la ciudad -->
   <section class="slide" data-seccion="Introducción" data-quien="">
     <video class="fondo" src="videos/ruta-cerros.mp4" muted loop playsinline preload="auto" data-velocidad="0.7"></video>
     <div class="velo izq"></div>
@@ -330,8 +786,6 @@
       <p class="bajada">Rutas de montaña, senderos y caminos de tierra. Muchas veces, con poca señal y sin ver a todo el grupo.</p>
     </div>
   </section>
-
-  <!-- 4 · El problema -->
   <section class="slide" data-seccion="El problema" data-quien="">
     <video class="fondo" src="videos/trekking-fila-nieve.mp4" muted loop playsinline preload="auto" data-velocidad="0.7"></video>
     <div class="velo izq"></div>
@@ -375,8 +829,6 @@
       </g>
     </svg>
   </section>
-
-  <!-- 5 · Lo que hay hoy -->
   <section class="slide" data-seccion="El problema" data-quien="">
     <video class="fondo" src="videos/moto-sola-desierto.mp4" muted loop playsinline preload="auto" data-velocidad="0.7"></video>
     <div class="velo izq"></div>
@@ -390,8 +842,6 @@
       <p class="remate paso">Ninguna entiende qué le pasa <span class="acento">al grupo</span> como conjunto.</p>
     </div>
   </section>
-
-  <!-- 6 · La solución -->
   <section class="slide solucion" data-seccion="La solución" data-quien="">
     <div class="malla"></div>
     <div class="contenido dos-columnas">
@@ -455,8 +905,6 @@
       </svg>
     </div>
   </section>
-
-  <!-- 7 · Para quién -->
   <section class="slide" data-seccion="La solución" data-quien="">
     <video class="fondo" src="videos/trekking-grupo-contraluz.mp4" muted loop playsinline preload="auto" data-velocidad="0.7"></video>
     <div class="velo total"></div>
@@ -465,8 +913,8 @@
         <p class="kicker">Hecha en Córdoba</p>
         <h2>Para salir en grupo, con quien sea.</h2>
         <ul class="lista">
-          <li class="paso"><span>Moto, bici, running y trekking<small>Cada actividad con sus propios parámetros.</small></span></li>
-          <li class="paso"><span>Adultos de 18 a 65 años<small>Foco en Córdoba, Argentina.</small></span></li>
+          <li class="paso"><span>Cinco actividades<small>Moto, auto, bici, running y trekking.</small></span></li>
+          <li class="paso"><span>Adultos de 18 a 65 años<small>Foco en Córdoba. Los menores quedan afuera.</small></span></li>
           <li class="paso"><span>Dos roles, nada más<small>Líder, que arma y guía el viaje, y participantes.</small></span></li>
         </ul>
       </div>
@@ -497,8 +945,6 @@
       </svg>
     </div>
   </section>
-
-  <!-- 8 · Equipo -->
   <section class="slide" data-seccion="Equipo" data-quien="">
     <video class="fondo" src="videos/mar-de-nubes.mp4" muted loop playsinline preload="auto" data-velocidad="0.7"></video>
     <div class="velo total"></div>
@@ -506,17 +952,15 @@
       <p class="kicker">Grupo 4 · 5K1</p>
       <h2>El equipo</h2>
       <div class="equipo">
-        <div class="persona paso"><b>Manuel Viale</b><span>Product Owner</span></div>
+        <div class="persona paso"><b>Manuel Francisco Viale</b><span>Product Owner</span></div>
         <div class="persona paso"><b>Pedro Gabrielli</b><span>Scrum Master</span></div>
-        <div class="persona paso"><b>Peñafort</b><span>Desarrollo</span></div>
-        <div class="persona paso"><b>Giorda</b><span>Desarrollo</span></div>
-        <div class="persona paso"><b>Casoria</b><span>Desarrollo</span></div>
-        <div class="persona paso"><b>Ferraro</b><span>Desarrollo</span></div>
+        <div class="persona paso"><b>Joaquín Peñafort</b><span>Desarrollo</span></div>
+        <div class="persona paso"><b>Franco Giorda</b><span>Desarrollo</span></div>
+        <div class="persona paso"><b>Bautista Casoria</b><span>Desarrollo</span></div>
+        <div class="persona paso"><b>Gonzalo Ferraro</b><span>Desarrollo</span></div>
       </div>
     </div>
   </section>
-
-  <!-- 9 · Pase a la próxima parte -->
   <section class="slide" data-seccion="Introducción" data-quien="">
     <video class="fondo" src="videos/caminante-montanas.mp4" muted loop playsinline preload="auto" data-velocidad="0.7"></video>
     <div class="velo izq"></div>
@@ -527,9 +971,314 @@
     </div>
   </section>
 
+  <!-- ===================================================================== -->
+  <!-- 2 · CÓMO LO ENCARAMOS Y CÓMO NOS ORGANIZAMOS                           -->
+  <!-- ===================================================================== -->
+
+  <section class="slide" data-seccion="El proyecto" data-quien="">
+    <div class="malla"></div>
+    <div class="resplandor" style="left: -12%; top: 5%"></div>
+    <div class="contenido">
+      <p class="kicker">El alcance</p>
+      <h2 class="cinetico una-linea">Lo que nos propusimos.</h2>
+      <div class="numeros">
+        <div class="numero paso"><b class="contador" data-hasta="87">87</b><span>historias de usuario</span></div>
+        <div class="numero paso"><b class="contador" data-hasta="14">14</b><span>épicas</span></div>
+        <div class="numero paso"><b>1</b><span>cambio de alcance, acordado con el PO</span></div>
+      </div>
+      <p class="golpe paso">Primero el núcleo. <span class="marcador">Después, lo que suma.</span></p>
+    </div>
+  </section>
+
+  <section class="slide" data-seccion="Organización" data-quien="">
+    <div class="malla"></div>
+    <div class="contenido">
+      <p class="kicker">Cómo trabajamos</p>
+      <h2 class="cinetico una-linea">Scrum, en sprints de <span class="marcador">15 días.</span></h2>
+      <div class="fila-pildoras paso"><small>Ritmo</small><div class="pildoras"><span>Planning</span><span>Review con el PO</span><span>Retro</span></div></div>
+      <div class="fila-pildoras paso"><small>Herramientas</small><div class="pildoras"><span>Jira</span><span>Planning Poker</span><span>GitHub</span><span>Discord</span></div></div>
+      <div class="fila-pildoras paso"><small>Calidad</small><div class="pildoras"><span class="borde-acento">Code review en cada PR</span><span>Definition of Done</span></div></div>
+    </div>
+  </section>
+
+  <section class="slide" data-seccion="Organización" data-quien="">
+    <div class="malla"></div>
+    <div class="contenido">
+      <p class="kicker">Mayo a noviembre de 2026</p>
+      <h2 class="cinetico una-linea"><span class="acento">13 sprints.</span> De la idea a la defensa.</h2>
+      <div class="linea-tiempo dibuja">
+        <div class="hito entra"><small>Abril</small><b>La idea</b></div>
+        <div class="hito entra"><small>S1 a S3</small><b>Las bases</b></div>
+        <div class="hito pausa entra"><small>S4 y S5</small><b>Receso y mesas</b></div>
+        <div class="hito fuerte entra"><small>S6 a S9</small><b>El núcleo</b></div>
+        <div class="hito pausa entra"><small>S10</small><b>Jornada de muestra</b></div>
+        <div class="hito fuerte entra"><small>S11 y S12</small><b>Producto completo</b></div>
+        <div class="hito entra"><small>S13</small><b>Testing</b></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" data-seccion="Organización" data-quien="">
+    <div class="malla"></div>
+    <div class="contenido">
+      <p class="kicker">Velocity del equipo</p>
+      <h2 class="cinetico una-linea">De <span class="contador" data-hasta="11">11</span> a <span class="acento contador" data-hasta="75">75</span> puntos por sprint.</h2>
+      <svg class="velocity ancha" preserveAspectRatio="xMinYMax meet" viewBox="0 0 1000 420" aria-label="Velocity por sprint">
+          <line class="base" x1="20" y1="340" x2="990" y2="340"/>
+          <line class="promedio" x1="20" y1="242" x2="990" y2="242"/>
+          <text class="t-promedio" x="20" y="232">Promedio 24,5</text>
+          <rect class="barra" style="--i: 0" x="30"  y="296" width="50" height="44"  rx="5"/><text class="valor" x="55"  y="286">11</text>
+          <rect class="barra" style="--i: 1" x="104" y="268" width="50" height="72"  rx="5"/><text class="valor" x="129" y="258">18</text>
+          <rect class="vacia" x="178" y="300" width="50" height="40" rx="5"/><text class="motivo" x="203" y="290">Parciales</text>
+          <rect class="vacia" x="252" y="300" width="50" height="40" rx="5"/><text class="motivo" x="277" y="290">Receso</text>
+          <rect class="vacia" x="326" y="300" width="50" height="40" rx="5"/><text class="motivo" x="351" y="290">Mesas</text>
+          <rect class="barra" style="--i: 2" x="400" y="224" width="50" height="116" rx="5"/><text class="valor" x="425" y="214">29</text>
+          <rect class="barra" style="--i: 3" x="474" y="180" width="50" height="160" rx="5"/><text class="valor" x="499" y="170">40</text>
+          <rect class="barra" style="--i: 4" x="548" y="220" width="50" height="120" rx="5"/><text class="valor" x="573" y="210">30</text>
+          <rect class="barra pico" style="--i: 5" x="622" y="80"  width="50" height="260" rx="5"/><text class="valor" x="647" y="70">65</text>
+          <rect class="vacia" x="696" y="300" width="50" height="40" rx="5"/><text class="motivo" x="721" y="290">Muestra</text>
+          <rect class="barra pico" style="--i: 6" x="770" y="40"  width="50" height="300" rx="5"/><text class="valor" x="795" y="30">75</text>
+          <rect class="barra" style="--i: 7" x="844" y="236" width="50" height="104" rx="5"/><text class="valor" x="869" y="226">26</text>
+          <rect class="vacia" x="918" y="300" width="50" height="40" rx="5"/><text class="motivo" x="943" y="290">Testing</text>
+          <text class="eje" x="55" y="372">S1</text><text class="eje" x="129" y="372">S2</text><text class="eje" x="203" y="372">S3</text>
+          <text class="eje" x="277" y="372">S4</text><text class="eje" x="351" y="372">S5</text><text class="eje" x="425" y="372">S6</text>
+          <text class="eje" x="499" y="372">S7</text><text class="eje" x="573" y="372">S8</text><text class="eje" x="647" y="372">S9</text>
+          <text class="eje" x="721" y="372">S10</text><text class="eje" x="795" y="372">S11</text><text class="eje" x="869" y="372">S12</text>
+          <text class="eje" x="943" y="372">S13</text>
+          <text class="motivo" x="505" y="410">Story points completados por sprint</text>
+        </svg>
+    </div>
+  </section>
+
+  <!-- ===================================================================== -->
+  <!-- 3 · ARQUITECTURA Y TECNOLOGÍAS                                         -->
+  <!-- ===================================================================== -->
+
+  <section class="slide separador" data-seccion="Arquitectura" data-quien="">
+    <video class="fondo" src="videos/ruta-cerros.mp4" muted loop playsinline preload="auto" data-velocidad="0.7"></video>
+    <div class="velo izq"></div>
+    <div class="contenido abajo">
+      <div class="indice"><i class="hecho"></i><i class="hecho"></i><i class="hecho"></i><i></i><i></i></div>
+      <p class="kicker">A continuación</p>
+      <h2 class="cinetico">Mesh, <span class="marcador">por dentro.</span></h2>
+      <p class="pase"><i class="raton der"></i>Le pasamos el mouse a quien sigue</p>
+    </div>
+  </section>
+
+  <section class="slide" data-seccion="Arquitectura" data-quien="">
+    <div class="malla"></div>
+    <div class="contenido">
+      <p class="kicker">Arquitectura</p>
+      <h2 class="cinetico una-linea">Tres piezas. <span class="marcador">Un canal en vivo.</span></h2>
+      <div class="arq-simple">
+        <div class="bloque entra"><b>App</b><span>Expo · React Native</span></div>
+        <div class="cable entra"><span>Socket.io</span><i></i><em></em></div>
+        <div class="bloque central entra"><b>Backend</b><span>Node · Express · Zod</span></div>
+        <div class="cable entra"><span>Prisma</span><i></i><em></em></div>
+        <div class="bloque entra"><b>PostGIS</b><span>PostgreSQL · Supabase</span></div>
+      </div>
+      <div class="pildoras centradas paso"><span>Firebase Auth</span><span>Google Maps</span><span>OpenStreetMap de respaldo</span><span>CI/CD a un VPS</span></div>
+    </div>
+  </section>
+
+  <section class="slide" data-seccion="Arquitectura" data-quien="">
+    <div class="malla"></div>
+    <div class="contenido motor-simple">
+      <div class="radar" aria-hidden="true"><i></i><i></i><i></i><b>5<small>s</small></b></div>
+      <div>
+        <p class="kicker">El motor de eventos</p>
+        <h2 class="cinetico">Cada 5 segundos, Mesh <span class="marcador">lee al grupo.</span></h2>
+        <div class="pildoras cadena"><span>GPS</span><i>→</i><span>Validación</span><i>→</i><span>Privacidad</span><i>→</i><span>PostGIS</span><i>→</i><span class="borde-acento">Alerta</span></div>
+        <div class="pildoras alertas paso"><span style="--c: var(--blue)">Desvío</span><span style="--c: var(--amber)">Atraso</span><span style="--c: var(--good)">Parada</span><span style="--c: var(--accent)">Posible incidente</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================================== -->
+  <!-- 4 · LA SOLUCIÓN Y LA DEMO: los celulares espejados van encima de las     -->
+  <!--     pantallas con data-celulares                                        -->
+  <!-- ===================================================================== -->
+
+  <section class="slide" data-seccion="La solución" data-quien="">
+    <div class="malla"></div>
+    <div class="contenido">
+      <p class="kicker">El producto</p>
+      <div class="tres-tiempos">
+        <div class="tiempo paso"><h3>Antes.</h3><div class="pildoras"><span>Grupos y QR</span><span>Viaje planificado</span><span>Viaje Ya</span><span>Clima y gastos</span></div></div>
+        <div class="tiempo paso"><h3 class="acento">Durante.</h3><div class="pildoras"><span>El grupo en vivo</span><span class="borde-acento">Alertas automáticas</span><span>Funciona sin señal</span><span>Cerca mío</span></div></div>
+        <div class="tiempo paso"><h3>Después.</h3><div class="pildoras"><span>Métricas</span><span>Fantasma</span><span>Insignias y rachas</span><span>Rutas compartidas</span></div></div>
+      </div>
+      <div class="fila-pildoras paso"><small>Y además</small><div class="pildoras"><span>Backoffice</span><span>Reportes</span><span>Ayuda en cada pantalla</span></div></div>
+    </div>
+  </section>
+
+  <section class="slide separador" data-seccion="Demo" data-quien="">
+    <video class="fondo" src="videos/moto-frente-ruta.mp4" muted loop playsinline preload="auto" data-velocidad="0.7"></video>
+    <div class="velo izq"></div>
+    <div class="contenido abajo">
+      <div class="indice"><i class="hecho"></i><i class="hecho"></i><i class="hecho"></i><i class="hecho"></i><i></i></div>
+      <p class="kicker">Demo · Dos celulares</p>
+      <h2 class="cinetico">Ahora, <span class="marcador">en vivo.</span></h2>
+      <div class="pildoras numeradas paso"><span><i>1</i>Invitación</span><span><i>2</i>Viaje planificado</span><span><i>3</i>Viaje Ya</span><span><i>4</i>En movimiento</span><span><i>5</i>Fantasma</span><span><i>6</i>Comunidad</span><span><i>7</i>Perfil</span><span><i>8</i>Superadmin</span></div>
+    </div>
+  </section>
+
+  <section class="slide demo" data-seccion="Demo" data-quien="" data-celulares>
+    <header class="demo-cabeza"><p class="kicker">Demo · 1 de 8 · Antes de salir</p><h3>Invitación a un grupo</h3></header>
+    <ol class="guion">
+      <li class="paso">Llega la invitación</li>
+      <li class="paso">Ver el grupo antes</li>
+      <li class="paso">Aceptar</li>
+    </ol>
+    <aside class="detras"><span>Detrás de escena</span><strong>Dos roles. Nada más.</strong><p>El backend valida cada acción del líder.</p></aside>
+  </section>
+
+  <section class="slide demo" data-seccion="Demo" data-quien="" data-celulares>
+    <header class="demo-cabeza"><p class="kicker">Demo · 2 de 8 · Antes de salir</p><h3>Crear un viaje planificado</h3></header>
+    <ol class="guion">
+      <li class="paso">Ruta y paradas</li>
+      <li class="paso">Amigos</li>
+      <li class="paso">Clima</li>
+      <li class="paso">Preparativos</li>
+      <li class="paso">Gastos</li>
+    </ol>
+    <aside class="detras"><span>Detrás de escena</span><strong>Google Maps, desde el backend.</strong><p>Si no responde, entra OpenStreetMap.</p></aside>
+  </section>
+
+  <section class="slide demo" data-seccion="Demo" data-quien="" data-celulares>
+    <header class="demo-cabeza"><p class="kicker">Demo · 3 de 8 · Antes de salir</p><h3>Viaje Ya</h3></header>
+    <ol class="guion">
+      <li class="paso">Salir ya</li>
+      <li class="paso">Invitar</li>
+      <li class="paso">Sumarse con QR</li>
+      <li class="paso">Sin ruta, igual en grupo</li>
+    </ol>
+    <aside class="detras"><span>Detrás de escena</span><strong>Un QR por viaje.</strong><p>Vence cuando el viaje arranca.</p></aside>
+  </section>
+
+  <section class="slide demo" data-seccion="Demo" data-quien="" data-celulares>
+    <header class="demo-cabeza"><p class="kicker">Demo · 4 de 8 · En movimiento</p><h3>El viaje en vivo</h3></header>
+    <!-- Opcional: si existe este video (grabado en una salida real), se muestra en lugar de los celulares. -->
+    <video class="video-demo" src="videos/demo-en-movimiento.mp4" muted playsinline preload="auto"></video>
+    <ol class="guion">
+      <li class="paso">El grupo en el mapa</li>
+      <li class="paso">Una parada</li>
+      <li class="paso">Alerta de desvío</li>
+      <li class="paso">Cerca mío</li>
+    </ol>
+    <aside class="detras"><span>Detrás de escena</span><strong>Una posición cada 5 segundos.</strong><p>El desvío lo detecta el motor, no una persona.</p></aside>
+  </section>
+
+  <section class="slide demo" data-seccion="Demo" data-quien="" data-celulares>
+    <header class="demo-cabeza"><p class="kicker">Demo · 5 de 8 · En movimiento</p><h3>Entrenamiento contra el fantasma</h3></header>
+    <ol class="guion">
+      <li class="paso">Elegir un recorrido</li>
+      <li class="paso">Salir contra el fantasma</li>
+      <li class="paso">¿Adelante o atrás?</li>
+    </ol>
+    <aside class="detras"><span>Detrás de escena</span><strong>Sin fantasma en moto ni auto.</strong><p>Seguridad vial: lo bloquea el backend.</p></aside>
+  </section>
+
+  <section class="slide demo" data-seccion="Demo" data-quien="" data-celulares>
+    <header class="demo-cabeza"><p class="kicker">Demo · 6 de 8 · Comunidad</p><h3>Rutas de la comunidad</h3></header>
+    <ol class="guion">
+      <li class="paso">Compartir una ruta</li>
+      <li class="paso">Explorar</li>
+      <li class="paso">Valorar</li>
+      <li class="paso">Usarla de nuevo</li>
+    </ol>
+    <aside class="detras"><span>Detrás de escena</span><strong>Recomiendo / No recomiendo.</strong><p>Sin comentarios: una comunidad acotada a propósito.</p></aside>
+  </section>
+
+  <section class="slide demo" data-seccion="Demo" data-quien="" data-celulares>
+    <header class="demo-cabeza"><p class="kicker">Demo · 7 de 8 · Comunidad</p><h3>Perfil</h3></header>
+    <ol class="guion">
+      <li class="paso">Tus datos</li>
+      <li class="paso">Estadísticas e insignias</li>
+      <li class="paso">Privacidad</li>
+    </ol>
+    <aside class="detras"><span>Detrás de escena</span><strong>Sin consentimiento, no se publica.</strong><p>El recorrido se guarda igual.</p></aside>
+  </section>
+
+  <section class="slide demo" data-seccion="Demo" data-quien="" data-celulares>
+    <header class="demo-cabeza"><p class="kicker">Demo · 8 de 8 · Plataforma</p><h3>Superadmin y reportes</h3></header>
+    <ol class="guion">
+      <li class="paso">Usuarios, grupos y viajes</li>
+      <li class="paso">Auditoría</li>
+      <li class="paso">Reportes</li>
+    </ol>
+    <aside class="detras"><span>Detrás de escena</span><strong>Solo datos agregados.</strong><p>Sin datos personales, posiciones ni velocidades.</p></aside>
+  </section>
+
+
+  <!-- ===================================================================== -->
+  <!-- 5 · CONCLUSIONES, DESAFÍOS Y CIERRE                                    -->
+  <!-- ===================================================================== -->
+
+  <section class="slide separador" data-seccion="Conclusiones" data-quien="">
+    <video class="fondo" src="videos/caminante-montanas.mp4" muted loop playsinline preload="auto" data-velocidad="0.7"></video>
+    <div class="velo izq"></div>
+    <div class="contenido abajo">
+      <div class="indice"><i class="hecho"></i><i class="hecho"></i><i class="hecho"></i><i class="hecho"></i><i class="hecho"></i></div>
+      <p class="kicker">Para cerrar</p>
+      <h2 class="cinetico">Lo que nos <span class="marcador">llevamos.</span></h2>
+      <p class="pase"><i class="raton der"></i>Le pasamos el mouse a quien sigue</p>
+    </div>
+  </section>
+
+  <section class="slide" data-seccion="Conclusiones" data-quien="">
+    <div class="malla"></div>
+    <div class="contenido">
+      <p class="kicker">Conclusiones</p>
+      <h2 class="cinetico una-linea mediano"><span class="acento contador" data-hasta="87">87</span> historias. <span class="marcador">Todas implementadas.</span></h2>
+      <ul class="golpes">
+        <li class="paso"><span class="antes">Receso, mesas y muestra</span><i>→</i><b>ajustamos la capacidad</b></li>
+        <li class="paso"><span class="antes">Un stack nuevo</span><i>→</i><b>historias compartidas</b></li>
+        <li class="paso"><span class="antes">Un mapa que no alcanzaba</span><i>→</i><b>Google Maps + OSM</b></li>
+        <li class="paso"><span class="antes">Un alcance que cambió</span><i>→</i><b>cambio formal con el PO</b></li>
+        <li class="paso"><span class="antes">Rutas sin señal</span><i>→</i><b>offline-first</b></li>
+        <li class="paso"><span class="antes">Depender de la IA</span><i>→</i><b>siempre con revisión humana</b></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="slide" data-seccion="Conclusiones" data-quien="">
+    <div class="malla"></div>
+    <div class="contenido">
+      <p class="kicker">Lecciones aprendidas</p>
+      <h2 class="cinetico una-linea">Si arrancáramos de nuevo…</h2>
+      <div class="dos-listas">
+        <div class="paso"><h3 style="--c: var(--good)">Repetiríamos</h3><ul><li>Firebase para la autenticación</li><li>API primero y deploy temprano</li><li>Un plan B para los mapas</li></ul></div>
+        <div class="paso"><h3 style="--c: var(--amber)">Cambiaríamos</h3><ul><li>Planificar con el calendario académico</li><li>Probar la tecnología antes de diseñar</li><li>Registrar cada cambio de alcance</li></ul></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" data-seccion="Cierre" data-quien="">
+    <video class="fondo" src="videos/mar-de-nubes.mp4" muted loop playsinline preload="auto" data-velocidad="0.7"></video>
+    <div class="velo total"></div>
+    <div class="contenido">
+      <p class="kicker">Agradecimientos</p>
+      <h2 class="cinetico">Gracias.</h2>
+      <ul class="gracias-lista">
+        <li class="paso">A nuestros docentes<small>Ing. Cecilia Ortiz, Ing. María Irene Mac William e Ing. José Luis D'Agostino.</small></li>
+        <li class="paso">A quienes respondieron la encuesta y salieron a probar<small>Sus respuestas y sus salidas le dieron forma a Mesh.</small></li>
+        <li class="paso">A nuestras familias, amigos y compañeros<small>Y a la UTN Facultad Regional Córdoba.</small></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="slide final" data-seccion="Cierre" data-quien="" data-final>
+    <iframe class="cierre" data-src="../presentacion/cierre.html?lento=3.5&amp;espera=0.6" tabindex="-1" title="Mesh"></iframe>
+    <div class="al-pie">
+      <b>¿Preguntas?</b>
+      <span>Mesh · Grupo 4 · 5K1 · UTN FRC · 2026</span>
+    </div>
+  </section>
+
 </main>
 
-<div id="seccion"><img src="mesh-logo.png" alt=""><span class="nombre"></span><span class="quien"></span><span class="num"></span></div>
+<div id="seccion"><img src="mesh-logo.png" alt=""><span class="nombre"></span><span class="quien"></span><span class="num"></span><span class="reloj"></span></div>
 <div id="barra"><i></i></div>
 
 <div id="ayuda">
@@ -541,7 +1290,9 @@
       <dt>→ / Espacio</dt><dd>Avanzar (teclado o puntero)</dd>
       <dt>←</dt><dd>Retroceder</dd>
       <dt>F</dt><dd>Pantalla completa</dd>
+      <dt>T</dt><dd>Mostrar u ocultar el cronómetro</dd>
       <dt>Inicio / Fin</dt><dd>Primera / última pantalla</dd>
+      <dt>Ctrl+Alt+Q</dt><dd>Ir al cierre; en el cierre, Mesh se va</dd>
       <dt>?</dt><dd>Mostrar u ocultar esta ayuda</dd>
     </dl>
   </div>
@@ -552,6 +1303,11 @@
   const barra = document.querySelector('#barra i')
   const seccion = document.getElementById('seccion')
   const ayuda = document.getElementById('ayuda')
+  const TITULO = 'Mesh · Defensa'
+  /** espejar-celulares.ps1 busca estas palabras en el título de la ventana: no cambiarlas sin cambiar el script. */
+  const TITULO_CELULARES = TITULO + ' · Celulares'
+  const TITULO_CIERRE = TITULO + ' · Cierre'
+  const TITULO_FIN = 'Mesh · Hasta pronto'
   let actual = -1
 
   const pasos = (s) => [...s.querySelectorAll('.paso')]
@@ -563,6 +1319,164 @@
     el.setAttribute('transform', `translate(${p.x} ${p.y})`)
   })
 
+  /* ---------- Escenario de la demo (mismos parámetros que escenario.html) ---------- */
+  const q = new URLSearchParams(location.search)
+  const num = (k, d) => { const v = parseFloat(q.get(k)); return Number.isFinite(v) ? v : d }
+  const alto = num('alto', 0.74)
+  const dos = q.get('celulares') !== '1'
+  const centros = dos ? [0.30, 0.70] : [0.50]
+  const estado = q.get('estado')
+  document.documentElement.style.setProperty('--arriba', num('arriba', 0.13))
+  document.documentElement.style.setProperty('--alto', alto)
+  // Sin el script que espeja (ensayo), se dibuja dónde van a quedar los celulares.
+  if (!estado) document.body.classList.add('ensayo')
+
+  ;[
+    { etq: 'etq1', halo: 'halo1', guia: 'guia1', nombre: q.get('izq') ?? '', rol: q.get('rolIzq') ?? 'Líder' },
+    { etq: 'etq2', halo: 'halo2', guia: 'guia2', nombre: q.get('der') ?? '', rol: q.get('rolDer') ?? 'Participante' },
+  ].forEach((l, i) => {
+    const etq = document.getElementById(l.etq)
+    const piezas = [etq, document.getElementById(l.halo), document.getElementById(l.guia)]
+    if (i >= centros.length) { piezas.forEach((p) => p.remove()); return }
+    piezas.forEach((p) => { p.style.left = (centros[i] * 100) + 'vw' })
+    if (l.nombre) etq.querySelector('strong').textContent = l.nombre
+    else etq.querySelector('strong').remove()
+    const rol = etq.querySelector('.rol')
+    if (l.rol) { rol.textContent = l.rol; rol.classList.toggle('lider', /l[ií]der/i.test(l.rol)) }
+    else rol.remove()
+  })
+
+  // La línea "en vivo" va del borde de un celular al del otro (0.5 del alto cubre teléfonos de hasta 18:9).
+  const enlace = document.getElementById('enlace')
+  function ubicarEnlace() {
+    if (!dos || q.get('enlace') === '0') { enlace.style.display = 'none'; return }
+    const medio = innerHeight * alto * 0.5 / 2 + 28
+    const desde = innerWidth * centros[0] + medio
+    const hasta = innerWidth * centros[1] - medio
+    enlace.style.left = desde + 'px'
+    enlace.style.width = Math.max(0, hasta - desde) + 'px'
+  }
+  ubicarEnlace()
+  addEventListener('resize', ubicarEnlace)
+
+  // El script avisa si quedó un solo celular (Ctrl+Alt+1/2): escribe un .js que se
+  // vuelve a cargar cada 400 ms (un file:// no se puede leer con fetch, un <script> sí).
+  window.meshEstado = (modo) => document.body.classList.toggle('solo', dos && modo === 'solo')
+  // Ctrl+Alt+Q lo atiende el script (atajo global): suma meshCerrar('<n>') al mismo
+  // archivo. Cada pedido se atiende una vez: va al cierre o, si ya estaba ahí, despide a Mesh.
+  let ultimoPedido = null
+  window.meshCerrar = (n) => {
+    if (n === ultimoPedido) return
+    ultimoPedido = n
+    pedirCierre()
+  }
+  if (estado) {
+    setInterval(() => {
+      const s = document.createElement('script')
+      s.src = estado + '?t=' + Date.now()
+      s.onload = s.onerror = () => s.remove()
+      document.head.appendChild(s)
+    }, 400)
+  }
+
+  // Demo grabada (opcional): si el video de una pantalla de demo existe, esa pantalla lo muestra en lugar de los celulares.
+  document.querySelectorAll('.video-demo').forEach((v) => {
+    v.addEventListener('loadeddata', () => {
+      const s = v.closest('.slide')
+      s.classList.add('con-video')
+      if (s.classList.contains('activa')) pintarEscena()
+    })
+  })
+
+  const pideCelulares = (s) => s.hasAttribute('data-celulares') && !s.classList.contains('con-video')
+
+  function pintarEscena() {
+    const s = slides[actual]
+    const conCelulares = pideCelulares(s)
+    document.body.classList.toggle('con-celulares', conCelulares)
+    if (document.title === TITULO_FIN) return
+    document.title = conCelulares ? TITULO_CELULARES : s.hasAttribute('data-final') ? TITULO_CIERRE : TITULO
+  }
+
+  /* ---------- Cierre: la animación de docs/presentacion/cierre.html ---------- */
+  const cierre = document.querySelector('iframe.cierre')
+  let saliendo = false
+  function entrarAlCierre() { if (cierre.getAttribute('src') !== cierre.dataset.src) cierre.src = cierre.dataset.src }
+  function dejarElCierre() { if (!saliendo) cierre.removeAttribute('src') }
+  function terminar() {
+    if (document.title === TITULO_FIN) return
+    document.body.classList.add('fuera')
+    // El script espera este título para cerrar la ventana.
+    setTimeout(() => { document.title = TITULO_FIN }, 1600)
+  }
+  function despedir() {
+    if (saliendo) return
+    saliendo = true
+    slides[actual].classList.add('saliendo')
+    cierre.contentWindow?.postMessage({ mesh: 'salir' }, '*')
+    // Si la animación no contesta (por ejemplo, porque no se encontró cierre.html), igual se cierra.
+    setTimeout(terminar, 12000)
+  }
+  addEventListener('message', (e) => { if (e.data && e.data.mesh === 'fin') terminar() })
+  function pedirCierre() {
+    if (slides[actual].hasAttribute('data-final')) despedir()
+    else ir(slides.length - 1)
+  }
+
+  /* ---------- Ritmo: títulos palabra por palabra, contadores y entradas ---------- */
+  // Envuelve cada palabra de los títulos .cinetico; un .contador cuenta como una palabra.
+  document.querySelectorAll('.cinetico').forEach((h) => {
+    let i = 0
+    const envolver = (nodo) => {
+      ;[...nodo.childNodes].forEach((n) => {
+        if (n.nodeType === 3) {
+          const frag = document.createDocumentFragment()
+          n.textContent.split(/(\s+)/).forEach((parte) => {
+            if (!parte) return
+            if (/^\s+$/.test(parte)) { frag.append(parte); return }
+            const pal = document.createElement('span')
+            pal.className = 'pal'; pal.style.setProperty('--i', i++); pal.textContent = parte
+            frag.append(pal)
+          })
+          n.replaceWith(frag)
+        } else if (n.nodeType === 1 && n.classList.contains('contador')) {
+          const pal = document.createElement('span')
+          pal.className = 'pal'; pal.style.setProperty('--i', i++)
+          n.replaceWith(pal); pal.append(n)
+        } else if (n.nodeType === 1) {
+          envolver(n)
+          if (n.classList.contains('marcador')) n.style.setProperty('--d', (i * 75 + 350) + 'ms')
+        }
+      })
+    }
+    envolver(h)
+  })
+  // Orden de entrada de las píldoras y de los elementos .entra de cada pantalla.
+  document.querySelectorAll('.pildoras').forEach((p) => [...p.children].forEach((c, k) => c.style.setProperty('--k', k)))
+  slides.forEach((s) => s.querySelectorAll('.entra').forEach((e, k) => e.style.setProperty('--k', k)))
+
+  // Los números cuentan desde cero cuando se ven.
+  function contar(el, alInstante) {
+    const hasta = parseInt(el.dataset.hasta, 10)
+    if (alInstante) { el.textContent = hasta; return }
+    const t0 = performance.now(), dur = 1100
+    el.textContent = '0'
+    const paso = (t) => {
+      const x = Math.min(1, (t - t0) / dur)
+      el.textContent = Math.round(hasta * (1 - Math.pow(1 - x, 3)))
+      if (x < 1 && el.closest('.slide.activa')) requestAnimationFrame(paso)
+      else el.textContent = hasta
+    }
+    setTimeout(() => requestAnimationFrame(paso), 350)
+  }
+  function contarVisibles(s, alInstante) {
+    s.querySelectorAll('.contador').forEach((c) => {
+      const p = c.closest('.paso')
+      if (!p || p.classList.contains('visto')) contar(c, alInstante)
+    })
+  }
+
+  /* ---------- Navegación ---------- */
   // Los pasos con data-evento encienden la parte del gráfico que les corresponde.
   function marcarEventos(s) {
     ;[...s.classList].filter((c) => c.startsWith('ev-')).forEach((c) => s.classList.remove(c))
@@ -576,6 +1490,7 @@
     if (anterior && anterior !== s) {
       anterior.classList.remove('activa')
       anterior.querySelectorAll('video').forEach((v) => { v.pause(); v.currentTime = 0 })
+      if (anterior.hasAttribute('data-final')) dejarElCierre()
     }
     pasos(s).forEach((p) => p.classList.toggle('visto', todosLosPasos))
     marcarEventos(s)
@@ -584,16 +1499,20 @@
       v.playbackRate = parseFloat(v.dataset.velocidad || '1')
       v.play().catch(() => {})
     })
+    if (s.hasAttribute('data-final')) entrarAlCierre()
+    contarVisibles(s, todosLosPasos)
     actual = i
-    try { history.replaceState(null, '', '#' + (i + 1)) } catch {}
+    try { history.replaceState(null, '', location.search + '#' + (i + 1)) } catch {}
     pintarPie()
+    pintarEscena()
   }
 
   function avanzar() {
     document.body.classList.add('ya-avanzo')
+    arrancarReloj()
     const s = slides[actual]
     const pendiente = pasos(s).find((p) => !p.classList.contains('visto'))
-    if (pendiente) { pendiente.classList.add('visto'); marcarEventos(s) }
+    if (pendiente) { pendiente.classList.add('visto'); marcarEventos(s); pendiente.querySelectorAll('.contador').forEach((c) => contar(c)) }
     else if (actual < slides.length - 1) ir(actual + 1)
   }
 
@@ -612,12 +1531,25 @@
     seccion.querySelector('.num').textContent = `${actual + 1} / ${slides.length}`
     barra.style.width = ((actual + 1) / slides.length * 100) + '%'
     document.body.classList.toggle('en-portada', actual === 0)
+    document.body.classList.toggle('en-final', s.hasAttribute('data-final'))
   }
 
   // El navegador puede reiniciar la velocidad al volver a cargar el video.
   document.querySelectorAll('video[data-velocidad]').forEach((v) => {
     v.addEventListener('loadeddata', () => { v.playbackRate = parseFloat(v.dataset.velocidad) })
   })
+
+  /* ---------- Cronómetro (T): arranca con el primer avance ---------- */
+  let relojInicio = 0
+  const reloj = seccion.querySelector('.reloj')
+  function arrancarReloj() {
+    if (relojInicio) return
+    relojInicio = Date.now()
+    setInterval(() => {
+      const seg = Math.floor((Date.now() - relojInicio) / 1000)
+      reloj.textContent = '· ' + Math.floor(seg / 60) + ':' + String(seg % 60).padStart(2, '0')
+    }, 1000)
+  }
 
   /* ---------- Mouse: derecho avanza, izquierdo vuelve ---------- */
   let ultimoClic = 0
@@ -636,6 +1568,12 @@
   /* ---------- Teclado y punteros de presentación ---------- */
   document.addEventListener('keydown', (e) => {
     const k = e.key
+    if (e.ctrlKey && e.altKey && e.code === 'KeyQ') {
+      // Mismo atajo que el script: lleva al cierre y, ya en el cierre, despide a Mesh.
+      e.preventDefault()
+      if (!e.repeat) pedirCierre()
+      return
+    }
     if (['ArrowRight', 'ArrowDown', 'PageDown', ' ', 'Enter'].includes(k)) { e.preventDefault(); avanzar() }
     else if (['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace'].includes(k)) { e.preventDefault(); retroceder() }
     else if (k === 'Home') ir(0)
@@ -644,6 +1582,8 @@
       if (document.fullscreenElement) document.exitFullscreen()
       else document.documentElement.requestFullscreen().catch(() => {})
     }
+    else if (k === 't' || k === 'T') document.body.classList.toggle('con-reloj')
+    else if ((k === 's' || k === 'S') && !estado) meshEstado(document.body.classList.contains('solo') ? 'dos' : 'solo')
     else if (k === '?' || k === 'h' || k === 'H') ayuda.classList.toggle('abierta')
     else if (k === 'Escape') ayuda.classList.remove('abierta')
   })

@@ -12,7 +12,10 @@
   la M, la M vuelve al centro y se va andando por la derecha, y la pantalla se
   funde a negro. Al terminar, el título pasa a "Mesh · Hasta pronto": así se
   entera espejar-celulares.ps1, que la abre al finalizar y la cierra entonces.
-  También se puede abrir sola para ensayar. Parámetros (query string):
+  También se puede abrir sola para ensayar, y la última pantalla de
+  docs/presentacion-web la muestra en un iframe: le pide irse con
+  postMessage({ mesh: 'salir' }) y recibe { mesh: 'fin' } al terminar.
+  Parámetros (query string):
     lento=3.5     cuántas veces más lenta que en la app
     espera=1.5    segundos de pantalla quieta antes de arrancar
   Teclas: Ctrl+Alt+Q irse, F pantalla completa, R repetir.
@@ -371,7 +374,11 @@
       if (s < S_SALE_FIN) { cuadro = requestAnimationFrame(paso); return; }
       fase = 'fin';
       document.body.classList.add('fuera');
-      temporizador = setTimeout(() => { document.title = TITULO_FIN; }, 1600);
+      temporizador = setTimeout(() => {
+        document.title = TITULO_FIN;
+        // Dentro de la presentación (docs/presentacion-web), avisa que terminó.
+        if (window.parent !== window) window.parent.postMessage({ mesh: 'fin' }, '*');
+      }, 1600);
     };
     cuadro = requestAnimationFrame(paso);
   }
@@ -390,6 +397,12 @@
     cuadro = requestAnimationFrame(animar);
   }
   empezar();
+
+  // La presentación la muestra en un iframe y le pide irse o repetir con mensajes.
+  addEventListener('message', (e) => {
+    if (e.data && e.data.mesh === 'salir') salir();
+    else if (e.data && e.data.mesh === 'empezar') empezar();
+  });
 
   addEventListener('keydown', (e) => {
     if (e.ctrlKey && e.altKey && e.code === 'KeyQ') {

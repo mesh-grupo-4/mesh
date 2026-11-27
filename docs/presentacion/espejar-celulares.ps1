@@ -6,8 +6,12 @@
   1. Busca scrcpy y adb (instalados con: winget install Genymobile.scrcpy).
   2. Detecta los celulares conectados por USB (o los pasa a WiFi con -Wifi).
   3. Prepara los teléfonos: No molestar, Mesh abierta, pantalla despierta.
-  4. Abre escenario.html en pantalla completa (Edge en modo kiosco).
+  4. Abre la presentación de la defensa (docs/presentacion-web/index.html) en
+     pantalla completa (Edge en modo kiosco). Con -SinDiapositivas abre en su
+     lugar el fondo solo (escenario.html).
   5. Abre una ventana de scrcpy por celular, alineada con los nombres del fondo.
+     Con la presentación, los celulares se ven solo en las pantallas de demo:
+     la página lo avisa con su título ("Mesh · Defensa · Celulares").
   6. Queda un ícono de Mesh en la bandeja de Windows (al lado del reloj) con
      el menú y los atajos. Si un espejo se corta, se reconecta solo.
 
@@ -22,8 +26,9 @@
     Ctrl+Alt+2  quitar / volver a conectar el celular de la derecha
                 (el que queda se centra, sin etiquetas ni indicador "en vivo")
     Ctrl+Alt+Q  finalizar: se van los celulares y se forma el logo de Mesh
-                (cierre.html). Queda ahí hasta otro Ctrl+Alt+Q: Mesh se va
-                andando y se cierra todo.
+                (cierre.html; con la presentación, en su última pantalla). Queda
+                ahí hasta otro Ctrl+Alt+Q: Mesh se va andando y se cierra todo.
+                Si la presentación ya estaba en el cierre, Mesh se va enseguida.
 
 .EXAMPLE
   .\espejar-celulares.ps1                 # etiquetas: Líder | Participante, sin nombres
@@ -33,6 +38,8 @@
   .\espejar-celulares.ps1 -Wifi           # después se pueden desenchufar los cables
 .EXAMPLE
   .\espejar-celulares.ps1 -Wifi -Liviano  # por el hotspot de un celular (video a 1024 px y 4 Mbps)
+.EXAMPLE
+  .\espejar-celulares.ps1 -SinDiapositivas   # solo el fondo con los celulares, sin la presentación
 .EXAMPLE
   .\espejar-celulares.ps1 -Cerrar         # cierra una presentación abierta (lo usa "Cerrar presentacion.cmd")
 #>
@@ -46,6 +53,7 @@ param(
   [switch]$Wifi,
   [switch]$Zona,
   [switch]$SinEscenario,
+  [switch]$SinDiapositivas,   # fondo solo (escenario.html) en vez de la presentación de la defensa
   [switch]$ConBordes,
   [switch]$SinPreparar,
   [switch]$Cerrar,
@@ -69,6 +77,11 @@ $CENTROS_UNO = @(0.50)
 $CIERRE_LENTITUD = 3.5           # cuántas veces más lenta que en la app
 $CIERRE_ESPERA = 1.5             # segundos quieta mientras se van los celulares
 $CIERRE_TITULO_FIN = 'Hasta pronto'   # título que pone cierre.html cuando Mesh ya se fue
+
+# --- Presentación de la defensa (docs/presentacion-web/index.html) ------------
+# La página pone esta palabra en su título en las pantallas de demo: ahí se ven
+# los celulares; en el resto quedan detrás de la presentación.
+$DIAPOSITIVAS_TITULO_CELULARES = 'Celulares'
 
 function Escribir-Paso([string]$texto) { Write-Host "`n> $texto" -ForegroundColor Cyan }
 function Fallar([string]$texto) {
@@ -96,6 +109,7 @@ public static class MeshVentana {
   [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr hWnd);
   [DllImport("user32.dll")] public static extern int GetWindowLong(IntPtr hWnd, int index);
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern bool SetWindowText(IntPtr hWnd, string texto);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder texto, int max);
   [DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();
   [DllImport("user32.dll")] static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
 
@@ -105,6 +119,13 @@ public static class MeshVentana {
     keybd_event(0x12, 0, 0, UIntPtr.Zero);
     keybd_event(0x12, 0, 2, UIntPtr.Zero);
     return SetForegroundWindow(hWnd);
+  }
+
+  // Leer el título directo de la ventana es instantáneo (el vigilante lo hace cada 150 ms).
+  public static string Titulo(IntPtr hWnd) {
+    var texto = new System.Text.StringBuilder(512);
+    GetWindowText(hWnd, texto, texto.Capacity);
+    return texto.ToString();
   }
 }
 
@@ -142,7 +163,7 @@ $archivoWifi = Join-Path $logs 'wifi.txt'          # direcciones WiFi de la últ
 $archivoDnd = Join-Path $logs 'no-molestar.txt'    # modo No molestar previo de cada celular
 $archivoCerrar = Join-Path $logs 'cerrar.pedido'   # lo crea -Cerrar para pedir el cierre
 $archivoZona = Join-Path $logs 'zona-iniciada'     # existe si la zona la prendió este script
-$archivoEstado = Join-Path $logs 'escenario-estado.js'   # lo lee escenario.html: dos celulares o uno solo
+$archivoEstado = Join-Path $logs 'escenario-estado.js'   # lo leen escenario.html y la presentación: dos celulares o uno solo
 
 # --- scrcpy y adb ------------------------------------------------------------
 function Buscar-Ejecutable([string]$nombre) {
@@ -799,6 +820,12 @@ function Mandar-Atras($v) {
 
 function Buscar-Escenario { $script:hwndEscenario = Ventana-Navegador $perfil }
 
+# Con la presentación, los celulares van adelante solo si la pantalla actual es de demo.
+function Pantalla-Pide-Celulares {
+  if ($SinDiapositivas -or $hwndEscenario -eq [IntPtr]::Zero) { return $true }
+  return ([MeshVentana]::Titulo($hwndEscenario)) -match [regex]::Escape($DIAPOSITIVAS_TITULO_CELULARES)
+}
+
 function Escena-En-Foco {
   $foco = [MeshVentana]::GetForegroundWindow()
   if ($foco -eq [IntPtr]::Zero) { return $false }
@@ -857,10 +884,15 @@ function Actualizar-Disposicion([switch]$Forzar) {
   Escribir-Estado-Escenario
 }
 
+# Con Ctrl+Alt+Q se suma un pedido de cierre numerado: la presentación lo atiende
+# una sola vez (va a su última pantalla o, si ya estaba ahí, despide a Mesh).
+$pedidoCierre = ''
 function Escribir-Estado-Escenario {
   $modo = 'dos'
   if ($script:disposicionSolo) { $modo = 'solo' }
-  try { Set-Content -Path $archivoEstado -Value "meshEstado('$modo');" -Encoding ASCII } catch { }
+  $texto = "meshEstado('$modo');"
+  if ($script:pedidoCierre) { $texto += " if (window.meshCerrar) meshCerrar('$($script:pedidoCierre)');" }
+  try { Set-Content -Path $archivoEstado -Value $texto -Encoding ASCII } catch { }
 }
 
 function Alternar-Consola {
@@ -927,15 +959,28 @@ function Abrir-Cierre {
 # página (los atajos globales ya se soltaron): Mesh se va andando, la pantalla
 # se funde a negro y la página cambia el título, que es la señal para cerrarla.
 # También termina si cierran la ventana (Alt+F4) o corren "Cerrar presentacion.cmd".
-function Esperar-Cierre {
+# Con la presentación es lo mismo, pero en su última pantalla: se espera su ventana.
+function Esperar-Cierre([string]$dir = $perfilCierre) {
   Write-Host '  Logo de Mesh en pantalla. Ctrl+Alt+Q para que se vaya (o Alt+F4).'
   while ($true) {
     if (Test-Path $archivoCerrar) { break }
-    if (@(Procesos-Navegador $perfilCierre).Count -eq 0) { break }
-    if ((Titulo-Navegador $perfilCierre) -match [regex]::Escape($CIERRE_TITULO_FIN)) { break }
+    if (@(Procesos-Navegador $dir).Count -eq 0) { break }
+    if ((Titulo-Navegador $dir) -match [regex]::Escape($CIERRE_TITULO_FIN)) { break }
     Start-Sleep -Milliseconds 500
   }
-  foreach ($p in Procesos-Navegador $perfilCierre) { Matar-Proceso $p.ProcessId -Arbol }
+  foreach ($p in Procesos-Navegador $dir) { Matar-Proceso $p.ProcessId -Arbol }
+}
+
+# Ctrl+Alt+Q con la presentación: no se abre otra ventana. Se le pide a la página
+# que vaya a su cierre (la animación de cierre.html, dentro de un iframe) y se le
+# da el foco, para que reciba el segundo Ctrl+Alt+Q cuando ya se soltaron los atajos.
+function Pedir-Cierre-A-Diapositivas {
+  if ($hwndEscenario -eq [IntPtr]::Zero) { Buscar-Escenario }
+  if ($hwndEscenario -eq [IntPtr]::Zero) { return $false }
+  $script:pedidoCierre = [string](Get-Date).Ticks
+  Escribir-Estado-Escenario
+  [MeshVentana]::Enfocar($hwndEscenario) | Out-Null
+  return $true
 }
 
 function Cargar-Icono {
@@ -969,7 +1014,7 @@ function Vigilar {
   }
 
   $vivos = @($espejos | Where-Object { Espejo-Vivo $_ })
-  if (Escena-En-Foco) {
+  if ((Escena-En-Foco) -and (Pantalla-Pide-Celulares)) {
     foreach ($v in $vivos) { Traer-Al-Frente $v }
   } else {
     foreach ($v in $vivos) { Mandar-Atras $v }
@@ -992,7 +1037,7 @@ try {
   if (-not $SinPreparar) { Preparar-Celulares }
 
   if (-not $SinEscenario) {
-    Escribir-Paso 'Abriendo el escenario'
+    if ($SinDiapositivas) { Escribir-Paso 'Abriendo el escenario' } else { Escribir-Paso 'Abriendo la presentación' }
     $navegador = Buscar-Navegador
     if (-not $navegador) {
       Write-Host '  No encontré Edge ni Chrome: sigo sin escenario.' -ForegroundColor Yellow
@@ -1008,7 +1053,14 @@ try {
       $query = ($q.GetEnumerator() | ForEach-Object {
         '{0}={1}' -f $_.Key, [uri]::EscapeDataString(([string]$_.Value).Replace(',', '.'))
       }) -join '&'
-      $url = ([uri](Join-Path $PSScriptRoot 'escenario.html')).AbsoluteUri + '?' + $query
+      $pagina = Join-Path $PSScriptRoot 'escenario.html'
+      $deck = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\presentacion-web\index.html'))
+      if (-not $SinDiapositivas -and -not (Test-Path $deck)) {
+        Write-Host "  No encontré la presentación ($deck): abro solo el fondo." -ForegroundColor Yellow
+        $SinDiapositivas = $true
+      }
+      if (-not $SinDiapositivas) { $pagina = $deck }
+      $url = ([uri]$pagina).AbsoluteUri + '?' + $query
       Abrir-Kiosco $navegador $url $perfil
       $espera = [Diagnostics.Stopwatch]::StartNew()
       while ($hwndEscenario -eq [IntPtr]::Zero -and $espera.Elapsed.TotalSeconds -lt 10) {
@@ -1124,17 +1176,27 @@ finally {
   # irse los celulares no se ve el escritorio. No molestar y la zona se
   # restauran mientras el logo está en pantalla.
   $hayCierre = $false
+  $cierreEnDiapositivas = $false
   if ($conCierre -and -not $fallo -and -not $SinEscenario) {
     Escribir-Paso 'Cerrando con la animación de Mesh'
-    try { $hayCierre = Abrir-Cierre } catch { Write-Host "  No pude abrir la animación: $_" -ForegroundColor Yellow }
+    if (-not $SinDiapositivas) {
+      try { $cierreEnDiapositivas = Pedir-Cierre-A-Diapositivas } catch { Write-Host "  No pude avisarle a la presentación: $_" -ForegroundColor Yellow }
+    }
+    if (-not $cierreEnDiapositivas) {
+      try { $hayCierre = Abrir-Cierre } catch { Write-Host "  No pude abrir la animación: $_" -ForegroundColor Yellow }
+    }
   }
   foreach ($v in $espejos) {
     if ($v.Proceso -and -not $v.Proceso.HasExited) { Matar-Proceso $v.Proceso.Id -Arbol }
   }
-  foreach ($p in Procesos-Escenario) { Matar-Proceso $p.ProcessId -Arbol }
+  # Con el cierre en la presentación, la ventana sigue hasta que Mesh se va.
+  if (-not $cierreEnDiapositivas) {
+    foreach ($p in Procesos-Escenario) { Matar-Proceso $p.ProcessId -Arbol }
+  }
   Restaurar-No-Molestar
   Detener-Zona
-  if ($hayCierre) { Esperar-Cierre }
+  if ($cierreEnDiapositivas) { Esperar-Cierre $perfil }
+  elseif ($hayCierre) { Esperar-Cierre }
   Remove-Item $archivoCerrar -Force -ErrorAction SilentlyContinue
 }
 if ($fallo) { exit 1 }

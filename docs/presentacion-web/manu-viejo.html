@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="es" translate="no">
+<head>
+<meta charset="utf-8">
+<meta name="google" content="notranslate">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mesh · Presentación</title>
+<link rel="icon" href="mesh-logo.png">
+<!--
+  Presentación web de Mesh. Se abre con doble clic (no necesita internet ni servidor).
+
+  Controles (pensados para irse pasando el mouse entre presentadores):
+    Clic derecho ........ avanzar (o mostrar el próximo punto de la pantalla)
+    Clic izquierdo ...... retroceder
+    Flechas / PageUp / PageDown / Espacio: lo mismo con teclado o con un puntero de presentación
+    F ................... pantalla completa
+    ? ................... ver u ocultar la ayuda de controles
+    Inicio / Fin ........ primera / última pantalla
+
+  Cómo sumar pantallas: copiar un <section class="slide"> y cambiar su contenido.
+    data-seccion="..."      nombre de la parte (se ve abajo a la izquierda)
+    data-quien="..."        quién la presenta (opcional; si está vacío no se muestra)
+    class="paso"            elementos que aparecen de a uno con cada clic derecho
+    data-evento="x"         en un paso: al verse, la pantalla suma la clase ev-x (y .ev-x se muestra)
+    <video class="fondo">   video de fondo: arranca al entrar, se frena al salir.
+                            data-velocidad="0.7" = cámara lenta (1 = velocidad normal)
+-->
+<style>
+  :root {
+    --bg: #0f0f0f;
+    --text: #f4f2f0;
+    --text-dim: #c9c3be;
+    --text-mute: #8f8984;
+    --accent: #d76655;
+    --good: #4fb477;
+    --amber: #e3a33b;
+    --blue: #5b9bd5;
+    /* Unidad proporcional: mantiene el diseño 16:9 en cualquier pantalla. */
+    --u: min(1vw, 1.7778vh);
+    --font: "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); }
+  body {
+    font-family: var(--font);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  body.sin-cursor, body.sin-cursor * { cursor: none !important; }
+  img, video { -webkit-user-drag: none; }
+
+  /* ---------- Pantallas ---------- */
+  .slide {
+    position: fixed; inset: 0;
+    opacity: 0; visibility: hidden;
+    transition: opacity .8s ease, visibility 0s linear .8s;
+    overflow: hidden;
+    background: var(--bg);
+  }
+  .slide.activa { opacity: 1; visibility: visible; transition: opacity .8s ease, visibility 0s; z-index: 2; }
+
+  /* Fondo: video (o foto) con un acercamiento lento */
+  .fondo, .foto {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: cover;
+    background: var(--img) center / cover no-repeat;
+    transform: scale(1.08);
+    transition: transform 16s cubic-bezier(.2, .6, .3, 1);
+  }
+  .slide.activa .fondo, .slide.activa .foto { transform: scale(1); }
+  .velo { position: absolute; inset: 0; }
+  .velo.izq { background: linear-gradient(90deg, rgba(10,10,10,.9) 0%, rgba(10,10,10,.6) 42%, rgba(10,10,10,.08) 78%); }
+  .velo.abajo { background: linear-gradient(0deg, rgba(10,10,10,.92) 0%, rgba(10,10,10,.45) 45%, rgba(10,10,10,.1) 75%); }
+  .velo.total { background: rgba(10,10,10,.66); }
+
+  .contenido {
+    position: absolute; inset: 0;
+    padding: calc(var(--u) * 7) calc(var(--u) * 7.5);
+    display: flex; flex-direction: column; justify-content: center;
+  }
+  .contenido.abajo { justify-content: flex-end; padding-bottom: calc(var(--u) * 9); }
+
+  .kicker {
+    font-size: calc(var(--u) * 1.35); font-weight: 700;
+    letter-spacing: .18em; text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: calc(var(--u) * 1.6);
+  }
+  h1, h2 { font-weight: 700; letter-spacing: -0.025em; line-height: 1.02; text-wrap: balance; }
+  h2 { font-size: calc(var(--u) * 5.6); max-width: 15ch; }
+  .bajada {
+    margin-top: calc(var(--u) * 2.2);
+    font-size: calc(var(--u) * 1.9); line-height: 1.4;
+    color: var(--text-dim); max-width: 44ch; text-wrap: pretty;
+  }
+  .acento { color: var(--accent); }
+
+  /* Puntos que aparecen con cada clic derecho */
+  .paso { opacity: 0; transform: translateY(calc(var(--u) * 1.4)); transition: opacity .55s ease, transform .55s cubic-bezier(.2, .7, .3, 1); }
+  .paso.visto { opacity: 1; transform: none; }
+
+  /* Partes de un gráfico que se encienden con un paso (data-evento) */
+  .ev { opacity: 0; transition: opacity .6s ease; }
+  .slide.ev-desvio .ev-desvio, .slide.ev-atraso .ev-atraso, .slide.ev-parada .ev-parada,
+  .slide.ev-incidente .ev-incidente { opacity: 1; }
+
+  .credito {
+    position: absolute; right: calc(var(--u) * 2); bottom: calc(var(--u) * 1.6);
+    font-size: calc(var(--u) * .78); color: rgba(255,255,255,.5);
+    text-align: right; max-width: 60%;
+  }
+
+  /* ---------- Piezas de los gráficos (SVG) ---------- */
+  svg { overflow: visible; }
+  svg .ruta { fill: none; stroke: rgba(255,255,255,.18); stroke-width: 14; stroke-linecap: round; }
+  svg .ruta-hecha { fill: none; stroke: var(--accent); stroke-width: 5; stroke-linecap: round; stroke-dasharray: 2 14; opacity: .8; }
+  svg .dot { stroke: var(--bg); stroke-width: 4; }
+  svg .onda { fill: none; stroke-width: 3; transform-box: fill-box; transform-origin: center; animation: onda 1.8s ease-out infinite; }
+  @keyframes onda { from { transform: scale(.6); opacity: 1; } to { transform: scale(2.6); opacity: 0; } }
+  svg .etiqueta rect { fill: rgba(22,22,22,.92); stroke-width: 2; }
+  svg .etiqueta text { fill: var(--text); font: 600 22px var(--font); }
+  svg .etiqueta .sub { font-weight: 700; }
+  svg .pausa { fill: var(--bg); }
+
+  /* ---------- 1. Portada ---------- */
+  .portada .contenido { justify-content: flex-end; padding-bottom: calc(var(--u) * 8); }
+  .logo { display: flex; align-items: center; gap: calc(var(--u) * 2.2); }
+  .logo img { height: calc(var(--u) * 11); width: auto; filter: drop-shadow(0 calc(var(--u) * .4) calc(var(--u) * 2) rgba(0,0,0,.5)); }
+  .logo h1 { font-size: calc(var(--u) * 11); letter-spacing: -0.04em; line-height: .9; }
+  .lema { margin-top: calc(var(--u) * 1.8); font-size: calc(var(--u) * 2.8); font-weight: 600; letter-spacing: -0.01em; }
+  .viaje { display: block; width: calc(var(--u) * 34); height: auto; margin-top: calc(var(--u) * 1.6); }
+  .datos { margin-top: calc(var(--u) * 1.4); font-size: calc(var(--u) * 1.45); color: var(--text-dim); letter-spacing: .04em; }
+  .ayuda-inicial {
+    position: absolute; top: calc(var(--u) * 3); right: calc(var(--u) * 3);
+    display: flex; gap: calc(var(--u) * 1.2);
+    font-size: calc(var(--u) * 1.15); color: var(--text-dim);
+    transition: opacity .6s ease;
+  }
+  .ayuda-inicial span {
+    display: flex; align-items: center; gap: calc(var(--u) * .7);
+    padding: calc(var(--u) * .7) calc(var(--u) * 1.3);
+    border-radius: 99px; background: rgba(15,15,15,.6); backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,.14);
+  }
+  body.ya-avanzo .ayuda-inicial { opacity: 0; }
+  .raton { width: calc(var(--u) * 1.1); height: calc(var(--u) * 1.6); border: 2px solid currentColor; border-radius: 99px; position: relative; overflow: hidden; }
+  .raton::after { content: ""; position: absolute; top: 0; width: 50%; height: 45%; background: var(--accent); }
+  .raton.der::after { right: 0; }
+  .raton.izq::after { left: 0; background: var(--text-mute); }
+
+  /* ---------- 2. Tríptico ---------- */
+  .triptico { display: flex; flex-direction: column; padding: calc(var(--u) * 6) calc(var(--u) * 6) calc(var(--u) * 5); height: 100%; }
+  .triptico header { display: flex; align-items: flex-end; justify-content: space-between; gap: calc(var(--u) * 4); margin-bottom: calc(var(--u) * 3); }
+  .triptico h2 { max-width: none; }
+  .triptico .bajada { margin: 0; max-width: 34ch; text-align: right; }
+  .paneles { flex: 1; display: grid; grid-template-columns: repeat(3, 1fr); gap: calc(var(--u) * 1.4); min-height: 0; }
+  .panel { position: relative; border-radius: calc(var(--u) * 1.4); overflow: hidden; background: #181818; }
+  .panel::after { content: ""; position: absolute; inset: 0; background: linear-gradient(0deg, rgba(0,0,0,.7), transparent 45%); }
+  .panel b {
+    position: absolute; left: calc(var(--u) * 2); bottom: calc(var(--u) * 1.6); z-index: 1;
+    font-size: calc(var(--u) * 3.2); letter-spacing: -0.02em;
+  }
+
+  /* ---------- 4. Preguntas + sendero ---------- */
+  .preguntas { list-style: none; margin-top: calc(var(--u) * 3.2); display: grid; gap: calc(var(--u) * 1.3); }
+  .preguntas li {
+    display: flex; align-items: center; gap: calc(var(--u) * 1.6);
+    font-size: calc(var(--u) * 2.6); font-weight: 600; letter-spacing: -0.01em;
+  }
+  .preguntas i {
+    flex: none; width: calc(var(--u) * 1.3); height: calc(var(--u) * 1.3); border-radius: 50%;
+    background: var(--c); box-shadow: 0 0 0 calc(var(--u) * .5) color-mix(in srgb, var(--c) 30%, transparent);
+  }
+  .sendero { position: absolute; left: 0; right: 0; bottom: calc(var(--u) * 4); width: 100%; height: auto; }
+  .sendero .ruta { stroke-width: 10; stroke: rgba(255,255,255,.22); }
+
+  /* ---------- 5. Apps ---------- */
+  .apps { display: flex; flex-wrap: wrap; gap: calc(var(--u) * 1); margin-top: calc(var(--u) * 3); }
+  .apps span {
+    font-size: calc(var(--u) * 1.7); font-weight: 600;
+    padding: calc(var(--u) * .8) calc(var(--u) * 1.8); border-radius: 99px;
+    border: 1.5px solid rgba(255,255,255,.28); color: var(--text-dim);
+    background: rgba(15,15,15,.4);
+  }
+  .remate { margin-top: calc(var(--u) * 3.2); font-size: calc(var(--u) * 2.8); font-weight: 700; letter-spacing: -0.015em; max-width: 24ch; }
+
+  /* ---------- 6. Mesh mira al grupo ---------- */
+  .malla {
+    position: absolute; inset: 0;
+    background-image: radial-gradient(rgba(255,255,255,.07) 1px, transparent 1.4px);
+    background-size: calc(var(--u) * 2.2) calc(var(--u) * 2.2);
+    mask-image: radial-gradient(ellipse 80% 75% at 60% 50%, #000 30%, transparent 100%);
+  }
+  .dos-columnas { display: grid; grid-template-columns: 1fr 1.15fr; align-items: center; gap: calc(var(--u) * 4); }
+  .solucion h2 { font-size: calc(var(--u) * 6.4); }
+  .mapa, .red { width: 100%; height: auto; }
+  .chips { display: flex; flex-wrap: wrap; gap: calc(var(--u) * 1); margin-top: calc(var(--u) * 3); }
+  .chip {
+    display: flex; align-items: center; gap: calc(var(--u) * .8);
+    font-size: calc(var(--u) * 1.6); font-weight: 650;
+    padding: calc(var(--u) * .8) calc(var(--u) * 1.6); border-radius: 99px;
+    background: #181818; border: 1.5px solid var(--c);
+  }
+  .chip i { width: calc(var(--u) * .9); height: calc(var(--u) * .9); border-radius: 50%; background: var(--c); }
+
+  /* ---------- 7. Red de integrantes ---------- */
+  .red .enlace { stroke: rgba(255,255,255,.2); stroke-width: 2.5; fill: none; }
+  .red .nodo { fill: #e8e3de; stroke: var(--bg); stroke-width: 5; }
+  .red .lider { fill: var(--accent); }
+  .red .anillo { fill: none; stroke: var(--accent); stroke-width: 2; opacity: .5; transform-box: fill-box; transform-origin: center; animation: onda 3s ease-out infinite; }
+  .red .pulso { fill: var(--accent); }
+  .red text { fill: var(--text-dim); font: 600 24px var(--font); text-anchor: middle; letter-spacing: .04em; }
+  .red .t-lider { fill: #fff; font-size: 21px; font-weight: 800; }
+
+  /* ---------- 7 y 8. Listas ---------- */
+  .lista { list-style: none; margin-top: calc(var(--u) * 3); display: grid; gap: calc(var(--u) * 1.6); }
+  .lista li { display: flex; align-items: baseline; gap: calc(var(--u) * 1.6); font-size: calc(var(--u) * 2.3); font-weight: 600; }
+  .lista li::before { content: ""; flex: none; width: calc(var(--u) * 2); height: 3px; background: var(--accent); transform: translateY(calc(var(--u) * -.6)); }
+  .lista small { display: block; font-size: calc(var(--u) * 1.5); font-weight: 400; color: var(--text-dim); margin-top: calc(var(--u) * .3); }
+
+  .equipo { display: grid; grid-template-columns: repeat(3, 1fr); gap: calc(var(--u) * 1.6); margin-top: calc(var(--u) * 3.6); max-width: calc(var(--u) * 80); }
+  .persona {
+    padding: calc(var(--u) * 2) calc(var(--u) * 2.2); border-radius: calc(var(--u) * 1.2);
+    background: rgba(18,18,18,.66); backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,.1);
+  }
+  .persona b { display: block; font-size: calc(var(--u) * 2.2); letter-spacing: -0.01em; }
+  .persona span { display: block; margin-top: calc(var(--u) * .5); font-size: calc(var(--u) * 1.3); color: var(--accent); font-weight: 650; letter-spacing: .06em; text-transform: uppercase; }
+
+  .pase {
+    margin-top: calc(var(--u) * 3);
+    display: inline-flex; align-items: center; gap: calc(var(--u) * 1);
+    font-size: calc(var(--u) * 1.5); color: var(--text-dim);
+  }
+
+  /* ---------- Barra inferior ---------- */
+  #barra {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+    height: 3px; background: rgba(255,255,255,.08);
+  }
+  #barra i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .6s ease; }
+  #seccion {
+    position: fixed; left: calc(var(--u) * 2); bottom: calc(var(--u) * 1.5); z-index: 10;
+    display: flex; align-items: center; gap: calc(var(--u) * .9);
+    font-size: calc(var(--u) * 1.05); font-weight: 650; letter-spacing: .1em; text-transform: uppercase;
+    color: rgba(255,255,255,.62);
+  }
+  #seccion img { height: calc(var(--u) * 1.8); }
+  #seccion .quien { color: var(--accent); }
+  #seccion .num { color: rgba(255,255,255,.4); font-variant-numeric: tabular-nums; }
+  body.en-portada #seccion { opacity: 0; }
+
+  /* ---------- Ayuda ---------- */
+  #ayuda {
+    position: fixed; inset: 0; z-index: 20;
+    display: grid; place-items: center;
+    background: rgba(10,10,10,.8); backdrop-filter: blur(6px);
+    opacity: 0; visibility: hidden; transition: opacity .25s ease, visibility 0s linear .25s;
+  }
+  #ayuda.abierta { opacity: 1; visibility: visible; transition: opacity .25s ease; }
+  #ayuda div { background: #171717; border: 1px solid #2e2e2e; border-radius: calc(var(--u) * 1.4); padding: calc(var(--u) * 3) calc(var(--u) * 3.6); min-width: calc(var(--u) * 40); }
+  #ayuda h3 { font-size: calc(var(--u) * 2); margin-bottom: calc(var(--u) * 1.6); }
+  #ayuda dl { display: grid; grid-template-columns: auto 1fr; gap: calc(var(--u) * .9) calc(var(--u) * 2.4); font-size: calc(var(--u) * 1.4); }
+  #ayuda dt { font-weight: 700; color: var(--accent); }
+  #ayuda dd { color: var(--text-dim); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .fondo, .foto, .slide.activa .fondo, .slide.activa .foto { transition: none; transform: none; }
+    svg .onda, .red .anillo { animation: none; }
+  }
+</style>
+</head>
+<body class="en-portada">
+
+<main id="deck">
+
+  <!-- 1 · Portada -->
+  <section class="slide portada" data-seccion="Introducción" data-quien="">
+    <video class="fondo" src="videos/moto-aerea-ruta.mp4" muted loop playsinline preload="auto" data-velocidad="0.7"></video>
+    <div class="velo abajo"></div>
+    <div class="contenido">
+      <div class="logo">
+        <img src="mesh-logo.png" alt="">
+        <h1>Mesh</h1>
+      </div>
+      <p class="lema">Coordinación grupal en tiempo real</p>
+      <!-- Tres integrantes que avanzan juntos -->
+      <svg class="viaje" viewBox="0 0 680 40" aria-hidden="true">
+        <path id="viajeRuta" d="M10 20 H670" stroke="rgba(255,255,255,.28)" stroke-width="3" stroke-dasharray="2 12" stroke-linecap="round" fill="none"/>
+        <g>
+          <animateMotion dur="7s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="linear"><mpath href="#viajeRuta"/></animateMotion>
+          <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.12;.88;1" dur="7s" repeatCount="indefinite"/>
+          <circle cx="0" r="8" fill="var(--accent)"/>
+          <circle cx="-26" r="7" fill="#e8e3de"/>
+          <circle cx="-50" r="7" fill="#e8e3de"/>
+        </g>
+      </svg>
+      <p class="datos">Proyecto Final · UTN FRC · Grupo 4 · 5K1 · 2026</p>
+    </div>
+    <div class="ayuda-inicial">
+      <span><i class="raton der"></i>Clic derecho: avanzar</span>
+      <span><i class="raton izq"></i>Clic izquierdo: volver</span>
+    </div>
+  </section>
+
+  <!-- 2 · Salimos en grupo -->
+  <section class="slide" data-seccion="Introducción" data-quien="">
+    <div class="triptico">
+      <header>
+        <h2>Salimos <span class="acento">en grupo.</span></h2>
+        <p class="bajada">En moto, en bici, corriendo o caminando: casi siempre lo hacemos con otros.</p>
+      </header>
+      <div class="paneles">
+        <div class="panel paso"><video class="fondo" src="videos/moto-frente-ruta.mp4" muted loop playsinline preload="auto" data-velocidad="0.7"></video><b>Moto</b></div>
+        <div class="panel paso"><video class="fondo" src="videos/bici-pareja-camino.mp4" muted loop playsinline preload="auto" data-velocidad="0.7"></video><b>Bici</b></div>
+        <div class="panel paso"><video class="fondo" src="videos/trekking-grupo-nieve.mp4" muted loop playsinline preload="auto" data-velocidad="0.7"></video><b>Trekking</b></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 · Fuera de la ciudad -->
+  <section class="slide" data-seccion="Introducción" data-quien="">
+    <video class="fondo" src="videos/ruta-cerros.mp4" muted loop playsinline preload="auto" data-velocidad="0.7"></video>
+    <div class="velo izq"></div>
+    <div class="contenido">
+      <p class="kicker">Rutas, sierras y senderos</p>
+      <h2>Lejos de la ciudad, el plan es el camino.</h2>
+      <p class="bajada">Rutas de montaña, senderos y caminos de tierra. Muchas veces, con poca señal y sin ver a todo el grupo.</p>
+    </div>
+  </section>
+
+  <!-- 4 · El problema -->
+  <section class="slide" data-seccion="El problema" data-quien="">
+    <video class="fondo" src="videos/trekking-fila-nieve.mp4" muted loop playsinline preload="auto" data-velocidad="0.7"></video>
+    <div class="velo izq"></div>
+    <div class="velo abajo" style="opacity: .7"></div>
+    <div class="contenido" style="padding-bottom: calc(var(--u) * 16)">
+      <p class="kicker">El problema</p>
+      <h2>En el camino, el grupo se estira.</h2>
+      <ul class="preguntas">
+        <li class="paso" data-evento="atraso" style="--c: var(--amber)"><i></i>¿Quién se quedó atrás?</li>
+        <li class="paso" data-evento="parada" style="--c: var(--blue)"><i></i>¿Quién paró a propósito?</li>
+        <li class="paso" data-evento="incidente" style="--c: var(--accent)"><i></i>¿Quién puede estar en problemas?</li>
+      </ul>
+    </div>
+    <!-- El sendero: el grupo adelante y, según la pregunta, quien quedó en cada situación -->
+    <svg class="sendero" viewBox="0 0 1600 190" aria-hidden="true">
+      <path id="senderoRuta" class="ruta" d="M-20 140 C 260 110, 460 170, 760 136 S 1260 100, 1620 132"/>
+      <g>
+        <animateMotion dur="14s" repeatCount="indefinite" keyPoints="0.74;0.9" keyTimes="0;1" calcMode="linear"><mpath href="#senderoRuta"/></animateMotion>
+        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.1;.9;1" dur="14s" repeatCount="indefinite"/>
+        <circle class="dot" cx="0" r="13" fill="#e8e3de"/>
+        <circle class="dot" cx="-34" r="13" fill="#e8e3de"/>
+        <circle class="dot" cx="-68" r="13" fill="var(--accent)"/>
+        <circle class="dot" cx="-102" r="13" fill="#e8e3de"/>
+      </g>
+      <g class="ev ev-atraso">
+        <g>
+          <animateMotion dur="14s" repeatCount="indefinite" keyPoints="0.5;0.56" keyTimes="0;1" calcMode="linear"><mpath href="#senderoRuta"/></animateMotion>
+          <circle class="dot" r="13" fill="var(--amber)"/>
+          <g class="etiqueta" transform="translate(-100 -78)"><rect width="200" height="48" rx="12" stroke="var(--amber)"/><text x="20" y="32">Lejos del grupo</text></g>
+        </g>
+      </g>
+      <g class="ev ev-parada" data-ruta="senderoRuta" data-ruta-t="0.33">
+        <circle class="dot" r="15" fill="var(--blue)"/>
+        <rect class="pausa" x="-6" y="-7" width="4" height="14" rx="1"/><rect class="pausa" x="2" y="-7" width="4" height="14" rx="1"/>
+        <g class="etiqueta" transform="translate(-110 -80)"><rect width="220" height="48" rx="12" stroke="var(--blue)"/><text x="20" y="32">Paró a propósito</text></g>
+      </g>
+      <g class="ev ev-incidente" data-ruta="senderoRuta" data-ruta-t="0.13">
+        <circle class="onda" r="16" stroke="var(--accent)"/>
+        <circle class="dot" r="13" fill="var(--accent)"/>
+        <g class="etiqueta" transform="translate(-120 -80)"><rect width="240" height="48" rx="12" stroke="var(--accent)"/><text x="20" y="32">Quieto, sin avisar</text></g>
+      </g>
+    </svg>
+  </section>
+
+  <!-- 5 · Lo que hay hoy -->
+  <section class="slide" data-seccion="El problema" data-quien="">
+    <video class="fondo" src="videos/moto-sola-desierto.mp4" muted loop playsinline preload="auto" data-velocidad="0.7"></video>
+    <div class="velo izq"></div>
+    <div class="contenido">
+      <p class="kicker">Lo que hay hoy</p>
+      <h2>Las apps miran a una persona.</h2>
+      <div class="apps paso">
+        <span>Strava</span><span>Komoot</span><span>Garmin</span><span>Google Maps</span><span>Life360</span>
+      </div>
+      <p class="bajada paso">Resuelven el rendimiento de cada uno o cómo llegar de un punto a otro.</p>
+      <p class="remate paso">Ninguna entiende qué le pasa <span class="acento">al grupo</span> como conjunto.</p>
+    </div>
+  </section>
+
+  <!-- 6 · La solución -->
+  <section class="slide solucion" data-seccion="La solución" data-quien="">
+    <div class="malla"></div>
+    <div class="contenido dos-columnas">
+      <div>
+        <p class="kicker">La solución</p>
+        <h2>Mesh mira <span class="acento">al grupo.</span></h2>
+        <p class="bajada">Un motor de eventos en el servidor compara cada posición GPS con la ruta planificada y avisa solo, sin que nadie tenga que hacerlo.</p>
+        <div class="chips">
+          <span class="chip paso" data-evento="desvio" style="--c: var(--blue)"><i></i>Desvío</span>
+          <span class="chip paso" data-evento="atraso" style="--c: var(--amber)"><i></i>Atraso</span>
+          <span class="chip paso" data-evento="parada" style="--c: var(--good)"><i></i>Parada</span>
+          <span class="chip paso" data-evento="incidente" style="--c: var(--accent)"><i></i>Posible incidente</span>
+        </div>
+      </div>
+      <svg class="mapa" viewBox="0 0 800 620" aria-hidden="true">
+        <path id="ruta" class="ruta" d="M60 470 C 180 470, 200 330, 320 320 S 470 400, 560 300 S 640 120, 750 90"/>
+        <path class="ruta-hecha" d="M60 470 C 180 470, 200 330, 320 320 S 470 400, 560 300 S 640 120, 750 90"/>
+        <!-- El grupo avanza junto -->
+        <g>
+          <animateMotion dur="10s" repeatCount="indefinite" keyPoints="0.7;0.97" keyTimes="0;1" calcMode="linear"><mpath href="#ruta"/></animateMotion>
+          <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.1;.9;1" dur="10s" repeatCount="indefinite"/>
+          <circle class="dot" r="16" fill="var(--accent)"/>
+        </g>
+        <g>
+          <animateMotion dur="10s" begin="-0.5s" repeatCount="indefinite" keyPoints="0.68;0.95" keyTimes="0;1" calcMode="linear"><mpath href="#ruta"/></animateMotion>
+          <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.1;.9;1" dur="10s" begin="-0.5s" repeatCount="indefinite"/>
+          <circle class="dot" r="16" fill="#e8e3de"/>
+        </g>
+        <g>
+          <animateMotion dur="10s" begin="-1s" repeatCount="indefinite" keyPoints="0.66;0.93" keyTimes="0;1" calcMode="linear"><mpath href="#ruta"/></animateMotion>
+          <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.1;.9;1" dur="10s" begin="-1s" repeatCount="indefinite"/>
+          <circle class="dot" r="16" fill="#e8e3de"/>
+        </g>
+        <!-- Desvío: alguien se sale de la ruta -->
+        <g class="ev ev-desvio">
+          <path id="desvioRuta" d="M451 344 C 475 400, 430 450, 470 520" fill="none" stroke="var(--blue)" stroke-width="3" stroke-dasharray="6 8"/>
+          <g>
+            <animateMotion dur="5s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="linear"><mpath href="#desvioRuta"/></animateMotion>
+            <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;.1;.85;1" dur="5s" repeatCount="indefinite"/>
+            <circle class="dot" r="15" fill="var(--blue)"/>
+          </g>
+          <g class="etiqueta" transform="translate(505 520)"><rect width="215" height="52" rx="14" stroke="var(--blue)"/><text x="20" y="34">Salió de la ruta</text></g>
+        </g>
+        <!-- Atraso: quedó lejos del grupo -->
+        <g class="ev ev-atraso" data-ruta="ruta" data-ruta-t="0.6">
+          <circle class="dot" r="15" fill="var(--amber)"/>
+          <g class="etiqueta" transform="translate(30 6)"><rect width="200" height="52" rx="14" stroke="var(--amber)"/><text x="20" y="34">Lejos del grupo</text></g>
+        </g>
+        <!-- Parada: avisó que paraba -->
+        <g class="ev ev-parada" data-ruta="ruta" data-ruta-t="0.36">
+          <circle class="dot" r="17" fill="var(--good)"/>
+          <rect class="pausa" x="-7" y="-8" width="5" height="16" rx="1"/><rect class="pausa" x="2" y="-8" width="5" height="16" rx="1"/>
+          <g class="etiqueta" transform="translate(-120 -100)"><rect width="230" height="52" rx="14" stroke="var(--good)"/><text x="20" y="34">Avisó una parada</text></g>
+        </g>
+        <!-- Posible incidente: quieto sin avisar -->
+        <g class="ev ev-incidente" data-ruta="ruta" data-ruta-t="0.1">
+          <circle class="onda" r="18" stroke="var(--accent)"/>
+          <circle class="dot" r="16" fill="var(--accent)"/>
+          <g class="etiqueta" transform="translate(-80 40)"><rect width="320" height="88" rx="14" stroke="var(--accent)"/><text x="20" y="36">Quieto, sin avisar parada</text><text class="sub" x="20" y="68" style="fill: var(--accent)">¿Posible incidente?</text></g>
+        </g>
+      </svg>
+    </div>
+  </section>
+
+  <!-- 7 · Para quién -->
+  <section class="slide" data-seccion="La solución" data-quien="">
+    <video class="fondo" src="videos/trekking-grupo-contraluz.mp4" muted loop playsinline preload="auto" data-velocidad="0.7"></video>
+    <div class="velo total"></div>
+    <div class="contenido dos-columnas">
+      <div>
+        <p class="kicker">Hecha en Córdoba</p>
+        <h2>Para salir en grupo, con quien sea.</h2>
+        <ul class="lista">
+          <li class="paso"><span>Moto, bici, running y trekking<small>Cada actividad con sus propios parámetros.</small></span></li>
+          <li class="paso"><span>Adultos de 18 a 65 años<small>Foco en Córdoba, Argentina.</small></span></li>
+          <li class="paso"><span>Dos roles, nada más<small>Líder, que arma y guía el viaje, y participantes.</small></span></li>
+        </ul>
+      </div>
+      <!-- La red: el líder en el centro, conectado en tiempo real con cada participante -->
+      <svg class="red" viewBox="0 0 700 600" aria-hidden="true">
+        <g id="enlaces">
+          <path id="e1" class="enlace" d="M350 300 L150 130"/>
+          <path id="e2" class="enlace" d="M350 300 L560 110"/>
+          <path id="e3" class="enlace" d="M350 300 L620 360"/>
+          <path id="e4" class="enlace" d="M350 300 L470 520"/>
+          <path id="e5" class="enlace" d="M350 300 L130 460"/>
+          <path class="enlace" d="M150 130 L560 110 M560 110 L620 360 M620 360 L470 520 M470 520 L130 460 M130 460 L150 130" style="opacity: .45"/>
+        </g>
+        <circle class="pulso" r="6"><animateMotion dur="2.4s" repeatCount="indefinite"><mpath href="#e1"/></animateMotion></circle>
+        <circle class="pulso" r="6"><animateMotion dur="2.4s" begin="-0.5s" repeatCount="indefinite" keyPoints="1;0" keyTimes="0;1" calcMode="linear"><mpath href="#e2"/></animateMotion></circle>
+        <circle class="pulso" r="6"><animateMotion dur="2.4s" begin="-1s" repeatCount="indefinite"><mpath href="#e3"/></animateMotion></circle>
+        <circle class="pulso" r="6"><animateMotion dur="2.4s" begin="-1.5s" repeatCount="indefinite" keyPoints="1;0" keyTimes="0;1" calcMode="linear"><mpath href="#e4"/></animateMotion></circle>
+        <circle class="pulso" r="6"><animateMotion dur="2.4s" begin="-2s" repeatCount="indefinite"><mpath href="#e5"/></animateMotion></circle>
+        <circle class="nodo" cx="150" cy="130" r="22"/>
+        <circle class="nodo" cx="560" cy="110" r="22"/>
+        <circle class="nodo" cx="620" cy="360" r="22"/>
+        <circle class="nodo" cx="470" cy="520" r="22"/>
+        <circle class="nodo" cx="130" cy="460" r="22"/>
+        <circle class="anillo" cx="350" cy="300" r="52"/>
+        <circle class="nodo lider" cx="350" cy="300" r="50"/>
+        <text class="t-lider" x="350" y="308">LÍDER</text>
+        <text x="130" y="512">PARTICIPANTE</text>
+      </svg>
+    </div>
+  </section>
+
+  <!-- 8 · Equipo -->
+  <section class="slide" data-seccion="Equipo" data-quien="">
+    <video class="fondo" src="videos/mar-de-nubes.mp4" muted loop playsinline preload="auto" data-velocidad="0.7"></video>
+    <div class="velo total"></div>
+    <div class="contenido">
+      <p class="kicker">Grupo 4 · 5K1</p>
+      <h2>El equipo</h2>
+      <div class="equipo">
+        <div class="persona paso"><b>Manuel Viale</b><span>Product Owner</span></div>
+        <div class="persona paso"><b>Pedro Gabrielli</b><span>Scrum Master</span></div>
+        <div class="persona paso"><b>Peñafort</b><span>Desarrollo</span></div>
+        <div class="persona paso"><b>Giorda</b><span>Desarrollo</span></div>
+        <div class="persona paso"><b>Casoria</b><span>Desarrollo</span></div>
+        <div class="persona paso"><b>Ferraro</b><span>Desarrollo</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 9 · Pase a la próxima parte -->
+  <section class="slide" data-seccion="Introducción" data-quien="">
+    <video class="fondo" src="videos/caminante-montanas.mp4" muted loop playsinline preload="auto" data-velocidad="0.7"></video>
+    <div class="velo izq"></div>
+    <div class="contenido abajo">
+      <p class="kicker">A continuación</p>
+      <h2>Cómo lo construimos.</h2>
+      <p class="pase"><i class="raton der"></i>Le pasamos el mouse a quien sigue</p>
+    </div>
+  </section>
+
+</main>
+
+<div id="seccion"><img src="mesh-logo.png" alt=""><span class="nombre"></span><span class="quien"></span><span class="num"></span></div>
+<div id="barra"><i></i></div>
+
+<div id="ayuda">
+  <div>
+    <h3>Controles</h3>
+    <dl>
+      <dt>Clic derecho</dt><dd>Avanzar o mostrar el próximo punto</dd>
+      <dt>Clic izquierdo</dt><dd>Retroceder</dd>
+      <dt>→ / Espacio</dt><dd>Avanzar (teclado o puntero)</dd>
+      <dt>←</dt><dd>Retroceder</dd>
+      <dt>F</dt><dd>Pantalla completa</dd>
+      <dt>Inicio / Fin</dt><dd>Primera / última pantalla</dd>
+      <dt>?</dt><dd>Mostrar u ocultar esta ayuda</dd>
+    </dl>
+  </div>
+</div>
+
+<script>
+  const slides = [...document.querySelectorAll('.slide')]
+  const barra = document.querySelector('#barra i')
+  const seccion = document.getElementById('seccion')
+  const ayuda = document.getElementById('ayuda')
+  let actual = -1
+
+  const pasos = (s) => [...s.querySelectorAll('.paso')]
+
+  // Ubica sobre su ruta cada pieza marcada con data-ruta + data-ruta-t (0 = inicio, 1 = fin).
+  document.querySelectorAll('[data-ruta-t]').forEach((el) => {
+    const ruta = document.getElementById(el.dataset.ruta)
+    const p = ruta.getPointAtLength(ruta.getTotalLength() * parseFloat(el.dataset.rutaT))
+    el.setAttribute('transform', `translate(${p.x} ${p.y})`)
+  })
+
+  // Los pasos con data-evento encienden la parte del gráfico que les corresponde.
+  function marcarEventos(s) {
+    ;[...s.classList].filter((c) => c.startsWith('ev-')).forEach((c) => s.classList.remove(c))
+    pasos(s).forEach((p) => { if (p.dataset.evento && p.classList.contains('visto')) s.classList.add('ev-' + p.dataset.evento) })
+  }
+
+  function ir(i, { todosLosPasos = false } = {}) {
+    i = Math.max(0, Math.min(slides.length - 1, i))
+    const anterior = slides[actual]
+    const s = slides[i]
+    if (anterior && anterior !== s) {
+      anterior.classList.remove('activa')
+      anterior.querySelectorAll('video').forEach((v) => { v.pause(); v.currentTime = 0 })
+    }
+    pasos(s).forEach((p) => p.classList.toggle('visto', todosLosPasos))
+    marcarEventos(s)
+    s.classList.add('activa')
+    s.querySelectorAll('video').forEach((v) => {
+      v.playbackRate = parseFloat(v.dataset.velocidad || '1')
+      v.play().catch(() => {})
+    })
+    actual = i
+    try { history.replaceState(null, '', '#' + (i + 1)) } catch {}
+    pintarPie()
+  }
+
+  function avanzar() {
+    document.body.classList.add('ya-avanzo')
+    const s = slides[actual]
+    const pendiente = pasos(s).find((p) => !p.classList.contains('visto'))
+    if (pendiente) { pendiente.classList.add('visto'); marcarEventos(s) }
+    else if (actual < slides.length - 1) ir(actual + 1)
+  }
+
+  function retroceder() {
+    const s = slides[actual]
+    const hechos = pasos(s).filter((p) => p.classList.contains('visto'))
+    if (hechos.length) { hechos[hechos.length - 1].classList.remove('visto'); marcarEventos(s) }
+    else if (actual > 0) ir(actual - 1, { todosLosPasos: true })
+  }
+
+  function pintarPie() {
+    const s = slides[actual]
+    seccion.querySelector('.nombre').textContent = s.dataset.seccion || ''
+    const quien = s.dataset.quien || ''
+    seccion.querySelector('.quien').textContent = quien ? '· ' + quien : ''
+    seccion.querySelector('.num').textContent = `${actual + 1} / ${slides.length}`
+    barra.style.width = ((actual + 1) / slides.length * 100) + '%'
+    document.body.classList.toggle('en-portada', actual === 0)
+  }
+
+  // El navegador puede reiniciar la velocidad al volver a cargar el video.
+  document.querySelectorAll('video[data-velocidad]').forEach((v) => {
+    v.addEventListener('loadeddata', () => { v.playbackRate = parseFloat(v.dataset.velocidad) })
+  })
+
+  /* ---------- Mouse: derecho avanza, izquierdo vuelve ---------- */
+  let ultimoClic = 0
+  document.addEventListener('contextmenu', (e) => e.preventDefault())
+  document.addEventListener('mousedown', (e) => {
+    if (ayuda.classList.contains('abierta')) { ayuda.classList.remove('abierta'); return }
+    const ahora = performance.now()
+    if (ahora - ultimoClic < 220) return // evita saltar dos pantallas con un doble clic
+    ultimoClic = ahora
+    if (e.button === 2 || e.button === 4) { e.preventDefault(); avanzar() }
+    else if (e.button === 0 || e.button === 3) { e.preventDefault(); retroceder() }
+  })
+  // Los botones laterales del mouse (atrás/adelante) no deben navegar el historial.
+  document.addEventListener('mouseup', (e) => { if (e.button === 3 || e.button === 4) e.preventDefault() })
+
+  /* ---------- Teclado y punteros de presentación ---------- */
+  document.addEventListener('keydown', (e) => {
+    const k = e.key
+    if (['ArrowRight', 'ArrowDown', 'PageDown', ' ', 'Enter'].includes(k)) { e.preventDefault(); avanzar() }
+    else if (['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace'].includes(k)) { e.preventDefault(); retroceder() }
+    else if (k === 'Home') ir(0)
+    else if (k === 'End') ir(slides.length - 1, { todosLosPasos: true })
+    else if (k === 'f' || k === 'F') {
+      if (document.fullscreenElement) document.exitFullscreen()
+      else document.documentElement.requestFullscreen().catch(() => {})
+    }
+    else if (k === '?' || k === 'h' || k === 'H') ayuda.classList.toggle('abierta')
+    else if (k === 'Escape') ayuda.classList.remove('abierta')
+  })
+
+  /* ---------- El cursor desaparece si nadie mueve el mouse ---------- */
+  let cursorT = 0
+  document.addEventListener('mousemove', () => {
+    document.body.classList.remove('sin-cursor')
+    clearTimeout(cursorT)
+    cursorT = setTimeout(() => document.body.classList.add('sin-cursor'), 1600)
+  })
+
+  const desdeHash = parseInt(location.hash.slice(1), 10)
+  ir(Number.isFinite(desdeHash) ? desdeHash - 1 : 0)
+</script>
+</body>
+</html>
