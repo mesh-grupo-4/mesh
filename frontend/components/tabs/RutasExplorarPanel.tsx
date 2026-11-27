@@ -98,6 +98,8 @@ export function RutasExplorarPanel({ encabezado }: { encabezado: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   // Una respuesta lenta de una búsqueda vieja no debe pisar la de la última.
   const ultimaCarga = useRef(0);
+  // Búsqueda (texto, filtros y zona) de la última carga que salió bien.
+  const claveCargada = useRef<string | null>(null);
 
   useEffect(() => {
     const espera = setTimeout(() => setQ(textoBusqueda.trim()), ESPERA_BUSQUEDA_MS);
@@ -107,8 +109,12 @@ export function RutasExplorarPanel({ encabezado }: { encabezado: ReactNode }) {
   const cargar = useCallback(
     async (esRefresh = false) => {
       const carga = ++ultimaCarga.current;
+      // Volver a la pestaña con la misma búsqueda recarga en segundo plano, sin spinner:
+      // apagar la lista trababa el cambio de pestaña. El spinner queda para búsquedas nuevas.
+      const clave = JSON.stringify([q, filtro, zona?.lat, zona?.lng, radioKm]);
+      const mismaBusqueda = clave === claveCargada.current;
       if (esRefresh) setRefreshing(true);
-      else setCargando(true);
+      else if (!mismaBusqueda) setCargando(true);
       setError(null);
       try {
         const data = await listarRecorridosPublicados({
@@ -116,9 +122,13 @@ export function RutasExplorarPanel({ encabezado }: { encabezado: ReactNode }) {
           tipoActividad: filtro ?? undefined,
           zona: zona ? { lat: zona.lat, lng: zona.lng, radioKm } : undefined,
         });
-        if (carga === ultimaCarga.current) setRecorridos(data);
-      } catch (e: unknown) {
         if (carga === ultimaCarga.current) {
+          setRecorridos(data);
+          claveCargada.current = clave;
+        }
+      } catch (e: unknown) {
+        // Si falla la recarga en segundo plano queda la lista que ya se veía.
+        if (carga === ultimaCarga.current && !mismaBusqueda) {
           setError(e instanceof Error ? e.message : 'No se pudieron cargar los recorridos.');
         }
       } finally {

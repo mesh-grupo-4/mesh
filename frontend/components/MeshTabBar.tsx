@@ -40,8 +40,8 @@ function FondoCapsula({
   return (
     <View style={styles.capsula}>
       <BlurView
-        // Cada pestaña tiene su propio objetivo: remontar evita arrastrar el anterior.
-        key={ruta}
+        // Un solo BlurView para todas las pestañas: al cambiar de objetivo, expo-blur lo
+        // reconfigura en nativo (`setupWith`). Remontarlo en cada cambio trababa la transición.
         tint="dark"
         intensity={40}
         blurMethod={objetivoBlur ? 'dimezisBlurViewSdk31Plus' : 'none'}

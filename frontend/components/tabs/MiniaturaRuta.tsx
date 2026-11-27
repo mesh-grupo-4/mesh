@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 
@@ -54,7 +54,7 @@ function tieneExtension(coords: [number, number][]): boolean {
  * El toque lo maneja la tarjeta: el mapa no recibe eventos, así en Android tampoco abre la
  * app de Google Maps, que es lo que hace el modo lite al tocarlo.
  */
-export function MiniaturaRuta({
+function MiniaturaRutaBase({
   coordenadas,
   tamano = 136,
   actividad,
@@ -116,6 +116,26 @@ export function MiniaturaRuta({
     </View>
   );
 }
+
+function mismasCoordenadas(a: [number, number][], b: [number, number][]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  return a.every(([lng, lat], i) => lng === b[i]![0] && lat === b[i]![1]);
+}
+
+/**
+ * Cada recarga del listado trae arrays nuevos con el mismo trazado: sin esta comparación por
+ * valor, cada mapa lite se volvía a encuadrar y a redibujar al volver a la pestaña.
+ */
+export const MiniaturaRuta = memo(
+  MiniaturaRutaBase,
+  (prev, next) =>
+    prev.tamano === next.tamano &&
+    prev.actividad === next.actividad &&
+    prev.textoSinTrazado === next.textoSinTrazado &&
+    prev.banner === next.banner &&
+    mismasCoordenadas(prev.coordenadas, next.coordenadas)
+);
 
 const styles = StyleSheet.create({
   caja: {

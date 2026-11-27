@@ -719,7 +719,9 @@ export default function ViajesScreen() {
         return
       }
 
-      if (!esRefresh) setCargando(true)
+      // El spinner sale solo en la primera carga (estado inicial). Al volver a la pestaña se
+      // recarga en segundo plano: apagar la lista destruía y volvía a crear todos los mapas
+      // de las tarjetas, y eso trababa el cambio de pestaña.
 
       try {
         const [planificados, pasados, pendientes] = await Promise.all([
