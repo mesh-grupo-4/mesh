@@ -1,6 +1,6 @@
 # Guion de la defensa — Mesh
 
-Guion para las 31 pantallas de `index.html`. Duración objetivo: **37 minutos**, con unos 3 de margen.
+Guion para las 32 pantallas de `index.html`. Duración objetivo: **37 minutos**, con unos 3 de margen.
 
 - **Lo que va entre comillas se dice.** No hay que leerlo: es la idea y el tono. Mejor decirlo con
   palabras propias que recitarlo.
@@ -21,7 +21,7 @@ Los cambios de presentador coinciden con las pantallas "Le pasamos el mouse a qu
 | 2. Cómo lo construimos | 10 a 14 | 4:00 | Pedro (SM) |
 | 3. Mesh, por dentro | 15 a 17 | 3:30 | Un dev |
 | 4. Demo en vivo | 18 a 26 | 20:00 | Un narrador con el mouse y dos devs con los celulares (líder y participante) |
-| 5. Cierre | 27 a 31 | 4:00 + ~2:00 del Viaje YA (a ajustar) | Un dev, Gon en el Viaje YA y Manuel en las gracias |
+| 5. Cierre | 27 a 32 | 4:00 + ~2:00 del Viaje YA (a ajustar) | Un dev, Gon en el Viaje YA y Manuel en las gracias |
 
 **Demo:** quien narra maneja el mouse y nunca toca los celulares. Quienes tienen los teléfonos
 solo hacen lo que el narrador va diciendo. Para avanzar se hace clic **en los costados**: un clic sobre
@@ -246,7 +246,7 @@ velocidades."
 
 ---
 
-## Bloque 5 · Cierre (27 a 31) · 4:00
+## Bloque 5 · Cierre (27 a 32) · 4:00
 
 ### 27 · Lo que nos llevamos — 0:10
 → se pasa el mouse. ▸ clic
@@ -272,7 +272,11 @@ con datos reales antes de diseñar, y registrar cada cambio de alcance en la WBS
 presupuesto."
 ▸ clic
 
-### 30 · Viaje YA y la M de Mesh — Gon — ~2:00 (a ajustar)
+### 30 · Invitación — Gon
+"Ahora, los invitamos a acompañarnos en nuestro próximo viaje." Arranca la música, bajita.
+▸ clic
+
+### 31 · Viaje YA y la M de Mesh — Gon — ~2:00 (a ajustar)
 Un celular con la app en el centro. Cada clic hace una acción en la app; lo que se dice, a definir.
 ▸ clic toca *Viaje YA*
 ▸ clic elige *Auto*
@@ -284,7 +288,7 @@ Un celular con la app en el centro. Cada clic hace una acción en la app; lo que
 (La música de fondo sube con cada clic.)
 ▸ clic
 
-### 31 · Gracias — 0:50 — **[37:00]**
+### 32 · Gracias — 0:50 — **[37:00]**
 ▸ clic "A nuestros docentes, Cecilia Ortiz, María Irene Mac William y José Luis D'Agostino."
 ▸ clic "A quienes respondieron la encuesta y salieron a probar la app."
 ▸ clic "Y a nuestras familias, amigos, compañeros y a la UTN."
