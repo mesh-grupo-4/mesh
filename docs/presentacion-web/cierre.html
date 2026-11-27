@@ -1,0 +1,1738 @@
+<!DOCTYPE html>
+<html lang="es" translate="no">
+<head>
+<meta charset="utf-8">
+<meta name="google" content="notranslate">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mesh · Cierre</title>
+<link rel="icon" href="mesh-logo.png">
+<!--
+  Cierre de la presentación web (se arma acá aparte y después se suma a index.html).
+
+  Una sola pantalla con 11 pasos, que se avanzan con el clic derecho como el resto:
+    0  Inicio de la app (celular al centro, tema claro, mapa satelital en la UTN)
+    1  Toque en "Viaje YA"                     → elegir actividad
+    2  Toque en "Auto"                          → "¿A dónde van?"
+    3  Se escribe "Buen Pastor"                 → sugerencias de Google
+    4  Toque en el Paseo del Buen Pastor y en "Ir a este destino" → sala de espera con Gon
+    5-9 Se unen Manuel, Pedro, Joaco, Franco y Bauti (sonido + cartel al costado)
+    10 Toque en "Arrancar viaje"                → mapa del viaje; los carteles vuelan a la UTN
+    11 La ruta se convierte en la M, sale del celular, el grupo la recorre, queda MESH y "Gracias"
+  El clic izquierdo vuelve un paso (sin animación). Un clic en medio de una animación la termina.
+
+  Para sumarlo a index.html:
+    1. Copiar el <section class="slide cierre"> al final del <main id="deck">.
+    2. Copiar el bloque <style id="estilos-cierre"> y el <script id="script-cierre"> (este último
+       después del script de la presentación). No hace falta tocar el motor de pantallas:
+       el cierre escucha los .paso de su <section>.
+    3. La carpeta cierre/ (mosaicos del mapa) va junto al index.html.
+
+  Datos reales: ruta en auto UTN FRC → Paseo del Buen Pastor (Google Routes, 3,5 km, 10 min) y
+  sugerencias de "Buen Pastor" (Google Places), tal como las da la app. El mapa satelital son
+  mosaicos de Google Map Tiles guardados en cierre/mapa/ (los baja bajar-mapa-cierre.mjs). Si
+  faltan, se ve un fondo liso y todo lo demás funciona igual.
+
+  La animación de la M es un port de docs/presentacion/cierre.html (que a su vez es IntroMesh.tsx):
+  misma geometría y mismas curvas. Parámetro opcional: cierre.html?lento=3 (veces más lenta).
+-->
+<style>
+  /* ---------- Base de la presentación (igual que index.html) ---------- */
+  :root {
+    --bg: #0f0f0f;
+    --text: #f4f2f0;
+    --text-dim: #c9c3be;
+    --text-mute: #8f8984;
+    --accent: #d76655;
+    --u: min(1vw, 1.7778vh);
+    --font: "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); }
+  body { font-family: var(--font); color: var(--text); -webkit-font-smoothing: antialiased; user-select: none; -webkit-user-select: none; }
+  body.sin-cursor, body.sin-cursor * { cursor: none !important; }
+  img, video { -webkit-user-drag: none; }
+  .slide { position: fixed; inset: 0; opacity: 0; visibility: hidden; transition: opacity .8s ease, visibility 0s linear .8s; overflow: hidden; background: var(--bg); }
+  .slide.activa { opacity: 1; visibility: visible; transition: opacity .8s ease, visibility 0s; z-index: 2; }
+  .paso { opacity: 0; transform: translateY(calc(var(--u) * 1.4)); transition: opacity .55s ease, transform .55s cubic-bezier(.2, .7, .3, 1); }
+  .paso.visto { opacity: 1; transform: none; }
+  .malla {
+    position: absolute; inset: 0;
+    background-image: radial-gradient(rgba(255,255,255,.07) 1px, transparent 1.4px);
+    background-size: calc(var(--u) * 2.2) calc(var(--u) * 2.2);
+    mask-image: radial-gradient(ellipse 80% 75% at 60% 50%, #000 30%, transparent 100%);
+  }
+  #barra { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; height: 3px; background: rgba(255,255,255,.08); }
+  #barra i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .6s ease; }
+  #seccion {
+    position: fixed; left: calc(var(--u) * 2); bottom: calc(var(--u) * 1.5); z-index: 10;
+    display: flex; align-items: center; gap: calc(var(--u) * .9);
+    font-size: calc(var(--u) * 1.05); font-weight: 650; letter-spacing: .1em; text-transform: uppercase;
+    color: rgba(255,255,255,.62);
+  }
+  #seccion img { height: calc(var(--u) * 1.8); }
+  #seccion .quien { color: var(--accent); }
+  #seccion .num { color: rgba(255,255,255,.4); font-variant-numeric: tabular-nums; }
+  body.en-portada #seccion { opacity: 0; }
+  #ayuda { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; background: rgba(10,10,10,.8); backdrop-filter: blur(6px); opacity: 0; visibility: hidden; transition: opacity .25s ease, visibility 0s linear .25s; }
+  #ayuda.abierta { opacity: 1; visibility: visible; transition: opacity .25s ease; }
+  #ayuda div { background: #171717; border: 1px solid #2e2e2e; border-radius: calc(var(--u) * 1.4); padding: calc(var(--u) * 3) calc(var(--u) * 3.6); min-width: calc(var(--u) * 40); }
+  #ayuda h3 { font-size: calc(var(--u) * 2); margin-bottom: calc(var(--u) * 1.6); }
+  #ayuda dl { display: grid; grid-template-columns: auto 1fr; gap: calc(var(--u) * .9) calc(var(--u) * 2.4); font-size: calc(var(--u) * 1.4); }
+  #ayuda dt { font-weight: 700; color: var(--accent); }
+  #ayuda dd { color: var(--text-dim); }
+</style>
+
+<style id="estilos-cierre">
+  /* ======================================================================
+     Cierre. Todo cuelga de .cierre y los ids empiezan con ci- para no pisar
+     nada al sumarlo a index.html.
+     El escenario mide 1920×1080 y se escala a la pantalla (JS). El celular
+     dibuja la app en dp (360×780) y se agranda ×1.2.
+     ====================================================================== */
+  .cierre {
+    /* Tema claro de la app (frontend/constants/Colors.ts → light) */
+    --a-text: #1c1815;
+    --a-dim: #6f675f;
+    --a-mute: #a59d94;
+    --a-bg: #f4f1ee;
+    --a-surface: #ffffff;
+    --a-surface2: #f3efeb;
+    --a-border: #e4ddd6;
+    --a-border-fuerte: #d6cdc4;
+    --a-accent: #d76655;
+    --a-accent-weak: rgba(215, 102, 85, 0.14);
+    --a-accent-line: rgba(215, 102, 85, 0.55);
+    --a-danger: #d6453a;
+    --a-danger-weak: rgba(214, 69, 58, 0.12);
+    --a-good: #2f9e63;
+    --a-font: Roboto, "Segoe UI", system-ui, -apple-system, sans-serif;
+    --a-mono: "SpaceMono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  }
+  .cierre .malla { mask-image: radial-gradient(ellipse 75% 70% at 50% 50%, #000 30%, transparent 100%); }
+  #ci-lienzo { position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px; transform-origin: 50% 50%; }
+
+  /* ---------- Celular ---------- */
+  #ci-celu {
+    position: absolute; left: 730px; top: 58px; width: 460px; height: 964px;
+    border-radius: 64px; background: #101010;
+    box-shadow: 0 0 0 2px #2c2c2c, 0 0 0 7px #161616, 0 40px 120px rgba(0,0,0,.65);
+    transform-origin: 50% 50%;
+  }
+  #ci-celu::before { /* botón lateral */
+    content: ""; position: absolute; right: -10px; top: 230px; width: 5px; height: 110px; border-radius: 3px; background: #262626;
+  }
+  #ci-pantalla {
+    position: absolute; left: 14px; top: 14px; width: 360px; height: 780px;
+    transform: scale(1.2); transform-origin: 0 0;
+    border-radius: 42px; overflow: hidden; background: var(--a-bg);
+    font-family: var(--a-font); color: var(--a-text);
+    -webkit-font-smoothing: antialiased;
+  }
+  #ci-oscuro { position: absolute; inset: 0; z-index: 40; background: #0f0f0f; opacity: 0; pointer-events: none; }
+  .ci-status {
+    position: absolute; left: 0; right: 0; top: 0; height: 24px; z-index: 30;
+    display: flex; align-items: center; justify-content: space-between; padding: 0 18px 0 22px;
+    font-size: 13px; font-weight: 600; color: var(--a-text); pointer-events: none;
+  }
+  .ci-status .camara { position: absolute; left: 50%; top: 7px; width: 11px; height: 11px; margin-left: -5.5px; border-radius: 50%; background: #0b0b0b; }
+  .ci-status .iconos { display: flex; gap: 5px; align-items: center; }
+  .ci-status.claro { color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.5); }
+
+  .ci-sc { position: absolute; inset: 0; background: var(--a-bg); visibility: hidden; overflow: hidden; }
+  .ci-sc.vis { visibility: visible; }
+
+  .cierre [hidden] { display: none !important; }
+  .ci-ico { display: inline-flex; flex: none; }
+  .ci-ico svg { display: block; }
+
+  /* Piezas de la app (MeshUI.tsx) */
+  .ci-topbar { position: absolute; left: 0; right: 0; top: 0; padding: 32px 16px 12px; min-height: 56px; display: flex; align-items: center; background: var(--a-bg); z-index: 5; }
+  .ci-volver { width: 40px; height: 40px; border-radius: 20px; border: 1px solid var(--a-border); background: var(--a-surface); display: grid; place-items: center; margin-right: 12px; flex: none; }
+  .ci-topbar h4 { font-size: 19px; font-weight: 700; letter-spacing: -0.2px; }
+  .ci-topbar small { display: block; font-size: 13px; color: var(--a-dim); margin-top: 2px; }
+  .ci-btn {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    border-radius: 10px; font-weight: 700; text-align: center;
+    transition: transform .14s ease, filter .14s ease, background-color .14s ease;
+  }
+  .ci-btn.primario { background: var(--a-accent); color: #fff; }
+  .ci-btn.secundario { background: var(--a-surface); border: 1px solid var(--a-border-fuerte); color: var(--a-text); }
+  .ci-btn.fantasma { background: transparent; color: var(--a-dim); }
+  .ci-btn.xl { padding: 22px 28px; font-size: 20px; }
+  .ci-btn.md { padding: 13px 18px; font-size: 15px; }
+  .ci-btn.sm { padding: 8px 14px; font-size: 13.5px; }
+  .apretado { transform: scale(.96); filter: brightness(.93); }
+  .ci-badge { display: inline-flex; align-self: flex-start; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; font: 700 11px var(--a-mono); letter-spacing: .2px; text-transform: uppercase; }
+  .ci-badge.listo { background: rgba(79, 180, 119, 0.15); color: var(--a-good); }
+  .ci-badge.vivo { background: var(--a-danger-weak); color: var(--a-danger); }
+  .ci-badge.vivo i { width: 6px; height: 6px; border-radius: 3px; background: var(--a-danger); position: relative; }
+  .ci-badge.vivo i::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: var(--a-danger); animation: ci-pulso 1.6s ease-in-out infinite; }
+  @keyframes ci-pulso { 0%, 100% { transform: scale(1); opacity: .7; } 50% { transform: scale(1.8); opacity: 0; } }
+  .ci-tile-act { display: grid; place-items: center; background: var(--a-accent-weak); color: var(--a-accent); flex: none; }
+  .ci-spinner { width: 36px; height: 36px; border-radius: 50%; border: 4px solid var(--a-accent-weak); border-top-color: var(--a-accent); animation: ci-gira .8s linear infinite; }
+  .ci-spinner.chico { width: 18px; height: 18px; border-width: 2.5px; border-color: rgba(165,157,148,.3); border-top-color: var(--a-mute); }
+  @keyframes ci-gira { to { transform: rotate(360deg); } }
+
+  /* Mapa (mosaicos satelitales en coordenadas de mundo, zoom 16) */
+  .ci-mapa { position: absolute; overflow: hidden; background: #4a5142; }
+  .ci-mundo { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+  .ci-mundo img { position: absolute; width: 256px; height: 256px; }
+  .ci-mundo svg { position: absolute; left: 0; top: 0; overflow: visible; }
+  .ci-mapa .marca { position: absolute; left: 0; top: 0; }
+  .ci-yo { width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; background: #4285f4; border: 3px solid #fff; box-shadow: 0 0 0 9px rgba(66,133,244,.22), 0 1px 4px rgba(0,0,0,.4); }
+  #sc-inicio .ci-google { bottom: 96px; }
+  .ci-google small { position: absolute; left: 0; width: 340px; bottom: -1px; padding-left: 58px; font-size: 8px; letter-spacing: 0; white-space: nowrap; opacity: .85; }
+  .ci-google { position: absolute; left: 10px; bottom: 8px; font: 500 15px Arial, sans-serif; letter-spacing: -.2px; color: #fff; text-shadow: 0 0 2px rgba(0,0,0,.8), 0 0 1px rgba(0,0,0,.9); pointer-events: none; }
+
+  /* Inicio */
+  #sc-inicio .barra { position: absolute; left: 0; right: 0; top: 0; height: 80px; padding: 24px 16px 0; background: var(--a-bg); border-bottom: 1px solid var(--a-border); display: flex; align-items: center; justify-content: space-between; z-index: 3; }
+  .ci-logo { display: flex; align-items: center; gap: 8px; }
+  .ci-logo i { width: 30px; height: 27.5px; background: url(mesh-logo.png) no-repeat; background-size: 57.06px 55.35px; background-position: -13.3px -11.44px; }
+  .ci-logo b { font: 700 19.8px var(--a-mono); letter-spacing: -1.2px; }
+  .ci-unirme { height: 44px; padding: 0 16px; border-radius: 22px; border: 1px solid var(--a-border); background: var(--a-surface); display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 700; }
+  .ci-flotante { position: absolute; display: grid; place-items: center; background: var(--a-surface); box-shadow: 0 3px 8px rgba(0,0,0,.25); }
+  .ci-fab { position: absolute; right: 16px; bottom: 104px; height: 52px; padding: 0 20px 0 12px; border-radius: 16px; background: var(--a-accent); color: #fff; display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 800; box-shadow: 0 3px 8px rgba(0,0,0,.28); transition: transform .14s ease, filter .14s ease; }
+  .ci-tabbar {
+    position: absolute; left: 12px; right: 12px; bottom: 18px; height: 66px; border-radius: 33px;
+    background: rgba(15,15,15,.62); backdrop-filter: blur(14px);
+    border: 1px solid rgba(255,255,255,.2); border-top-color: rgba(255,255,255,.36);
+    box-shadow: 0 6px 18px rgba(0,0,0,.3);
+    display: grid; grid-template-columns: repeat(6, 1fr); align-items: center; padding: 0 5px;
+  }
+  .ci-tabbar span { display: flex; flex-direction: column; align-items: center; gap: 3px; color: #fff; font-size: 11px; font-weight: 600; height: 56px; justify-content: center; border-radius: 28px; }
+  .ci-tabbar span.activa { background: rgba(15,15,15,.82); border: 1px solid rgba(255,255,255,.12); color: var(--a-accent); }
+
+  /* Viaje YA */
+  #sc-viajeya .contenido { position: absolute; left: 0; right: 0; top: 84px; padding: 16px; }
+  .ci-etiqueta { font-size: 14px; font-weight: 700; text-transform: uppercase; color: var(--a-dim); margin-bottom: 8px; }
+  .ci-segmentos { display: flex; gap: 4px; padding: 4px; border-radius: 14px; border: 1px solid var(--a-border); background: var(--a-surface); }
+  /* En la app el texto se achica para entrar (adjustsFontSizeToFit). */
+  .ci-segmentos span { flex: 1; min-width: 0; min-height: 48px; border-radius: 10px; display: grid; place-items: center; font-size: 14px; font-weight: 700; letter-spacing: -.3px; white-space: nowrap; }
+  .ci-segmentos span.activo { background: var(--a-accent); color: #fff; }
+  .ci-detalle { font-size: 14px; line-height: 20px; color: var(--a-dim); margin-top: 8px; }
+  .ci-titulo { font-size: 26px; font-weight: 800; margin: 24px 0 16px; }
+  .ci-grilla { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .ci-grilla div {
+    min-height: 130px; border-radius: 20px; border: 1.5px solid var(--a-border); background: var(--a-surface);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+    font-size: 18px; font-weight: 700; transition: background-color .12s ease, border-color .12s ease, transform .14s ease;
+  }
+  .ci-grilla div.apretado { background: var(--a-accent-weak); border-color: var(--a-accent-line); filter: none; }
+
+  /* ¿A dónde van? */
+  #sc-destino .pin { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -46px 0 0 -23px; color: var(--a-danger); filter: drop-shadow(0 2px 2px rgba(0,0,0,.35)); }
+  #sc-destino .arriba { position: absolute; left: 16px; right: 16px; top: 32px; display: flex; flex-direction: column; gap: 10px; }
+  #sc-destino .fila { display: flex; align-items: center; gap: 10px; }
+  .ci-redondo { width: 44px; height: 44px; border-radius: 22px; border: 1px solid var(--a-border); background: var(--a-surface); display: grid; place-items: center; flex: none; }
+  #sc-destino .titulo { flex: 1; text-align: center; font-size: 16px; font-weight: 700; padding: 10px 12px; border-radius: 22px; border: 1px solid var(--a-border); background: var(--a-surface); }
+  .ci-buscador { display: flex; align-items: center; gap: 10px; padding: 0 14px; min-height: 50px; border-radius: 14px; border: 1px solid var(--a-border); background: var(--a-surface); transition: border-color .15s ease; }
+  .ci-buscador.foco { border-color: var(--a-accent); }
+  .ci-buscador .texto { flex: 1; font-size: 16px; white-space: nowrap; overflow: hidden; }
+  .ci-buscador .texto.vacio { color: var(--a-mute); }
+  .ci-buscador .cursor { display: inline-block; width: 2px; height: 20px; margin-left: 1px; vertical-align: -4px; background: var(--a-accent); animation: ci-titila 1s steps(1) infinite; }
+  @keyframes ci-titila { 50% { opacity: 0; } }
+  .ci-resultados { border-radius: 14px; border: 1px solid var(--a-border); background: var(--a-surface); overflow: hidden; }
+  .ci-resultados div { display: flex; align-items: center; gap: 10px; padding: 14px; font-size: 15px; line-height: 19px; border-top: .5px solid var(--a-border); transition: background-color .12s ease; }
+  .ci-resultados div:first-child { border-top: 0; }
+  .ci-resultados div.apretado { background: var(--a-surface2); transform: none; filter: none; }
+  .ci-resultados span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  #sc-destino .abajo { position: absolute; left: 16px; right: 16px; bottom: 32px; display: flex; flex-direction: column; gap: 10px; }
+  .ci-elegido { font-size: 15px; font-weight: 600; padding: 12px; border-radius: 12px; border: 1px solid var(--a-border); background: var(--a-surface); text-align: center; }
+
+  /* Armando el viaje */
+  #sc-creando { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; }
+  #sc-creando p { font-size: 16px; font-weight: 600; color: var(--a-dim); }
+
+  /* Sala de espera */
+  #sc-sala .scroll { position: absolute; left: 0; right: 0; top: 84px; bottom: 160px; overflow: hidden; }
+  #sc-sala .lista-sala { padding: 16px 16px 24px; display: flex; flex-direction: column; gap: 14px; }
+  .ci-tabs { display: flex; border: 1px solid var(--a-border); border-radius: 12px; overflow: hidden; }
+  .ci-tabs span { flex: 1; text-align: center; padding: 12px 0; font-size: 14px; font-weight: 700; background: var(--a-surface); color: var(--a-dim); }
+  .ci-tabs span.activa { background: var(--a-accent-weak); color: var(--a-accent); }
+  .ci-qr { border: 2px solid var(--a-accent); background: var(--a-accent-weak); border-radius: 18px; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .ci-qr .marco { background: #fff; padding: 14px; border-radius: 16px; }
+  .ci-qr .marco svg { width: 200px; height: 200px; display: block; }
+  .ci-qr .cod { text-align: center; }
+  .ci-qr .cod small { display: block; font-size: 14px; font-weight: 600; color: var(--a-dim); }
+  .ci-qr .cod b { display: block; font: 800 26px var(--a-mono); letter-spacing: 2px; margin-top: 2px; }
+  .ci-qr p { font-size: 15px; color: var(--a-dim); text-align: center; line-height: 20px; }
+  .ci-qr .botones { display: flex; gap: 10px; align-self: stretch; }
+  .ci-qr .botones .ci-btn { flex: 1; padding: 13px 6px; font-size: 14px; gap: 6px; white-space: nowrap; }
+  .ci-resumen { border: 1px solid var(--a-border); border-radius: 16px; padding: 0 14px; background: var(--a-surface); }
+  .ci-resumen > div { display: flex; align-items: center; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--a-border); }
+  .ci-resumen > div:last-child { border-bottom: 0; }
+  .ci-resumen .ic { width: 32px; display: flex; justify-content: center; color: var(--a-accent); }
+  .ci-resumen .tx { flex: 1; min-width: 0; }
+  .ci-resumen small { display: block; font-size: 13px; font-weight: 600; color: var(--a-dim); }
+  .ci-resumen b { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 16px; font-weight: 700; margin-top: 2px; }
+  .ci-seccion { font-size: 18px; font-weight: 800; margin-top: 4px; }
+  .ci-personas { border: 1px solid var(--a-border); border-radius: 18px; padding: 4px 16px; background: var(--a-surface); }
+  .ci-persona { display: flex; align-items: center; justify-content: space-between; gap: 10px; height: 48px; border-top: .5px solid var(--a-border); overflow: hidden; }
+  .ci-persona:first-child { border-top: 0; }
+  .ci-persona b { font-size: 16px; font-weight: 600; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #sc-sala .pie { position: absolute; left: 0; right: 0; bottom: 0; padding: 12px 16px 32px; border-top: .5px solid var(--a-border); background: var(--a-bg); display: flex; flex-direction: column; gap: 4px; }
+
+  /* Viaje en curso */
+  #sc-live .cabecera { position: absolute; left: 12px; right: 12px; top: 32px; border-radius: 18px; background: var(--a-surface); padding: 12px 14px; box-shadow: 0 3px 10px rgba(0,0,0,.22); display: flex; flex-direction: column; gap: 6px; }
+  #sc-live .cabecera b { font-size: 17px; font-weight: 800; }
+  #sc-live .cabecera small { font-size: 13px; color: var(--a-dim); }
+  #sc-live .panel { position: absolute; left: 12px; right: 12px; bottom: 24px; border-radius: 20px; background: var(--a-surface); padding: 14px 8px; box-shadow: 0 3px 10px rgba(0,0,0,.22); display: grid; grid-template-columns: repeat(3, 1fr); }
+  #sc-live .panel div { text-align: center; }
+  #sc-live .panel b { display: block; font-size: 22px; font-weight: 800; }
+  #sc-live .panel small { font-size: 12px; color: var(--a-dim); font-weight: 600; }
+  .ci-meta { width: 34px; height: 34px; margin: -17px 0 0 -17px; border-radius: 50%; background: #1c1815; border: 2.5px solid #fff; display: grid; place-items: center; color: #fff; box-shadow: 0 2px 5px rgba(0,0,0,.4); }
+
+  /* Toques: como "Mostrar toques" de Android */
+  #ci-toques { position: absolute; inset: 0; z-index: 35; pointer-events: none; }
+  .ci-toque { position: absolute; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; background: rgba(60,60,60,.38); border: 2px solid rgba(255,255,255,.75); }
+
+  /* ---------- Carteles de los que se unen ---------- */
+  .ci-cartel { position: absolute; width: 560px; height: 120px; display: flex; flex-direction: column; justify-content: center; opacity: 0; }
+  .ci-cartel.izq { right: 1360px; text-align: right; }
+  .ci-cartel.der { left: 1360px; }
+  .ci-cartel b { font-size: 46px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; color: var(--text); }
+  .ci-cartel span { margin-top: 8px; font-size: 21px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+
+  /* ---------- Capa de animación (M, marcadores que vuelan) ---------- */
+  #ci-capa { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: visible; pointer-events: none; }
+  #ci-capa .iniciales { font-family: var(--font); font-weight: 700; fill: #fff; text-anchor: middle; dominant-baseline: central; }
+  #ci-gracias { position: absolute; left: 0; right: 0; top: 770px; text-align: center; font-size: 72px; font-weight: 700; letter-spacing: -0.03em; color: var(--text); opacity: 0; }
+</style>
+</head>
+<body class="en-portada">
+
+<main id="deck">
+
+  <!-- Cierre · Viaje YA de la UTN al Buen Pastor y la M de Mesh -->
+  <section class="slide cierre" data-seccion="Cierre" data-quien="Gon Ferraro">
+    <div class="malla"></div>
+    <div id="ci-lienzo">
+
+      <div id="ci-celu">
+        <div id="ci-pantalla">
+
+          <!-- Inicio -->
+          <div class="ci-sc" id="sc-inicio">
+            <div class="ci-mapa" data-mapa="inicio" style="left:0;top:80px;width:360px;height:700px"></div>
+            <div class="barra">
+              <div class="ci-logo"><i></i><b>Mesh</b></div>
+              <div class="ci-unirme"><i class="ci-ico" data-ico="log-in" data-tam="20" data-color="var(--a-accent)"></i>Unirme a un viaje</div>
+            </div>
+            <div class="ci-flotante" style="right:16px;top:92px;width:48px;height:48px;border-radius:24px"><i class="ci-ico" data-ico="globe" data-tam="22"></i></div>
+            <div class="ci-flotante" style="left:16px;bottom:104px;width:52px;height:52px;border-radius:26px"><i class="ci-ico" data-ico="crosshair" data-tam="24"></i></div>
+            <div class="ci-fab" id="ci-fab"><i class="ci-ico" data-ico="zap" data-tam="20" data-color="#fff"></i>Viaje YA</div>
+            <div class="ci-tabbar">
+              <span class="activa"><i class="ci-ico" data-ico="home" data-tam="20"></i>Inicio</span>
+              <span><i class="ci-ico" data-ico="map" data-tam="20"></i>Viajes</span>
+              <span><i class="ci-ico" data-ico="activity" data-tam="20"></i>Entrenar</span>
+              <span><i class="ci-ico" data-ico="users" data-tam="20"></i>Social</span>
+              <span><i class="ci-ico" data-ico="cartel" data-tam="20"></i>Rutas</span>
+              <span><i class="ci-ico" data-ico="user" data-tam="20"></i>Perfil</span>
+            </div>
+          </div>
+
+          <!-- Viaje YA: modo y actividad -->
+          <div class="ci-sc" id="sc-viajeya">
+            <div class="ci-topbar"><div class="ci-volver"><i class="ci-ico" data-ico="arrow-left" data-tam="20"></i></div><h4>Viaje YA</h4></div>
+            <div class="contenido">
+              <p class="ci-etiqueta">Modo</p>
+              <div class="ci-segmentos"><span class="activo">Recreativo</span><span>Entrenamiento</span><span>Competitivo</span></div>
+              <p class="ci-detalle">Navegación y alertas, sin comparaciones.</p>
+              <p class="ci-titulo">¿Qué van a hacer?</p>
+              <div class="ci-grilla">
+                <div><span class="ci-tile-act" data-act="moto"></span>Moto</div>
+                <div id="ci-tile-auto"><span class="ci-tile-act" data-act="auto"></span>Auto</div>
+                <div><span class="ci-tile-act" data-act="bici"></span>Bicicleta</div>
+                <div><span class="ci-tile-act" data-act="running"></span>Running</div>
+                <div><span class="ci-tile-act" data-act="trekking"></span>Trekking</div>
+                <div><span class="ci-tile-act" data-act="otro"></span>Otro</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ¿A dónde van? -->
+          <div class="ci-sc" id="sc-destino">
+            <div class="ci-mapa" data-mapa="destino" style="left:0;top:0;width:360px;height:780px"></div>
+            <div class="pin"><i class="ci-ico" data-ico="pin" data-tam="46" data-color="var(--a-danger)"></i></div>
+            <div class="arriba">
+              <div class="fila">
+                <div class="ci-redondo"><i class="ci-ico" data-ico="x" data-tam="20"></i></div>
+                <div class="titulo">¿A dónde van?</div>
+                <div class="ci-btn secundario sm">Saltear</div>
+              </div>
+              <div class="ci-buscador" id="ci-buscador">
+                <i class="ci-ico" data-ico="search" data-tam="18" data-color="var(--a-mute)"></i>
+                <div class="texto vacio" id="ci-busqueda">Buscar un lugar</div>
+                <span class="ci-spinner chico" id="ci-buscando" hidden></span>
+                <i class="ci-ico" id="ci-limpiar" data-ico="x-circle" data-tam="18" data-color="var(--a-mute)" hidden></i>
+              </div>
+              <div class="ci-resultados" id="ci-resultados" hidden></div>
+            </div>
+            <div class="abajo">
+              <div class="ci-elegido" id="ci-elegido" hidden></div>
+              <div class="ci-btn primario xl" id="ci-ir"><i class="ci-ico" data-ico="flag" data-tam="22" data-color="#fff"></i><span>Ir a este destino</span></div>
+            </div>
+          </div>
+
+          <!-- Armando el viaje -->
+          <div class="ci-sc" id="sc-creando"><div class="ci-spinner"></div><p>Armando el viaje…</p></div>
+
+          <!-- Sala de espera -->
+          <div class="ci-sc" id="sc-sala">
+            <div class="ci-topbar"><div class="ci-volver"><i class="ci-ico" data-ico="arrow-left" data-tam="20"></i></div><div><h4>Sala de espera</h4><small>Auto</small></div></div>
+            <div class="scroll" id="ci-scroll">
+              <div class="lista-sala">
+                <div class="ci-tabs"><span class="activa">Detalles</span><span>Configuración</span></div>
+                <div class="ci-qr">
+                  <div class="marco" id="ci-qr-img"></div>
+                  <div class="cod"><small>Código del viaje · tocá para copiar</small><b>MESH-5K7X</b></div>
+                  <p>Que lo escaneen o ingresen el código desde Mesh para sumarse.</p>
+                  <div class="botones">
+                    <div class="ci-btn secundario md"><i class="ci-ico" data-ico="share-2" data-tam="17"></i>Compartir link</div>
+                    <div class="ci-btn secundario md"><i class="ci-ico" data-ico="users" data-tam="17"></i>Grupos o amigos</div>
+                  </div>
+                </div>
+                <div class="ci-resumen">
+                  <div><span class="ic"><span class="ci-tile-act" data-act="auto" data-tam="30"></span></span><span class="tx"><small>Actividad</small><b>Auto</b></span></div>
+                  <div><span class="ic"><i class="ci-ico" data-ico="tag" data-tam="20"></i></span><span class="tx"><small>Nombre</small><b id="ci-nombre-viaje">Viaje rápido · Auto</b></span></div>
+                  <div><span class="ic"><i class="ci-ico" data-ico="target" data-tam="20"></i></span><span class="tx"><small>Modo</small><b>Recreativo</b></span></div>
+                  <div><span class="ic"><i class="ci-ico" data-ico="map" data-tam="20"></i></span><span class="tx"><small>Destino</small><b>Paseo del Buen Pastor, Avenida Hipólito Yrigoyen, Ciudad de Córdoba, Provincia de Córdoba</b></span><i class="ci-ico" data-ico="edit-2" data-tam="16" data-color="var(--a-mute)"></i></div>
+                  <div><span class="ic"><i class="ci-ico" data-ico="users" data-tam="20"></i></span><span class="tx"><small>Con quién</small><b id="ci-con-quien">1 confirmado</b></span><i class="ci-ico" data-ico="edit-2" data-tam="16" data-color="var(--a-mute)"></i></div>
+                </div>
+                <p class="ci-seccion" id="ci-en-el-viaje">En el viaje (1)</p>
+                <div class="ci-personas" id="ci-personas"></div>
+              </div>
+            </div>
+            <div class="pie">
+              <div class="ci-btn primario xl" id="ci-arrancar"><i class="ci-ico" data-ico="play" data-tam="22" data-color="#fff"></i>Arrancar viaje</div>
+              <div class="ci-btn fantasma md">Cancelar viaje</div>
+            </div>
+          </div>
+
+          <!-- Viaje en curso -->
+          <div class="ci-sc" id="sc-live">
+            <div class="ci-mapa" data-mapa="live" style="left:0;top:0;width:360px;height:780px"></div>
+            <div class="cabecera" id="ci-live-cab">
+              <span class="ci-badge vivo"><i></i>En vivo</span>
+              <b id="ci-live-nombre">Viaje rápido · Auto</b>
+              <small>6 en el viaje · Paseo del Buen Pastor</small>
+            </div>
+            <div class="panel" id="ci-live-panel">
+              <div><b>3,5 km</b><small>Distancia</small></div>
+              <div><b>10 min</b><small>Estimado</small></div>
+              <div><b>6</b><small>En el grupo</small></div>
+            </div>
+          </div>
+
+          <div class="ci-status" id="ci-status"><span id="ci-hora">--:--</span><span class="camara"></span><span class="iconos" id="ci-iconos"></span></div>
+          <div id="ci-oscuro"></div>
+          <div id="ci-toques"></div>
+        </div>
+      </div>
+
+      <div id="ci-carteles"></div>
+      <svg id="ci-capa" viewBox="0 0 1920 1080" aria-hidden="true">
+        <defs><clipPath id="ci-recorte"><rect id="ci-recorte-rect" x="0" y="0" width="360" height="200"/></clipPath></defs>
+        <path id="ci-linea" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0"/>
+        <!-- Escena de la M: mismas unidades que docs/presentacion/cierre.html (360×200), centrada como allá -->
+        <g id="ci-escena" transform="translate(96 60) scale(4.8)" opacity="0">
+          <g clip-path="url(#ci-recorte)"><g id="ci-letras"></g></g>
+          <g id="ci-m">
+            <g id="ci-cuerpo"><path id="ci-cuerpo-path"/></g>
+            <g id="ci-ruedas"></g>
+          </g>
+        </g>
+        <g id="ci-marcas"></g>
+      </svg>
+      <div id="ci-gracias">Muchas gracias por su atención.</div>
+    </div>
+
+    <!-- Música de fondo: sube de volumen con cada paso. -->
+    <audio id="ci-musica" src="cierre/finale.mp3" preload="auto" loop></audio>
+
+    <!-- Un .paso por clic: el motor de la presentación los marca y el cierre los escucha. -->
+    <div class="ci-pasos" hidden>
+      <i class="paso"></i><i class="paso"></i><i class="paso"></i><i class="paso"></i><i class="paso"></i><i class="paso"></i>
+      <i class="paso"></i><i class="paso"></i><i class="paso"></i><i class="paso"></i><i class="paso"></i>
+    </div>
+  </section>
+
+</main>
+
+<div id="seccion"><img src="mesh-logo.png" alt=""><span class="nombre"></span><span class="quien"></span><span class="num"></span></div>
+<div id="barra"><i></i></div>
+
+<div id="ayuda">
+  <div>
+    <h3>Controles</h3>
+    <dl>
+      <dt>Clic derecho</dt><dd>Avanzar o mostrar el próximo punto</dd>
+      <dt>Clic izquierdo</dt><dd>Retroceder</dd>
+      <dt>→ / Espacio</dt><dd>Avanzar (teclado o puntero)</dd>
+      <dt>←</dt><dd>Retroceder</dd>
+      <dt>F</dt><dd>Pantalla completa</dd>
+      <dt>Inicio / Fin</dt><dd>Primera / última pantalla</dd>
+      <dt>?</dt><dd>Mostrar u ocultar esta ayuda</dd>
+    </dl>
+  </div>
+</div>
+
+<!-- Motor de pantallas: copia exacta del de index.html (al unir, no se copia). -->
+<script>
+  const slides = [...document.querySelectorAll('.slide')]
+  const barra = document.querySelector('#barra i')
+  const seccion = document.getElementById('seccion')
+  const ayuda = document.getElementById('ayuda')
+  let actual = -1
+
+  const pasos = (s) => [...s.querySelectorAll('.paso')]
+
+  document.querySelectorAll('[data-ruta-t]').forEach((el) => {
+    const ruta = document.getElementById(el.dataset.ruta)
+    const p = ruta.getPointAtLength(ruta.getTotalLength() * parseFloat(el.dataset.rutaT))
+    el.setAttribute('transform', `translate(${p.x} ${p.y})`)
+  })
+
+  function marcarEventos(s) {
+    ;[...s.classList].filter((c) => c.startsWith('ev-')).forEach((c) => s.classList.remove(c))
+    pasos(s).forEach((p) => { if (p.dataset.evento && p.classList.contains('visto')) s.classList.add('ev-' + p.dataset.evento) })
+  }
+
+  function ir(i, { todosLosPasos = false } = {}) {
+    i = Math.max(0, Math.min(slides.length - 1, i))
+    const anterior = slides[actual]
+    const s = slides[i]
+    if (anterior && anterior !== s) {
+      anterior.classList.remove('activa')
+      anterior.querySelectorAll('video').forEach((v) => { v.pause(); v.currentTime = 0 })
+    }
+    pasos(s).forEach((p) => p.classList.toggle('visto', todosLosPasos))
+    marcarEventos(s)
+    s.classList.add('activa')
+    s.querySelectorAll('video').forEach((v) => {
+      v.playbackRate = parseFloat(v.dataset.velocidad || '1')
+      v.play().catch(() => {})
+    })
+    actual = i
+    try { history.replaceState(null, '', '#' + (i + 1)) } catch {}
+    pintarPie()
+  }
+
+  function avanzar() {
+    document.body.classList.add('ya-avanzo')
+    const s = slides[actual]
+    const pendiente = pasos(s).find((p) => !p.classList.contains('visto'))
+    if (pendiente) { pendiente.classList.add('visto'); marcarEventos(s) }
+    else if (actual < slides.length - 1) ir(actual + 1)
+  }
+
+  function retroceder() {
+    const s = slides[actual]
+    const hechos = pasos(s).filter((p) => p.classList.contains('visto'))
+    if (hechos.length) { hechos[hechos.length - 1].classList.remove('visto'); marcarEventos(s) }
+    else if (actual > 0) ir(actual - 1, { todosLosPasos: true })
+  }
+
+  function pintarPie() {
+    const s = slides[actual]
+    seccion.querySelector('.nombre').textContent = s.dataset.seccion || ''
+    const quien = s.dataset.quien || ''
+    seccion.querySelector('.quien').textContent = quien ? '· ' + quien : ''
+    seccion.querySelector('.num').textContent = `${actual + 1} / ${slides.length}`
+    barra.style.width = ((actual + 1) / slides.length * 100) + '%'
+    document.body.classList.toggle('en-portada', actual === 0)
+  }
+
+  document.querySelectorAll('video[data-velocidad]').forEach((v) => {
+    v.addEventListener('loadeddata', () => { v.playbackRate = parseFloat(v.dataset.velocidad) })
+  })
+
+  let ultimoClic = 0
+  document.addEventListener('contextmenu', (e) => e.preventDefault())
+  document.addEventListener('mousedown', (e) => {
+    if (ayuda.classList.contains('abierta')) { ayuda.classList.remove('abierta'); return }
+    const ahora = performance.now()
+    if (ahora - ultimoClic < 220) return
+    ultimoClic = ahora
+    if (e.button === 2 || e.button === 4) { e.preventDefault(); avanzar() }
+    else if (e.button === 0 || e.button === 3) { e.preventDefault(); retroceder() }
+  })
+  document.addEventListener('mouseup', (e) => { if (e.button === 3 || e.button === 4) e.preventDefault() })
+
+  document.addEventListener('keydown', (e) => {
+    const k = e.key
+    if (['ArrowRight', 'ArrowDown', 'PageDown', ' ', 'Enter'].includes(k)) { e.preventDefault(); avanzar() }
+    else if (['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace'].includes(k)) { e.preventDefault(); retroceder() }
+    else if (k === 'Home') ir(0)
+    else if (k === 'End') ir(slides.length - 1, { todosLosPasos: true })
+    else if (k === 'f' || k === 'F') {
+      if (document.fullscreenElement) document.exitFullscreen()
+      else document.documentElement.requestFullscreen().catch(() => {})
+    }
+    else if (k === '?' || k === 'h' || k === 'H') ayuda.classList.toggle('abierta')
+    else if (k === 'Escape') ayuda.classList.remove('abierta')
+  })
+
+  let cursorT = 0
+  document.addEventListener('mousemove', () => {
+    document.body.classList.remove('sin-cursor')
+    clearTimeout(cursorT)
+    cursorT = setTimeout(() => document.body.classList.add('sin-cursor'), 1600)
+  })
+
+  const desdeHash = parseInt(location.hash.slice(1), 10)
+  ir(Number.isFinite(desdeHash) ? desdeHash - 1 : 0)
+</script>
+
+<script id="script-cierre">
+(() => {
+  const seccionCierre = document.querySelector('.slide.cierre')
+  if (!seccionCierre) return
+  const $ = (id) => document.getElementById(id)
+  const SVGNS = 'http://www.w3.org/2000/svg'
+  function nodo(tipo, attrs, padre) {
+    const n = document.createElementNS(SVGNS, tipo)
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v)
+    if (padre) padre.appendChild(n)
+    return n
+  }
+
+  // ===========================================================================
+  // Datos
+  // ===========================================================================
+  const q = new URLSearchParams(location.search)
+  const LENTO = Math.max(0.1, parseFloat(q.get('lento')) || 3)
+
+  /** Orden en que aparecen: Gon crea el viaje y los demás se unen como en la pantalla Equipo. */
+  const GRUPO = [
+    { ini: 'GF', nombre: 'Gon Ferraro', color: '#4a9eff', yo: true, lado: 'izq', fila: 0 },
+    { ini: 'MV', nombre: 'Manuel Viale', color: '#c77dff', lado: 'der', fila: 0 },
+    { ini: 'PG', nombre: 'Pedro Gabrielli', color: '#748ffc', lado: 'izq', fila: 1 },
+    { ini: 'JP', nombre: 'Joaco Peñafort', color: '#6bcb77', lado: 'der', fila: 1 },
+    { ini: 'FG', nombre: 'Franco Giorda', color: '#ffd93d', lado: 'izq', fila: 2 },
+    { ini: 'BC', nombre: 'Bauti Casoria', color: '#20c997', lado: 'der', fila: 2 },
+  ]
+  const UTN = { lat: -31.4424266, lng: -64.1932754 }
+  const BUEN_PASTOR = { lat: -31.424145, lng: -64.1867589 }
+  /** Lo que devuelve Google Places al escribir "Buen Pastor" cerca de la UTN (como en la app). */
+  const SUGERENCIAS = [
+    'Buen pastor, Avenida Amadeo Sabattini, X5014AUX, Provincia de Córdoba',
+    'Paseo del Buen Pastor, Avenida Hipólito Yrigoyen, Ciudad de Córdoba, Provincia de Córdoba',
+    'Hotel Buen Pastor Capuchinos, San Lorenzo, Ciudad de Córdoba, Provincia de Córdoba',
+    'Buen Pastor Rest, Buenos Aires, Ciudad de Córdoba, Provincia de Córdoba',
+    'Fuente de Aguas Danzantes, San Lorenzo, X5000AZA, Provincia de Córdoba',
+  ]
+  const ELEGIDA = 1
+  /** Ruta en auto UTN → Buen Pastor (Google Routes, 3487 m, 605 s): lat, lng, lat, lng… */
+  const RUTA_GPS = [
+    -31.44268,-64.19338,-31.44294,-64.19334,-31.44295,-64.19347,-31.44290,-64.19352,-31.44284,-64.19355,-31.44281,-64.19371,-31.44286,-64.19424,-31.44250,-64.19400,-31.44064,-64.19292,-31.44000,-64.19265,-31.43913,-64.19232,-31.43901,-64.19229,-31.43897,-64.19219,-31.43889,-64.19214,-31.43880,-64.19217,-31.43877,-64.19223,-31.43867,-64.19228,-31.43854,-64.19239,-31.43829,-64.19244,-31.43807,-64.19242,-31.43724,-64.19218,-31.43623,-64.19189,-31.43502,-64.19148,-31.43450,-64.19129,-31.43412,-64.19102,-31.43359,-64.19065,-31.43351,-64.19043,-31.43340,-64.18989,-31.43343,-64.18943,-31.43347,-64.18924,-31.43372,-64.18843,-31.43389,-64.18773,-31.43394,-64.18740,-31.43398,-64.18739,-31.43405,-64.18727,-31.43407,-64.18718,-31.43406,-64.18710,-31.43388,-64.18667,-31.43363,-64.18578,-31.43342,-64.18495,-31.43340,-64.18485,-31.43331,-64.18465,-31.43338,-64.18456,-31.43338,-64.18446,-31.43332,-64.18437,-31.43328,-64.18435,-31.43298,-64.18373,-31.43295,-64.18359,-31.43283,-64.18341,-31.43265,-64.18345,-31.43258,-64.18349,-31.43192,-64.18404,-31.43179,-64.18412,-31.43150,-64.18423,-31.43120,-64.18426,-31.43102,-64.18424,-31.43067,-64.18413,-31.43034,-64.18408,-31.43006,-64.18408,-31.42980,-64.18412,-31.42954,-64.18421,-31.42917,-64.18438,-31.42862,-64.18454,-31.42839,-64.18458,-31.42782,-64.18454,-31.42739,-64.18441,-31.42439,-64.18314,-31.42401,-64.18439,-31.42386,-64.18487,-31.42321,-64.18704,-31.42360,-64.18719,-31.42420,-64.18692,
+  ]
+  /** Capa "Satélite" de la app: la ruta va en amarillo (mapStyles.ts). */
+  const RUTA_COLOR = '#fbbf24'
+
+  // ===========================================================================
+  // Escenario: 1920×1080 escalado a la ventana
+  // ===========================================================================
+  const lienzo = $('ci-lienzo')
+  function ajustarLienzo() {
+    const k = Math.min(innerWidth / 1920, innerHeight / 1080)
+    lienzo.style.transform = `translate(-50%, -50%) scale(${k})`
+  }
+  addEventListener('resize', ajustarLienzo)
+  ajustarLienzo()
+
+  /** Pantalla del celular → escenario: 1 dp = 1.2 px, origen en (744, 72). */
+  const DP = 1.2
+  const PANTALLA_X = 744
+  const PANTALLA_Y = 72
+  const aEscenario = (x, y) => [PANTALLA_X + x * DP, PANTALLA_Y + y * DP]
+
+  // ===========================================================================
+  // Íconos (Feather, los mismos que usa la app) y actividades
+  // ===========================================================================
+  const ICONOS = {
+    'zap': '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+    'search': '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>',
+    'x': '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+    'x-circle': '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>',
+    'flag': '<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/>',
+    'play': '<polygon points="5 3 19 12 5 21 5 3"/>',
+    'map-pin': '<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>',
+    'share-2': '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>',
+    'users': '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+    'tag': '<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>',
+    'target': '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+    'map': '<polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/>',
+    'edit-2': '<path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>',
+    'arrow-left': '<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>',
+    'log-in': '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/>',
+    'crosshair': '<circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/>',
+    'globe': '<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>',
+    'home': '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>',
+    'activity': '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
+    'user': '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+    'cartel': '<line x1="12" y1="2" x2="12" y2="22"/><path d="M5 4h11l3 3-3 3H5z"/><path d="M19 12H8l-3 3 3 3h11z"/>',
+  }
+  /** Rellenos (no trazo): pin de Ionicons y los íconos de actividad. */
+  const RELLENOS = {
+    'pin': '<path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/>',
+    'auto': '<path d="M5 11l1.5-4.5h11L19 11m-1.5 5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3m-11 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3M18.92 6c-.2-.58-.76-1-1.42-1h-11c-.66 0-1.22.42-1.42 1L3 12v8a1 1 0 0 0 1 1h1a1 1 0 0 0 1-1v-1h12v1a1 1 0 0 0 1 1h1a1 1 0 0 0 1-1v-8l-2.08-6z"/>',
+    'moto': '<path d="M5 17.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7zm0-2a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zm14 2a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7zm0-2a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM8.5 14l2.6-4.2H7.5V8h5.3l1.3 2.1L16 8h3v2h-2.2l-2.1 2.6 1 1.6-1.7 1L12.6 12 10.5 15.5z"/>',
+    'bici': '<path d="M5 19a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm0-2a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm14 2a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm0-2a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM15.5 5.5a1.75 1.75 0 1 1 0-3.5 1.75 1.75 0 0 1 0 3.5zM11 9.6l-2 2 2.5 1.9V18h-2v-3.5L6.4 12a1.3 1.3 0 0 1-.1-2l3.3-3.2a1.4 1.4 0 0 1 2 0L13.8 9H17v2h-4z"/>',
+    'running': '<path d="M13.5 5.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM9.8 8.9 7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3A7.3 7.3 0 0 0 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6z"/>',
+    'trekking': '<path d="M14 5a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm3.9 3.6V22h1.5V8.6zM9.4 22h2.1l1.5-6.6 2 2V22h2v-6.1l-2.1-2.1.6-3A7.3 7.3 0 0 0 17 12.3v-2c-1.4-.2-2.6-1.1-3.2-2.3l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.2L5.3 7.7V12h2V9l1.8-.7z"/>',
+    'otro': '<circle cx="6" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="18" cy="12" r="2"/>',
+  }
+  function svgIcono(nombre, tam, color = 'currentColor') {
+    if (RELLENOS[nombre]) {
+      return `<svg width="${tam}" height="${tam}" viewBox="0 0 24 24" fill="${color}">${RELLENOS[nombre]}</svg>`
+    }
+    return `<svg width="${tam}" height="${tam}" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONOS[nombre] || ''}</svg>`
+  }
+  document.querySelectorAll('.cierre [data-ico]').forEach((el) => {
+    el.innerHTML = svgIcono(el.dataset.ico, el.dataset.tam || 20, el.dataset.color || 'currentColor')
+  })
+  // ActivityTile: cuadrado redondeado con el ícono al 52%.
+  document.querySelectorAll('.cierre [data-act]').forEach((el) => {
+    const tam = parseFloat(el.dataset.tam || 64)
+    el.style.width = el.style.height = tam + 'px'
+    el.style.borderRadius = tam * 0.32 + 'px'
+    el.innerHTML = svgIcono(el.dataset.act, Math.round(tam * 0.54), 'var(--a-accent)')
+  })
+  $('ci-iconos').innerHTML =
+    '<svg width="15" height="12" viewBox="0 0 15 12" fill="currentColor"><path d="M14 0v12H11V3zM9.5 4.5V12h-3V6zM5 7.5V12H2V8.5z"/></svg>' +
+    '<svg width="15" height="12" viewBox="0 0 16 12" fill="currentColor"><path d="M8 12 0 3.6a11.6 11.6 0 0 1 16 0z"/></svg>' +
+    '<svg width="22" height="12" viewBox="0 0 22 12"><rect x=".5" y=".5" width="18" height="11" rx="2.5" fill="none" stroke="currentColor"/><rect x="2" y="2" width="12" height="8" rx="1.2" fill="currentColor"/><rect x="19.5" y="4" width="2" height="4" rx="1" fill="currentColor"/></svg>'
+  $('ci-qr-img').innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 29 29" shape-rendering="crispEdges"><path fill="#ffffff" d="M0 0h29v29H0z"/><path stroke="#0f0f0f" d="M0 0.5h7m2 0h1m1 0h2m4 0h1m1 0h1m3 0h7M0 1.5h1m5 0h1m1 0h1m1 0h1m1 0h1m1 0h2m1 0h3m1 0h1m5 0h1M0 2.5h1m1 0h3m1 0h1m3 0h1m3 0h1m1 0h1m2 0h1m1 0h1m1 0h3m1 0h1M0 3.5h1m1 0h3m1 0h1m1 0h1m1 0h2m1 0h3m3 0h1m1 0h1m1 0h3m1 0h1M0 4.5h1m1 0h3m1 0h1m1 0h3m4 0h1m2 0h2m1 0h1m1 0h3m1 0h1M0 5.5h1m5 0h1m2 0h1m2 0h3m2 0h1m3 0h1m5 0h1M0 6.5h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7M8 7.5h1m1 0h2m3 0h1m1 0h1M0 8.5h1m1 0h5m1 0h3m1 0h1m1 0h1m1 0h2m1 0h5m1 0h1M0 9.5h1m3 0h2m3 0h1m1 0h3m1 0h1m2 0h1m3 0h2m1 0h3M1 10.5h3m1 0h3m1 0h1m1 0h2m2 0h1m1 0h1m1 0h2m1 0h2m1 0h3M1 11.5h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h3m3 0h1m1 0h1m3 0h1m1 0h2M0 12.5h1m2 0h1m2 0h1m4 0h1m2 0h2m1 0h3m1 0h1m1 0h1m1 0h1m1 0h2M0 13.5h3m1 0h1m2 0h1m1 0h2m2 0h3m2 0h1m3 0h2m1 0h2M0 14.5h3m1 0h1m1 0h1m2 0h3m3 0h2m1 0h1m1 0h1m2 0h3M0 15.5h2m1 0h2m2 0h1m2 0h1m1 0h1m1 0h1m1 0h1m2 0h1m1 0h1m2 0h3M0 16.5h1m3 0h4m2 0h1m4 0h1m1 0h2m1 0h2m1 0h2m1 0h1M2 17.5h1m1 0h1m2 0h1m1 0h2m1 0h1m1 0h3m4 0h1m2 0h3M0 18.5h1m3 0h1m1 0h1m1 0h1m1 0h1m2 0h1m1 0h1m1 0h1m1 0h1m1 0h1m2 0h1m1 0h1M0 19.5h1m1 0h1m1 0h1m2 0h1m1 0h2m3 0h2m3 0h1m2 0h1m1 0h1M0 20.5h1m1 0h1m1 0h5m2 0h2m1 0h3m1 0h6m1 0h1M8 21.5h3m2 0h1m3 0h2m3 0h1m1 0h1m1 0h1M0 22.5h7m2 0h1m1 0h1m1 0h2m1 0h1m1 0h1m1 0h1m1 0h1m1 0h2M0 23.5h1m5 0h1m1 0h3m1 0h1m2 0h2m1 0h2m3 0h1m1 0h2M0 24.5h1m1 0h3m1 0h1m1 0h2m3 0h1m1 0h1m1 0h7m2 0h1M0 25.5h1m1 0h3m1 0h1m1 0h2m1 0h1m2 0h2m1 0h3m1 0h1m1 0h2M0 26.5h1m1 0h3m1 0h1m1 0h1m2 0h1m3 0h1m1 0h1m1 0h1m2 0h1m2 0h1M0 27.5h1m5 0h1m1 0h2m1 0h1m1 0h1m3 0h2m3 0h3M0 28.5h7m1 0h1m1 0h2m1 0h1m2 0h2m1 0h1m1 0h2m2 0h1m1 0h1"/></svg>'
+
+  // Hora argentina (UTC-3) en la barra de estado y en el nombre del viaje, como la app.
+  const fmtHora = new Intl.DateTimeFormat('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Argentina/Cordoba' })
+  function pintarHora() {
+    const h = fmtHora.format(new Date())
+    $('ci-hora').textContent = h
+    return h
+  }
+  pintarHora()
+  setInterval(pintarHora, 15000)
+
+  // ===========================================================================
+  // Mapa satelital: mosaicos de Google a zoom 16 (cierre/mapa/16_x_y.jpg)
+  // ===========================================================================
+  const Z = 16
+  const TILE = 256
+  /** Zona cubierta por los mosaicos (la misma que baja bajar-mapa-cierre.mjs). */
+  const ZONA = { n: -31.4080, s: -31.4585, o: -64.2030, e: -64.1770 }
+  function mundo(lat, lng) {
+    const s = TILE * 2 ** Z
+    const sin = Math.sin((lat * Math.PI) / 180)
+    return [((lng + 180) / 360) * s, (0.5 - Math.log((1 + sin) / (1 - sin)) / (4 * Math.PI)) * s]
+  }
+  const [zx0, zy0] = mundo(ZONA.n, ZONA.o)
+  const [zx1, zy1] = mundo(ZONA.s, ZONA.e)
+  const TX0 = Math.floor(zx0 / TILE), TY0 = Math.floor(zy0 / TILE)
+  const TX1 = Math.floor(zx1 / TILE), TY1 = Math.floor(zy1 / TILE)
+  const ORIGEN_X = TX0 * TILE, ORIGEN_Y = TY0 * TILE
+  /** Coordenadas de mundo relativas al primer mosaico. */
+  const local = (p) => { const [x, y] = mundo(p.lat, p.lng); return [x - ORIGEN_X, y - ORIGEN_Y] }
+
+  const RUTA_LOCAL = []
+  for (let i = 0; i < RUTA_GPS.length; i += 2) RUTA_LOCAL.push(local({ lat: RUTA_GPS[i], lng: RUTA_GPS[i + 1] }))
+
+  function crearMapa(el) {
+    const w = parseFloat(el.style.width), h = parseFloat(el.style.height)
+    const offY = parseFloat(el.style.top) || 0
+    const mundoEl = document.createElement('div')
+    mundoEl.className = 'ci-mundo'
+    for (let x = TX0; x <= TX1; x++) {
+      for (let y = TY0; y <= TY1; y++) {
+        const img = new Image()
+        img.decoding = 'async'
+        img.style.left = (x - TX0) * TILE + 'px'
+        img.style.top = (y - TY0) * TILE + 'px'
+        img.onerror = () => img.remove()
+        img.src = `cierre/mapa/${Z}_${x}_${y}.jpg`
+        mundoEl.appendChild(img)
+      }
+    }
+    el.appendChild(mundoEl)
+    const google = document.createElement('div')
+    google.className = 'ci-google'
+    google.innerHTML = 'Google<small>Imágenes ©2026 Airbus, CNES / Airbus, Maxar Technologies</small>'
+    el.appendChild(google)
+
+    const marcas = []
+    const vista = { x: 0, y: 0, z: Z }
+    let ruta = null
+    const mapa = {
+      el, w, h, offY, vista,
+      marca(p, clase, html = '') {
+        const m = document.createElement('div')
+        m.className = 'marca'
+        m.innerHTML = `<div class="${clase}">${html}</div>`
+        el.insertBefore(m, google)
+        marcas.push({ p: local(p), m })
+        mapa.pintar()
+        return m
+      },
+      conRuta() {
+        const svg = nodo('svg', { width: 1, height: 1 }, null)
+        mundoEl.appendChild(svg)
+        ruta = nodo('polyline', {
+          points: RUTA_LOCAL.map((p) => p.join(',')).join(' '),
+          fill: 'none', stroke: RUTA_COLOR, 'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+        }, svg)
+        mapa.ruta = ruta
+        mapa.pintar()
+      },
+      /** Centro en coordenadas locales y zoom (fraccionario). */
+      ver(x, y, z) { vista.x = x; vista.y = y; vista.z = z; mapa.pintar() },
+      verPunto(p, z) { const [x, y] = local(p); mapa.ver(x, y, z) },
+      escala: () => 2 ** (vista.z - Z),
+      /** Local → px de este mapa. */
+      proyectar([x, y]) {
+        const k = mapa.escala()
+        return [w / 2 + (x - vista.x) * k, h / 2 + (y - vista.y) * k]
+      },
+      /** Local → escenario. */
+      aEscenario(p) { const [x, y] = mapa.proyectar(p); return aEscenario(x, y + offY) },
+      pintar() {
+        const k = mapa.escala()
+        mundoEl.style.transform = `translate(${w / 2 - vista.x * k}px, ${h / 2 - vista.y * k}px) scale(${k})`
+        if (ruta) ruta.setAttribute('stroke-width', 5 / k)
+        for (const { p, m } of marcas) {
+          const [x, y] = mapa.proyectar(p)
+          m.style.transform = `translate(${x}px, ${y}px)`
+        }
+      },
+    }
+    return mapa
+  }
+  const mapas = {}
+  document.querySelectorAll('.cierre [data-mapa]').forEach((el) => { mapas[el.dataset.mapa] = crearMapa(el) })
+  mapas.inicio.marca(UTN, 'ci-yo')
+  mapas.destino.marca(UTN, 'ci-yo')
+  mapas.live.conRuta()
+  mapas.live.marca(BUEN_PASTOR, 'ci-meta', svgIcono('flag', 16, '#fff'))
+  mapas.inicio.verPunto(UTN, 16)
+
+  // Vista del viaje en curso: la ruta entera entre la cabecera y el panel de abajo.
+  const VISTA_LIVE = (() => {
+    const xs = RUTA_LOCAL.map((p) => p[0]), ys = RUTA_LOCAL.map((p) => p[1])
+    const caja = { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) }
+    const arriba = 150, abajo = 590, lado = 60
+    const k = Math.min((abajo - arriba) / (caja.y1 - caja.y0), (360 - 2 * lado) / (caja.x1 - caja.x0))
+    const cx = (caja.x0 + caja.x1) / 2
+    // El centro de la caja queda a mitad de camino entre la cabecera y el panel.
+    const cy = (caja.y0 + caja.y1) / 2 + (390 - (arriba + abajo) / 2) / k
+    return { x: cx, y: cy, z: Z + Math.log2(k) }
+  })()
+  mapas.live.ver(VISTA_LIVE.x, VISTA_LIVE.y, VISTA_LIVE.z)
+
+  // ===========================================================================
+  // Sonidos (Web Audio, sin archivos)
+  // ===========================================================================
+  let audio = null
+  function ctx() {
+    if (!audio) { try { audio = new (window.AudioContext || window.webkitAudioContext)() } catch { return null } }
+    if (audio.state === 'suspended') audio.resume().catch(() => {})
+    return audio
+  }
+  addEventListener('mousedown', ctx, true)
+  addEventListener('keydown', ctx, true)
+  /** Todo pasa por un canal por animación: al volver atrás o cortarla, se apaga lo que quedaba sonando. */
+  let canal = null
+  function salida() {
+    const a = ctx(); if (!a) return null
+    if (!canal) { canal = a.createGain(); canal.connect(a.destination) }
+    return canal
+  }
+  function silenciar() {
+    if (!canal || !audio) return
+    const c = canal
+    canal = null
+    c.gain.setTargetAtTime(0, audio.currentTime, 0.03)
+    setTimeout(() => c.disconnect(), 300)
+  }
+  function nota(frec, cuando, dur, vol, tipo = 'sine') {
+    const a = ctx(), dest = salida(); if (!a || !dest) return
+    const t = a.currentTime + cuando
+    const o = a.createOscillator(), g = a.createGain()
+    o.type = tipo; o.frequency.value = frec
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.012)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur)
+    o.connect(g).connect(dest)
+    o.start(t); o.stop(t + dur + 0.05)
+  }
+  /** Ruido blanco en bucle (para soplidos y barridos). */
+  function ruido(a) {
+    const buf = a.createBuffer(1, a.sampleRate * 2, a.sampleRate)
+    const d = buf.getChannelData(0)
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1
+    const src = a.createBufferSource()
+    src.buffer = buf; src.loop = true
+    return src
+  }
+
+  /**
+   * Se arma la M: un barrido que sube mientras la ruta se dobla, con un brillo de
+   * campanitas encima. Dura lo mismo que la transformación.
+   */
+  function sonidoArmado(seg) {
+    const a = ctx(), dest = salida(); if (!a || !dest) return
+    const t = a.currentTime
+    // Tono que sube de grave a agudo.
+    const o = a.createOscillator(), go = a.createGain(), fo = a.createBiquadFilter()
+    o.type = 'triangle'
+    o.frequency.setValueAtTime(110, t)
+    o.frequency.exponentialRampToValueAtTime(440, t + seg)
+    fo.type = 'lowpass'; fo.frequency.setValueAtTime(500, t); fo.frequency.exponentialRampToValueAtTime(2400, t + seg)
+    go.gain.setValueAtTime(0.0001, t)
+    go.gain.exponentialRampToValueAtTime(0.09, t + seg * 0.4)
+    go.gain.exponentialRampToValueAtTime(0.0001, t + seg + 0.15)
+    o.connect(fo).connect(go).connect(dest)
+    o.start(t); o.stop(t + seg + 0.2)
+    // Soplido que acompaña.
+    const n = ruido(a), fn = a.createBiquadFilter(), gn = a.createGain()
+    fn.type = 'bandpass'; fn.Q.value = 1.4
+    fn.frequency.setValueAtTime(400, t); fn.frequency.exponentialRampToValueAtTime(3200, t + seg)
+    gn.gain.setValueAtTime(0.0001, t)
+    gn.gain.exponentialRampToValueAtTime(0.06, t + seg * 0.6)
+    gn.gain.exponentialRampToValueAtTime(0.0001, t + seg + 0.1)
+    n.connect(fn).connect(gn).connect(dest)
+    n.start(t); n.stop(t + seg + 0.2)
+    // Campanitas que se van apurando (pentatónica de Do).
+    const notas = [523.25, 587.33, 659.25, 783.99, 880, 1046.5, 1174.66, 1318.51]
+    const cant = 12
+    for (let i = 0; i < cant; i++) {
+      const u = i / (cant - 1)
+      nota(notas[Math.round(u * (notas.length - 1))], seg * (0.15 + 0.8 * Math.pow(u, 0.8)), 0.4, 0.05 + 0.03 * u)
+    }
+  }
+  /** La M queda formada: golpe grave y un "clic" cuando aparecen las ruedas. */
+  function sonidoFormada() {
+    const a = ctx(), dest = salida(); if (!a || !dest) return
+    const t = a.currentTime
+    const o = a.createOscillator(), g = a.createGain()
+    o.type = 'sine'
+    o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(55, t + 0.35)
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.exponentialRampToValueAtTime(0.32, t + 0.01)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.45)
+    o.connect(g).connect(dest)
+    o.start(t); o.stop(t + 0.5)
+    nota(1567.98, 0.12, 0.25, 0.06)
+    nota(2093, 0.2, 0.3, 0.05)
+  }
+
+  /**
+   * El grupo recorre la M: un soplido suave que sigue la velocidad del grupo y, cada vez
+   * que un integrante pasa por la cima de un arco o por el fondo del valle, un "tin".
+   * Como van uno detrás del otro, suenan en cadena. Al salir por la rueda, uno más agudo.
+   */
+  function crearSonidoRecorrido() {
+    const a = ctx(), dest = salida(); if (!a || !dest) return null
+    const n = ruido(a), f = a.createBiquadFilter(), g = a.createGain()
+    f.type = 'bandpass'; f.Q.value = 0.9; f.frequency.value = 700
+    g.gain.value = 0.0001
+    n.connect(f).connect(g).connect(dest)
+    n.start()
+    return {
+      /** v: velocidad normalizada 0..1 */
+      velocidad(v) {
+        const t = a.currentTime
+        g.gain.setTargetAtTime(0.0001 + 0.07 * v, t, 0.05)
+        f.frequency.setTargetAtTime(500 + 1600 * v, t, 0.05)
+      },
+      fin() {
+        g.gain.setTargetAtTime(0.0001, a.currentTime, 0.12)
+        n.stop(a.currentTime + 0.6)
+      },
+    }
+  }
+  /** Una nota por hito de la cinta: cima del primer arco, fondo del valle, cima del segundo. */
+  const NOTA_HITO = [783.99, 587.33, 1046.5]
+  function sonidoHito(hito, integrante) {
+    // Cada integrante apenas más agudo que el anterior: suena como una escalera corta.
+    const f = NOTA_HITO[hito] * Math.pow(2, integrante / 24)
+    nota(f, 0, 0.32, 0.09)
+    nota(f * 2, 0, 0.18, 0.025, 'triangle')
+  }
+  const NOTA_SALIDA = [1046.5, 1174.66, 1318.51, 1567.98, 1760, 2093]
+  function sonidoSalida(integrante) {
+    nota(NOTA_SALIDA[integrante] || 2093, 0, 0.5, 0.07)
+  }
+  /** Toque suave en la pantalla del celular. */
+  function sonidoToque() {
+    const a = ctx(); if (!a) return
+    const t = a.currentTime
+    const buf = a.createBuffer(1, a.sampleRate * 0.03, a.sampleRate)
+    const d = buf.getChannelData(0)
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 3)
+    const src = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain()
+    src.buffer = buf; f.type = 'bandpass'; f.frequency.value = 2400; f.Q.value = 1.2
+    g.gain.value = 0.35
+    src.connect(f).connect(g).connect(salida())
+    src.start(t)
+  }
+  /** Alguien se une: dos notas que suben, cada integrante un poco más agudo. */
+  const ESCALA_UNION = [523.25, 587.33, 659.25, 783.99, 880, 1046.5]
+  function sonidoUnion(i) {
+    const f = ESCALA_UNION[i] || 1046.5
+    nota(f, 0, 0.35, 0.22)
+    nota(f * 1.5, 0.09, 0.55, 0.18)
+    nota(f * 3, 0.09, 0.3, 0.03, 'triangle')
+  }
+  /** Se forma MESH: acorde abierto en arpegio. */
+  function sonidoLogo() {
+    ;[130.81, 196, 261.63, 329.63, 392, 587.33].forEach((f, i) => {
+      nota(f, i * 0.075, 2.4 - i * 0.15, i === 0 ? 0.16 : 0.11, i < 2 ? 'triangle' : 'sine')
+    })
+  }
+
+  // ===========================================================================
+  // Música de fondo (cierre/finale.mp3): arranca bajita y sube con cada paso
+  // ===========================================================================
+  const musica = $('ci-musica')
+  /** Volumen en cada paso (0 = Inicio de la app, 11 = la M y MESH). */
+  const VOLUMEN_PASO = [0.12, 0.16, 0.2, 0.24, 0.3, 0.36, 0.42, 0.48, 0.54, 0.6, 0.7, 0.85]
+  let volCuadro = 0
+  function volumenMusica(v, ms = 1400) {
+    cancelAnimationFrame(volCuadro)
+    const desde = musica.volume, t0 = performance.now()
+    const curva = (u) => (u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2)
+    const cuadro = (ahora) => {
+      const u = Math.min(1, (ahora - t0) / ms)
+      musica.volume = Math.min(1, Math.max(0, desde + (v - desde) * curva(u)))
+      if (u < 1) volCuadro = requestAnimationFrame(cuadro)
+      else if (v === 0) { musica.pause(); musica.currentTime = 0 }
+    }
+    volCuadro = requestAnimationFrame(cuadro)
+  }
+  function musicaPaso(n) {
+    if (musica.paused) {
+      musica.volume = 0
+      // Sin un clic previo el navegador no deja reproducir: se reintenta en el próximo paso.
+      musica.play().catch(() => {})
+    }
+    volumenMusica(VOLUMEN_PASO[Math.min(n, VOLUMEN_PASO.length - 1)])
+  }
+
+  // ===========================================================================
+  // Línea de tiempo: animaciones que se pueden cortar
+  // ===========================================================================
+  const CORTE = Symbol('corte')
+  let corrida = 0
+  const avance = (t, desde, hasta) => Math.min(1, Math.max(0, (t - desde) / (hasta - desde)))
+  const suave = (u) => (u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2)
+  const salidaSuave = (u) => 1 - Math.pow(1 - u, 3)
+  const lerp = (a, b, u) => a + (b - a) * u
+  function esperar(ms) {
+    const id = corrida
+    return new Promise((res, rej) => setTimeout(() => (id === corrida ? res() : rej(CORTE)), ms))
+  }
+  /** Para animaciones que corren en paralelo: si se cortan, no queda un error suelto en la consola. */
+  const enParalelo = (p) => { p.catch(() => {}); return p }
+  function tween(ms, fn, curva = suave) {
+    const id = corrida
+    return new Promise((res, rej) => {
+      const t0 = performance.now()
+      const cuadro = (ahora) => {
+        if (id !== corrida) return rej(CORTE)
+        const u = Math.min(1, (ahora - t0) / ms)
+        fn(curva(u), u)
+        if (u < 1) requestAnimationFrame(cuadro)
+        else res()
+      }
+      requestAnimationFrame(cuadro)
+    })
+  }
+
+  // ===========================================================================
+  // Pantallas del celular
+  // ===========================================================================
+  const pantalla = $('ci-pantalla')
+  const PANTALLAS = ['inicio', 'viajeya', 'destino', 'creando', 'sala', 'live']
+  function mostrarPantalla(id) {
+    for (const p of PANTALLAS) {
+      const el = $('sc-' + p)
+      el.classList.toggle('vis', p === id)
+      el.style.transform = ''
+      el.style.opacity = ''
+      el.style.zIndex = ''
+    }
+    // Sobre el mapa satelital de pantalla completa la hora va en blanco.
+    $('ci-status').classList.toggle('claro', id === 'destino' || id === 'live')
+  }
+  /** Como el stack de la app: la nueva entra desde la derecha. `fundido` = router.replace. */
+  async function pasarA(id, fundido = false) {
+    const el = $('sc-' + id)
+    el.classList.add('vis')
+    el.style.zIndex = 10
+    const debajo = PANTALLAS.map((p) => $('sc-' + p)).find((s) => s !== el && s.classList.contains('vis'))
+    await tween(fundido ? 260 : 340, (u) => {
+      if (fundido) el.style.opacity = u
+      else {
+        el.style.transform = `translateX(${(1 - u) * 100}%)`
+        if (debajo) debajo.style.transform = `translateX(${-u * 25}%)`
+      }
+    }, salidaSuave)
+    mostrarPantalla(id)
+  }
+
+  /** Marca un toque sobre un elemento: círculo, botón apretado y sonido. */
+  async function tocar(el, { soltar = true } = {}) {
+    const pr = pantalla.getBoundingClientRect()
+    const r = el.getBoundingClientRect()
+    const f = 360 / pr.width
+    const x = (r.left + r.width / 2 - pr.left) * f
+    const y = (r.top + r.height / 2 - pr.top) * f
+    const t = document.createElement('div')
+    t.className = 'ci-toque'
+    t.style.left = x + 'px'
+    t.style.top = y + 'px'
+    t.style.opacity = 0
+    $('ci-toques').appendChild(t)
+    sonidoToque()
+    el.classList.add('apretado')
+    try {
+      await tween(110, (u) => { t.style.opacity = u; t.style.transform = `scale(${0.6 + 0.4 * u})` }, salidaSuave)
+      await esperar(170)
+      if (soltar) el.classList.remove('apretado')
+      await tween(220, (u) => { t.style.opacity = 1 - u })
+    } finally {
+      t.remove()
+    }
+  }
+  function limpiarToques() {
+    $('ci-toques').innerHTML = ''
+    document.querySelectorAll('.cierre .apretado').forEach((e) => e.classList.remove('apretado'))
+  }
+
+  // --- ¿A dónde van? ---------------------------------------------------------
+  const busqueda = $('ci-busqueda')
+  function pintarBusqueda(texto, { foco = false, resultados = false, buscando = false } = {}) {
+    busqueda.classList.toggle('vacio', !texto && !foco)
+    busqueda.innerHTML = texto || foco ? `${texto}<span class="cursor"></span>` : 'Buscar un lugar'
+    if (texto && !foco) busqueda.textContent = texto
+    $('ci-buscador').classList.toggle('foco', foco)
+    $('ci-buscando').hidden = !buscando
+    $('ci-limpiar').hidden = !texto || buscando
+    const lista = $('ci-resultados')
+    lista.hidden = !resultados
+    lista.style.opacity = ''
+    if (resultados && !lista.children.length) {
+      lista.innerHTML = SUGERENCIAS.map((s) => `<div>${svgIcono('map-pin', 16, 'var(--a-accent)')}<span>${s}</span></div>`).join('')
+    }
+  }
+  function pintarElegido(visible) {
+    $('ci-elegido').hidden = !visible
+    $('ci-elegido').textContent = SUGERENCIAS[ELEGIDA]
+    $('ci-ir').querySelector('span').textContent = 'Ir a este destino'
+  }
+
+  // --- Sala de espera --------------------------------------------------------
+  const scroll = $('ci-scroll')
+  function filaPersona(m) {
+    const d = document.createElement('div')
+    d.className = 'ci-persona'
+    d.innerHTML = `<b>${m.nombre}${m.yo ? ' (vos)' : ''}</b><span class="ci-badge listo">Listo</span>`
+    return d
+  }
+  function pintarSala(unidos) {
+    const lista = $('ci-personas')
+    lista.innerHTML = ''
+    GRUPO.slice(0, Math.max(1, unidos)).forEach((m) => lista.appendChild(filaPersona(m)))
+    const n = Math.max(1, unidos)
+    $('ci-con-quien').textContent = `${n} ${n === 1 ? 'confirmado' : 'confirmados'}`
+    $('ci-en-el-viaje').textContent = `En el viaje (${n})`
+  }
+  const scrollMaximo = () => scroll.scrollHeight - scroll.clientHeight
+  async function bajarScroll(ms = 650) {
+    const desde = scroll.scrollTop, hasta = scrollMaximo()
+    if (hasta - desde < 1) return
+    await tween(ms, (u) => { scroll.scrollTop = lerp(desde, hasta, u) })
+  }
+  function nombreViaje() {
+    const nombre = `Viaje rápido · Auto · ${pintarHora()}`
+    $('ci-nombre-viaje').textContent = nombre
+    $('ci-live-nombre').textContent = nombre
+  }
+
+  // ===========================================================================
+  // Carteles y marcadores (en el escenario, fuera del celular)
+  // ===========================================================================
+  const FILAS_Y = [330, 540, 750]
+  const AVATAR_X = { izq: 640, der: 1280 }
+  const R_CARTEL = 60
+  const R_LIVE = 13 * DP
+  const carteles = GRUPO.map((m) => {
+    const c = document.createElement('div')
+    c.className = 'ci-cartel ' + m.lado
+    c.style.top = FILAS_Y[m.fila] - 60 + 'px'
+    c.innerHTML = `<b>${m.nombre}</b><span>${m.yo ? 'Creó el viaje' : 'Se unió al viaje'}</span>`
+    $('ci-carteles').appendChild(c)
+    return c
+  })
+  function pintarCartel(i, u) {
+    const c = carteles[i]
+    c.style.opacity = u
+    c.style.transform = u >= 1 ? '' : `translateX(${(GRUPO[i].lado === 'izq' ? 1 : -1) * 26 * (1 - u)}px)`
+  }
+
+  /** Un marcador por integrante, como MemberMarker.tsx: círculo con iniciales y anillo verde para "vos". */
+  const marcas = GRUPO.map((m) => {
+    const g = nodo('g', { opacity: 0 }, $('ci-marcas'))
+    const onda = nodo('circle', { r: 1, fill: 'none', stroke: m.color, 'stroke-width': 4, opacity: 0 }, g)
+    const anillo = m.yo ? nodo('circle', { r: 1, fill: 'none', stroke: '#15803d' }, g) : null
+    const relleno = nodo('circle', { r: 1, fill: m.color }, g)
+    const texto = nodo('text', { class: 'iniciales' }, g)
+    texto.textContent = m.ini
+    return { g, onda, anillo, relleno, texto }
+  })
+  function pintarMarca(i, x, y, r, op = 1) {
+    const mk = marcas[i]
+    r = Math.max(0.001, r)
+    mk.g.setAttribute('opacity', op)
+    mk.g.setAttribute('transform', `translate(${x} ${y})`)
+    mk.relleno.setAttribute('r', r)
+    mk.texto.setAttribute('font-size', r * 0.76)
+    if (mk.anillo) {
+      mk.anillo.setAttribute('r', r * 1.08 + 0.5)
+      mk.anillo.setAttribute('stroke-width', Math.max(1, r * 0.155))
+    }
+  }
+  function pintarOnda(i, u) {
+    const mk = marcas[i]
+    mk.onda.setAttribute('r', R_CARTEL * (1 + 0.9 * u))
+    mk.onda.setAttribute('opacity', u <= 0 || u >= 1 ? 0 : 0.8 * (1 - u))
+  }
+  const posCartel = (i) => [AVATAR_X[GRUPO[i].lado], FILAS_Y[GRUPO[i].fila]]
+
+  // ---- Ruta del viaje en curso, en el escenario, remuestreada para la M -----
+  /** Distancias (dp) de cada integrante desde la UTN: Gon adelante, Bauti atrás. */
+  const EN_RUTA_DP = [125, 100, 75, 50, 25, 0]
+  function rutaEnEscenario() {
+    const pts = RUTA_LOCAL.map((p) => mapas.live.aEscenario(p))
+    const acum = [0]
+    for (let i = 1; i < pts.length; i++) acum.push(acum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]))
+    return { pts, acum, largo: acum[acum.length - 1] }
+  }
+  function puntoEnPolilinea({ pts, acum, largo }, d) {
+    d = Math.min(largo, Math.max(0, d))
+    let i = 1
+    while (i < acum.length - 1 && acum[i] < d) i++
+    const f = (d - acum[i - 1]) / (acum[i] - acum[i - 1] || 1)
+    return [lerp(pts[i - 1][0], pts[i][0], f), lerp(pts[i - 1][1], pts[i][1], f)]
+  }
+  function posLive(i, ruta = rutaEnEscenario()) {
+    return puntoEnPolilinea(ruta, EN_RUTA_DP[i] * DP)
+  }
+
+  // ===========================================================================
+  // La M (port de docs/presentacion/cierre.html)
+  // ===========================================================================
+  const LOGO_COLOR = '#FE3A0F'
+  const M_CAJA = { x: 265, y: 228, ancho: 593, alto: 548 }
+  const M_CUERPO =
+    'M 716.1 228.9 C 657.7 233.8 607.4 279.6 590.1 343.6 C 588.2 350.7 587.8 352.3 586.5 358.6 C 584.1 370.1 582.6 382.1 582 395.6 C 581.8 399.2 581.6 439.3 581.5 511.8 C 581.3 635.2 581.4 628 579.4 630.6 C 574.4 637.2 562.1 635.3 559.4 627.5 C 559 626.6 559 612.8 558.9 522.7 C 558.7 389.7 558.8 392 555.4 373 C 554.2 366.7 553.9 365 553.1 361.4 C 536.7 287.2 486.2 236.4 423.2 230.8 C 412.1 229.8 395.3 230.7 386.9 232.6 C 386.1 232.8 384.3 233.2 383 233.5 C 330.9 245.3 283.9 297.8 270 359.5 C 267.9 369 266.8 376.1 266 385.1 C 265 396.7 264.9 656.2 265.9 658.2 C 268.1 662.5 271.9 662.6 277.7 658.4 C 290.4 649.3 302.5 643.8 316.9 640.6 C 335.9 636.4 354.8 640.6 380.8 654.8 C 392.2 661.1 395.7 661.8 398.1 658.3 C 399 657 399.1 633.4 399.2 484.4 C 399.2 414.6 399.3 407.5 399.7 406.2 C 402.7 396 415.1 394.7 419.6 404.1 C 421 406.9 421 407.5 420.9 413.9 C 420.2 453 420.2 607.3 421 625.3 C 424 694.8 463.9 740.3 531.9 751.5 C 565.9 757.1 606.7 753.4 636.7 742.1 C 683.3 724.5 711.5 687 717.1 635.1 C 717.3 633.2 717.6 631.3 717.6 631 C 718.9 624.2 718.8 574.5 717.2 488.9 C 716.2 430 716.7 407.2 719.1 402.1 C 721.9 396.4 731 395.3 735.3 400.2 C 738.2 403.5 738 400.4 738.1 447.1 C 738.2 469.4 738.3 490.9 738.5 495 C 739.1 511 739.2 524.9 739.2 554.2 C 739.3 587.4 739.2 585.9 740.6 587.5 C 742.6 589.7 744.3 589.3 750.3 585.5 C 785.8 563.3 820.1 567 851.4 596.3 C 854.5 599.2 856.4 599.3 857.4 596.9 C 858.5 594.2 858.4 408.1 857.2 386.8 C 856.6 374.6 855.5 365.1 853.4 354.3 C 837.9 273.9 782.6 223.3 716.1 228.9'
+  const RUEDAS = [[333.57, 711.7], [793.57, 645.72]]
+  const RUEDA_RADIO = 64
+  const RUEDA_ANILLO = 29.7
+  const RUEDA_CENTRO = 15.6
+  const LETRAS_Y = 236
+  const LETRA_DURACION = 460
+  const LETRAS = [
+    { d: 'M0 22 Q0 0 22 0 L283 0 Q305 0 305 22 L305 94 Q305 116 283 116 L182 116 Q170 116 170 128 L170 148 Q170 160 182 160 L268 160 Q290 160 290 182 L290 250 Q290 272 268 272 L182 272 Q170 272 170 284 L170 296 Q170 308 182 308 L290 308 Q312 308 312 330 L312 426 Q312 448 290 448 L22 448 Q0 448 0 426 Z', x: 886, ancho: 312, inicio: 1940 },
+    { d: 'M112 0 L315 0 Q335 0 335 20 L335 100 Q335 120 315 120 L190 120 A20 20 0 0 0 190 160 L268 160 C335 160 378 205 378 268 L378 335 C378 405 335 448 265 448 L72 448 Q52 448 52 428 L52 335 Q52 315 72 315 L205 315 A20 20 0 0 0 205 275 L108 275 C44 275 0 230 0 170 L0 108 C0 44 46 0 112 0 Z', x: 1206, ancho: 378, inicio: 1850 },
+    { d: 'M0 22 Q0 0 22 0 L143 0 Q165 0 165 22 L165 173 Q165 183 175 183 L220 183 Q230 183 230 173 L230 22 Q230 0 252 0 L373 0 Q395 0 395 22 L395 426 Q395 448 373 448 L252 448 Q230 448 230 426 L230 283 Q230 273 220 273 L175 273 Q165 273 165 283 L165 426 Q165 448 143 448 L22 448 Q0 448 0 426 Z', x: 1597, ancho: 395, inicio: 1780 },
+  ]
+  const RUTA_LARGO = 1760.2
+  const RUTA_PASO = 12
+  /** Línea central de la cinta de la M (de rueda a rueda), en unidades del logo. */
+  const RUTA_M = [
+    333.6,711.7,333.5,699.1,333.5,686.5,333.4,675.5,333.4,662.9,333.3,650.3,333.2,639.3,333.2,626.7,333.1,614.1,333.0,603.1,333.0,590.5,332.9,579.5,332.9,566.9,332.8,554.4,332.7,543.3,332.7,530.7,332.6,518.2,332.6,507.1,332.5,494.6,332.4,483.5,332.4,471.0,332.3,458.4,332.3,447.4,332.2,434.8,332.1,422.2,332.1,411.2,332.0,398.6,332.5,387.7,334.5,375.9,338.2,363.9,343.2,353.2,349.6,343.3,357.7,334.1,366.9,326.3,377.1,320.1,388.0,315.6,399.4,312.8,411.7,312.0,423.4,313.2,435.3,316.4,446.1,321.3,456.1,327.8,465.1,336.0,472.5,344.9,479.0,355.5,483.7,366.3,487.0,377.8,488.7,389.7,489.0,401.5,489.0,413.9,489.0,426.2,489.0,437.5,489.0,449.9,489.0,462.2,489.0,473.5,489.0,485.9,489.0,498.2,489.0,509.5,489.0,521.9,489.0,534.2,489.0,545.5,489.0,557.9,489.0,570.2,489.0,581.5,489.0,593.9,489.0,606.2,489.0,617.5,489.5,629.9,492.0,641.5,496.7,652.7,502.9,662.5,510.8,671.3,520.2,678.9,530.7,685.1,541.6,689.5,553.2,692.5,565.1,693.9,577.1,693.7,588.9,691.9,600.9,688.3,611.6,683.4,621.8,676.7,630.7,668.8,638.1,659.6,644.1,649.0,648.1,637.7,649.9,626.0,650.0,614.1,650.0,601.8,650.0,589.4,650.0,578.1,650.0,565.8,650.0,553.4,650.0,542.1,650.0,529.8,650.0,517.4,650.0,506.1,650.0,493.8,650.0,481.4,650.0,470.1,650.0,457.8,650.0,445.4,650.0,434.1,650.0,421.8,650.0,409.4,650.0,398.1,650.6,386.3,652.8,373.9,656.3,362.6,661.2,352.0,667.7,341.8,675.5,332.8,684.8,324.9,695.1,318.7,706.2,314.5,718.2,312.3,729.8,312.3,741.8,314.5,752.9,318.7,763.2,324.9,772.5,332.8,780.3,341.8,786.8,352.0,791.7,362.6,795.2,373.9,797.3,385.7,798.0,398.2,797.8,410.7,797.6,421.9,797.3,434.3,797.1,446.7,796.9,457.9,796.7,470.4,796.5,482.8,796.3,494.0,796.1,506.4,795.9,517.6,795.6,530.1,795.4,542.5,795.2,553.7,795.0,566.1,794.8,578.6,794.6,589.7,794.4,602.2,794.1,614.6,794.0,625.8,793.7,638.2,793.6,645.7,
+  ]
+  const N_M = RUTA_M.length / 2
+  /** Distancias sobre la cinta de los hitos que suenan: cima del 1er arco, fondo del valle, cima del 2do. */
+  const HITOS = (() => {
+    const y = (i) => RUTA_M[i * 2 + 1]
+    const mitad = Math.floor(N_M / 2)
+    let c1 = 0, c2 = mitad
+    for (let i = 0; i < mitad; i++) if (y(i) < y(c1)) c1 = i
+    for (let i = mitad; i < N_M; i++) if (y(i) < y(c2)) c2 = i
+    let v = c1
+    for (let i = c1; i <= c2; i++) if (y(i) > y(v)) v = i
+    return [c1, v, c2].map((i) => i * RUTA_PASO)
+  })()
+
+  // Línea de tiempo de la entrada (ms de la app). Igual que IntroMesh, pero el grupo ya
+  // arranca sobre la M (viene del mapa), así que el recorrido dura menos y todo se corre 500 ms.
+  const RECORRIDO_FIN = 1500
+  const SALIDA_INICIO = 1580
+  const SALIDA_FIN = 2180
+  const ACHICA_INICIO = 1620
+  const FIN_LETRAS = Math.max(...LETRAS.map((l) => l.inicio + LETRA_DURACION))
+  const FIN = Math.max(SALIDA_INICIO + 800, FIN_LETRAS)
+
+  const ESCENA_ANCHO = 360
+  const ESCENA_CENTRO_Y = 100
+  const ESCALA_INICIAL = 0.25
+  const LOGOTIPO_ANCHO = 236
+  const ESCALA_FINAL = LOGOTIPO_ANCHO / 1727
+  const LOGOTIPO_IZQUIERDA = (ESCENA_ANCHO - LOGOTIPO_ANCHO) / 2
+  const M_CENTRO_X = M_CAJA.x + M_CAJA.ancho / 2
+  const M_CENTRO_Y = M_CAJA.y + M_CAJA.alto / 2
+  const M_MITAD = M_CAJA.ancho / 2
+  const X_INICIAL = ESCENA_ANCHO / 2
+  const X_FINAL = LOGOTIPO_IZQUIERDA + M_MITAD * ESCALA_FINAL
+  const BORDE_FINAL = X_FINAL + M_MITAD * ESCALA_FINAL
+  const PIVOTE_Y = 650
+  /** La escena se dibuja a 4.8 px del escenario por unidad, con origen en (96, 60). */
+  const ESCENA_K = 4.8, ESCENA_X0 = 96, ESCENA_Y0 = 60
+  /** Tamaño de la M dentro del celular (en escala de la escena): 320 px de ancho. */
+  const ESCALA_CELU = 320 / M_CAJA.ancho / ESCENA_K
+  /** Avatar de los integrantes sobre la M, en unidades del logo (26 dp con la M grande). */
+  const MARCADOR_R = 13 / ESCALA_INICIAL
+  /** Lugar de cada uno sobre la cinta al terminar de formarse la M: Gon adelante. */
+  const SEPARACION = [0, 124, 246, 372, 500, 624]
+  const SEPARACION_MAXIMA = 624
+  const BASE_M = SEPARACION.map((s) => SEPARACION_MAXIMA - s)
+
+  const avanceC = avance
+  const salidaM = (u) => (u < 0.72 ? 1.035 * suave(u / 0.72) : 1.035 - 0.035 * suave((u - 0.72) / 0.28))
+  function inclinacion(u) {
+    if (u <= 0) return 0
+    if (u < 0.55) return -10 * Math.sin((Math.PI * u) / 0.55)
+    return 4 * Math.sin((Math.PI * (u - 0.55)) / 0.45)
+  }
+  const centroM = (t) => X_INICIAL + (X_FINAL - X_INICIAL) * salidaM(avanceC(t, SALIDA_INICIO, SALIDA_FIN))
+  const escalaM = (t) => ESCALA_INICIAL + (ESCALA_FINAL - ESCALA_INICIAL) * suave(avanceC(t, ACHICA_INICIO, SALIDA_FIN))
+  /** Cabeza del grupo sobre la cinta: arranca donde quedó Gon y llega al final con Bauti. */
+  const cabeza = (t) => SEPARACION_MAXIMA + (0.5 - 0.5 * Math.cos(Math.PI * avanceC(t, 0, RECORRIDO_FIN))) * RUTA_LARGO
+  function puntoM(distancia) {
+    const ultimo = N_M - 1
+    const i = Math.min(ultimo - 0.001, Math.max(0, distancia / RUTA_PASO))
+    const a = Math.floor(i), f = i - a
+    return [RUTA_M[a * 2] + (RUTA_M[a * 2 + 2] - RUTA_M[a * 2]) * f, RUTA_M[a * 2 + 1] + (RUTA_M[a * 2 + 3] - RUTA_M[a * 2 + 1]) * f]
+  }
+  /** Unidades del logo → escenario, con la M centrada en `cx` (escena) y a escala `esc`. */
+  function logoAEscenario([x, y], cx, esc) {
+    return [ESCENA_X0 + ESCENA_K * (cx + (x - M_CENTRO_X) * esc), ESCENA_Y0 + ESCENA_K * (ESCENA_CENTRO_Y + (y - M_CENTRO_Y) * esc)]
+  }
+
+  // Armado de la M
+  $('ci-cuerpo-path').setAttribute('d', M_CUERPO)
+  $('ci-cuerpo-path').setAttribute('fill', LOGO_COLOR)
+  const RR = RUEDA_RADIO
+  const ANILLO =
+    `M${-RR} 0a${RR} ${RR} 0 1 0 ${2 * RR} 0a${RR} ${RR} 0 1 0 ${-2 * RR} 0z` +
+    `M${-RUEDA_ANILLO} 0a${RUEDA_ANILLO} ${RUEDA_ANILLO} 0 1 0 ${2 * RUEDA_ANILLO} 0a${RUEDA_ANILLO} ${RUEDA_ANILLO} 0 1 0 ${-2 * RUEDA_ANILLO} 0z`
+  const ruedas = RUEDAS.map(([cx, cy], i) => {
+    const g = nodo('g', {}, $('ci-ruedas'))
+    nodo('path', { d: ANILLO, fill: LOGO_COLOR, 'fill-rule': 'evenodd' }, g)
+    nodo('circle', { r: RUEDA_CENTRO, fill: LOGO_COLOR }, g)
+    const rayos = nodo('g', { opacity: 0 }, g)
+    for (const giro of [0, 120, 240]) {
+      nodo('rect', { x: -5, y: -RUEDA_ANILLO - 2, width: 10, height: RUEDA_ANILLO - RUEDA_CENTRO + 6, fill: LOGO_COLOR, transform: `rotate(${giro})` }, rayos)
+    }
+    return { g, rayos, cx, cy, rebota: i === 1 }
+  })
+  const letras = LETRAS.map((l) => {
+    const ancho = l.ancho * ESCALA_FINAL
+    const izquierda = LOGOTIPO_IZQUIERDA + (l.x - M_CAJA.x) * ESCALA_FINAL
+    const recorrido = izquierda + ancho - BORDE_FINAL + 6
+    const mover = nodo('g', {}, $('ci-letras'))
+    const ubicar = nodo('g', {
+      transform: `translate(${LOGOTIPO_IZQUIERDA - M_CAJA.x * ESCALA_FINAL} ${ESCENA_CENTRO_Y - M_CENTRO_Y * ESCALA_FINAL}) scale(${ESCALA_FINAL})`,
+    }, mover)
+    nodo('path', { d: l.d, fill: LOGO_COLOR, transform: `translate(${l.x} ${LETRAS_Y})` }, ubicar)
+    return { ...l, mover, recorrido }
+  })
+
+  /** Ubica la M (centro y escala en unidades de la escena) con su inclinación. */
+  function ubicarM(cx, esc, incl = 0) {
+    $('ci-m').setAttribute('transform', `translate(${cx} ${ESCENA_CENTRO_Y}) scale(${esc}) translate(${-M_CENTRO_X} ${-M_CENTRO_Y})`)
+    $('ci-cuerpo').setAttribute('transform', `translate(0 ${PIVOTE_Y}) skewX(${incl}) translate(0 ${-PIVOTE_Y})`)
+    $('ci-recorte-rect').setAttribute('x', cx + M_MITAD * esc)
+  }
+  function pintarRuedas({ escala = 1, rebote = 1, rayos = 0, giro = 0 } = {}) {
+    for (const r of ruedas) {
+      const e = escala * (r.rebota ? rebote : 1)
+      r.g.setAttribute('transform', `translate(${r.cx} ${r.cy}) scale(${Math.max(0.001, e)})`)
+      r.rayos.setAttribute('opacity', rayos)
+      r.rayos.setAttribute('transform', `rotate(${giro})`)
+    }
+  }
+  function pintarLetras(t) {
+    for (const l of letras) {
+      const u = avanceC(t, l.inicio, l.inicio + LETRA_DURACION)
+      l.mover.setAttribute('transform', `translate(${-l.recorrido * Math.pow(1 - u, 3)} 0)`)
+    }
+  }
+  /** Cuadro t (ms de la app) de la entrada: la M con el grupo encima, después el logotipo. */
+  function dibujarM(t) {
+    const cx = centroM(t), esc = escalaM(t)
+    ubicarM(cx, esc, inclinacion(avanceC(t, SALIDA_INICIO, SALIDA_FIN)))
+    const llegada = Math.min(1, Math.max(0, (cabeza(t) - RUTA_LARGO) / SEPARACION_MAXIMA))
+    pintarRuedas({
+      rebote: 1 + 0.1 * Math.sin(Math.PI * llegada),
+      rayos: avanceC(t, SALIDA_INICIO, SALIDA_INICIO + 120) * (1 - avanceC(t, SALIDA_INICIO + 620, SALIDA_INICIO + 800)),
+      giro: -1500 * suave(avanceC(t, SALIDA_INICIO, SALIDA_INICIO + 660)),
+    })
+    pintarLetras(t)
+    GRUPO.forEach((_, i) => {
+      const pos = cabeza(t) - SEPARACION[i]
+      if (pos >= RUTA_LARGO) { marcas[i].g.setAttribute('opacity', 0); return }
+      const centro = puntoM(pos), atras = puntoM(pos - 3), adelante = puntoM(pos + 3)
+      const nx = -(adelante[1] - atras[1]), ny = adelante[0] - atras[0]
+      const largo = Math.hypot(nx, ny) || 1
+      const extremo = Math.min(1, pos / 90, (RUTA_LARGO - pos) / 90)
+      const vaiven = 12 * Math.sin(pos / 170 + i * 1.3) * Math.max(0, extremo)
+      const p = logoAEscenario([centro[0] + (nx / largo) * vaiven, centro[1] + (ny / largo) * vaiven], cx, esc)
+      const escala = Math.max(0.001, Math.min(1, (RUTA_LARGO - pos) / 110))
+      pintarMarca(i, p[0], p[1], MARCADOR_R * esc * ESCENA_K * escala)
+    })
+  }
+
+  // ===========================================================================
+  // Estados fijos de cada paso (al volver o al cortar una animación)
+  // ===========================================================================
+  const celu = $('ci-celu')
+  const linea = $('ci-linea')
+  const escena = $('ci-escena')
+  let mostrado = 0
+
+  function aplicar(n, { cortarSonido = true } = {}) {
+    corrida++
+    // Al avanzar se deja terminar el sonido del paso anterior; al saltar o volver, se corta.
+    if (cortarSonido) silenciar()
+    limpiarToques()
+    mostrado = n
+    const sc = n <= 0 ? 'inicio' : n === 1 ? 'viajeya' : n <= 3 ? 'destino' : n <= 9 ? 'sala' : 'live'
+    mostrarPantalla(sc)
+
+    // ¿A dónde van?
+    pintarBusqueda(n === 3 ? 'Buen Pastor' : '', { foco: n === 3, resultados: n === 3 })
+    pintarElegido(false)
+    mapas.destino.verPunto(UTN, 15)
+
+    // Sala
+    const unidos = n >= 4 ? Math.min(GRUPO.length, n - 3) : 0
+    if (n >= 4) nombreViaje()
+    pintarSala(unidos)
+    scroll.scrollTop = unidos > 1 ? scrollMaximo() : 0
+
+    // Viaje en curso
+    mapas.live.ver(VISTA_LIVE.x, VISTA_LIVE.y, VISTA_LIVE.z)
+    const r = mapas.live.ruta
+    r.style.strokeDasharray = ''
+    r.style.strokeDashoffset = ''
+    $('ci-live-cab').style.opacity = ''
+    $('ci-live-panel').style.opacity = ''
+    $('ci-oscuro').style.opacity = 0
+
+    // Carteles y marcadores
+    const ruta = rutaEnEscenario()
+    GRUPO.forEach((_, i) => {
+      pintarCartel(i, n <= 9 && i < unidos ? 1 : 0)
+      pintarOnda(i, 0)
+      if (n <= 9 && i < unidos) { const [x, y] = posCartel(i); pintarMarca(i, x, y, R_CARTEL) }
+      else if (n === 10) { const [x, y] = posLive(i, ruta); pintarMarca(i, x, y, R_LIVE) }
+      else pintarMarca(i, 0, 0, 1, 0)
+    })
+
+    // La M
+    linea.setAttribute('opacity', 0)
+    $('ci-cuerpo').setAttribute('opacity', 1)
+    if (n >= 11) {
+      celu.style.opacity = 0
+      celu.style.transform = ''
+      escena.setAttribute('opacity', 1)
+      dibujarM(FIN)
+      $('ci-gracias').style.opacity = 1
+      $('ci-gracias').style.transform = ''
+    } else {
+      celu.style.opacity = ''
+      celu.style.transform = ''
+      escena.setAttribute('opacity', 0)
+      $('ci-gracias').style.opacity = 0
+    }
+  }
+
+  // ===========================================================================
+  // Animaciones de cada paso
+  // ===========================================================================
+  async function entrarCartel(i) {
+    const [x, y] = posCartel(i)
+    sonidoUnion(i)
+    const onda = enParalelo(tween(900, (u) => pintarOnda(i, u), salidaSuave))
+    await tween(420, (u, lineal) => {
+      // Aparece con un pequeño rebote.
+      const r = lineal < 0.7 ? R_CARTEL * 1.12 * salidaSuave(lineal / 0.7) : R_CARTEL * (1.12 - 0.12 * suave((lineal - 0.7) / 0.3))
+      pintarMarca(i, x, y, r)
+      pintarCartel(i, Math.min(1, lineal * 1.4))
+    }, (u) => u)
+    await onda
+    pintarOnda(i, 0)
+  }
+
+  const PASOS = {
+    // Inicio → Viaje YA
+    1: async () => {
+      await tocar($('ci-fab'))
+      await pasarA('viajeya')
+    },
+    // Toque en Auto → ¿A dónde van?
+    2: async () => {
+      await esperar(120)
+      await tocar($('ci-tile-auto'), { soltar: false })
+      await pasarA('destino')
+      $('ci-tile-auto').classList.remove('apretado')
+    },
+    // Se escribe "Buen Pastor" y aparecen las sugerencias
+    3: async () => {
+      await tocar($('ci-buscador'))
+      pintarBusqueda('', { foco: true })
+      await esperar(300)
+      const texto = 'Buen Pastor'
+      for (let i = 1; i <= texto.length; i++) {
+        pintarBusqueda(texto.slice(0, i), { foco: true, buscando: i >= 3 })
+        await esperar(texto[i - 1] === ' ' ? 160 : 85 + Math.random() * 60)
+      }
+      await esperar(380)
+      pintarBusqueda(texto, { foco: true, resultados: true })
+      const lista = $('ci-resultados')
+      await tween(220, (u) => { lista.style.opacity = u })
+    },
+    // Toque en el Buen Pastor, el mapa va hasta allá, "Ir a este destino" → sala con Gon
+    4: async () => {
+      await tocar($('ci-resultados').children[ELEGIDA])
+      pintarBusqueda('', {})
+      pintarElegido(true)
+      const m = mapas.destino
+      const [x0, y0] = [m.vista.x, m.vista.y]
+      const [x1, y1] = local(BUEN_PASTOR)
+      await tween(1100, (u) => m.ver(lerp(x0, x1, u), lerp(y0, y1, u), 15 - 0.6 * Math.sin(Math.PI * u)))
+      await esperar(450)
+      await tocar($('ci-ir'))
+      $('ci-ir').querySelector('span').textContent = 'Cargando...'
+      await esperar(450)
+      await pasarA('creando', true)
+      nombreViaje()
+      pintarSala(1)
+      scroll.scrollTop = 0
+      await esperar(1000)
+      await pasarA('sala', true)
+      await esperar(250)
+      await entrarCartel(0)
+    },
+    // Arrancar viaje → mapa con la ruta; los carteles vuelan a la UTN
+    10: async () => {
+      await tocar($('ci-arrancar'))
+      const r = mapas.live.ruta
+      const largo = r.getTotalLength()
+      r.style.strokeDasharray = largo
+      r.style.strokeDashoffset = largo
+      await pasarA('live', true)
+      const ruta = rutaEnEscenario()
+      const desde = GRUPO.map((_, i) => posCartel(i))
+      const hasta = GRUPO.map((_, i) => posLive(i, ruta))
+      const dibujo = enParalelo(tween(1300, (u) => { r.style.strokeDashoffset = largo * (1 - u) }))
+      await tween(1500, (_, lineal) => {
+        GRUPO.forEach((_, i) => {
+          const u = suave(avance(lineal, i * 0.07, i * 0.07 + 0.62))
+          pintarCartel(i, 1 - Math.min(1, u * 3))
+          // Vuelan en arco hasta su lugar en la ruta.
+          const x = lerp(desde[i][0], hasta[i][0], u)
+          const y = lerp(desde[i][1], hasta[i][1], u) - Math.sin(Math.PI * u) * 120
+          pintarMarca(i, x, y, lerp(R_CARTEL, R_LIVE, u))
+        })
+      }, (u) => u)
+      await dibujo
+      r.style.strokeDasharray = ''
+    },
+    // La ruta se convierte en la M, la M sale del celular y el grupo la recorre
+    11: async () => {
+      const ruta = rutaEnEscenario()
+      // Ruta remuestreada con la misma cantidad de puntos que la cinta de la M.
+      const desde = []
+      for (let i = 0; i < N_M; i++) desde.push(puntoEnPolilinea(ruta, (ruta.largo * i) / (N_M - 1)))
+      const hasta = []
+      for (let i = 0; i < N_M; i++) hasta.push(logoAEscenario([RUTA_M[i * 2], RUTA_M[i * 2 + 1]], X_INICIAL, ESCALA_CELU))
+      const fDesde = EN_RUTA_DP.map((d) => (d * DP) / ruta.largo)
+      const fHasta = BASE_M.map((p) => p / RUTA_LARGO)
+      const rDesde = R_LIVE, rHasta = MARCADOR_R * ESCALA_CELU * ESCENA_K
+      const anchoM = 133 * ESCALA_CELU * ESCENA_K
+
+      // 1) La interfaz se va y la pantalla queda oscura, como la intro de la app.
+      mapas.live.ruta.style.opacity = 0
+      linea.setAttribute('opacity', 1)
+      linea.setAttribute('stroke', RUTA_COLOR)
+      linea.setAttribute('stroke-width', 5 * DP * mapas.live.escala() / mapas.live.escala())
+      linea.setAttribute('d', 'M' + desde.map((p) => p.join(' ')).join('L'))
+      await tween(600, (u) => {
+        $('ci-live-cab').style.opacity = 1 - u
+        $('ci-live-panel').style.opacity = 1 - u
+        $('ci-oscuro').style.opacity = u * 0.92
+      })
+
+      // 2) Cada punto de la ruta viaja a su lugar en la M (empieza por la UTN).
+      const color = (u) => {
+        const a = [251, 191, 36], b = [254, 58, 15]
+        return `rgb(${a.map((c, i) => Math.round(lerp(c, b[i], u))).join(',')})`
+      }
+      sonidoArmado(2.1)
+      await tween(2100, (_, lineal) => {
+        const pts = desde.map((p, i) => {
+          const u = suave(avance(lineal, (i / N_M) * 0.35, (i / N_M) * 0.35 + 0.65))
+          return [lerp(p[0], hasta[i][0], u), lerp(p[1], hasta[i][1], u)]
+        })
+        const g = suave(lineal)
+        linea.setAttribute('d', 'M' + pts.map((p) => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join('L'))
+        linea.setAttribute('stroke-width', lerp(6, anchoM, suave(avance(lineal, 0.45, 1))))
+        linea.setAttribute('stroke', color(suave(avance(lineal, 0.2, 0.8))))
+        $('ci-oscuro').style.opacity = 0.92 + 0.08 * g
+        const tramo = { pts, acum: [0], largo: 0 }
+        for (let i = 1; i < pts.length; i++) tramo.acum.push(tramo.acum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]))
+        tramo.largo = tramo.acum[tramo.acum.length - 1]
+        GRUPO.forEach((_, i) => {
+          const [x, y] = puntoEnPolilinea(tramo, lerp(fDesde[i], fHasta[i], g) * tramo.largo)
+          pintarMarca(i, x, y, lerp(rDesde, rHasta, g))
+        })
+      }, (u) => u)
+
+      // 3) Aparece la M de verdad (cuerpo y ruedas) y la línea se funde.
+      escena.setAttribute('opacity', 1)
+      ubicarM(X_INICIAL, ESCALA_CELU)
+      pintarLetras(0)
+      pintarRuedas({ escala: 0 })
+      $('ci-cuerpo').setAttribute('opacity', 0)
+      sonidoFormada()
+      await tween(450, (u) => {
+        $('ci-cuerpo').setAttribute('opacity', u)
+        linea.setAttribute('opacity', 1 - u)
+        pintarRuedas({ escala: salidaSuave(u) * (1 + 0.15 * Math.sin(Math.PI * u)) })
+      })
+      linea.setAttribute('opacity', 0)
+
+      // 4) La M sale del celular y crece; el celular se desvanece.
+      await tween(1300, (u) => {
+        const esc = lerp(ESCALA_CELU, ESCALA_INICIAL, u)
+        ubicarM(X_INICIAL, esc)
+        celu.style.opacity = 1 - u
+        celu.style.transform = `scale(${1 + 0.06 * u})`
+        GRUPO.forEach((_, i) => {
+          const [x, y] = logoAEscenario(puntoM(BASE_M[i]), X_INICIAL, esc)
+          pintarMarca(i, x, y, MARCADOR_R * esc * ESCENA_K)
+        })
+      })
+      celu.style.opacity = 0
+
+      // 5) El grupo recorre la M y aparece MESH (como la intro de la app, más lenta).
+      let sonoLogo = false
+      const recorrido = crearSonidoRecorrido()
+      let recorridoTermino = false
+      const posAnterior = GRUPO.map((_, i) => BASE_M[i])
+      try {
+        await tween(FIN * LENTO, (_, lineal) => {
+          const t = lineal * FIN
+          dibujarM(t)
+          // Sonidos del recorrido: soplido según la velocidad y un "tin" por hito.
+          if (!recorridoTermino) {
+            recorrido?.velocidad(Math.sin(Math.PI * avance(t, 0, RECORRIDO_FIN)))
+            if (t >= RECORRIDO_FIN) { recorridoTermino = true; recorrido?.fin() }
+          }
+          GRUPO.forEach((_, i) => {
+            const pos = cabeza(t) - SEPARACION[i]
+            HITOS.forEach((h, k) => { if (posAnterior[i] < h && pos >= h) sonidoHito(k, i) })
+            if (posAnterior[i] < RUTA_LARGO - 40 && pos >= RUTA_LARGO - 40) sonidoSalida(i)
+            posAnterior[i] = pos
+          })
+          if (!sonoLogo && t >= LETRAS[2].inicio) { sonoLogo = true; sonidoLogo() }
+        }, (u) => u)
+      } finally {
+        if (!recorridoTermino) recorrido?.fin()
+      }
+      dibujarM(FIN)
+
+      // 6) Gracias.
+      await esperar(350)
+      const gracias = $('ci-gracias')
+      await tween(900, (u) => {
+        gracias.style.opacity = u
+        gracias.style.transform = `translateY(${(1 - u) * 24}px)`
+      }, salidaSuave)
+    },
+  }
+  // 5 a 9: se une uno más por clic.
+  for (let n = 5; n <= 9; n++) {
+    PASOS[n] = async () => {
+      const i = n - 4
+      if (n === 5) { await bajarScroll(700); await esperar(150) }
+      const fila = filaPersona(GRUPO[i])
+      $('ci-personas').appendChild(fila)
+      const k = i + 1
+      $('ci-con-quien').textContent = `${k} confirmados`
+      $('ci-en-el-viaje').textContent = `En el viaje (${k})`
+      fila.style.height = '0px'
+      fila.style.opacity = 0
+      fila.style.background = 'var(--a-accent-weak)'
+      const cartel = enParalelo(entrarCartel(i))
+      await tween(320, (u) => {
+        fila.style.height = 48 * u + 'px'
+        fila.style.opacity = u
+        scroll.scrollTop = scrollMaximo()
+      })
+      await tween(900, (u) => { fila.style.background = `rgba(215, 102, 85, ${0.14 * (1 - u)})` })
+      fila.style.background = ''
+      await cartel
+    }
+  }
+
+  async function animar(n) {
+    mostrado = n
+    try {
+      await PASOS[n]?.()
+    } catch (e) {
+      if (e !== CORTE) throw e
+      return
+    }
+  }
+
+  // ===========================================================================
+  // Escucha los .paso de la sección (los marca el motor de la presentación)
+  // ===========================================================================
+  const marcasPaso = [...seccionCierre.querySelectorAll('.ci-pasos .paso')]
+  const contar = () => marcasPaso.filter((p) => p.classList.contains('visto')).length
+  let objetivo = contar()
+  let reentrada = false
+  let pendiente = false
+  function revisar() {
+    pendiente = false
+    const n = contar()
+    if (seccionCierre.classList.contains('activa')) musicaPaso(n)
+    if (reentrada) { reentrada = false; objetivo = n; aplicar(n); return }
+    if (n === objetivo) return
+    if (n === objetivo + 1) {
+      // Si había una animación a medias, se completa de golpe y arranca la siguiente.
+      aplicar(objetivo, { cortarSonido: false })
+      objetivo = n
+      animar(n)
+    } else {
+      objetivo = n
+      aplicar(n)
+    }
+  }
+  const programar = () => { if (!pendiente) { pendiente = true; queueMicrotask(revisar) } }
+  new MutationObserver(programar).observe(seccionCierre.querySelector('.ci-pasos'), { attributes: true, subtree: true, attributeFilter: ['class'] })
+  // Al entrar a la pantalla (desde otra), se muestra el estado sin animar.
+  new MutationObserver(() => {
+    if (seccionCierre.classList.contains('activa')) { reentrada = true; programar() }
+    else { corrida++; silenciar(); volumenMusica(0, 900) }
+  }).observe(seccionCierre, { attributes: true, attributeFilter: ['class'] })
+  aplicar(objetivo)
+})()
+</script>
+</body>
+</html>
