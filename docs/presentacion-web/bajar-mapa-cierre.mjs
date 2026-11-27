@@ -1,5 +1,5 @@
 // Baja los mosaicos satelitales (con nombres de calles, como la capa "Satélite" de la app)
-// que usa cierre.html para la zona UTN FRC → Paseo del Buen Pastor.
+// que usa la pantalla del Viaje YA de index.html para la zona UTN FRC → Paseo del Buen Pastor.
 //
 // Usa la misma key con la que la app muestra el mapa (GOOGLE_MAPS_ANDROID_API_KEY de
 // frontend/.env), que es la que tiene habilitada la Map Tiles API. Solo la lee: no queda en
@@ -19,7 +19,7 @@ const linea = readFileSync(envPath, 'utf8').split(/\r?\n/).find((l) => new RegEx
 if (!linea) throw new Error(`No hay ${variable} en ${envPath}`)
 const KEY = linea.split('=').slice(1).join('=').trim().replace(/^"|"$/g, '')
 
-// Misma zona y zoom que cierre.html (constantes ZONA y Z).
+// Misma zona y zoom que el script del cierre en index.html (constantes ZONA y Z).
 const Z = 16
 const ZONA = { n: -31.4080, s: -31.4585, o: -64.2030, e: -64.1770 }
 function mosaico(lat, lng) {

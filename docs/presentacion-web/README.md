@@ -9,6 +9,7 @@ espejados encima de las pantallas de demo (ver *Demo con los celulares*).
 
 **La primera vez:** doble clic en **`Bajar videos.cmd`**. Baja los videos de fondo (unos 58 MB) a `videos/`.
 No vienen en el repo porque su licencia no permite redistribuirlos. Sin ellos la página funciona igual, con fondo negro.
+Para la pantalla 30 hacen falta además el mapa satelital y la música (ver *Cierre*).
 
 ## Controles
 
@@ -24,7 +25,7 @@ Pensados para irse pasando el mouse entre presentadores.
 | ? | Ver u ocultar la ayuda de controles |
 | T | Mostrar u ocultar el cronómetro (arranca con el primer avance) |
 | Inicio / Fin | Primera / última pantalla |
-| Ctrl+Alt+Q | Ir al cierre; ya en el cierre, Mesh se va andando y la pantalla se funde a negro |
+| Ctrl+Alt+Q | Ir a la última pantalla (Agradecimientos); ya ahí, la pantalla se funde a negro |
 
 El número de pantalla queda en la dirección (`index.html#4`): si se recarga, vuelve a la misma.
 El cursor se esconde solo si nadie mueve el mouse.
@@ -38,7 +39,7 @@ El cursor se esconde solo si nadie mueve el mouse.
 | Organización | 11 a 13 | Scrum, los 13 sprints y velocity |
 | Arquitectura | 14 a 16 | Pase, piezas y tecnologías, motor de eventos |
 | Solución y demo | 17 a 26 | Funcionalidades, el pase y los 8 flujos, cada uno con su guion y un "detrás de escena" |
-| Cierre | 27 a 31 | Pase, lo que logramos y los desafíos, lecciones, agradecimientos y el logo para las preguntas |
+| Cierre | 27 a 31 | Pase, lo que logramos y los desafíos, lecciones, el Viaje YA que termina en la M de Mesh y agradecimientos |
 
 Las pantallas de pase ("Cómo lo construimos", "Mesh, por dentro", "Lo que nos llevamos") marcan el cambio
 de presentador. En cada pantalla se puede completar `data-quien` con el nombre de quien la presenta.
@@ -64,10 +65,34 @@ técnica.
 
 ## Cierre
 
-La última pantalla carga `docs/presentacion/cierre.html` (la animación de apertura de la app, lenta): se
-forma el logo y aparece *¿Preguntas?*. Con `Ctrl+Alt+Q` las letras vuelven a la M, Mesh se va andando y la
-pantalla se funde a negro; el script cierra todo en ese momento. Si el script está corriendo, el primer
-`Ctrl+Alt+Q` lo atiende él (suelta los celulares y lleva la presentación al cierre) y el segundo, la página.
+**Pantalla 30 · Viaje YA y la M de Mesh.** Un celular dibujado con la app (tema claro, mapa satelital)
+y 11 clics: Inicio → *Viaje YA* → *Auto* → se escribe "Buen Pastor" (las sugerencias reales de Google) →
+sala de espera, donde se unen los seis integrantes uno por clic, con sonido y un cartel grande a cada
+lado → *Arrancar viaje* con la ruta real en auto desde la UTN → la ruta se convierte en la M, sale del
+celular, el grupo la recorre y queda *MESH* con "Muchas gracias por su atención.". El clic izquierdo
+vuelve un paso; un clic en medio de una animación la completa. De fondo suena `cierre/finale.mp3`, que
+sube de volumen con cada clic y se apaga al salir de la pantalla.
+
+- Todo lo de esta pantalla está aislado: estilos en `<style id="estilos-cierre">`, lógica en
+  `<script id="script-cierre">` y clases e ids con prefijo `ci-`. No toca el motor: escucha los `.paso`
+  ocultos de su `<section>`.
+- La animación de la M es la de `docs/presentacion/cierre.html` (misma geometría y curvas).
+
+**Archivos que no están en el repo** (el repo es público y no se pueden redistribuir; van en el `.gitignore`
+de esta carpeta, como los videos). Sin ellos la pantalla funciona igual: sin mapa se ve un fondo liso y sin
+música no suena nada de fondo.
+
+- **Mapa satelital** (`cierre/mapa/`, unos 9 MB): son mosaicos de Google y sus términos no permiten
+  redistribuirlos. Se bajan una vez, con `frontend/.env` configurado (usa la key con la que la app muestra
+  el mapa), desde la raíz del repo:
+  `node docs/presentacion-web/bajar-mapa-cierre.mjs`
+- **Música** (`cierre/finale.mp3`): se pasa por fuera del repo y se copia a esa ruta con ese nombre.
+
+**Pantalla 31 · Agradecimientos** es la última (`data-final`). Con `Ctrl+Alt+Q` la pantalla se funde a negro
+y el título pasa a *Mesh · Hasta pronto*: el script cierra todo en ese momento. Si el script está corriendo,
+el primer `Ctrl+Alt+Q` lo atiende él (suelta los celulares y lleva la presentación a la última pantalla) y el
+segundo, la página. Si la pantalla final vuelve a traer `<iframe class="cierre">`, se usa esa animación como
+antes.
 
 ## Sumar pantallas
 

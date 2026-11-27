@@ -21,7 +21,7 @@ Los cambios de presentador coinciden con las pantallas "Le pasamos el mouse a qu
 | 2. Cómo lo construimos | 10 a 14 | 4:00 | Pedro (SM) |
 | 3. Mesh, por dentro | 15 a 17 | 3:30 | Un dev |
 | 4. Demo en vivo | 18 a 26 | 20:00 | Un narrador con el mouse y dos devs con los celulares (líder y participante) |
-| 5. Cierre | 27 a 31 | 4:00 | Un dev, y Manuel en las gracias |
+| 5. Cierre | 27 a 31 | 4:00 + ~2:00 del Viaje YA (a ajustar) | Un dev, Gon en el Viaje YA y Manuel en las gracias |
 
 **Demo:** quien narra maneja el mouse y nunca toca los celulares. Quienes tienen los teléfonos
 solo hacen lo que el narrador va diciendo. Para avanzar se hace clic **en los costados**: un clic sobre
@@ -272,15 +272,23 @@ con datos reales antes de diseñar, y registrar cada cambio de alcance en la WBS
 presupuesto."
 ▸ clic
 
-### 30 · Gracias — 0:50
+### 30 · Viaje YA y la M de Mesh — Gon — ~2:00 (a ajustar)
+Un celular con la app en el centro. Cada clic hace una acción en la app; lo que se dice, a definir.
+▸ clic toca *Viaje YA*
+▸ clic elige *Auto*
+▸ clic escribe "Buen Pastor" y aparecen las sugerencias
+▸ clic elige el Paseo del Buen Pastor y *Ir a este destino* → sala de espera con Gon
+▸ clic se une Manuel ▸ clic Pedro ▸ clic Joaco ▸ clic Franco ▸ clic Bauti (cada uno suena y aparece su cartel)
+▸ clic *Arrancar viaje*: la ruta UTN → Buen Pastor y los seis en la UTN
+▸ clic la ruta se convierte en la M, el grupo la recorre y queda *MESH* con "Muchas gracias por su atención."
+(La música de fondo sube con cada clic.)
+▸ clic
+
+### 31 · Gracias — 0:50 — **[37:00]**
 ▸ clic "A nuestros docentes, Cecilia Ortiz, María Irene Mac William y José Luis D'Agostino."
 ▸ clic "A quienes respondieron la encuesta y salieron a probar la app."
 ▸ clic "Y a nuestras familias, amigos, compañeros y a la UTN."
-▸ clic
-
-### 31 · ¿Preguntas? — **[37:00]**
-(Se forma el logo.) "Muchas gracias. Quedamos a disposición para sus preguntas."
-Al terminar las preguntas: `Ctrl+Alt+Q`, y Mesh se va andando.
+Queda esta pantalla para las preguntas. Al terminar: `Ctrl+Alt+Q`, y la pantalla se funde a negro.
 
 ---
 

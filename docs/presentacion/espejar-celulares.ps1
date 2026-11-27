@@ -26,9 +26,10 @@
     Ctrl+Alt+2  quitar / volver a conectar el celular de la derecha
                 (el que queda se centra, sin etiquetas ni indicador "en vivo")
     Ctrl+Alt+Q  finalizar: se van los celulares y se forma el logo de Mesh
-                (cierre.html; con la presentación, en su última pantalla). Queda
-                ahí hasta otro Ctrl+Alt+Q: Mesh se va andando y se cierra todo.
-                Si la presentación ya estaba en el cierre, Mesh se va enseguida.
+                (cierre.html; con la presentación, se va a su última pantalla). Queda
+                ahí hasta otro Ctrl+Alt+Q: Mesh se va (con la presentación, fundido
+                a negro) y se cierra todo. Si la presentación ya estaba en su última
+                pantalla, termina enseguida.
 
 .EXAMPLE
   .\espejar-celulares.ps1                 # etiquetas: Líder | Participante, sin nombres
@@ -972,8 +973,8 @@ function Esperar-Cierre([string]$dir = $perfilCierre) {
 }
 
 # Ctrl+Alt+Q con la presentación: no se abre otra ventana. Se le pide a la página
-# que vaya a su cierre (la animación de cierre.html, dentro de un iframe) y se le
-# da el foco, para que reciba el segundo Ctrl+Alt+Q cuando ya se soltaron los atajos.
+# que vaya a su última pantalla y se le da el foco, para que reciba el segundo
+# Ctrl+Alt+Q cuando ya se soltaron los atajos.
 function Pedir-Cierre-A-Diapositivas {
   if ($hwndEscenario -eq [IntPtr]::Zero) { Buscar-Escenario }
   if ($hwndEscenario -eq [IntPtr]::Zero) { return $false }
