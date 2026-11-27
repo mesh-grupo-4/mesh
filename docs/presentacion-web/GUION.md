@@ -273,7 +273,7 @@ presupuesto."
 ▸ clic
 
 ### 30 · Invitación — Gon
-"Ahora, los invitamos a acompañarnos en nuestro próximo viaje." Arranca la música, bajita.
+"Ahora, los invitamos a acompañarnos en nuestro próximo viaje." Arranca la música ("Luz", al 50 %).
 ▸ clic
 
 ### 31 · Viaje YA y la M de Mesh — Gon — ~2:00 (a ajustar)
@@ -285,6 +285,7 @@ Un celular con la app en el centro. Cada clic hace una acción en la app; lo que
 ▸ clic se une Manuel ▸ clic Pedro ▸ clic Joaco ▸ clic Franco ▸ clic Bauti (cada uno suena y aparece su cartel)
 ▸ clic *Arrancar viaje*: la ruta UTN → Buen Pastor y los seis en la UTN
 ▸ clic la ruta se convierte en la M, el grupo la recorre y queda *MESH* con "Muchas gracias por su atención."
+y, sola, "El tiempo enseña nuestro andar".
 (La música de fondo sube con cada clic.)
 ▸ clic
 

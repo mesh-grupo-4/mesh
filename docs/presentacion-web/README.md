@@ -66,15 +66,17 @@ técnica.
 ## Cierre
 
 **Pantalla 30 · Invitación.** Pase con video de fondo: "Ahora, los invitamos a acompañarnos en nuestro
-próximo viaje.", con los seis integrantes en caravana sobre una ruta. Acá arranca la música, al 10 %.
+próximo viaje.", con los seis integrantes en caravana sobre una ruta. Acá arranca la música, al 50 %.
 
 **Pantalla 31 · Viaje YA y la M de Mesh.** Un celular dibujado con la app (tema claro, mapa satelital)
 y 11 clics: Inicio → *Viaje YA* → *Auto* → se escribe "Buen Pastor" (las sugerencias reales de Google) →
 sala de espera, donde se unen los seis integrantes uno por clic, con sonido y un cartel grande a cada
 lado → *Arrancar viaje* con la ruta real en auto desde la UTN → la ruta se convierte en la M, sale del
-celular, el grupo la recorre y queda *MESH* con "Muchas gracias por su atención.". El clic izquierdo
-vuelve un paso; un clic en medio de una animación la completa. La música (`cierre/finale.mp3`) sigue desde
-la invitación, sube de volumen con cada clic y se apaga al pasar a Agradecimientos.
+celular, el grupo la recorre y queda *MESH* con "Muchas gracias por su atención." y, sola, "El tiempo
+enseña nuestro andar". El clic izquierdo vuelve un paso; un clic en medio de una animación la completa.
+La música ("Luz", de Ciro y los Persas, en `cierre/luz.mp3`) sigue desde la invitación, sube con cada clic
+hasta el 100 % y se apaga al pasar a Agradecimientos. Para probar otra: `index.html?musica=nombre` usa
+`cierre/nombre.mp3`.
 
 - Todo lo de esta pantalla está aislado: estilos en `<style id="estilos-cierre">`, lógica en
   `<script id="script-cierre">` y clases e ids con prefijo `ci-`. No toca el motor: escucha los `.paso`
@@ -89,7 +91,8 @@ música no suena nada de fondo.
   redistribuirlos. Se bajan una vez, con `frontend/.env` configurado (usa la key con la que la app muestra
   el mapa), desde la raíz del repo:
   `node docs/presentacion-web/bajar-mapa-cierre.mjs`
-- **Música** (`cierre/finale.mp3`): se pasa por fuera del repo y se copia a esa ruta con ese nombre.
+- **Música** (`cierre/luz.mp3`, "Luz" de Ciro y los Persas): se pasa por fuera del repo y se copia a esa
+  ruta con ese nombre.
 
 **Pantalla 32 · Agradecimientos** es la última (`data-final`). Con `Ctrl+Alt+Q` la pantalla se funde a negro
 y el título pasa a *Mesh · Hasta pronto*: el script cierra todo en ese momento. Si el script está corriendo,

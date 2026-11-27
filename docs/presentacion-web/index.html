@@ -938,6 +938,7 @@
   .ci-invitacion.activa .ci-inv-integrantes g { opacity: 1; transition-delay: calc(var(--i) * 140ms + 300ms); }
   .ci-invitacion h2.ci-inv-titulo { font-size: calc(var(--u) * 6.2); max-width: 20ch; }
 
+  #ci-frase { position: absolute; left: 0; right: 0; top: 880px; text-align: center; font-size: 42px; font-weight: 500; font-style: italic; letter-spacing: .01em; color: var(--text-dim); opacity: 0; }
   #ci-gracias { position: absolute; left: 0; right: 0; top: 770px; text-align: center; font-size: 72px; font-weight: 700; letter-spacing: -0.03em; color: var(--text); opacity: 0; }
 </style>
 </head>
@@ -1643,10 +1644,11 @@
         <g id="ci-marcas"></g>
       </svg>
       <div id="ci-gracias">Muchas gracias por su atención.</div>
+      <div id="ci-frase">El tiempo enseña nuestro andar</div>
     </div>
 
     <!-- Música de fondo: sube de volumen con cada paso. -->
-    <audio id="ci-musica" src="cierre/finale.mp3" preload="auto" loop></audio>
+    <audio id="ci-musica" src="cierre/luz.mp3" preload="auto" loop></audio>
 
     <!-- Un .paso por clic: el motor de la presentación los marca y el cierre los escucha. -->
     <div class="ci-pasos" hidden>
@@ -2418,9 +2420,25 @@
   }
 
   // ===========================================================================
-  // Música de fondo (cierre/finale.mp3): arranca bajita y sube con cada paso
+  // Música de fondo (cierre/luz.mp3): arranca en la invitación y sube con cada paso
   // ===========================================================================
   const musica = $('ci-musica')
+  // Suena cierre/luz.mp3 ("Luz", Ciro y los Persas). Para probar otra sin tocar el archivo:
+  // index.html?musica=nombre usa cierre/nombre.mp3.
+  const otraMusica = (q.get('musica') || '').replace(/[^\w-]/g, '')
+  if (otraMusica) musica.src = `cierre/${otraMusica}.mp3`
+  const temaMusica = otraMusica || 'luz'
+  /**
+   * Temas que suenan más bajo: el recorrido de volumen (del 10 % de la invitación al 85 % de la M)
+   * se estira a [desde, hasta]. Luz arranca al 50 % y termina al 100 %.
+   */
+  const RANGO_MUSICA = { luz: [0.5, 1] }
+  const rangoMusica = RANGO_MUSICA[temaMusica]
+  function ajustarVolumen(v) {
+    if (!rangoMusica || v <= 0) return v
+    const [desde, hasta] = rangoMusica
+    return Math.min(1, desde + ((v - 0.1) / (0.85 - 0.1)) * (hasta - desde))
+  }
   /** Arranca en la pantalla de invitación con este volumen. */
   const VOLUMEN_INVITACION = 0.1
   /** Volumen en cada paso del Viaje YA (0 = Inicio de la app, 11 = la M y MESH). */
@@ -2444,7 +2462,7 @@
       // Sin un clic previo el navegador no deja reproducir: se reintenta en el próximo paso.
       musica.play().catch(() => {})
     }
-    volumenMusica(v)
+    volumenMusica(ajustarVolumen(v))
   }
   const musicaPaso = (n) => musicaA(VOLUMEN_PASO[Math.min(n, VOLUMEN_PASO.length - 1)])
   /** Fuera del Viaje YA: suena bajita en la invitación y se apaga en cualquier otra pantalla. */
@@ -2892,11 +2910,14 @@
       dibujarM(FIN)
       $('ci-gracias').style.opacity = 1
       $('ci-gracias').style.transform = ''
+      $('ci-frase').style.opacity = 1
+      $('ci-frase').style.transform = ''
     } else {
       celu.style.opacity = ''
       celu.style.transform = ''
       escena.setAttribute('opacity', 0)
       $('ci-gracias').style.opacity = 0
+      $('ci-frase').style.opacity = 0
     }
   }
 
@@ -3102,6 +3123,14 @@
       await tween(900, (u) => {
         gracias.style.opacity = u
         gracias.style.transform = `translateY(${(1 - u) * 24}px)`
+      }, salidaSuave)
+
+      // 7) Y sola, un rato después, la frase.
+      await esperar(1600)
+      const frase = $('ci-frase')
+      await tween(1400, (u) => {
+        frase.style.opacity = u
+        frase.style.transform = `translateY(${(1 - u) * 16}px)`
       }, salidaSuave)
     },
   }
