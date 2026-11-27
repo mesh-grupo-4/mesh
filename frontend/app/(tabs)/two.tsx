@@ -63,6 +63,7 @@ import {
   type TipoActividadApi,
 } from '@/lib/viajesApi'
 import { MiniaturaRuta } from '@/components/tabs/MiniaturaRuta'
+import { IconoActividad } from '@/components/IconoActividad'
 
 type Tab = 'mis_viajes' | 'pasados'
 
@@ -187,9 +188,10 @@ function InfoViaje({
 }
 
 /**
- * Fila de datos al pie de cada tarjeta de viaje: distancia, tiempo, actividad y salida
- * (individual o grupal, con una o tres personitas). La actividad va siempre, así se sabe qué
- * es aunque el mapa no la muestre. Un dato que falta va en "--".
+ * Fila de datos al pie de cada tarjeta de viaje, en cuatro columnas iguales y centradas:
+ * distancia, tiempo, actividad (solo el ícono) y salida ("Solo" o "Grupal", con una o tres
+ * personitas). La actividad va siempre, así se sabe qué es aunque el mapa no la muestre. Un
+ * dato que falta va en "--".
  */
 function FilaDatosViaje({
   distanciaM,
@@ -206,27 +208,38 @@ function FilaDatosViaje({
   esGrupal: boolean
   theme: ReturnType<typeof useTheme>
 }) {
-  const datos = [
-    { valor: formatKm(distanciaM), etiqueta: 'Distancia' },
-    { valor: formatDurationHm(tiempoSeg), etiqueta: etiquetaTiempo },
-    { valor: etiquetaActividad(actividad), etiqueta: 'Actividad' },
-  ]
+  const separador = { borderLeftColor: theme.border }
   return (
     <View style={[styles.tarjetaMetricas, { borderTopColor: theme.border }]}>
-      {datos.map((d) => (
-        <View key={d.etiqueta} style={styles.tarjetaMetrica}>
-          <Text style={[styles.tarjetaMetricaValor, { color: theme.text }]} numberOfLines={1}>
-            {d.valor}
-          </Text>
-          <Text style={[styles.tarjetaMetricaLabel, { color: theme.textMute }]}>{d.etiqueta}</Text>
+      <View style={styles.tarjetaMetrica}>
+        <Text style={[styles.tarjetaMetricaValor, { color: theme.text }]} numberOfLines={1}>
+          {formatKm(distanciaM)}
+        </Text>
+        <Text style={[styles.tarjetaMetricaLabel, { color: theme.textMute }]}>Distancia</Text>
+      </View>
+      <View style={[styles.tarjetaMetrica, styles.tarjetaMetricaSeparada, separador]}>
+        <Text style={[styles.tarjetaMetricaValor, { color: theme.text }]} numberOfLines={1}>
+          {formatDurationHm(tiempoSeg)}
+        </Text>
+        <Text style={[styles.tarjetaMetricaLabel, { color: theme.textMute }]} numberOfLines={1}>
+          {etiquetaTiempo}
+        </Text>
+      </View>
+      <View
+        style={[styles.tarjetaMetrica, styles.tarjetaMetricaSeparada, separador]}
+        accessible
+        accessibilityLabel={`Actividad: ${etiquetaActividad(actividad)}`}
+      >
+        <View style={styles.tarjetaMetricaIcono}>
+          <IconoActividad actividad={actividad} size={22} color={theme.text} />
         </View>
-      ))}
-      {/* Ícono y "Salida" centrados entre sí: la palabra queda debajo del medio del dato. */}
-      <View style={styles.tarjetaMetricaSalida}>
-        <View style={styles.tarjetaMetricaSalidaValor}>
+        <Text style={[styles.tarjetaMetricaLabel, { color: theme.textMute }]}>Actividad</Text>
+      </View>
+      <View style={[styles.tarjetaMetrica, styles.tarjetaMetricaSeparada, separador]}>
+        <View style={styles.tarjetaMetricaIcono}>
           <Ionicons name={esGrupal ? 'people' : 'person'} size={16} color={theme.text} />
           <Text style={[styles.tarjetaMetricaValor, { color: theme.text }]} numberOfLines={1}>
-            {esGrupal ? 'Grupal' : 'Individual'}
+            {esGrupal ? 'Grupal' : 'Solo'}
           </Text>
         </View>
         <Text style={[styles.tarjetaMetricaLabel, { color: theme.textMute }]}>Salida</Text>
@@ -263,11 +276,6 @@ function TarjetaViaje({
   const contenido = (
     <>
       <View style={styles.tarjetaFila}>
-        <MiniaturaRuta
-          coordenadas={v.trazado_miniatura ?? []}
-          actividad={v.tipo_actividad}
-          textoSinTrazado={v.estado === 'planificado' ? 'Sin ruta todavía' : 'Sin recorrido'}
-        />
         <View style={styles.tarjetaTextos}>
           <View style={styles.tarjetaHeader}>
             <Text
@@ -280,24 +288,31 @@ function TarjetaViaje({
               <BotonQuitar nombre={nombre} onPress={onQuitar} theme={theme} />
             ) : null}
           </View>
-          <InfoViaje
-            modo={modo}
-            rol={v.mi_estado === 'creador' ? 'Organizador' : v.mi_estado === 'confirmado' ? 'Participante' : ''}
-            badge={
-              dimmed ? (
-                <Badge tone="mute">No realizado</Badge>
-              ) : v.estado === 'en_curso' ? (
-                <Badge tone="live" pulse>
-                  En vivo
-                </Badge>
-              ) : null
-            }
-            theme={theme}
-          />
-          <Text style={[styles.tarjetaMeta, { color: dimmed ? theme.textMute : theme.textDim }]}>
-            <Feather name="calendar" size={12} />{'  '}{formatearFechaHoraCorta(v.fecha_programada)}
-          </Text>
+          <View style={styles.tarjetaMedio}>
+            <InfoViaje
+              modo={modo}
+              rol={v.mi_estado === 'creador' ? 'Organizador' : v.mi_estado === 'confirmado' ? 'Participante' : ''}
+              badge={
+                dimmed ? (
+                  <Badge tone="mute">No realizado</Badge>
+                ) : v.estado === 'en_curso' ? (
+                  <Badge tone="live" pulse>
+                    En vivo
+                  </Badge>
+                ) : null
+              }
+              theme={theme}
+            />
+            <Text style={[styles.tarjetaMeta, { color: dimmed ? theme.textMute : theme.textDim }]}>
+              <Feather name="calendar" size={12} />{'  '}{formatearFechaHoraCorta(v.fecha_programada)}
+            </Text>
+          </View>
         </View>
+        <MiniaturaRuta
+          coordenadas={v.trazado_miniatura ?? []}
+          actividad={v.tipo_actividad}
+          textoSinTrazado={v.estado === 'planificado' ? 'Sin ruta todavía' : 'Sin recorrido'}
+        />
       </View>
       <FilaDatosViaje
         distanciaM={v.distancia_planeada_m ?? null}
@@ -386,11 +401,6 @@ function TarjetaFinalizado({
       style={[styles.tarjeta, styles.tarjetaDimmed, { backgroundColor: theme.surface, borderColor: theme.border }]}
     >
       <View style={styles.tarjetaFila}>
-        <MiniaturaRuta
-          coordenadas={v.trazado_miniatura ?? []}
-          actividad={v.tipo_actividad}
-          textoSinTrazado="Sin recorrido"
-        />
         <View style={styles.tarjetaTextos}>
           <View style={styles.tarjetaHeader}>
             <Text style={[styles.tarjetaTitulo, { color: theme.textDim }]} numberOfLines={2}>
@@ -400,20 +410,27 @@ function TarjetaFinalizado({
               <BotonQuitar nombre={nombre} onPress={onQuitar} theme={theme} />
             ) : null}
           </View>
-          <InfoViaje
-            modo={modo}
-            rol={v.mi_estado === 'creador' ? 'Organizador' : 'Participante'}
-            theme={theme}
-          />
-          <Text style={[styles.tarjetaMeta, { color: theme.textMute }]}>
-            <Feather name="calendar" size={12} />{'  '}{formatearFechaCorta(v.fecha_programada)}
-          </Text>
-          {v.fecha_fin_real && (
+          <View style={styles.tarjetaMedio}>
+            <InfoViaje
+              modo={modo}
+              rol={v.mi_estado === 'creador' ? 'Organizador' : 'Participante'}
+              theme={theme}
+            />
             <Text style={[styles.tarjetaMeta, { color: theme.textMute }]}>
-              <Feather name="flag" size={12} />{'  '}Finalizó {formatearFechaCorta(v.fecha_fin_real)}
+              <Feather name="calendar" size={12} />{'  '}{formatearFechaCorta(v.fecha_programada)}
             </Text>
-          )}
+            {v.fecha_fin_real && (
+              <Text style={[styles.tarjetaMeta, { color: theme.textMute }]}>
+                <Feather name="flag" size={12} />{'  '}Finalizó {formatearFechaCorta(v.fecha_fin_real)}
+              </Text>
+            )}
+          </View>
         </View>
+        <MiniaturaRuta
+          coordenadas={v.trazado_miniatura ?? []}
+          actividad={v.tipo_actividad}
+          textoSinTrazado="Sin recorrido"
+        />
       </View>
       <FilaDatosViaje
         distanciaM={v.mi_distancia_m}
@@ -1051,10 +1068,12 @@ const styles = StyleSheet.create({
   tarjetaDimmed: { opacity: 0.75 },
   // minHeight = alto del botón de quitar (18 + padding 4·2): con o sin tacho,
   // los badges quedan a la misma distancia del ícono.
-  // Mapa cuadrado de la ruta (o ícono de la actividad) a la izquierda y textos a la derecha:
-  // así el título tiene dos líneas enteras en lugar de cortarse contra el mapa.
+  // Textos a la izquierda y mapa cuadrado de la ruta (o ícono de la actividad) a la derecha.
+  // El título va arriba (hasta dos líneas) y modo, rol y fecha se centran en el alto que queda
+  // hasta el pie del mapa.
   tarjetaFila: { flexDirection: 'row', gap: 12 },
   tarjetaTextos: { flex: 1, minWidth: 0, gap: 6 },
+  tarjetaMedio: { flex: 1, justifyContent: 'center', gap: 6 },
   tarjetaHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, minHeight: 26 },
   botonQuitar: { padding: 4, marginLeft: 2 },
   tarjetaTitulo: { flex: 1, fontSize: 16, lineHeight: 21, fontWeight: '700' },
@@ -1068,10 +1087,11 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     borderTopWidth: 1,
   },
-  tarjetaMetrica: { flex: 1, minWidth: 0, gap: 2 },
-  // Salida toma su propio ancho ("Individual" + ícono) y centra la etiqueta debajo del dato.
-  tarjetaMetricaSalida: { flexShrink: 0, alignItems: 'center', gap: 2 },
-  tarjetaMetricaSalidaValor: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  // Cuatro columnas del mismo ancho, cada dato centrado sobre su etiqueta.
+  tarjetaMetrica: { flex: 1, minWidth: 0, alignItems: 'center', gap: 2, paddingHorizontal: 2 },
+  tarjetaMetricaSeparada: { borderLeftWidth: StyleSheet.hairlineWidth },
+  // Mismo alto que un valor de texto, así íconos y números quedan alineados.
+  tarjetaMetricaIcono: { flexDirection: 'row', alignItems: 'center', gap: 4, height: 20 },
   tarjetaMetricaValor: { fontSize: 15, fontWeight: '800' },
   tarjetaMetricaLabel: { fontSize: 11, fontWeight: '600' },
   filaAcciones: { flexDirection: 'row', gap: 10, marginTop: 8 },
